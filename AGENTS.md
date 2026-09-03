@@ -1,0 +1,45 @@
+# AGENTS.md
+
+Standing rules for any coding agent working in this repository. These override defaults.
+
+## What this is
+
+MenuBarStats: a free, open source (MIT) macOS menu bar system monitor that replaces iStat Menus and works with menu bar managers (Thaw, Bartender) on macOS 27. Design: `docs/DESIGN.md`. Plan: `docs/PLAN.md`. Progress log: `docs/PROGRESS.md` (create it on first use).
+
+## Environment
+
+- macOS 27.0 beta on an Apple M4 Pro MacBook Pro. Command Line Tools only, no Xcode. Swift 6.2.3. SDK 26.2.
+- Build with SwiftPM: `swift build`, `swift test`, `make app`, `make run`, `make stop`. Never use `xcodebuild`. Never add an `.xcodeproj`.
+- Zero third-party dependencies in v1.
+- Thaw (`com.stonerl.Thaw`), iStat Menus, and Stats are installed. Never modify them, their preferences, or their launch agents. Do not launch Thaw; ask David to run it when a check needs it.
+
+## The identity contract (never break this)
+
+Full text in `docs/DESIGN.md` section 3.5. Short form:
+
+1. One process owns every status item. No helper, no XPC, no second bundle.
+2. Bundle identifier `net.brustein.MenuBarStats`. Never change it.
+3. Autosave names are fixed: `MenuBarStats.CPU`, `MenuBarStats.GPU`, `MenuBarStats.Memory`, `MenuBarStats.Disks`, `MenuBarStats.Network`, `MenuBarStats.Sensors`, `MenuBarStats.Battery`, `MenuBarStats.Weather`, `MenuBarStats.Time`, `MenuBarStats.Combined`. Extra instances are `MenuBarStats.Weather.2` and so on. `ModuleID` in `MenuBarStatsCore` is the only place these strings live.
+4. `NSStatusBarButton.title` is always empty. Menu bar content is an `NSImage` in `button.image`.
+5. `setAccessibilityIdentifier(autosaveName)` and `setAccessibilityLabel(displayName)` once, never changed. Live readings go in `setAccessibilityValue` only.
+6. Never set the status item window's title. Never remove a status item; toggle `isVisible`. No `.removalAllowed`.
+7. Single running instance.
+
+## Code rules
+
+- Swift 6 language mode with strict concurrency. No `@unchecked Sendable` without a comment explaining why. No `DispatchQueue.main.async` where `@MainActor` works.
+- Layering: `CSystemSources` <- `SystemSources` <- `MenuBarStatsCore` <- `MenuBarStatsUI` <- `MenuBarStatsApp`. Nothing below `MenuBarStatsUI` imports AppKit or SwiftUI.
+- Every system data source has an `isAvailable` check and degrades to "unavailable" in the UI. Private APIs (IOHID event client, IOReport, SMC) are wrapped in one type each in `SystemSources` and used nowhere else.
+- No force unwraps or `try!` outside tests. Errors are logged with `os.Logger`, subsystem `net.brustein.MenuBarStats`, one category per module.
+- Formatting: 4-space indent, 120 columns, `// MARK:` sections, doc comments on public API.
+- American spelling everywhere: code, comments, commit messages, docs, UI strings. Examples: color, behavior, initialize, optimize, canceled, gray, center, license.
+
+## Workflow rules
+
+- Work the phases in `docs/PLAN.md` in order. Do not start the next phase without David's review unless told to continue.
+- Every task ends with its "Verify" commands run and the output recorded in `docs/PROGRESS.md` under the task ID.
+- Commit after every task: `P2-T1: add Open-Meteo client`. No attribution lines, no co-author trailers.
+- If a data source does not behave as `docs/DESIGN.md` says, record what you observed in `docs/PROGRESS.md`, choose the nearest working approach, and explain it in the commit message. Do not invent values.
+- Ask before: changing the bundle identifier or autosave names, adding a dependency, installing software, requesting a new TCC permission category, or touching anything outside this repository.
+- Do not run `sudo`. Nothing in v1 needs root.
+- Temporary files go in `dist/` or the system temp directory, never in the repository root.
