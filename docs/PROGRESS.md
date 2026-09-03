@@ -64,3 +64,37 @@ TeamIdentifier=not set
 ```
 
 Additional validation: `sh -n Scripts/make-app.sh` succeeded and `plutil -lint Scripts/Info.plist` reported `OK`.
+
+## P0-T3 Application shell
+
+Implemented the accessory application lifecycle, single-instance guard, permanent registry of all ten status items,
+static image-rendered CPU item, Settings and Quit menu, placeholder SwiftUI settings sidebar, and identity self-test.
+
+`make run` built, signed, and launched the app successfully. `pgrep` confirmed one running process:
+
+```text
+14217 /Users/david/MenuBarStats/dist/MenuBarStats.app/Contents/MacOS/MenuBarStats
+```
+
+Launching a second copy with `open -n` left that same single process running. The second process notified the first to
+show Settings and exited.
+
+The debug-level unified log contained one identity line for every permanent status item. Representative lines:
+
+```text
+autosaveName=MenuBarStats.CPU window.title=MenuBarStats.CPU AXIdentifier=MenuBarStats.CPU AXLabel=CPU AXTitle=
+autosaveName=MenuBarStats.Weather window.title=MenuBarStats.Weather AXIdentifier=MenuBarStats.Weather AXLabel=Weather AXTitle=
+autosaveName=MenuBarStats.Combined window.title=MenuBarStats.Combined AXIdentifier=MenuBarStats.Combined AXLabel=Combined AXTitle=
+```
+
+All ten lines had a window title and AX identifier equal to the fixed autosave name, the expected static AX label,
+and an empty AX title. The app defaults also recorded hidden visibility for all nine non-CPU items.
+
+Pending manual verification:
+
+- Confirm the CPU image and menu are visually correct, Settings opens and closes, and the menu's Quit item works.
+- Option-drag the CPU item once, then check for `NSStatusItem Preferred Position MenuBarStats.CPU` in the app defaults.
+- With Thaw running, perform the read-only identity check from the plan and confirm exactly one fixed CPU identity.
+
+The attempted automated menu-bar screenshot failed with `could not create image from rect`, so visual verification
+requires direct UI review.

@@ -1,5 +1,7 @@
-import MenuBarStatsUI
+import AppKit
 
-guard MenuBarStatsUIMetadata.isAvailable else {
-    fatalError("MenuBarStats UI is unavailable")
-}
+let application = NSApplication.shared
+let appDelegate = AppDelegate()
+application.delegate = appDelegate
+application.setActivationPolicy(.accessory)
+application.run()
