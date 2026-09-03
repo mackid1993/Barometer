@@ -69,7 +69,10 @@ let package = Package(
         .executableTarget(
             name: "mbs-probe",
             dependencies: ["MenuBarStatsCore"],
-            swiftSettings: strictConcurrency
+            swiftSettings: strictConcurrency,
+            linkerSettings: [
+                .linkedFramework("AppKit"),
+            ]
         ),
         .testTarget(
             name: "MenuBarStatsCoreTests",

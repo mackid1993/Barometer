@@ -98,3 +98,27 @@ Pending manual verification:
 
 The attempted automated menu-bar screenshot failed with `could not create image from rect`, so visual verification
 requires direct UI review.
+
+## P0-T4 Probe executable and identity probe
+
+Added dependency-free argument parsing plus the `identity` and `version` subcommands. The identity probe uses a
+temporary AppKit status item and removes it before exiting.
+
+`swift run mbs-probe identity` (exit 0):
+
+```text
+Build of product 'mbs-probe' complete! (0.99s)
+autosaveName=MenuBarStats.Probe
+window.title=MenuBarStats.Probe
+AXIdentifier=MenuBarStats.Probe
+AXLabel=Probe
+AXTitle=
+button.title=
+```
+
+Additional check, `swift run mbs-probe version` (exit 0):
+
+```text
+Build of product 'mbs-probe' complete! (0.15s)
+0.1.0
+```
