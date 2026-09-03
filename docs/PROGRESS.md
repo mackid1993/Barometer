@@ -32,7 +32,7 @@ summary; this behavior must be revisited as part of P0-T5 identity-test verifica
 `git log --oneline | head` after the task commit:
 
 ```text
-1b5bf58 P0-T1: repository and package skeleton
+287861d P0-T1: repository and package skeleton
 ```
 
 ## P0-T2 Bundle assembly and Makefile
@@ -93,7 +93,7 @@ and an empty AX title. The app defaults also recorded hidden visibility for all 
 Pending manual verification:
 
 - Confirm the CPU image and menu are visually correct, Settings opens and closes, and the menu's Quit item works.
-- Option-drag the CPU item once, then check for `NSStatusItem Preferred Position MenuBarStats.CPU` in the app defaults.
+- Command-drag the CPU item once, then check for `NSStatusItem Preferred Position MenuBarStats.CPU` in the app defaults.
 - With Thaw running, perform the read-only identity check from the plan and confirm exactly one fixed CPU identity.
 
 The attempted automated menu-bar screenshot failed with `could not create image from rect`, so visual verification
@@ -122,3 +122,35 @@ Additional check, `swift run mbs-probe version` (exit 0):
 Build of product 'mbs-probe' complete! (0.15s)
 0.1.0
 ```
+
+## P0-T5 Unit test for the identity table
+
+Added `IdentityContractTests`, which hard-codes all ten permanent autosave names and compares them in order with
+`ModuleID.allCases`.
+
+`swift test --filter IdentityContractTests` (exit 0):
+
+```text
+[0/1] Planning build
+Building for debugging...
+[0/8] Write sources
+[1/8] Write swift-version--1AB21518FC5DEDBE.txt
+[3/6] Compiling MenuBarStatsCoreTests IdentityContractTests.swift
+[4/6] Emitting module MenuBarStatsCoreTests
+[4/6] Write Objects.LinkFileList
+[5/6] Linking MenuBarStatsPackageTests
+Build complete! (0.64s)
+```
+
+Toolchain deviation: the command exits successfully after compiling and linking but does not print a test-execution
+summary, including when passed `--enable-swift-testing --disable-xctest`. The Command Line Tools include
+`Testing.framework` but no `XCTest` module, and SwiftPM does not visibly invoke the Swift Testing bundle after it is
+built. To verify the contract logic actually executes, the same hard-coded comparison was compiled with `swiftc`
+against `ModuleID.swift` and run as an ignored temporary executable:
+
+```text
+Identity contract check passed for 10 modules
+```
+
+The test source remains in the normal SwiftPM test target. Recheck the runner behavior after the next Command Line
+Tools update.
