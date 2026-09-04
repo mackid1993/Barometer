@@ -43,7 +43,16 @@ struct BatteryTests {
             adapter: nil,
             isLowPowerModeEnabled: true
         )
-        let monitor = BatteryMonitor(read: { snapshot }, isAvailable: { true })
+        let device = BluetoothBatterySnapshot(
+            id: "headphones",
+            name: "Headphones",
+            levels: [BluetoothBatteryLevel(component: .device, percent: 75)]
+        )
+        let monitor = BatteryMonitor(
+            read: { snapshot },
+            isAvailable: { true },
+            bluetoothDevices: { [device] }
+        )
 
         #expect(await monitor.isAvailable)
         let sample = try await monitor.sample()
@@ -51,5 +60,6 @@ struct BatteryTests {
         #expect(sample.state == .discharging)
         #expect(sample.timeRemainingMinutes == 187)
         #expect(sample.isLowPowerModeEnabled)
+        #expect(sample.bluetoothDevices == [device])
     }
 }

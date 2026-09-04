@@ -44,6 +44,15 @@ private func runBatteryProbe() throws {
         )
     }
     print("low power mode: \(sample.isLowPowerModeEnabled ? "on" : "off")")
+    let devices = BluetoothBatterySource().read()
+    if devices.isEmpty {
+        print("Bluetooth batteries: none published")
+    } else {
+        for device in devices {
+            let levels = device.levels.map { "\($0.component.rawValue) \($0.percent)%" }.joined(separator: ", ")
+            print("Bluetooth battery: \(device.name) — \(levels)")
+        }
+    }
 }
 
 private func runIdentityProbe() {

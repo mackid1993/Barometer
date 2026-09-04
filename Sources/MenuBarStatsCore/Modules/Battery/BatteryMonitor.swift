@@ -20,9 +20,19 @@ public struct BatterySample: Equatable, Sendable {
     public let condition: String?
     public let adapter: PowerAdapterSnapshot?
     public let isLowPowerModeEnabled: Bool
+    public let bluetoothDevices: [BluetoothBatterySnapshot]
 
     /// Creates a timestamped sample from the normalized system source.
     public init(timestamp: Date = Date(), snapshot: BatterySnapshot) {
+        self.init(timestamp: timestamp, snapshot: snapshot, bluetoothDevices: [])
+    }
+
+    /// Creates a timestamped sample with connected device battery readings.
+    public init(
+        timestamp: Date = Date(),
+        snapshot: BatterySnapshot,
+        bluetoothDevices: [BluetoothBatterySnapshot]
+    ) {
         self.timestamp = timestamp
         name = snapshot.name
         chargePercent = snapshot.chargePercent
@@ -40,6 +50,7 @@ public struct BatterySample: Equatable, Sendable {
         condition = snapshot.condition
         adapter = snapshot.adapter
         isLowPowerModeEnabled = snapshot.isLowPowerModeEnabled
+        self.bluetoothDevices = bluetoothDevices
     }
 }
 
@@ -64,30 +75,38 @@ public actor BatteryMonitor: Monitor {
 
     private let readSnapshot: @Sendable () throws -> BatterySnapshot
     private let sourceIsAvailable: @Sendable () -> Bool
+    private let readBluetoothDevices: @Sendable () -> [BluetoothBatterySnapshot]
 
     /// Whether the system currently publishes an internal battery.
     public var isAvailable: Bool { sourceIsAvailable() }
 
     /// Creates the production battery monitor.
-    public init(interval: Duration = .seconds(10), source: BatterySource = BatterySource()) {
+    public init(
+        interval: Duration = .seconds(10),
+        source: BatterySource = BatterySource(),
+        bluetoothSource: BluetoothBatterySource = BluetoothBatterySource()
+    ) {
         self.interval = interval
         readSnapshot = { try source.read() }
         sourceIsAvailable = { source.isAvailable }
+        readBluetoothDevices = { bluetoothSource.read() }
     }
 
     /// Creates a monitor with injectable closures for deterministic verification.
     public init(
         interval: Duration = .seconds(10),
         read: @escaping @Sendable () throws -> BatterySnapshot,
-        isAvailable: @escaping @Sendable () -> Bool
+        isAvailable: @escaping @Sendable () -> Bool,
+        bluetoothDevices: @escaping @Sendable () -> [BluetoothBatterySnapshot] = { [] }
     ) {
         self.interval = interval
         readSnapshot = read
         sourceIsAvailable = isAvailable
+        readBluetoothDevices = bluetoothDevices
     }
 
     /// Collects the latest battery state.
     public func sample() throws -> BatterySample {
-        BatterySample(snapshot: try readSnapshot())
+        BatterySample(snapshot: try readSnapshot(), bluetoothDevices: readBluetoothDevices())
     }
 }

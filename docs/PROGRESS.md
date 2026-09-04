@@ -809,6 +809,22 @@ Verification:
   source fallback.
 - `git diff --check` passed, and the changed Swift files contain no lines longer than 120 columns.
 
+## P5-T3 Bluetooth device batteries
+
+Implemented a generic IORegistry scanner for device, left, right, and case battery percentages published by
+`AppleDeviceManagementHIDEventService` and `IOBluetoothDevice`. Device names and stable identifiers come from
+runtime properties, not a model or hardware identifier table. Duplicate services are collapsed in favor of the
+entry with the most component detail. The Battery monitor samples these readings with the internal battery, and the
+dropdown lists them when the Bluetooth battery setting is enabled.
+
+Verification:
+
+- `swift test --filter 'BatteryTests|BluetoothBatterySourceTests'` exited 0. Parser coverage verifies AirPods-style
+  left, right, and case levels, stable device identity, invalid percentage rejection, and monitor propagation.
+- `swift run mbs-probe battery` completed successfully and reported `Bluetooth batteries: none published`, the
+  correct graceful result with no supported connected-device keys present during verification.
+- `swift build`, `git diff --check`, and the 120-column check passed.
+
 ## P3-T2 Network module
 
 Completed the Network status item, live monitor, dropdown, and settings pane. The monitor calculates rates from

@@ -64,6 +64,21 @@ public struct BatteryDropdownView: View {
                     BatteryMetricRow(label: "Connection", value: adapter.isWireless == true ? "Wireless" : "Wired")
                 }
 
+                if settingsStore.settings.battery.showsBluetoothDevices,
+                   let devices = sample?.bluetoothDevices,
+                   !devices.isEmpty {
+                    Divider()
+                    Text("BLUETOOTH BATTERIES").batterySectionLabel()
+                    ForEach(devices) { device in
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(device.name).font(.subheadline.weight(.medium)).lineLimit(1)
+                            ForEach(device.levels, id: \.component) { level in
+                                BatteryMetricRow(label: level.component.rawValue, value: "\(level.percent)%")
+                            }
+                        }
+                    }
+                }
+
             }
             .padding(14)
         }
