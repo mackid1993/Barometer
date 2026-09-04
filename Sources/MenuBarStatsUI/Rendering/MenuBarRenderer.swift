@@ -715,7 +715,6 @@ public struct SensorStackValue {
 /// Renders arbitrary labeled readings in matched two-row columns.
 public struct SensorStackRenderer: MenuBarRenderer {
     private let values: [SensorStackValue]
-    private static let valueTrailingInset: CGFloat = 1
 
     /// Creates a compact stack in user-selected order.
     public init(values: [SensorStackValue]) {
@@ -816,8 +815,7 @@ public struct SensorStackRenderer: MenuBarRenderer {
         columnWidth: CGFloat,
         valueWidth: CGFloat
     ) -> (label: CGFloat, value: CGFloat) {
-        let trailingOrigin = columnX + max(0, columnWidth - valueWidth)
-        return (columnX, max(columnX, trailingOrigin - valueTrailingInset))
+        (columnX, columnX + max(0, columnWidth - valueWidth))
     }
 }
 

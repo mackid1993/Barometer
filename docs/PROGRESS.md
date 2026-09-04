@@ -1936,31 +1936,29 @@ Verification:
 - Strict code-signature verification passed. A Retina menu bar capture confirmed the Barometer readings are packed
   together without renderer-added edge gaps. No notarization or stapling command ran.
 
-### P7-T4 isolate compact spacing from the host default
+### P7-T4 restore the system status-item spacing default
 
 The widgets widened again even though their rendered images had no edge padding. Live diagnostics showed the by-host
 global `NSStatusItemSpacing` and `NSStatusItemSelectionPadding` values had returned to four. AppKit consequently made
 every Barometer window four points wider than its explicit item length and centered the image inside that shell.
 
-An application-domain experiment established that AppKit honors the same keys in `com.barometer.app` before
-status-item creation. One point provides the requested dense outer boundary. The Sensors renderer separately keeps
-its full-width temperature one point inside the existing canvas so it cannot run directly into `MEM`; this does not
-widen either status item. Barometer applies the outer value only to its own defaults domain after validating and
-claiming the single app instance, but before constructing `StatusItemRegistry`.
-Other menu bar applications and the by-host global preference remain untouched.
+An application-domain experiment established that AppKit also honors these keys in `com.barometer.app`. Adjusting
+them made Barometer interact unpredictably with the user's system-wide spacing and other menu bar applications.
+Barometer now removes only its own legacy application-domain copies before constructing `StatusItemRegistry` and
+sets no replacement. AppKit therefore owns one consistent boundary between every independent status item. The
+by-host global preference and every other application's preferences remain untouched.
 
 The Sensors renderer also stopped using a calculated `.kern` value on the colon to push each live temperature across
 the row. It now measures an explicit label field and value field per two-row column, draws `CPU:` and `GPU:` from the
-same leading coordinate, and trailing-aligns both temperatures. Reading changes cannot distort label typography or
-change the relationship between the two rows.
+same leading coordinate, and trailing-aligns both temperatures. It has no order-specific trailing exception. Reading
+changes cannot distort label typography or change the relationship between the two rows.
 
 Verification:
 
-- An isolated defaults-suite test verifies both Barometer application-domain values are one.
+- An isolated defaults-suite test verifies both legacy Barometer application-domain values are removed.
 - `swift test`, `swift build -c release`, and `git diff --check` completed successfully.
-- With the by-host global values still at four, every installed Barometer window was exactly one point wider than
-  its matching button, image, and immutable item length. The live capture showed compact separation without
-  collisions, plus aligned CPU/GPU temperature label and value columns.
+- The installed application uses AppKit's current spacing without writing a Barometer override. CPU/GPU temperature
+  labels and values retain their explicit column alignment.
 - Strict code-signature verification passed. No notarization or stapling command ran.
 
 ### P7-T4 expose the last successful weather refresh

@@ -1,16 +1,16 @@
 import Foundation
 
-/// Keeps Barometer's independently movable items compact without changing system-wide spacing.
+/// Removes spacing overrides written by earlier Barometer builds.
 public enum StatusItemSpacingPolicy {
     static let spacingKey = "NSStatusItemSpacing"
     static let selectionPaddingKey = "NSStatusItemSelectionPadding"
 
-    /// One point keeps independently movable items dense without allowing their canvases to touch.
-    static let compactValue = 1
-
-    /// Applies the AppKit status-item spacing override before any status item is created.
-    public static func apply(to defaults: UserDefaults = .standard) {
-        defaults.set(compactValue, forKey: spacingKey)
-        defaults.set(compactValue, forKey: selectionPaddingKey)
+    /// Restores AppKit's normal spacing behavior before any status item is created.
+    ///
+    /// `UserDefaults.standard` removes values only from Barometer's application domain. It does not alter the
+    /// user's by-host global settings or another application's preferences.
+    public static func restoreSystemDefault(in defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: spacingKey)
+        defaults.removeObject(forKey: selectionPaddingKey)
     }
 }

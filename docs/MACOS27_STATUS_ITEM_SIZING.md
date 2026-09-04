@@ -14,11 +14,10 @@ blank area rather than alter the real distance between items. Barometer therefor
 with zero app-added horizontal padding. This applies uniformly to plain text, label/value stacks, sensor stacks,
 icon-and-text rows, symbols, and vertical icon stacks. Do not reintroduce either control.
 
-AppKit also reads `NSStatusItemSpacing` and `NSStatusItemSelectionPadding` from the defaults search list and wraps
-each explicit canvas in that spacing. Barometer sets both keys to one only in its own `com.barometer.app` defaults
-domain before constructing `StatusItemRegistry`. Never write or delete the by-host global values: Barometer's compact
-spacing must not
-change spacing for the rest of the user's menu bar.
+AppKit reads `NSStatusItemSpacing` and `NSStatusItemSelectionPadding` from the defaults search list and uses them to
+space status items. Barometer does not set either value. Before constructing `StatusItemRegistry`, it removes any
+application-domain values left by older Barometer builds and then uses AppKit's normal behavior. Never write or delete
+the by-host global values: changing them affects the rest of the user's menu bar.
 
 Barometer also applies deterministic density tiers. Up to eight enabled independent items may use 12-point text,
 nine through eleven use at most 11, twelve through fourteen use at most 10, and fifteen or more use 9. Graphic scale
@@ -116,8 +115,10 @@ Trailing-align a standalone changing value inside its stable numeric field, but 
 label/value pair from the other. This preserves the one-time outer length without breaking row alignment.
 
 Multi-reading sensor stacks use explicit label and value columns. Labels in a column share one leading edge and values
-share one trailing edge. Never create alignment by adding live-value-dependent kerning to the last label character;
-that distorts the `CPU:` and `GPU:` label-to-temperature spacing as readings change.
+share one trailing edge. Never add a trailing exception based on which widget happens to follow Sensors; AppKit owns
+the boundary between every pair of independent status items. Never create alignment by adding live-value-dependent
+kerning to the last label character; that distorts the `CPU:` and `GPU:` label-to-temperature spacing as readings
+change.
 
 Do not replace the separate items with one combined status item as a sizing workaround. Combined is an optional
 module, not the implementation of density.
@@ -130,9 +131,9 @@ Before accepting a change to menu bar geometry or status-item lifecycle:
 2. Run the repository search above and verify exactly one production assignment remains.
 3. Run `swift build -c release` and `git diff --check`.
 4. Install with `make install`; repository-path launches are not valid compatibility tests.
-5. With a different by-host global spacing, confirm each active Barometer window is exactly one point wider than its
-   button, image, and fixed item length, which must match one another. Confirm each item also has its fixed autosave
-   name, empty title, static AX label, nonzero image, and one bundle owner in
+5. Confirm Barometer's application defaults contain neither spacing key. With the user's current by-host spacing,
+   confirm every active item has its fixed autosave name, empty title, static AX label, nonzero image, and one bundle
+   owner in
    `~/Library/Logs/Barometer/identity.json`.
 6. Change enabled widgets and confirm the live set does not change before selecting **Apply Changes**.
 7. Apply the pending changes. Confirm Barometer reopens and calculates fresh widths from the complete saved set before

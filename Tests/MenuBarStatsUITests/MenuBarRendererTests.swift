@@ -218,7 +218,7 @@ struct MenuBarRendererTests {
     }
 
     @Test
-    func statusItemSpacingOverrideUsesCompactApplicationValues() {
+    func statusItemSpacingPolicyRemovesLegacyApplicationOverrides() {
         let suiteName = "com.barometer.tests.status-item-spacing.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {
             Issue.record("Unable to create isolated defaults suite")
@@ -228,10 +228,11 @@ struct MenuBarRendererTests {
         defaults.set(4, forKey: StatusItemSpacingPolicy.spacingKey)
         defaults.set(4, forKey: StatusItemSpacingPolicy.selectionPaddingKey)
 
-        StatusItemSpacingPolicy.apply(to: defaults)
+        StatusItemSpacingPolicy.restoreSystemDefault(in: defaults)
 
-        #expect(defaults.integer(forKey: StatusItemSpacingPolicy.spacingKey) == 1)
-        #expect(defaults.integer(forKey: StatusItemSpacingPolicy.selectionPaddingKey) == 1)
+        let applicationDomain = defaults.persistentDomain(forName: suiteName)
+        #expect(applicationDomain?[StatusItemSpacingPolicy.spacingKey] == nil)
+        #expect(applicationDomain?[StatusItemSpacingPolicy.selectionPaddingKey] == nil)
     }
 
     @Test
@@ -543,7 +544,7 @@ struct MenuBarRendererTests {
         let bottomOrigins = SensorStackRenderer.rowOrigins(columnX: 3, columnWidth: 68, valueWidth: 34)
         #expect(topOrigins.label == bottomOrigins.label)
         #expect(topOrigins.value == bottomOrigins.value)
-        #expect(topOrigins.value == 36)
+        #expect(topOrigins.value == 37)
 
         let cool = SensorStackRenderer(values: [
             SensorStackValue(label: "CPU", value: "39.1°C", reservedValue: "999.9°C"),
