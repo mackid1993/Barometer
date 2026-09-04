@@ -22,14 +22,26 @@ struct CombinedSettingsView: View {
                     HStack {
                         Label(module.displayName, systemImage: module.symbolName)
                         Spacer()
-                        Button { move(index, by: -1) } label: { Image(systemName: "chevron.up") }
-                            .buttonStyle(.borderless)
-                            .disabled(index == 0)
-                        Button { move(index, by: 1) } label: { Image(systemName: "chevron.down") }
-                            .buttonStyle(.borderless)
-                            .disabled(index == settings.members.count - 1)
-                        Button(role: .destructive) { remove(module) } label: { Image(systemName: "minus.circle") }
-                            .buttonStyle(.borderless)
+                        Button {
+                            move(index, by: -1)
+                        } label: {
+                            Image(systemName: "chevron.up")
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(index == 0)
+                        Button {
+                            move(index, by: 1)
+                        } label: {
+                            Image(systemName: "chevron.down")
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(index == settings.members.count - 1)
+                        Button(role: .destructive) {
+                            remove(module)
+                        } label: {
+                            Image(systemName: "minus.circle")
+                        }
+                        .buttonStyle(.borderless)
                     }
                 }
                 Menu("Add Module") {
@@ -49,7 +61,7 @@ struct CombinedSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("Combined")
+        .settingsPane(module: .combined, settings: settingsStore.settings)
     }
 
     private var availableModules: [ModuleID] {

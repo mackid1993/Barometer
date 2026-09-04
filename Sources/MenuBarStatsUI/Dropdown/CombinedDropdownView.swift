@@ -3,6 +3,9 @@ import SwiftUI
 
 /// Tabbed current-value dashboard for modules included in Combined.
 public struct CombinedDropdownView: View {
+    /// Fixed hosted content width; height follows the content.
+    public static let contentSize = CGSize(width: 380, height: 440)
+
     private let cpuStore: ModuleStore<CPUSample>
     private let memoryStore: ModuleStore<MemorySample>
     private let gpuStore: ModuleStore<GPUSample>
@@ -43,96 +46,173 @@ public struct CombinedDropdownView: View {
     public var body: some View {
         let members = settingsStore.settings.combined.members
         let selected = members.contains(selection) ? selection : members.first
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Combined").font(.headline)
+        let accent = ModuleAccent.resolve(settingsStore.settings, module: .combined)
+        let selectedAccent = selected.map { ModuleAccent.resolve(settingsStore.settings, module: $0) } ?? accent
+
+        DropdownScaffold(size: Self.contentSize) {
+            HStack(spacing: 12) {
+                IconTile(symbolName: "rectangle.3.group.fill", accent: accent)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Combined").font(BarometerDesign.titleFont)
+                    Text("\(members.count) modules")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
-                if let selected {
-                    Picker("Module", selection: selectionBinding(fallback: selected)) {
-                        ForEach(members, id: \.self) { module in Text(module.displayName).tag(module) }
+            }
+            .padding(.horizontal, 2)
+
+            if let selected {
+                CapsulePicker(
+                    options: members,
+                    selection: selectionBinding(fallback: selected),
+                    label: \.displayName,
+                    accent: selectedAccent
+                )
+                GlassCard(tint: selectedAccent.primary) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        SectionLabel(selected.displayName) {
+                            Image(systemName: selected.symbolName)
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(selectedAccent.primary)
+                        }
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                            ForEach(metrics(for: selected), id: \.label) { metric in
+                                StatTile(
+                                    symbol: metric.symbol, label: metric.label, value: metric.value,
+                                    tint: selectedAccent.primary)
+                            }
+                        }
                     }
-                    .labelsHidden()
-                    .frame(maxWidth: 190)
+                }
+            } else {
+                GlassCard {
+                    ContentUnavailableView(
+                        "No included modules",
+                        systemImage: "rectangle.3.group",
+                        description: Text("Add modules in Combined settings.")
+                    )
                 }
             }
-            Divider()
-            if let selected {
-                summary(for: selected)
-            } else {
-                ContentUnavailableView(
-                    "No included modules",
-                    systemImage: "rectangle.3.group",
-                    description: Text("Add modules in Combined settings.")
-                )
-            }
-            Spacer(minLength: 0)
         }
-        .padding(14)
-        .frame(width: 400, height: 420)
+    }
+
+    private struct Metric {
+        let symbol: String
+        let label: String
+        let value: String
     }
 
     private func selectionBinding(fallback: ModuleID) -> Binding<ModuleID> {
-        Binding(get: { settingsStore.settings.combined.members.contains(selection) ? selection : fallback },
-                set: { selection = $0 })
+        Binding(
+            get: { settingsStore.settings.combined.members.contains(selection) ? selection : fallback },
+            set: { selection = $0 })
     }
 
-    @ViewBuilder
-    private func summary(for module: ModuleID) -> some View {
+    private func metrics(for module: ModuleID) -> [Metric] {
         switch module {
         case .cpu:
-            metric("CPU utilization", cpuStore.latestSample.map { String(format: "%.1f%%", $0.totalPercent) })
+            return [
+                Metric(
+                    symbol: "cpu", label: "Utilization",
+                    value: cpuStore.latestSample.map { String(format: "%.1f%%", $0.totalPercent) } ?? "—"),
+                Metric(
+                    symbol: "gauge.with.dots.needle.33percent", label: "Load average",
+                    value: cpuStore.latestSample.map {
+                        $0.loadAverages.prefix(1).map { String(format: "%.2f", $0) }.joined()
+                    } ?? "—"),
+            ]
         case .gpu:
-            metric("GPU utilization", gpuStore.latestSample.map {
-                String(format: "%.1f%%", $0.deviceUtilizationPercent)
-            })
+            return [
+                Metric(
+                    symbol: "square.stack.3d.up", label: "Utilization",
+                    value: gpuStore.latestSample.map {
+                        String(format: "%.1f%%", $0.deviceUtilizationPercent)
+                    } ?? "—"),
+                Metric(
+                    symbol: "memorychip", label: "Memory in use",
+                    value: gpuStore.latestSample?.memoryInUseBytes.map {
+                        String(format: "%.2f GiB", Double($0) / 1_073_741_824)
+                    } ?? "—"),
+            ]
         case .memory:
-            metric("Memory used", memoryStore.latestSample.map { sample in
-                guard sample.total > 0 else { return "Unavailable" }
-                return String(format: "%.1f%%", Double(sample.used) / Double(sample.total) * 100)
-            })
+            return [
+                Metric(
+                    symbol: "memorychip", label: "Used",
+                    value: memoryStore.latestSample.map { sample in
+                        guard sample.total > 0 else { return "—" }
+                        return String(format: "%.1f%%", Double(sample.used) / Double(sample.total) * 100)
+                    } ?? "—"),
+                Metric(
+                    symbol: "gauge.with.needle", label: "Pressure",
+                    value: memoryStore.latestSample.map { String(format: "%.0f%%", $0.pressurePercent) } ?? "—"),
+            ]
         case .network:
-            metric("Download", networkStore.latestSample?.primary.map {
-                ByteCountFormatter.string(fromByteCount: Int64($0.downloadBytesPerSecond), countStyle: .decimal) + "/s"
-            })
-            metric("Upload", networkStore.latestSample?.primary.map {
-                ByteCountFormatter.string(fromByteCount: Int64($0.uploadBytesPerSecond), countStyle: .decimal) + "/s"
-            })
+            return [
+                Metric(
+                    symbol: "arrow.down.circle", label: "Download",
+                    value: networkStore.latestSample?.primary.map {
+                        ByteCountFormatter.string(fromByteCount: Int64($0.downloadBytesPerSecond), countStyle: .decimal)
+                            + "/s"
+                    } ?? "—"),
+                Metric(
+                    symbol: "arrow.up.circle", label: "Upload",
+                    value: networkStore.latestSample?.primary.map {
+                        ByteCountFormatter.string(fromByteCount: Int64($0.uploadBytesPerSecond), countStyle: .decimal)
+                            + "/s"
+                    } ?? "—"),
+            ]
         case .disks:
-            metric("Mounted volumes", diskStore.latestSample.map { "\($0.volumes.count)" })
-            metric("Active devices", diskStore.latestSample.map { "\($0.devices.count)" })
+            return [
+                Metric(
+                    symbol: "internaldrive", label: "Mounted volumes",
+                    value: diskStore.latestSample.map { "\($0.volumes.count)" } ?? "—"),
+                Metric(
+                    symbol: "externaldrive", label: "Active devices",
+                    value: diskStore.latestSample.map { "\($0.devices.count)" } ?? "—"),
+            ]
         case .sensors:
-            ForEach(sensorStore.latestSample?.readings.prefix(8).map { $0 } ?? [], id: \.id) { reading in
-                metric(reading.name, String(format: "%.1f %@", reading.value, reading.unit.rawValue))
+            return (sensorStore.latestSample?.readings.prefix(6).map { $0 } ?? []).map { reading in
+                Metric(
+                    symbol: "thermometer.medium", label: reading.name,
+                    value: String(format: "%.1f %@", reading.value, reading.unit.rawValue))
             }
         case .battery:
-            metric("Battery", batteryStore.latestSample.map { String(format: "%.1f%%", $0.chargePercent) })
-            metric("State", batteryStore.latestSample.map { $0.state.rawValue })
+            return [
+                Metric(
+                    symbol: "battery.75percent", label: "Charge",
+                    value: batteryStore.latestSample.map { String(format: "%.1f%%", $0.chargePercent) } ?? "—"),
+                Metric(
+                    symbol: "bolt.fill", label: "State",
+                    value: batteryStore.latestSample.map { $0.state.rawValue } ?? "—"),
+            ]
         case .weather:
-            metric("Temperature", weatherStore.latestSample.map {
-                let forecast = $0.forecast
-                return String(format: "%.0f%@", forecast.current.temperature, forecast.units.temperature.symbol)
-            })
-            metric("Conditions", weatherStore.latestSample.map { $0.forecast.current.code.description })
+            return [
+                Metric(
+                    symbol: "thermometer.sun", label: "Temperature",
+                    value: weatherStore.latestSample.map {
+                        let forecast = $0.forecast
+                        return String(format: "%.0f%@", forecast.current.temperature, forecast.units.temperature.symbol)
+                    } ?? "—"),
+                Metric(
+                    symbol: "cloud.sun", label: "Conditions",
+                    value: weatherStore.latestSample.map { $0.forecast.current.code.description } ?? "—"),
+            ]
         case .time:
-            metric("Local time", timeStore.latestSample.map {
-                TimeFormatEngine.render(
-                    date: $0.timestamp,
-                    timeZone: TimeZone(identifier: $0.systemTimeZoneIdentifier) ?? .current,
-                    template: settingsStore.settings.time.menuBarTemplate,
-                    showsSeconds: settingsStore.settings.time.showsSeconds
-                )
-            })
+            return [
+                Metric(
+                    symbol: "clock", label: "Local time",
+                    value: timeStore.latestSample.map {
+                        TimeFormatEngine.render(
+                            date: $0.timestamp,
+                            timeZone: TimeZone(identifier: $0.systemTimeZoneIdentifier) ?? .current,
+                            template: settingsStore.settings.time.menuBarTemplate,
+                            showsSeconds: settingsStore.settings.time.showsSeconds
+                        )
+                    } ?? "—")
+            ]
         case .combined:
-            EmptyView()
+            return []
         }
-    }
-
-    private func metric(_ label: String, _ value: String?) -> some View {
-        HStack {
-            Text(label).foregroundStyle(.secondary)
-            Spacer()
-            Text(value ?? "Unavailable").monospacedDigit().lineLimit(1)
-        }
-        .font(.subheadline)
     }
 }

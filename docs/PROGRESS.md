@@ -1544,3 +1544,48 @@ Verification:
 - `git diff --check` passed.
 - The new field guide contains no line longer than 120 columns and passed the American-spelling scan.
 - All repository-relative files named by the guide exist.
+
+### P7-T4 refactored UI sizing regression follow-up
+
+The settings UI refactor had reintroduced a macOS 27 placement failure by allowing `NSStatusItem.length` to change
+whenever application settings changed. Font size, font weight, compact layout, glyph scale, and spacing could
+therefore cause independently movable items to lose their established Bartender positions after reassessment.
+
+Status-item length and rendering geometry are now immutable after each controller's first enabled render. Live
+readings continue to refresh, but typography and spacing changes remain in Settings previews while staging a
+four-point-rounded width for the next launch. The next process applies that geometry before visibility. The manual
+width action was renamed to describe this staging behavior, and the sole production length assignment carries a
+source-level contract warning. The cache key
+uses a `v3` schema so widths staged under the former font and glyph limits cannot survive the new geometry caps.
+
+Added `docs/MACOS27_STATUS_ITEM_SIZING.md` as the durable decision record. It documents the failure signature,
+one-assignment invariant, width lifecycle, prohibited live-resize exceptions, and required regression procedure.
+The macOS 27 agent field guide now links to it and no longer permits a settings-change exception.
+
+The global font-size maximum is now 12 points, the largest size that fits the fixed-height canvases consistently.
+The 9–12 point range is centralized in `AppSettings`, used by the slider, settings validation, previews, and live
+rendering, and applied when old persisted settings contain a larger value.
+
+Icon and graph scaling is similarly capped at 115 percent. Barometer automatically caps the effective font at 11
+points for five or six independently movable items, 10 points for seven or eight, and 9 points for nine or more.
+The selected font remains unchanged, allowing it to return when the user disables items. The count includes every
+enabled Sensors instance and accounts for members hidden by Combined.
+
+The first guard still allowed compact-layout ink to shift inside an unchanged frame, which David observed as another
+movement regression. Controllers now freeze font size, weight, compact layout, icon/graph scale, and spacing after
+their first visible render. The registry also hides every AppKit item synchronously at creation so no manager can
+catalog a visible placeholder before its fixed identity, rendered image, and initial length are ready. These are
+AppKit-level rules with no manager detection or manager-specific runtime behavior.
+
+Verification:
+
+- `swift test` exited 0 and built and linked every test target. Command Line Tools did not print a test-execution
+  summary, matching the environment limitation already documented above. Renderer coverage explicitly verifies that
+  both typography and icon/graph-scale width changes leave an already-applied live length unchanged.
+- `swift build -c release` completed successfully.
+- `rg -n 'statusItem\\.length\\s*=' Sources` found exactly one production assignment, in
+  `StatusItemController`'s guarded initial-layout branch.
+- `git diff --check` passed, and the new sizing documentation has no line longer than 120 columns.
+- `make install` built, signed, installed, and launched `/Applications/Barometer.app`. The bundle identifier remained
+  `com.barometer.app`, and strict code-signature verification passed. With six active compact items, the fixed image
+  canvases totaled 192 points: CPU, GPU, and Memory at 24 each, Network at 44, Sensors at 56, and Weather at 20.

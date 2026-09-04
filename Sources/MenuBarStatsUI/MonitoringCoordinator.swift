@@ -234,17 +234,19 @@ public final class MonitoringCoordinator {
             store: combinedStore,
             settingsStore: settingsStore,
             render: { [weak self] _, _, _, context in
-                self?.renderCombined(context: context) ?? StatusItemContent(
-                    image: TextRenderer(text: "—").render(in: context),
-                    accessibilityValue: "Combined unavailable"
-                )
+                self?.renderCombined(context: context)
+                    ?? StatusItemContent(
+                        image: TextRenderer(text: "—").render(in: context),
+                        accessibilityValue: "Combined unavailable"
+                    )
             }
         )
         cpuDropdown = DropdownController(
             moduleName: ModuleID.cpu.displayName,
             statusItem: registry.item(for: .cpu),
             rootView: AnyView(CPUDropdownView(store: cpuStore, settingsStore: settingsStore)),
-            contentHeight: 438,
+            contentHeight: CPUDropdownView.contentSize.height,
+            contentWidth: CPUDropdownView.contentSize.width,
             tickAction: { [weak cpuStore] in cpuStore?.tick() },
             settingsAction: { settingsAction(.cpu) },
             quitAction: quitAction
@@ -253,7 +255,8 @@ public final class MonitoringCoordinator {
             moduleName: ModuleID.memory.displayName,
             statusItem: registry.item(for: .memory),
             rootView: AnyView(MemoryDropdownView(store: memoryStore, settingsStore: settingsStore)),
-            contentHeight: 386,
+            contentHeight: MemoryDropdownView.contentSize.height,
+            contentWidth: MemoryDropdownView.contentSize.width,
             tickAction: { [weak memoryStore] in memoryStore?.tick() },
             settingsAction: { settingsAction(.memory) },
             quitAction: quitAction
@@ -262,8 +265,8 @@ public final class MonitoringCoordinator {
             moduleName: ModuleID.gpu.displayName,
             statusItem: registry.item(for: .gpu),
             rootView: AnyView(GPUDropdownView(store: gpuStore, settingsStore: settingsStore)),
-            contentHeight: 500,
-            contentWidth: 380,
+            contentHeight: GPUDropdownView.contentSize.height,
+            contentWidth: GPUDropdownView.contentSize.width,
             tickAction: { [weak gpuStore] in gpuStore?.tick() },
             settingsAction: { settingsAction(.gpu) },
             quitAction: quitAction
@@ -285,8 +288,8 @@ public final class MonitoringCoordinator {
                     }
                 )
             ),
-            contentHeight: 700,
-            contentWidth: 420,
+            contentHeight: WeatherDropdownView.contentSize.height,
+            contentWidth: WeatherDropdownView.contentSize.width,
             tickAction: { [weak weatherStore] in weatherStore?.tick() },
             settingsAction: { settingsAction(.weather) },
             quitAction: quitAction
@@ -295,8 +298,8 @@ public final class MonitoringCoordinator {
             moduleName: ModuleID.network.displayName,
             statusItem: registry.item(for: .network),
             rootView: AnyView(NetworkDropdownView(store: networkStore, settingsStore: settingsStore)),
-            contentHeight: 540,
-            contentWidth: 380,
+            contentHeight: NetworkDropdownView.contentSize.height,
+            contentWidth: NetworkDropdownView.contentSize.width,
             tickAction: { [weak networkStore] in networkStore?.tick() },
             settingsAction: { settingsAction(.network) },
             quitAction: quitAction
@@ -305,8 +308,8 @@ public final class MonitoringCoordinator {
             moduleName: ModuleID.disks.displayName,
             statusItem: registry.item(for: .disks),
             rootView: AnyView(DiskDropdownView(store: diskStore, settingsStore: settingsStore)),
-            contentHeight: 520,
-            contentWidth: 380,
+            contentHeight: DiskDropdownView.contentSize.height,
+            contentWidth: DiskDropdownView.contentSize.width,
             tickAction: { [weak diskStore] in diskStore?.tick() },
             settingsAction: { settingsAction(.disks) },
             quitAction: quitAction
@@ -315,8 +318,8 @@ public final class MonitoringCoordinator {
             moduleName: ModuleID.battery.displayName,
             statusItem: registry.item(for: .battery),
             rootView: AnyView(BatteryDropdownView(store: batteryStore, settingsStore: settingsStore)),
-            contentHeight: 520,
-            contentWidth: 360,
+            contentHeight: BatteryDropdownView.contentSize.height,
+            contentWidth: BatteryDropdownView.contentSize.width,
             tickAction: { [weak batteryStore] in batteryStore?.tick() },
             settingsAction: { settingsAction(.battery) },
             quitAction: quitAction
@@ -332,8 +335,8 @@ public final class MonitoringCoordinator {
                     requestCalendarAccess: { [weak self] in self?.requestCalendarAccess() }
                 )
             ),
-            contentHeight: 540,
-            contentWidth: 360,
+            contentHeight: TimeDropdownView.contentSize.height,
+            contentWidth: TimeDropdownView.contentSize.width,
             tickAction: { [weak timeStore] in timeStore?.tick() },
             settingsAction: { settingsAction(.time) },
             quitAction: quitAction
@@ -355,8 +358,8 @@ public final class MonitoringCoordinator {
                     settingsStore: settingsStore
                 )
             ),
-            contentHeight: 420,
-            contentWidth: 400,
+            contentHeight: CombinedDropdownView.contentSize.height,
+            contentWidth: CombinedDropdownView.contentSize.width,
             tickAction: { [weak combinedStore] in combinedStore?.tick() },
             settingsAction: { settingsAction(.combined) },
             quitAction: quitAction
@@ -616,9 +619,10 @@ public final class MonitoringCoordinator {
     }
 
     static func modulesRequiringSamples(_ settings: AppSettings) -> Set<ModuleID> {
-        var active = Set(ModuleID.allCases.filter { module in
-            module != .weather && module != .combined && settings.modules[module]?.isEnabled == true
-        })
+        var active = Set(
+            ModuleID.allCases.filter { module in
+                module != .weather && module != .combined && settings.modules[module]?.isEnabled == true
+            })
         if settings.modules[.combined]?.isEnabled == true {
             active.formUnion(settings.combined.members.filter { $0 != .weather && $0 != .combined })
         }
@@ -704,8 +708,8 @@ public final class MonitoringCoordinator {
                         }
                     )
                 ),
-                contentHeight: 600,
-                contentWidth: 420,
+                contentHeight: SensorsDropdownView.contentSize.height,
+                contentWidth: SensorsDropdownView.contentSize.width,
                 tickAction: { [weak sensorStore] in sensorStore?.tick() },
                 settingsAction: { self.settingsAction(.sensors) },
                 quitAction: quitAction
@@ -856,7 +860,8 @@ public final class MonitoringCoordinator {
                 style: settings.graphStyle
             )
         case "perCore":
-            let coreValues = sample?.perCore.map { $0.usagePercent / 100 }
+            let coreValues =
+                sample?.perCore.map { $0.usagePercent / 100 }
                 ?? Array(repeating: 0, count: ProcessInfo.processInfo.activeProcessorCount)
             renderer = GraphRenderer(
                 values: coreValues,
@@ -1032,8 +1037,9 @@ public final class MonitoringCoordinator {
         moduleSettings: ModuleSettings,
         context: RenderContext
     ) -> StatusItemContent {
-        guard let widget = appSettings.sensors.widgets.first(where: \.isEnabled)
-            ?? appSettings.sensors.widgets.first
+        guard
+            let widget = appSettings.sensors.widgets.first(where: \.isEnabled)
+                ?? appSettings.sensors.widgets.first
         else {
             return StatusItemContent(
                 image: StackedLabelRenderer(label: "SENS", value: "—").render(in: context),
@@ -1095,32 +1101,36 @@ public final class MonitoringCoordinator {
         settings: ModuleSettings,
         context: RenderContext
     ) -> StatusItemContent {
-        let presentation = sample.map {
-            WeatherPresentationFormatter.menuBar(sample: $0, mode: settings.mode)
-        } ?? WeatherMenuBarPresentation(
-            symbolName: settings.mode == "temperature" || settings.mode == "highLow" ? nil : "cloud.sun",
-            text: "—"
-        )
+        let presentation =
+            sample.map {
+                WeatherPresentationFormatter.menuBar(sample: $0, mode: settings.mode)
+            }
+            ?? WeatherMenuBarPresentation(
+                symbolName: settings.mode == "temperature" || settings.mode == "highLow" ? nil : "cloud.sun",
+                text: "—"
+            )
         let reservedText = weatherReservedText(mode: settings.mode)
         let reservedSymbols = settings.mode == "iconTemperature" ? [] : weatherSymbolNames
-        let renderer: any MenuBarRenderer = if settings.mode == "iconTemperature",
-                                              let symbolName = presentation.symbolName {
-            IconStackRenderer(
-                symbolName: symbolName,
-                text: presentation.text,
-                reservedText: reservedText,
-                reservedSymbolNames: reservedSymbols
-            )
-        } else if let symbolName = presentation.symbolName {
-            IconTextRenderer(
-                symbolName: symbolName,
-                text: presentation.text,
-                reservedText: reservedText,
-                reservedSymbolNames: reservedSymbols
-            )
-        } else {
-            TextRenderer(text: presentation.text, reservedText: reservedText)
-        }
+        let renderer: any MenuBarRenderer =
+            if settings.mode == "iconTemperature",
+                let symbolName = presentation.symbolName
+            {
+                IconStackRenderer(
+                    symbolName: symbolName,
+                    text: presentation.text,
+                    reservedText: reservedText,
+                    reservedSymbolNames: reservedSymbols
+                )
+            } else if let symbolName = presentation.symbolName {
+                IconTextRenderer(
+                    symbolName: symbolName,
+                    text: presentation.text,
+                    reservedText: reservedText,
+                    reservedSymbolNames: reservedSymbols
+                )
+            } else {
+                TextRenderer(text: presentation.text, reservedText: reservedText)
+            }
         guard let sample else {
             return StatusItemContent(image: renderer.render(in: context), accessibilityValue: "Weather unavailable")
         }

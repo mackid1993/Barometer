@@ -17,6 +17,37 @@ public struct NetworkInterfaceSnapshot: Equatable, Sendable {
     public let sentPackets: UInt64
     public let inputErrors: UInt64
     public let outputErrors: UInt64
+
+    /// Creates a snapshot.
+    public init(
+        name: String,
+        index: UInt32,
+        isUp: Bool,
+        isLoopback: Bool,
+        isPointToPoint: Bool,
+        ipv4Addresses: [String],
+        ipv6Addresses: [String],
+        receivedBytes: UInt64,
+        sentBytes: UInt64,
+        receivedPackets: UInt64,
+        sentPackets: UInt64,
+        inputErrors: UInt64,
+        outputErrors: UInt64
+    ) {
+        self.name = name
+        self.index = index
+        self.isUp = isUp
+        self.isLoopback = isLoopback
+        self.isPointToPoint = isPointToPoint
+        self.ipv4Addresses = ipv4Addresses
+        self.ipv6Addresses = ipv6Addresses
+        self.receivedBytes = receivedBytes
+        self.sentBytes = sentBytes
+        self.receivedPackets = receivedPackets
+        self.sentPackets = sentPackets
+        self.inputErrors = inputErrors
+        self.outputErrors = outputErrors
+    }
 }
 
 /// One system-wide network configuration and counter snapshot.
@@ -25,6 +56,19 @@ public struct SystemNetworkSnapshot: Equatable, Sendable {
     public let primaryInterface: String?
     public let router: String?
     public let dnsServers: [String]
+
+    /// Creates a snapshot.
+    public init(
+        interfaces: [NetworkInterfaceSnapshot],
+        primaryInterface: String?,
+        router: String?,
+        dnsServers: [String]
+    ) {
+        self.interfaces = interfaces
+        self.primaryInterface = primaryInterface
+        self.router = router
+        self.dnsServers = dnsServers
+    }
 }
 
 /// Failures surfaced while reading the routing information base.
@@ -44,9 +88,12 @@ public struct NetworkSource: Sendable {
     public init() {}
 
     /// Reads cumulative interface counters, addresses, and primary network configuration.
-    public func read() throws -> SystemNetworkSnapshot {
+    ///
+    /// Pass `includesMetadata: false` to skip the address enumeration and dynamic-store
+    /// lookups, which change rarely; callers cache those between refreshes.
+    public func read(includesMetadata: Bool = true) throws -> SystemNetworkSnapshot {
         let counters = try routeCounters()
-        let addresses = Self.interfaceAddresses()
+        let addresses = includesMetadata ? Self.interfaceAddresses() : [:]
         let interfaces = counters.values.map { counter in
             let interfaceAddresses = addresses[counter.name] ?? InterfaceAddresses()
             return NetworkInterfaceSnapshot(
@@ -66,8 +113,8 @@ public struct NetworkSource: Sendable {
             )
         }
         .sorted { $0.index < $1.index }
-        let globalIPv4 = Self.dynamicStoreDictionary(key: "State:/Network/Global/IPv4")
-        let globalDNS = Self.dynamicStoreDictionary(key: "State:/Network/Global/DNS")
+        let globalIPv4 = includesMetadata ? Self.dynamicStoreDictionary(key: "State:/Network/Global/IPv4") : nil
+        let globalDNS = includesMetadata ? Self.dynamicStoreDictionary(key: "State:/Network/Global/DNS") : nil
         return SystemNetworkSnapshot(
             interfaces: interfaces,
             primaryInterface: globalIPv4?["PrimaryInterface"] as? String,
@@ -104,15 +151,17 @@ public struct NetworkSource: Sendable {
                     break
                 }
                 if Int32(header.ifm_type) == RTM_IFINFO2,
-                   messageLength >= MemoryLayout<if_msghdr2>.size {
+                    messageLength >= MemoryLayout<if_msghdr2>.size
+                {
                     let message = buffer.loadUnaligned(fromByteOffset: offset, as: if_msghdr2.self)
                     let index = UInt32(message.ifm_index)
                     if let name = Self.interfaceName(index: index) {
-                        metadata.append(InterfaceMetadata(
-                            name: name,
-                            index: index,
-                            flags: UInt32(bitPattern: message.ifm_flags)
-                        ))
+                        metadata.append(
+                            InterfaceMetadata(
+                                name: name,
+                                index: index,
+                                flags: UInt32(bitPattern: message.ifm_flags)
+                            ))
                     }
                 }
                 offset += messageLength
@@ -179,7 +228,8 @@ public struct NetworkSource: Sendable {
             if let address = interface.ifa_addr {
                 let family = Int32(address.pointee.sa_family)
                 if family == AF_INET || family == AF_INET6,
-                   let string = numericAddress(address) {
+                    let string = numericAddress(address)
+                {
                     let name = String(cString: interface.ifa_name)
                     var values = result[name] ?? InterfaceAddresses()
                     if family == AF_INET {

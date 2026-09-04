@@ -57,7 +57,7 @@ struct TimeSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("Time")
+        .settingsPane(module: .time, settings: settingsStore.settings)
     }
 
     @ViewBuilder

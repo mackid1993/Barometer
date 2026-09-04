@@ -62,17 +62,23 @@ public struct SensorSettingsView: View {
                             HStack {
                                 Text(readingName(sensorID)).lineLimit(1)
                                 Spacer()
-                                Button { moveReading(widgetID: widget.id, from: index, offset: -1) } label: {
+                                Button {
+                                    moveReading(widgetID: widget.id, from: index, offset: -1)
+                                } label: {
                                     Image(systemName: "chevron.up")
                                 }
                                 .disabled(index == 0)
                                 .buttonStyle(.plain)
-                                Button { moveReading(widgetID: widget.id, from: index, offset: 1) } label: {
+                                Button {
+                                    moveReading(widgetID: widget.id, from: index, offset: 1)
+                                } label: {
                                     Image(systemName: "chevron.down")
                                 }
                                 .disabled(index == widget.sensorIDs.count - 1)
                                 .buttonStyle(.plain)
-                                Button { removeReading(sensorID, widgetID: widget.id) } label: {
+                                Button {
+                                    removeReading(sensorID, widgetID: widget.id)
+                                } label: {
                                     Image(systemName: "minus.circle")
                                 }
                                 .buttonStyle(.plain)
@@ -140,7 +146,7 @@ public struct SensorSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("Sensors")
+        .settingsPane(module: .sensors, settings: settingsStore.settings)
     }
 
     private var moduleSettings: ModuleSettings {
@@ -245,7 +251,7 @@ public struct SensorSettingsView: View {
         updateWidget(widgetID) { widget in
             let destination = index + offset
             guard widget.sensorIDs.indices.contains(index),
-                  widget.sensorIDs.indices.contains(destination)
+                widget.sensorIDs.indices.contains(destination)
             else {
                 return
             }
@@ -268,8 +274,8 @@ public struct SensorSettingsView: View {
     }
 }
 
-private extension SensorWidgetMode {
-    var title: String {
+extension SensorWidgetMode {
+    fileprivate var title: String {
         switch self {
         case .compactStack: "Compact two-row stack"
         case .text: "Labels and values"
@@ -279,8 +285,8 @@ private extension SensorWidgetMode {
     }
 }
 
-private extension SensorKind {
-    var title: String {
+extension SensorKind {
+    fileprivate var title: String {
         switch self {
         case .temperature: "Temperatures"
         case .fan: "Fans"
@@ -291,8 +297,8 @@ private extension SensorKind {
     }
 }
 
-private extension NSColor {
-    var hexRGB: String? {
+extension NSColor {
+    fileprivate var hexRGB: String? {
         guard let components = usingColorSpace(.sRGB) else { return nil }
         return String(
             format: "#%02X%02X%02X",

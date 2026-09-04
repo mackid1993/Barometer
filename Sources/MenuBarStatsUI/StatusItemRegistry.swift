@@ -46,6 +46,9 @@ public final class StatusItemRegistry: NSObject {
 
     private func makeItem(for identity: StatusItemIdentity) -> NSStatusItem {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        // NSStatusBar creates items visible. Hide synchronously, before identity setup or
+        // returning to the run loop, so a menu bar manager cannot catalog a placeholder.
+        statusItem.isVisible = false
         statusItem.autosaveName = identity.autosaveName
         statusItem.behavior = []
 
@@ -72,7 +75,8 @@ public final class StatusItemRegistry: NSObject {
             let identifier = button.accessibilityIdentifier()
             let label = button.accessibilityLabel() ?? ""
             let title = button.accessibilityTitle() ?? ""
-            let message = "autosaveName=\(identity.autosaveName) window.title=\(windowTitle) "
+            let message =
+                "autosaveName=\(identity.autosaveName) window.title=\(windowTitle) "
                 + "AXIdentifier=\(identifier) AXLabel=\(label) AXTitle=\(title)"
             Self.identityLogger.notice("\(message, privacy: .public)")
 

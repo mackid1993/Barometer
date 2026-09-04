@@ -14,7 +14,9 @@ public enum SensorsMenuBarPresenter {
         context: RenderContext
     ) -> StatusItemContent {
         let readings = sample.map { selectedReadings(sample: $0, settings: sensorSettings, widget: widget) } ?? []
-        let placeholders = placeholderValues(
+        let fields = stableFields(
+            sample: sample,
+            settings: sensorSettings,
             widget: widget,
             temperatureUnit: temperatureUnit,
             decimalPlaces: sensorSettings.decimalPlaces
@@ -22,60 +24,25 @@ public enum SensorsMenuBarPresenter {
         let renderer: any MenuBarRenderer
         switch widget.mode {
         case .compactStack:
-            renderer = SensorStackRenderer(
-                values: readings.isEmpty ? placeholders : readings.map { reading in
-                    SensorStackValue(
-                        label: reading.shortName,
-                        value: SensorValueFormatter.string(
-                            reading,
-                            temperatureUnit: temperatureUnit,
-                            decimalPlaces: sensorSettings.decimalPlaces,
-                            compact: true
-                        ),
-                        reservedValue: SensorValueFormatter.placeholder(
-                            for: reading,
-                            temperatureUnit: temperatureUnit,
-                            decimalPlaces: sensorSettings.decimalPlaces
-                        )
-                    )
-                }
-            )
+            renderer = SensorStackRenderer(values: fields)
         case .text:
-            let text = readings.isEmpty
-                ? placeholders.map { "\($0.label) —" }.joined(separator: "  ")
-                : readings.map { reading in
-                    let value = SensorValueFormatter.string(
-                        reading,
-                        temperatureUnit: temperatureUnit,
-                        decimalPlaces: sensorSettings.decimalPlaces,
-                        compact: true
-                    )
-                    return "\(reading.shortName) \(value)"
-                }.joined(separator: "  ")
-            let reservedText = readings.isEmpty ? placeholders.map {
-                "\($0.label) \($0.reservedValue)"
-            }.joined(separator: "  ") : readings.map { reading in
-                let placeholder = SensorValueFormatter.placeholder(
-                    for: reading,
-                    temperatureUnit: temperatureUnit,
-                    decimalPlaces: sensorSettings.decimalPlaces
-                )
-                return "\(reading.shortName) \(placeholder)"
-            }.joined(separator: "  ")
             renderer = TextRenderer(
-                text: text,
-                reservedText: reservedText
+                text: fields.map { "\($0.label) \($0.value)" }.joined(separator: "  "),
+                reservedText: fields.map { "\($0.reservedLabel ?? $0.label) \($0.reservedValue)" }.joined(
+                    separator: "  ")
             )
         case .graph:
             let primary = readings.first
-            let values = primary.map { reading in
-                history.suffix(90).compactMap { entry in
-                    entry.value.reading(id: reading.id).map { normalized($0) }
-                }
-            } ?? []
+            let values =
+                primary.map { reading in
+                    history.suffix(90).compactMap { entry in
+                        entry.value.reading(id: reading.id).map { normalized($0) }
+                    }
+                } ?? []
             renderer = GraphRenderer(values: values, style: moduleSettings.graphStyle)
         case .fan:
-            let fan = readings.first { $0.kind == .fan }
+            let fan =
+                readings.first { $0.kind == .fan }
                 ?? sample?.readings.first { $0.kind == .fan }
             renderer = StackedLabelRenderer(
                 label: fan?.shortName ?? "FAN",
@@ -98,7 +65,8 @@ public enum SensorsMenuBarPresenter {
             )
         }
 
-        let spoken = sample == nil || readings.isEmpty
+        let spoken =
+            sample == nil || readings.isEmpty
             ? "Sensors unavailable"
             : readings.map { reading in
                 let value = SensorValueFormatter.string(
@@ -111,24 +79,73 @@ public enum SensorsMenuBarPresenter {
         return StatusItemContent(image: renderer.render(in: context), accessibilityValue: spoken)
     }
 
-    private static func placeholderValues(
+    /// One field per configured sensor, present or not, so the canvas never changes between
+    /// the unavailable, partially discovered, and live states.
+    ///
+    /// Every field reserves the widest label it can show (`SENS`, or `FAN99` for fans) and the
+    /// widest value for its unit, and a missing reading renders as a dash inside that same
+    /// reservation. A menu bar manager therefore sees one width for the item's whole life.
+    static func stableFields(
+        sample: SensorSample?,
+        settings: SensorSettings,
         widget: SensorWidgetSettings,
         temperatureUnit: TemperatureUnit,
         decimalPlaces: Int
     ) -> [SensorStackValue] {
-        let ids = widget.sensorIDs.isEmpty ? ["sensor"] : widget.sensorIDs
+        let visibleIDs =
+            sample.map { current in
+                Set(
+                    current.displayReadings(
+                        hidesDuplicates: settings.hidesDuplicates, showsRawNames: settings.showsRawNames
+                    ).map(\.id))
+            } ?? []
+        let ids = widget.sensorIDs.isEmpty ? fallbackIDs(sample: sample) : widget.sensorIDs
         return ids.map { id in
+            let reading = visibleIDs.contains(id) ? sample?.reading(id: id) : nil
             let lowercased = id.lowercased()
-            if lowercased.contains("fan") || lowercased.contains(":f0") {
-                return SensorStackValue(label: "FAN99", value: "—", reservedValue: "9999r")
-            }
+            let isFan = reading?.kind == .fan || lowercased.contains("fan") || lowercased.contains(":f0")
             let fraction = decimalPlaces == 0 ? "" : "." + String(repeating: "9", count: decimalPlaces)
             let maximum = temperatureUnit == .celsius ? "125" : "257"
+            let reservedValue =
+                reading.map {
+                    SensorValueFormatter.placeholder(
+                        for: $0, temperatureUnit: temperatureUnit, decimalPlaces: decimalPlaces)
+                } ?? (isFan ? "9999r" : "\(maximum)\(fraction)\(temperatureUnit.symbol)")
             return SensorStackValue(
-                label: "SENS",
-                value: "—",
-                reservedValue: "\(maximum)\(fraction)\(temperatureUnit.symbol)"
+                label: reading?.shortName ?? fallbackLabel(id: id),
+                value: reading.map {
+                    SensorValueFormatter.string(
+                        $0,
+                        temperatureUnit: temperatureUnit,
+                        decimalPlaces: decimalPlaces,
+                        compact: true
+                    )
+                } ?? "—",
+                reservedValue: reservedValue,
+                reservedLabel: isFan ? "FAN99" : "SENS"
             )
+        }
+    }
+
+    private static func fallbackIDs(sample: SensorSample?) -> [String] {
+        var ids = ["derived:temperature:hottest"]
+        if let fan = sample?.readings.first(where: { $0.kind == .fan }) {
+            ids.append(fan.id)
+        }
+        return ids
+    }
+
+    /// Short label for a configured sensor that has not been discovered yet.
+    static func fallbackLabel(id: String) -> String {
+        let lowercased = id.lowercased()
+        if let range = lowercased.range(of: "smc:fan:"), let index = Int(lowercased[range.upperBound...]) {
+            return "FAN\(index + 1)"
+        }
+        switch lowercased.split(separator: ":").last.map(String.init) ?? lowercased {
+        case "cpu": return "CPU"
+        case "gpu": return "GPU"
+        case "hottest": return "HOT"
+        default: return "SENS"
         }
     }
 

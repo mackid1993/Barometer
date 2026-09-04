@@ -20,13 +20,6 @@ struct NetworkSettingsView: View {
         Form {
             Section {
                 Toggle("Show in menu bar", isOn: moduleBinding(\.isEnabled))
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Live Preview").font(.caption).foregroundStyle(.secondary)
-                    Image(nsImage: previewImage)
-                        .padding(.horizontal, 12)
-                        .frame(height: 34)
-                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
-                }
             }
 
             Section("Menu Bar") {
@@ -116,7 +109,7 @@ struct NetworkSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("Network")
+        .settingsPane(module: .network, settings: settingsStore.settings, preview: previewImage)
     }
 
     private var availableInterfaces: [String] {
@@ -133,7 +126,7 @@ struct NetworkSettingsView: View {
             thickness: NSStatusBar.system.thickness,
             appearance: .dark,
             palette: MenuBarPalette(light: color, dark: color),
-            fontSize: min(14, max(9, appSettings.fontSize)),
+            fontSize: appSettings.effectiveMenuBarFontSize,
             isMonochrome: appSettings.isMonochrome,
             scale: appSettings.menuBarScale,
             horizontalSpacing: appSettings.menuBarSpacing
@@ -155,10 +148,12 @@ struct NetworkSettingsView: View {
         )
         switch moduleSettings.mode {
         case "arrows":
-            let text = networkSettings.rateOrder == .uploadThenDownload
+            let text =
+                networkSettings.rateOrder == .uploadThenDownload
                 ? "↑\(upload) ↓\(download)"
                 : "↓\(download) ↑\(upload)"
-            let reserved = networkSettings.rateOrder == .uploadThenDownload
+            let reserved =
+                networkSettings.rateOrder == .uploadThenDownload
                 ? "↑\(placeholder) ↓\(placeholder)"
                 : "↓\(placeholder) ↑\(placeholder)"
             renderer = TextRenderer(
@@ -171,7 +166,8 @@ struct NetworkSettingsView: View {
             renderer = GraphRenderer(values: [0.1, 0.35, 0.22, 0.8, 0.55, 0.7], style: moduleSettings.graphStyle)
         default:
             let uploadFirst = networkSettings.rateOrder == .uploadThenDownload
-            renderer = uploadFirst
+            renderer =
+                uploadFirst
                 ? NetworkRateStackRenderer(
                     top: "↑\(upload)",
                     bottom: "↓\(download)",
@@ -243,8 +239,8 @@ struct NetworkSettingsView: View {
     }
 }
 
-private extension NSColor {
-    convenience init?(networkHexString: String) {
+extension NSColor {
+    fileprivate convenience init?(networkHexString: String) {
         let value = networkHexString.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
         guard value.count == 6, let integer = UInt64(value, radix: 16) else {
             return nil

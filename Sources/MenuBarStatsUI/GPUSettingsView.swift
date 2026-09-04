@@ -60,7 +60,7 @@ struct GPUSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("GPU")
+        .settingsPane(module: .gpu, settings: settingsStore.settings)
     }
 
     private func moduleBinding<Value>(_ keyPath: WritableKeyPath<ModuleSettings, Value>) -> Binding<Value> {

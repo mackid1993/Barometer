@@ -35,9 +35,12 @@ public final class SettingsWindowController: NSWindowController {
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Barometer Settings"
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 720, height: 520))
-        window.minSize = NSSize(width: 640, height: 440)
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.toolbarStyle = .unifiedCompact
+        window.isMovableByWindowBackground = true
+        window.setContentSize(NSSize(width: 780, height: 580))
+        window.minSize = NSSize(width: 700, height: 480)
         window.isReleasedWhenClosed = false
         window.center()
         self.init(window: window)
@@ -61,7 +64,7 @@ enum SettingsSelection: Hashable {
     var title: String {
         switch self {
         case .general: "General"
-        case let .module(module): module.displayName
+        case .module(let module): module.displayName
         case .about: "About"
         }
     }
@@ -91,21 +94,34 @@ private struct SettingsRootView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $navigationModel.selection) {
-                Label("General", systemImage: "gearshape")
-                    .tag(SettingsSelection.general)
+                SettingsSidebarRow(
+                    symbolName: "gearshape.fill",
+                    title: "General",
+                    accent: ModuleAccent(primary: Color(hex: 0x64748B), secondary: Color(hex: 0x94A3B8))
+                )
+                .tag(SettingsSelection.general)
 
                 Section("Modules") {
                     ForEach(ModuleID.allCases, id: \.self) { module in
-                        Label(module.displayName, systemImage: module.symbolName)
-                            .tag(SettingsSelection.module(module))
+                        SettingsSidebarRow(
+                            symbolName: module.symbolName,
+                            title: module.displayName,
+                            accent: ModuleAccent.resolve(settingsStore.settings, module: module)
+                        )
+                        .tag(SettingsSelection.module(module))
                     }
                 }
 
-                Label("About Barometer", systemImage: "info.circle")
-                    .tag(SettingsSelection.about)
+                SettingsSidebarRow(
+                    symbolName: "info.circle.fill",
+                    title: "About Barometer",
+                    accent: ModuleAccent(primary: Color(hex: 0x2F7CF6), secondary: Color(hex: 0x6BA4FF))
+                )
+                .tag(SettingsSelection.about)
             }
+            .listStyle(.sidebar)
             .navigationTitle("Settings")
-            .navigationSplitViewColumnWidth(min: 175, ideal: 195)
+            .navigationSplitViewColumnWidth(min: 190, ideal: 210)
         } detail: {
             switch navigationModel.selection ?? .general {
             case .general:
@@ -187,20 +203,35 @@ private struct GeneralSettingsView: View {
                     Text("Semibold").tag(MenuBarFontWeight.semibold)
                 }
                 Toggle("Compact internal layout", isOn: appBinding(\.usesCompactLayout))
+                Text(
+                    "Uses the condensed system typeface and tighter icon gaps, sensor padding, graph width, "
+                        + "and Combined separators, so every item narrows by the same proportion."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
                 HStack {
                     Text("Font size")
-                    Slider(value: appBinding(\.fontSize), in: 9...14, step: 0.5)
+                    Slider(value: appBinding(\.fontSize), in: AppSettings.menuBarFontSizeRange, step: 0.5)
                     Text(String(format: "%.1f pt", settingsStore.settings.fontSize))
                         .monospacedDigit()
                         .frame(width: 50, alignment: .trailing)
                 }
+                Text(fontSizeCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 HStack {
                     Text("Icon and graph size")
-                    Slider(value: appBinding(\.menuBarScale), in: 0.75...1.35, step: 0.05)
+                    Slider(value: appBinding(\.menuBarScale), in: AppSettings.menuBarScaleRange, step: 0.05)
                     Text(settingsStore.settings.menuBarScale, format: .percent.precision(.fractionLength(0)))
                         .monospacedDigit()
                         .frame(width: 42, alignment: .trailing)
                 }
+                Text(
+                    "Scales symbols, graph width and height, and the battery glyph. Icons stacked over a value "
+                        + "stay inside the top row."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
                 HStack {
                     Text("Item spacing")
                     Slider(value: appBinding(\.menuBarSpacing), in: 0...12, step: 1)
@@ -218,13 +249,21 @@ private struct GeneralSettingsView: View {
                         .monospacedDigit()
                         .frame(width: 42, alignment: .trailing)
                 }
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Live Preview").font(.caption).foregroundStyle(.secondary)
-                    Image(nsImage: appearancePreview)
-                        .padding(.horizontal, 12)
-                        .frame(height: 34)
-                        .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
+            }
+
+            Section("Menu Bar Item Widths") {
+                Button("Stage Current Widths for Next Launch") {
+                    StatusItemRendering.clearCommittedLengths()
+                    NotificationCenter.default.post(name: .barometerStageItemWidths, object: nil)
                 }
+                Text(
+                    "Barometer never resizes a live item because menu bar managers on macOS 27 may move it. "
+                        + "Settings previews update immediately, while live items keep their current geometry "
+                        + "and stage exact widths automatically. Quit and reopen Barometer to apply the new "
+                        + "geometry before the items appear."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
 
             Section("Menu Bar Colors") {
@@ -299,7 +338,8 @@ private struct GeneralSettingsView: View {
                 )
                 Button("Reset Colors to Selected Theme") {
                     var settings = settingsStore.settings
-                    let preset = settings.appearancePreset == .custom
+                    let preset =
+                        settings.appearancePreset == .custom
                         ? AppearancePreset.system
                         : settings.appearancePreset
                     settings.applyTheme(preset)
@@ -329,7 +369,13 @@ private struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("General")
+        .settingsPane(
+            symbolName: "gearshape.fill",
+            title: "General",
+            subtitle: "Launch behavior, sampling, typography, and the menu bar palette.",
+            accent: ModuleAccent(primary: Color(hex: 0x64748B), secondary: Color(hex: 0x94A3B8)),
+            preview: appearancePreview
+        )
         .onAppear {
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }
@@ -408,7 +454,7 @@ private struct GeneralSettingsView: View {
             palette: MenuBarPalette(light: normal, dark: normal),
             graphPalette: MenuBarPalette(light: graph, dark: graph),
             fillPalette: MenuBarPalette(light: fill, dark: fill),
-            fontSize: settings.fontSize,
+            fontSize: settings.effectiveMenuBarFontSize,
             isMonochrome: settings.isMonochrome,
             scale: settings.menuBarScale,
             horizontalSpacing: 1,
@@ -436,6 +482,37 @@ private struct GeneralSettingsView: View {
             launchAtLogin = SMAppService.mainApp.status == .enabled
             serviceError = error.localizedDescription
         }
+    }
+
+    private var fontSizeCaption: String {
+        let settings = settingsStore.settings
+        let thickness = NSStatusBar.system.thickness
+        let context = RenderContext(
+            thickness: thickness,
+            appearance: .dark,
+            palette: MenuBarPalette(light: .black, dark: .white),
+            fontSize: settings.effectiveMenuBarFontSize,
+            isMonochrome: true,
+            scale: settings.menuBarScale
+        )
+        let compact = MenuBarLayoutMetrics(context: context).compactPointSize
+        let maximum = MenuBarLayoutMetrics.maximumCompactPointSize(thickness: thickness)
+        let base = String(
+            format:
+                "Single-line items use this size. Two-row items use %.1f pt, up to the %.1f pt that fits "
+                + "this menu bar.",
+            compact,
+            maximum
+        )
+        guard settings.effectiveMenuBarFontSize < settings.fontSize else {
+            return base
+        }
+        return String(
+            format: "Using %.1f pt with %d active widgets to preserve menu bar space. %@",
+            settings.effectiveMenuBarFontSize,
+            settings.enabledMenuBarItemCount,
+            base
+        )
     }
 
     private var launchAtLoginStatus: String {
@@ -494,27 +571,65 @@ private struct AboutSettingsView: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .frame(width: 112, height: 112)
-            Text("Barometer").font(.largeTitle.weight(.semibold))
-            Text("Version \(version) (\(build))")
-                .foregroundStyle(.secondary)
-            Text("A detailed, customizable system monitor for the macOS menu bar.")
+        let accent = ModuleAccent(primary: Color(hex: 0x2F7CF6), secondary: Color(hex: 0x22D3EE))
+        ScrollView {
+            VStack(spacing: 18) {
+                ZStack {
+                    Circle()
+                        .fill(accent.gradient)
+                        .frame(width: 150, height: 150)
+                        .blur(radius: 34)
+                        .opacity(0.45)
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 120, height: 120)
+                        .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
+                }
+                .padding(.top, 12)
+                VStack(spacing: 6) {
+                    Text("Barometer")
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                    Chip(text: "Version \(version) (\(build))", color: accent.primary, symbol: "tag.fill")
+                }
+                Text(
+                    "A detailed, customizable system monitor for the macOS menu bar, built to stay stable with "
+                        + "menu bar managers on macOS 27."
+                )
                 .multilineTextAlignment(.center)
-            if let sourceURL = URL(string: "https://github.com/mackid1993/Barometer") {
-                Link("Source Code", destination: sourceURL)
-            }
-            Text("MIT License")
-                .font(.headline)
-            Text("Weather data by Open-Meteo.com")
-                .font(.caption)
                 .foregroundStyle(.secondary)
-            Spacer()
+                .frame(maxWidth: 420)
+                HStack(spacing: 10) {
+                    if let sourceURL = URL(string: "https://github.com/mackid1993/Barometer") {
+                        Link(destination: sourceURL) {
+                            Label("Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
+                        }
+                        .buttonStyle(.glassProminent)
+                    }
+                    if let weatherURL = URL(string: "https://open-meteo.com/") {
+                        Link(destination: weatherURL) {
+                            Label("Open-Meteo", systemImage: "cloud.sun.fill")
+                        }
+                        .buttonStyle(.glass)
+                    }
+                }
+                GlassCard {
+                    VStack(alignment: .leading, spacing: 6) {
+                        SectionLabel("Credits")
+                        MetricRow(label: "License", value: "MIT", symbol: "doc.text", tint: accent.primary)
+                        MetricRow(
+                            label: "Weather data", value: "Open-Meteo.com (CC BY 4.0)", symbol: "cloud.sun",
+                            tint: accent.secondary)
+                        MetricRow(
+                            label: "Hardware sources", value: "IOKit, IOReport, SMC (read-only)", symbol: "cpu",
+                            tint: accent.primary)
+                    }
+                }
+                .frame(maxWidth: 460)
+                Spacer(minLength: 20)
+            }
+            .padding(32)
+            .frame(maxWidth: .infinity)
         }
-        .padding(32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle("About")
     }
 }
@@ -547,13 +662,6 @@ private struct ModuleSettingsView: View {
         Form {
             Section {
                 Toggle("Show in menu bar", isOn: moduleBinding(\.isEnabled))
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Live Preview").font(.caption).foregroundStyle(.secondary)
-                    Image(nsImage: previewImage)
-                        .padding(.horizontal, 12)
-                        .frame(height: 34)
-                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
-                }
             }
 
             Section("Menu Bar") {
@@ -602,7 +710,7 @@ private struct ModuleSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle(module.displayName)
+        .settingsPane(module: module, settings: settingsStore.settings, preview: previewImage)
     }
 
     private var modeOptions: [(value: String, label: String)] {
@@ -632,7 +740,7 @@ private struct ModuleSettingsView: View {
             thickness: NSStatusBar.system.thickness,
             appearance: .dark,
             palette: MenuBarPalette(light: color, dark: color),
-            fontSize: min(14, max(9, appSettings.fontSize)),
+            fontSize: appSettings.effectiveMenuBarFontSize,
             isMonochrome: appSettings.isMonochrome,
             scale: scale,
             horizontalSpacing: appSettings.menuBarSpacing
@@ -705,8 +813,8 @@ extension ModuleID {
     }
 }
 
-private extension NSColor {
-    convenience init?(hexString: String) {
+extension NSColor {
+    fileprivate convenience init?(hexString: String) {
         let value = hexString.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
         guard value.count == 6, let integer = UInt64(value, radix: 16) else { return nil }
         self.init(
@@ -717,7 +825,7 @@ private extension NSColor {
         )
     }
 
-    var hexRGB: String? {
+    fileprivate var hexRGB: String? {
         guard let components = usingColorSpace(.sRGB) else {
             return nil
         }

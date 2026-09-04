@@ -152,6 +152,12 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Current settings schema version.
     public static let currentSchemaVersion = 13
 
+    /// Supported menu bar font-size range in points.
+    public static let menuBarFontSizeRange = 9.0...12.0
+
+    /// Supported scale range for menu bar icons and graphs.
+    public static let menuBarScaleRange = 0.75...1.15
+
     /// Schema version encoded in this value.
     public var schemaVersion: Int
 
@@ -193,10 +199,18 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var usesCompactLayout: Bool
 
     /// Global menu bar font size.
-    public var fontSize: Double
+    public var fontSize: Double {
+        didSet {
+            fontSize = Self.clampedMenuBarFontSize(fontSize)
+        }
+    }
 
     /// Scale applied to menu bar graphs and icons without changing type size.
-    public var menuBarScale: Double
+    public var menuBarScale: Double {
+        didSet {
+            menuBarScale = Self.clampedMenuBarScale(menuBarScale)
+        }
+    }
 
     /// Horizontal padding on each side of every menu bar item, in points.
     public var menuBarSpacing: Double
@@ -282,8 +296,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.graphOpacity = graphOpacity
         self.fontWeight = fontWeight
         self.usesCompactLayout = usesCompactLayout
-        self.fontSize = fontSize
-        self.menuBarScale = menuBarScale
+        self.fontSize = Self.clampedMenuBarFontSize(fontSize)
+        self.menuBarScale = Self.clampedMenuBarScale(menuBarScale)
         self.menuBarSpacing = menuBarSpacing
         self.modules = modules
         self.weather = weather
@@ -299,9 +313,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
     /// Default module settings, with CPU and Memory enabled for Phase 1.
     public static var defaultModules: [ModuleID: ModuleSettings] {
-        var values = Dictionary(uniqueKeysWithValues: ModuleID.allCases.map { module in
-            (module, ModuleSettings())
-        })
+        var values = Dictionary(
+            uniqueKeysWithValues: ModuleID.allCases.map { module in
+                (module, ModuleSettings())
+            })
         values[.cpu] = ModuleSettings(isEnabled: true, mode: "stacked", interval: 1)
         values[.memory] = ModuleSettings(isEnabled: true, mode: "stacked", interval: 2)
         values[.gpu] = ModuleSettings(isEnabled: false, mode: "percentage", interval: 1)
@@ -357,10 +372,11 @@ public struct AppSettings: Codable, Equatable, Sendable {
         switch version {
         case 0:
             schemaVersion = Self.currentSchemaVersion
-            reducesSamplingOnBattery = try container.decodeIfPresent(
-                Bool.self,
-                forKey: .reducesSamplingOnBattery
-            ) ?? true
+            reducesSamplingOnBattery =
+                try container.decodeIfPresent(
+                    Bool.self,
+                    forKey: .reducesSamplingOnBattery
+                ) ?? true
             isMonochrome = try container.decodeIfPresent(Bool.self, forKey: .isMonochrome) ?? true
             usesGlobalColors = false
             globalLightColor = "#2F7CF6"
@@ -397,42 +413,51 @@ public struct AppSettings: Codable, Equatable, Sendable {
             usesGlobalColors = try container.decodeIfPresent(Bool.self, forKey: .usesGlobalColors) ?? false
             globalLightColor = try container.decodeIfPresent(String.self, forKey: .globalLightColor) ?? "#2F7CF6"
             globalDarkColor = try container.decodeIfPresent(String.self, forKey: .globalDarkColor) ?? "#6BA4FF"
-            appearancePreset = try container.decodeIfPresent(
-                AppearancePreset.self,
-                forKey: .appearancePreset
-            ) ?? .system
-            globalGraphLightColor = try container.decodeIfPresent(
-                String.self,
-                forKey: .globalGraphLightColor
-            ) ?? globalLightColor
-            globalGraphDarkColor = try container.decodeIfPresent(
-                String.self,
-                forKey: .globalGraphDarkColor
-            ) ?? globalDarkColor
-            globalFillLightColor = try container.decodeIfPresent(
-                String.self,
-                forKey: .globalFillLightColor
-            ) ?? globalGraphLightColor
-            globalFillDarkColor = try container.decodeIfPresent(
-                String.self,
-                forKey: .globalFillDarkColor
-            ) ?? globalGraphDarkColor
-            globalWarningLightColor = try container.decodeIfPresent(
-                String.self,
-                forKey: .globalWarningLightColor
-            ) ?? "#F59E0B"
-            globalWarningDarkColor = try container.decodeIfPresent(
-                String.self,
-                forKey: .globalWarningDarkColor
-            ) ?? "#FBBF24"
-            globalCriticalLightColor = try container.decodeIfPresent(
-                String.self,
-                forKey: .globalCriticalLightColor
-            ) ?? "#DC2626"
-            globalCriticalDarkColor = try container.decodeIfPresent(
-                String.self,
-                forKey: .globalCriticalDarkColor
-            ) ?? "#F87171"
+            appearancePreset =
+                try container.decodeIfPresent(
+                    AppearancePreset.self,
+                    forKey: .appearancePreset
+                ) ?? .system
+            globalGraphLightColor =
+                try container.decodeIfPresent(
+                    String.self,
+                    forKey: .globalGraphLightColor
+                ) ?? globalLightColor
+            globalGraphDarkColor =
+                try container.decodeIfPresent(
+                    String.self,
+                    forKey: .globalGraphDarkColor
+                ) ?? globalDarkColor
+            globalFillLightColor =
+                try container.decodeIfPresent(
+                    String.self,
+                    forKey: .globalFillLightColor
+                ) ?? globalGraphLightColor
+            globalFillDarkColor =
+                try container.decodeIfPresent(
+                    String.self,
+                    forKey: .globalFillDarkColor
+                ) ?? globalGraphDarkColor
+            globalWarningLightColor =
+                try container.decodeIfPresent(
+                    String.self,
+                    forKey: .globalWarningLightColor
+                ) ?? "#F59E0B"
+            globalWarningDarkColor =
+                try container.decodeIfPresent(
+                    String.self,
+                    forKey: .globalWarningDarkColor
+                ) ?? "#FBBF24"
+            globalCriticalLightColor =
+                try container.decodeIfPresent(
+                    String.self,
+                    forKey: .globalCriticalLightColor
+                ) ?? "#DC2626"
+            globalCriticalDarkColor =
+                try container.decodeIfPresent(
+                    String.self,
+                    forKey: .globalCriticalDarkColor
+                ) ?? "#F87171"
             graphOpacity = try container.decodeIfPresent(Double.self, forKey: .graphOpacity) ?? 0.85
             fontWeight = try container.decodeIfPresent(MenuBarFontWeight.self, forKey: .fontWeight) ?? .medium
             usesCompactLayout = try container.decodeIfPresent(Bool.self, forKey: .usesCompactLayout) ?? false
@@ -441,20 +466,22 @@ public struct AppSettings: Codable, Equatable, Sendable {
             menuBarSpacing = try container.decodeIfPresent(Double.self, forKey: .menuBarSpacing) ?? 3
             modules = try container.decode([ModuleID: ModuleSettings].self, forKey: .modules)
             weather = try container.decodeIfPresent(WeatherSettings.self, forKey: .weather) ?? WeatherSettings()
-            sensorTemperatureUnit = try container.decodeIfPresent(
-                TemperatureUnit.self,
-                forKey: .sensorTemperatureUnit
-            ) ?? .celsius
+            sensorTemperatureUnit =
+                try container.decodeIfPresent(
+                    TemperatureUnit.self,
+                    forKey: .sensorTemperatureUnit
+                ) ?? .celsius
             sensors = try container.decodeIfPresent(SensorSettings.self, forKey: .sensors) ?? SensorSettings()
             network = try container.decodeIfPresent(NetworkSettings.self, forKey: .network) ?? NetworkSettings()
             disks = try container.decodeIfPresent(DiskSettings.self, forKey: .disks) ?? DiskSettings()
             battery = try container.decodeIfPresent(BatterySettings.self, forKey: .battery) ?? BatterySettings()
             time = try container.decodeIfPresent(TimeSettings.self, forKey: .time) ?? TimeSettings()
             combined = try container.decodeIfPresent(CombinedSettings.self, forKey: .combined) ?? CombinedSettings()
-            presentationDefaultsVersion = try container.decodeIfPresent(
-                Int.self,
-                forKey: .presentationDefaultsVersion
-            ) ?? 0
+            presentationDefaultsVersion =
+                try container.decodeIfPresent(
+                    Int.self,
+                    forKey: .presentationDefaultsVersion
+                ) ?? 0
             if presentationDefaultsVersion < 1 {
                 if modules[.cpu]?.mode == "percentage" {
                     modules[.cpu]?.mode = "stacked"
@@ -474,7 +501,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
                 // effective size into the font once so upgrading does not
                 // visually shrink existing menu bar text, then let the scale
                 // control affect only icons and graphs.
-                fontSize = min(14, max(9, fontSize * menuBarScale))
+                fontSize = Self.clampedMenuBarFontSize(fontSize * menuBarScale)
                 menuBarScale = 1
                 presentationDefaultsVersion = 3
             }
@@ -510,6 +537,53 @@ public struct AppSettings: Codable, Equatable, Sendable {
                 in: container,
                 debugDescription: "Unsupported settings schema version \(version)"
             )
+        }
+        fontSize = Self.clampedMenuBarFontSize(fontSize)
+        menuBarScale = Self.clampedMenuBarScale(menuBarScale)
+    }
+
+    /// Clamps a font size to the range that fits Barometer's fixed-height menu bar canvases.
+    public static func clampedMenuBarFontSize(_ value: Double) -> Double {
+        min(menuBarFontSizeRange.upperBound, max(menuBarFontSizeRange.lowerBound, value))
+    }
+
+    /// Clamps icon and graph scaling to the range that fits the menu bar canvas.
+    public static func clampedMenuBarScale(_ value: Double) -> Double {
+        min(menuBarScaleRange.upperBound, max(menuBarScaleRange.lowerBound, value))
+    }
+
+    /// Number of independently movable Barometer items requested by the current settings.
+    public var enabledMenuBarItemCount: Int {
+        let combinedEnabled = modules[.combined]?.isEnabled == true
+        let hidesCombinedMembers = combinedEnabled && combined.hidesIndividualMembers
+        var count = combinedEnabled ? 1 : 0
+
+        for module in ModuleID.allCases where module != .combined && module != .sensors {
+            let hiddenByCombined = hidesCombinedMembers && combined.members.contains(module)
+            if modules[module]?.isEnabled == true && !hiddenByCombined {
+                count += 1
+            }
+        }
+
+        let sensorsHiddenByCombined = hidesCombinedMembers && combined.members.contains(.sensors)
+        if modules[.sensors]?.isEnabled == true && !sensorsHiddenByCombined {
+            count += sensors.widgets.count(where: \.isEnabled)
+        }
+        return count
+    }
+
+    /// Selected font size reduced when many independent widgets would crowd the menu bar.
+    public var effectiveMenuBarFontSize: Double {
+        min(fontSize, Self.maximumMenuBarFontSize(forItemCount: enabledMenuBarItemCount))
+    }
+
+    /// Density ceiling used for a given number of independently movable items.
+    public static func maximumMenuBarFontSize(forItemCount count: Int) -> Double {
+        switch count {
+        case ...4: 12
+        case 5...6: 11
+        case 7...8: 10
+        default: 9
         }
     }
 
@@ -576,20 +650,30 @@ public struct AppSettings: Codable, Equatable, Sendable {
         let roles: (String, String, String, String, String, String, String, String, String, String)
         switch preset {
         case .system:
-            roles = ("#2F7CF6", "#6BA4FF", "#2F7CF6", "#6BA4FF", "#72A8FF", "#397FE8",
-                     "#F59E0B", "#FBBF24", "#DC2626", "#F87171")
+            roles = (
+                "#2F7CF6", "#6BA4FF", "#2F7CF6", "#6BA4FF", "#72A8FF", "#397FE8",
+                "#F59E0B", "#FBBF24", "#DC2626", "#F87171"
+            )
         case .ocean:
-            roles = ("#1677FF", "#70B7FF", "#00A7C7", "#5EE5FF", "#68D5E8", "#147EA3",
-                     "#F59E0B", "#FBBF24", "#DC2626", "#F87171")
+            roles = (
+                "#1677FF", "#70B7FF", "#00A7C7", "#5EE5FF", "#68D5E8", "#147EA3",
+                "#F59E0B", "#FBBF24", "#DC2626", "#F87171"
+            )
         case .sunset:
-            roles = ("#C241A7", "#FF8BD8", "#F97316", "#FDBA74", "#FB7185", "#BE185D",
-                     "#F59E0B", "#FBBF24", "#B91C1C", "#FB7185")
+            roles = (
+                "#C241A7", "#FF8BD8", "#F97316", "#FDBA74", "#FB7185", "#BE185D",
+                "#F59E0B", "#FBBF24", "#B91C1C", "#FB7185"
+            )
         case .forest:
-            roles = ("#16803A", "#72E49A", "#0F9F6E", "#5EE6B8", "#6CCF8D", "#137A54",
-                     "#D97706", "#FBBF24", "#B91C1C", "#F87171")
+            roles = (
+                "#16803A", "#72E49A", "#0F9F6E", "#5EE6B8", "#6CCF8D", "#137A54",
+                "#D97706", "#FBBF24", "#B91C1C", "#F87171"
+            )
         case .neon:
-            roles = ("#A21CAF", "#F472FF", "#00A6A6", "#5FFFFF", "#FF4FD8", "#8B1FC7",
-                     "#F59E0B", "#FFE066", "#E11D48", "#FF5A7A")
+            roles = (
+                "#16A34A", "#39FF14", "#0D9488", "#00FFC6", "#65A30D", "#7CFF4D",
+                "#CA8A04", "#FACC15", "#DC2626", "#FF3B5C"
+            )
         case .custom:
             return
         }

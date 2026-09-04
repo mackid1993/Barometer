@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MenuBarStatsCore
 
 @Suite("SettingsTests")
@@ -7,7 +8,7 @@ struct SettingsTests {
     @Test("settings encode and decode without loss")
     func roundTrip() throws {
         var settings = AppSettings()
-        settings.fontSize = 13
+        settings.fontSize = 11.5
         settings.modules[.cpu]?.mode = "graph"
         settings.weather.units.temperature = .celsius
         settings.sensorTemperatureUnit = .fahrenheit
@@ -107,8 +108,9 @@ struct SettingsTests {
         object.removeValue(forKey: "network")
         var modules = try #require(object["modules"] as? [Any])
         if let index = modules.firstIndex(where: { ($0 as? String) == ModuleID.network.rawValue }),
-           modules.indices.contains(index + 1),
-           var networkModule = modules[index + 1] as? [String: Any] {
+            modules.indices.contains(index + 1),
+            var networkModule = modules[index + 1] as? [String: Any]
+        {
             networkModule["mode"] = "percentage"
             modules[index + 1] = networkModule
             object["modules"] = modules
@@ -148,8 +150,9 @@ struct SettingsTests {
         object.removeValue(forKey: "disks")
         var modules = try #require(object["modules"] as? [Any])
         if let index = modules.firstIndex(where: { ($0 as? String) == ModuleID.disks.rawValue }),
-           modules.indices.contains(index + 1),
-           var diskModule = modules[index + 1] as? [String: Any] {
+            modules.indices.contains(index + 1),
+            var diskModule = modules[index + 1] as? [String: Any]
+        {
             diskModule["mode"] = "percentage"
             modules[index + 1] = diskModule
             object["modules"] = modules
@@ -171,8 +174,9 @@ struct SettingsTests {
         object.removeValue(forKey: "sensors")
         var modules = try #require(object["modules"] as? [Any])
         if let index = modules.firstIndex(where: { ($0 as? String) == ModuleID.sensors.rawValue }),
-           modules.indices.contains(index + 1),
-           var sensorModule = modules[index + 1] as? [String: Any] {
+            modules.indices.contains(index + 1),
+            var sensorModule = modules[index + 1] as? [String: Any]
+        {
             sensorModule["mode"] = "percentage"
             modules[index + 1] = sensorModule
             object["modules"] = modules
@@ -275,7 +279,7 @@ struct SettingsTests {
 
         #expect(migrated.menuBarScale == 1)
         #expect(migrated.menuBarSpacing == 3)
-        #expect(abs(migrated.fontSize - 13.8) < 0.001)
+        #expect(migrated.fontSize == 12)
     }
 
     @Test("settings store persists immediately")
@@ -290,11 +294,65 @@ struct SettingsTests {
 
         let store = SettingsStore(defaults: defaults)
         var updated = store.settings
-        updated.fontSize = 14
+        updated.fontSize = 12
         store.settings = updated
         store.saveNow()
 
         let reloaded = SettingsStore(defaults: defaults)
-        #expect(reloaded.settings.fontSize == 14)
+        #expect(reloaded.settings.fontSize == 12)
+    }
+
+    @Test("menu bar font size is capped at the fixed canvas maximum")
+    func capsMenuBarFontSize() {
+        var settings = AppSettings(fontSize: 14)
+        #expect(settings.fontSize == 12)
+        settings.fontSize = 13
+        #expect(settings.fontSize == 12)
+        settings.fontSize = 8
+        #expect(settings.fontSize == 9)
+    }
+
+    @Test("icon and graph scale is capped at the fixed canvas maximum")
+    func capsMenuBarScale() {
+        var settings = AppSettings(menuBarScale: 1.35)
+        #expect(settings.menuBarScale == 1.15)
+        settings.menuBarScale = 1.3
+        #expect(settings.menuBarScale == 1.15)
+        settings.menuBarScale = 0.5
+        #expect(settings.menuBarScale == 0.75)
+    }
+
+    @Test("active widget count automatically limits effective font size")
+    func limitsFontSizeForDensity() {
+        var settings = AppSettings(fontSize: 12)
+        #expect(settings.enabledMenuBarItemCount == 2)
+        #expect(settings.effectiveMenuBarFontSize == 12)
+
+        for module in [ModuleID.gpu, .network, .sensors, .weather] {
+            settings.modules[module]?.isEnabled = true
+        }
+        #expect(settings.enabledMenuBarItemCount == 6)
+        #expect(settings.effectiveMenuBarFontSize == 11)
+
+        settings.sensors.widgets.append(SensorWidgetSettings(id: 2))
+        #expect(settings.enabledMenuBarItemCount == 7)
+        #expect(settings.effectiveMenuBarFontSize == 10)
+
+        settings.modules[.combined]?.isEnabled = true
+        settings.combined.members = [.cpu, .memory, .sensors]
+        settings.combined.hidesIndividualMembers = true
+        #expect(settings.enabledMenuBarItemCount == 4)
+        #expect(settings.effectiveMenuBarFontSize == 12)
+
+        settings.modules[.combined]?.isEnabled = false
+
+        settings.modules[.disks]?.isEnabled = true
+        #expect(settings.enabledMenuBarItemCount == 8)
+        #expect(settings.effectiveMenuBarFontSize == 10)
+
+        settings.modules[.battery]?.isEnabled = true
+        settings.modules[.time]?.isEnabled = true
+        #expect(settings.enabledMenuBarItemCount == 10)
+        #expect(settings.effectiveMenuBarFontSize == 9)
     }
 }

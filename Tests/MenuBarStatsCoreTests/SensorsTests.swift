@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MenuBarStatsCore
 
 @Suite("SensorsTests")
@@ -105,15 +106,68 @@ struct SensorsTests {
         let start = Date(timeIntervalSince1970: 100)
 
         #expect(SensorsMonitor.shouldRefresh(lastRefresh: nil, now: start, interval: 10))
-        #expect(!SensorsMonitor.shouldRefresh(
-            lastRefresh: start,
-            now: start.addingTimeInterval(9.9),
-            interval: 10
-        ))
-        #expect(SensorsMonitor.shouldRefresh(
-            lastRefresh: start,
-            now: start.addingTimeInterval(10),
-            interval: 10
-        ))
+        #expect(
+            !SensorsMonitor.shouldRefresh(
+                lastRefresh: start,
+                now: start.addingTimeInterval(9.9),
+                interval: 10
+            ))
+        #expect(
+            SensorsMonitor.shouldRefresh(
+                lastRefresh: start,
+                now: start.addingTimeInterval(10),
+                interval: 10
+            ))
+    }
+}
+
+@Suite("DerivedTemperatureTests")
+struct DerivedTemperatureTests {
+    private func reading(name: String, rawName: String, value: Double, source: SensorSourceKind) -> SensorReading {
+        SensorReading(
+            id: "\(source.rawValue):\(rawName)",
+            name: name,
+            shortName: String(name.prefix(3)).uppercased(),
+            rawName: rawName,
+            kind: .temperature,
+            source: source,
+            value: value,
+            unit: .celsius
+        )
+    }
+
+    @Test("CPU temperature comes from the die sensors, not the hottest Tp key")
+    func cpuUsesDieSensors() {
+        let readings = [
+            reading(name: "SoC die 1", rawName: "PMU tdie1", value: 46.2, source: .hid),
+            reading(name: "SoC die 2", rawName: "PMU tdie2", value: 49.9, source: .hid),
+            reading(name: "CPU Tp29", rawName: "Tp29", value: 76.3, source: .smc),
+            reading(name: "CPU TPD0", rawName: "TPD0", value: 47.7, source: .smc),
+            reading(name: "GPU Tg0a", rawName: "Tg0a", value: 53.4, source: .smc),
+        ]
+        let derived = SensorsMonitor.addDerivedTemperatures(to: readings)
+        #expect(derived.first { $0.id == "derived:temperature:cpu" }?.value == 49.9)
+        #expect(derived.first { $0.id == "derived:temperature:gpu" }?.value == 53.4)
+        #expect(derived.first { $0.id == "derived:temperature:hottest" }?.value == 76.3)
+    }
+
+    @Test("CPU temperature falls back to SMC die keys, then the broad CPU family")
+    func cpuFallbacks() {
+        let packageOnly = [
+            reading(name: "CPU Tp29", rawName: "Tp29", value: 76.3, source: .smc),
+            reading(name: "CPU TPD0", rawName: "TPD0", value: 47.7, source: .smc),
+            reading(name: "CPU TPD1", rawName: "TPD1", value: 45.1, source: .smc),
+        ]
+        #expect(
+            SensorsMonitor.addDerivedTemperatures(to: packageOnly)
+                .first { $0.id == "derived:temperature:cpu" }?.value == 47.7)
+
+        let broadOnly = [
+            reading(name: "CPU Tp29", rawName: "Tp29", value: 76.3, source: .smc),
+            reading(name: "CPU Te06", rawName: "Te06", value: 56.9, source: .smc),
+        ]
+        #expect(
+            SensorsMonitor.addDerivedTemperatures(to: broadOnly)
+                .first { $0.id == "derived:temperature:cpu" }?.value == 76.3)
     }
 }

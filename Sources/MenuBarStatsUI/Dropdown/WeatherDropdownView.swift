@@ -4,6 +4,9 @@ import SwiftUI
 
 /// Detailed live forecast shown inside the Weather status-item menu.
 public struct WeatherDropdownView: View {
+    /// Fixed hosted content width; height follows the content.
+    public static let contentSize = CGSize(width: 380, height: 720)
+
     private let store: ModuleStore<WeatherSample>
     private let settingsStore: SettingsStore
     private let refreshAction: @MainActor () -> Void
@@ -21,30 +24,30 @@ public struct WeatherDropdownView: View {
 
     public var body: some View {
         let _ = store.revision
-        ScrollView {
+        let accent = ModuleAccent.resolve(settingsStore.settings, module: .weather)
+        DropdownScaffold(size: Self.contentSize) {
             if let sample = store.latestSample {
-                VStack(alignment: .leading, spacing: 16) {
-                    CurrentWeatherHeader(sample: sample)
-                    HourlyForecastSection(sample: sample)
-                    DailyForecastSection(sample: sample)
-                    SunMoonSection(sample: sample)
-                    AirQualitySection(sample: sample)
-                    WeatherDetailsSection(sample: sample)
-                    locationAndActions(sample: sample)
-                    attribution
-                }
-                .padding(16)
+                CurrentWeatherCard(sample: sample)
+                HourlyForecastSection(sample: sample, accent: accent)
+                DailyForecastSection(sample: sample, accent: accent)
+                SunMoonSection(sample: sample, accent: accent)
+                AirQualitySection(sample: sample)
+                WeatherDetailsSection(sample: sample, accent: accent)
+                locationAndActions(sample: sample, accent: accent)
+                attribution
             } else {
-                ContentUnavailableView(
-                    "Weather unavailable",
-                    systemImage: "cloud.sun",
-                    description: Text(emptyStateDescription)
-                )
-                .frame(maxWidth: .infinity, minHeight: 620)
-                .padding(20)
+                HeroHeader(
+                    symbolName: "cloud.sun.fill", title: "Weather", subtitle: emptyStateDescription, value: nil,
+                    accent: accent)
+                GlassCard {
+                    ContentUnavailableView(
+                        "Weather unavailable",
+                        systemImage: "cloud.sun",
+                        description: Text(emptyStateDescription)
+                    )
+                }
             }
         }
-        .frame(width: 420, height: 700)
     }
 
     private var emptyStateDescription: String {
@@ -54,39 +57,44 @@ public struct WeatherDropdownView: View {
     }
 
     @ViewBuilder
-    private func locationAndActions(sample: WeatherSample) -> some View {
-        Divider()
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                if settingsStore.settings.weather.locations.count > 1 {
-                    Picker("Location", selection: primaryLocationBinding) {
-                        ForEach(settingsStore.settings.weather.locations) { location in
-                            Text(location.name).tag(location.id)
+    private func locationAndActions(sample: WeatherSample, accent: ModuleAccent) -> some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    if settingsStore.settings.weather.locations.count > 1 {
+                        Picker("Location", selection: primaryLocationBinding) {
+                            ForEach(settingsStore.settings.weather.locations) { location in
+                                Text(location.name).tag(location.id)
+                            }
                         }
+                        .labelsHidden()
+                        .controlSize(.small)
+                        .frame(maxWidth: 180)
+                    } else {
+                        Chip(text: sample.forecast.location.name, color: accent.primary, symbol: "location.fill")
                     }
-                    .labelsHidden()
-                    .frame(maxWidth: 180)
-                } else {
-                    Label(sample.forecast.location.name, systemImage: "location")
-                        .lineLimit(1)
+                    Spacer()
+                    DropdownActionButton(title: "Refresh", symbol: "arrow.clockwise", action: refreshAction)
+                    DropdownActionButton(
+                        title: "Weather", symbol: "arrow.up.forward.app", action: openWeatherApplication)
                 }
-                Spacer()
-                Button(action: refreshAction) {
-                    Label("Refresh Now", systemImage: "arrow.clockwise")
+                HStack(spacing: 6) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(Self.updatedText(fetchedAt: sample.forecast.fetchedAt, now: Date()))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
-                Button(action: openWeatherApplication) {
-                    Label("Weather", systemImage: "arrow.up.forward.app")
-                }
-            }
-            .controlSize(.small)
-            Text(Self.updatedText(fetchedAt: sample.forecast.fetchedAt, now: Date()))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            if let refreshError = sample.refreshError {
-                Label("Refresh failed; showing saved weather. \(refreshError)", systemImage: "exclamationmark.triangle")
+                if let refreshError = sample.refreshError {
+                    Label(
+                        "Refresh failed; showing saved weather. \(refreshError)",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
                     .font(.caption2)
                     .foregroundStyle(.orange)
                     .lineLimit(2)
+                }
             }
         }
     }
@@ -142,59 +150,120 @@ public struct WeatherDropdownView: View {
     }
 }
 
-private struct CurrentWeatherHeader: View {
+/// Sky-tinted hero card with the current conditions.
+private struct CurrentWeatherCard: View {
     let sample: WeatherSample
 
     var body: some View {
         let forecast = sample.forecast
-        HStack(alignment: .center, spacing: 14) {
-            Image(systemName: forecast.current.code.symbolName(isDay: forecast.current.isDay))
-                .symbolRenderingMode(.multicolor)
-                .font(.system(size: 42, weight: .medium))
-                .frame(width: 54)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 7) {
-                    Text(forecast.location.name).font(.headline)
-                    if sample.isStale {
-                        Label("Stale", systemImage: "exclamationmark.triangle.fill")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.orange)
+        let current = forecast.current
+        let sky = WeatherSky.gradient(code: current.code, isDay: current.isDay)
+        let shape = RoundedRectangle(cornerRadius: BarometerDesign.cardRadius, style: .continuous)
+        ZStack(alignment: .topLeading) {
+            shape.fill(sky)
+            shape.fill(
+                LinearGradient(
+                    colors: [.white.opacity(0.18), .clear, .black.opacity(0.12)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            HStack(alignment: .center, spacing: 14) {
+                Image(systemName: current.code.symbolName(isDay: current.isDay))
+                    .symbolRenderingMode(.multicolor)
+                    .font(.system(size: 46, weight: .medium))
+                    .frame(width: 60)
+                    .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 7) {
+                        Text(forecast.location.name)
+                            .font(.system(.title3, design: .rounded).weight(.semibold))
+                            .lineLimit(1)
+                        if sample.isStale {
+                            Chip(text: "Stale", color: .orange, symbol: "exclamationmark.triangle.fill")
+                        }
+                    }
+                    Text(current.code.description)
+                        .font(.callout)
+                        .opacity(0.9)
+                    if let apparent = current.apparentTemperature {
+                        Text("Feels like \(WeatherValue.temperature(apparent, units: forecast.units))")
+                            .font(.caption)
+                            .opacity(0.8)
                     }
                 }
-                Text(forecast.current.code.description)
-                    .foregroundStyle(.secondary)
-                if let apparent = forecast.current.apparentTemperature {
-                    Text("Feels like \(WeatherValue.temperature(apparent, units: forecast.units))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Spacer(minLength: 6)
+                Text(WeatherValue.temperature(current.temperature, units: forecast.units))
+                    .font(.system(size: 40, weight: .semibold, design: .rounded).monospacedDigit())
+                    .contentTransition(.numericText())
+                    .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
             }
-            Spacer()
-            Text(WeatherValue.temperature(forecast.current.temperature, units: forecast.units))
-                .font(.system(size: 34, weight: .semibold, design: .rounded).monospacedDigit())
+            .foregroundStyle(.white)
+            .padding(14)
         }
+        .overlay(shape.strokeBorder(.white.opacity(0.22), lineWidth: 0.75))
+        .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
+    }
+}
+
+private enum WeatherSky {
+    static func gradient(code: WMOCode, isDay: Bool) -> LinearGradient {
+        let colors: [Color]
+        if !isDay {
+            colors = [Color(hex: 0x1E1B4B), Color(hex: 0x0F172A)]
+        } else {
+            switch code.category {
+            case .clear: colors = [Color(hex: 0x38BDF8), Color(hex: 0x2563EB)]
+            case .cloudy: colors = [Color(hex: 0x64748B), Color(hex: 0x334155)]
+            case .rain: colors = [Color(hex: 0x3B82F6), Color(hex: 0x1E3A8A)]
+            case .snow: colors = [Color(hex: 0x93C5FD), Color(hex: 0x475569)]
+            case .storm: colors = [Color(hex: 0x4C1D95), Color(hex: 0x1E1B4B)]
+            case .fog: colors = [Color(hex: 0x94A3B8), Color(hex: 0x475569)]
+            }
+        }
+        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+}
+
+extension WMOCode {
+    fileprivate enum Category { case clear, cloudy, rain, snow, storm, fog }
+
+    fileprivate var category: Category {
+        let symbol = symbolName(isDay: true)
+        if symbol.contains("bolt") { return .storm }
+        if symbol.contains("snow") || symbol.contains("sleet") { return .snow }
+        if symbol.contains("rain") || symbol.contains("drizzle") { return .rain }
+        if symbol.contains("fog") { return .fog }
+        if symbol.contains("sun.max") { return .clear }
+        return .cloudy
     }
 }
 
 private struct HourlyForecastSection: View {
     let sample: WeatherSample
+    let accent: ModuleAccent
 
     private var points: [HourlyPoint] {
         Array(sample.forecast.hourly.filter { $0.time >= sample.forecast.current.time }.prefix(48))
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("NEXT 48 HOURS").weatherSectionLabel()
-            ScrollView(.horizontal, showsIndicators: false) {
-                HourlyForecastChart(
-                    points: points,
-                    units: sample.forecast.units,
-                    timeZone: sample.forecast.timeZone
-                )
-                    .frame(width: max(760, CGFloat(points.count) * 28), height: 150)
+        GlassCard(tint: accent.primary) {
+            VStack(alignment: .leading, spacing: 8) {
+                SectionLabel("Next 48 hours") {
+                    Chip(text: "Scroll for more", color: .secondary, symbol: "arrow.left.and.right")
+                }
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HourlyForecastChart(
+                        points: points,
+                        units: sample.forecast.units,
+                        timeZone: sample.forecast.timeZone,
+                        accent: accent
+                    )
+                    .frame(width: max(720, CGFloat(points.count) * 28), height: 150)
+                }
+                .insetPlate()
             }
-            .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 9))
         }
     }
 }
@@ -203,6 +272,7 @@ private struct HourlyForecastChart: View {
     let points: [HourlyPoint]
     let units: WeatherUnits
     let timeZone: TimeZone
+    let accent: ModuleAccent
 
     var body: some View {
         let temperatures = points.compactMap(\.temperature)
@@ -216,29 +286,79 @@ private struct HourlyForecastChart: View {
                     return
                 }
                 let step = size.width / CGFloat(points.count)
+                let baseline = size.height - 18
                 for (index, point) in points.enumerated() {
                     let probability = CGFloat((point.precipitationProbability ?? 0) / 100)
-                    let height = probability * 26
+                    let height = max(probability > 0 ? 2 : 0, probability * 22)
                     let rect = CGRect(
                         x: CGFloat(index) * step + step * 0.22,
-                        y: size.height - height - 5,
+                        y: baseline - height,
                         width: max(2, step * 0.56),
                         height: height
                     )
-                    context.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(.blue.opacity(0.65)))
+                    context.fill(
+                        Path(roundedRect: rect, cornerRadius: 2),
+                        with: .linearGradient(
+                            Gradient(colors: [Color(hex: 0x60A5FA).opacity(0.9), Color(hex: 0x2563EB).opacity(0.5)]),
+                            startPoint: CGPoint(x: 0, y: rect.minY),
+                            endPoint: CGPoint(x: 0, y: rect.maxY)
+                        )
+                    )
                 }
 
-                var path = Path()
+                var line = Path()
+                var area = Path()
+                var first: CGPoint?
+                var last: CGPoint?
                 for (index, point) in points.enumerated() {
                     guard let temperature = point.temperature else {
                         continue
                     }
                     let x = (CGFloat(index) + 0.5) * step
                     let normalized = CGFloat((temperature - minimum) / spread)
-                    let y = 91 - normalized * 42
-                    index == 0 ? path.move(to: CGPoint(x: x, y: y)) : path.addLine(to: CGPoint(x: x, y: y))
+                    // Keep the curve in a band below the hour labels and above the rain bars.
+                    let top = size.height - 68
+                    let bottom = size.height - 26
+                    let y = bottom - normalized * (bottom - top)
+                    let location = CGPoint(x: x, y: y)
+                    if first == nil {
+                        first = location
+                        line.move(to: location)
+                        area.move(to: CGPoint(x: x, y: bottom + 4))
+                        area.addLine(to: location)
+                    } else {
+                        line.addLine(to: location)
+                        area.addLine(to: location)
+                    }
+                    last = location
                 }
-                context.stroke(path, with: .color(.cyan), style: StrokeStyle(lineWidth: 2, lineJoin: .round))
+                if let first, let last {
+                    let floor = size.height - 22
+                    area.addLine(to: CGPoint(x: last.x, y: floor))
+                    area.addLine(to: CGPoint(x: first.x, y: floor))
+                    area.closeSubpath()
+                    context.fill(
+                        area,
+                        with: .linearGradient(
+                            Gradient(colors: [accent.secondary.opacity(0.28), accent.primary.opacity(0.02)]),
+                            startPoint: CGPoint(x: 0, y: size.height - 68),
+                            endPoint: CGPoint(x: 0, y: floor)
+                        )
+                    )
+                }
+                context.drawLayer { layer in
+                    layer.addFilter(.blur(radius: 3))
+                    layer.stroke(line, with: .color(accent.secondary.opacity(0.5)), lineWidth: 3.5)
+                }
+                context.stroke(
+                    line,
+                    with: .linearGradient(
+                        Gradient(colors: [accent.primary, accent.secondary]),
+                        startPoint: .zero,
+                        endPoint: CGPoint(x: size.width, y: 0)
+                    ),
+                    style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
+                )
             }
 
             HStack(spacing: 0) {
@@ -255,8 +375,8 @@ private struct HourlyForecastChart: View {
                             Spacer()
                             if let probability = point.precipitationProbability, probability > 0 {
                                 Text(String(format: "%.0f%%", probability))
-                                    .font(.system(size: 8).monospacedDigit())
-                                    .foregroundStyle(.blue)
+                                    .font(.system(size: 8, weight: .medium).monospacedDigit())
+                                    .foregroundStyle(Color(hex: 0x60A5FA))
                             }
                         }
                         .frame(width: 84)
@@ -265,28 +385,29 @@ private struct HourlyForecastChart: View {
             }
             .padding(.vertical, 8)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 9))
     }
-
 }
 
 private struct DailyForecastSection: View {
     let sample: WeatherSample
+    let accent: ModuleAccent
 
     var body: some View {
         let daily = sample.forecast.daily
         let minimum = daily.compactMap(\.low).min() ?? 0
         let maximum = daily.compactMap(\.high).max() ?? minimum + 1
-        VStack(alignment: .leading, spacing: 7) {
-            Text("10-DAY FORECAST").weatherSectionLabel()
-            ForEach(daily) { day in
-                DailyForecastRow(
-                    day: day,
-                    units: sample.forecast.units,
-                    timeZone: sample.forecast.timeZone,
-                    overallMinimum: minimum,
-                    overallMaximum: maximum
-                )
+        GlassCard {
+            VStack(alignment: .leading, spacing: 4) {
+                SectionLabel("10-day forecast")
+                ForEach(daily) { day in
+                    DailyForecastRow(
+                        day: day,
+                        units: sample.forecast.units,
+                        timeZone: sample.forecast.timeZone,
+                        overallMinimum: minimum,
+                        overallMaximum: maximum
+                    )
+                }
             }
         }
     }
@@ -298,26 +419,28 @@ private struct DailyForecastRow: View {
     let timeZone: TimeZone
     let overallMinimum: Double
     let overallMaximum: Double
+    @State private var isHovering = false
 
     var body: some View {
         HStack(spacing: 9) {
             Text(WeatherValue.weekday(day.date, timeZone: timeZone))
-                .frame(width: 34, alignment: .leading)
+                .font(.callout.weight(.medium))
+                .frame(width: 36, alignment: .leading)
             Image(systemName: day.code?.symbolName(isDay: true) ?? "cloud")
                 .symbolRenderingMode(.multicolor)
-                .frame(width: 20)
+                .frame(width: 22)
             if let probability = day.precipitationProbability, probability > 0 {
                 Text(String(format: "%.0f%%", probability))
                     .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.blue)
-                    .frame(width: 29, alignment: .trailing)
+                    .foregroundStyle(Color(hex: 0x60A5FA))
+                    .frame(width: 30, alignment: .trailing)
             } else {
-                Text("").frame(width: 29)
+                Text("").frame(width: 30)
             }
             Text(day.low.map { String(format: "%.0f°", $0) } ?? "—")
                 .foregroundStyle(.secondary)
-                .monospacedDigit()
-                .frame(width: 30, alignment: .trailing)
+                .font(.callout.monospacedDigit())
+                .frame(width: 32, alignment: .trailing)
             TemperatureRangeBar(
                 low: day.low,
                 high: day.high,
@@ -325,10 +448,17 @@ private struct DailyForecastRow: View {
                 overallMaximum: overallMaximum
             )
             Text(day.high.map { String(format: "%.0f°", $0) } ?? "—")
-                .monospacedDigit()
-                .frame(width: 30, alignment: .trailing)
+                .font(.callout.monospacedDigit())
+                .frame(width: 32, alignment: .trailing)
         }
-        .font(.caption)
+        .padding(.vertical, 3)
+        .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(isHovering ? 0.06 : 0))
+        )
+        .onHover { isHovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: isHovering)
     }
 }
 
@@ -343,36 +473,50 @@ private struct TemperatureRangeBar: View {
             let spread = max(1, overallMaximum - overallMinimum)
             let start = CGFloat(((low ?? overallMinimum) - overallMinimum) / spread)
             let end = CGFloat(((high ?? overallMaximum) - overallMinimum) / spread)
-            Capsule().fill(.quaternary)
+            Capsule().fill(Color.primary.opacity(0.08))
             Capsule()
-                .fill(LinearGradient(colors: [.cyan, .yellow, .orange], startPoint: .leading, endPoint: .trailing))
-                .frame(width: max(5, (end - start) * geometry.size.width))
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: 0x22D3EE), Color(hex: 0xFBBF24), Color(hex: 0xF97316)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(width: max(6, (end - start) * geometry.size.width))
                 .offset(x: start * geometry.size.width)
+                .shadow(color: Color(hex: 0xFBBF24).opacity(0.35), radius: 3)
         }
-        .frame(height: 5)
+        .frame(height: 6)
     }
 }
 
 private struct SunMoonSection: View {
     let sample: WeatherSample
+    let accent: ModuleAccent
 
     var body: some View {
         let today = sample.forecast.daily.first
         let phase = MoonPhase.calculate(for: sample.forecast.current.time)
-        VStack(alignment: .leading, spacing: 8) {
-            Text("SUN & MOON").weatherSectionLabel()
-            HStack {
-                WeatherFact(
-                    symbol: "sunrise.fill",
-                    label: "Sunrise",
-                    value: WeatherValue.time(today?.sunrise, timeZone: sample.forecast.timeZone)
-                )
-                WeatherFact(
-                    symbol: "sunset.fill",
-                    label: "Sunset",
-                    value: WeatherValue.time(today?.sunset, timeZone: sample.forecast.timeZone)
-                )
-                WeatherFact(symbol: phase.symbolName, label: "Moon", value: phase.name)
+        GlassCard {
+            VStack(alignment: .leading, spacing: 8) {
+                SectionLabel("Sun & Moon")
+                HStack(spacing: 8) {
+                    StatTile(
+                        symbol: "sunrise.fill",
+                        label: "Sunrise",
+                        value: WeatherValue.time(today?.sunrise, timeZone: sample.forecast.timeZone),
+                        tint: .orange,
+                        renderingMode: .multicolor
+                    )
+                    StatTile(
+                        symbol: "sunset.fill",
+                        label: "Sunset",
+                        value: WeatherValue.time(today?.sunset, timeZone: sample.forecast.timeZone),
+                        tint: .pink,
+                        renderingMode: .multicolor
+                    )
+                    StatTile(symbol: phase.symbolName, label: "Moon", value: phase.name, tint: accent.primary)
+                }
             }
         }
     }
@@ -383,105 +527,105 @@ private struct AirQualitySection: View {
 
     var body: some View {
         if let airQuality = sample.airQuality {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("AIR QUALITY").weatherSectionLabel()
-                HStack(spacing: 12) {
-                    if let value = airQuality.usAQI {
-                        Text("\(value)")
-                            .font(.title2.bold().monospacedDigit())
-                            .foregroundStyle(WeatherValue.aqiColor(value))
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text("US AQI").font(.caption).foregroundStyle(.secondary)
-                            Text(WeatherValue.aqiDescription(value)).font(.caption.weight(.semibold))
+            GlassCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionLabel("Air quality") {
+                        if let value = airQuality.usAQI {
+                            Chip(
+                                text: WeatherValue.aqiDescription(value), color: WeatherValue.aqiColor(value),
+                                symbol: "aqi.medium")
                         }
                     }
-                    Spacer()
-                    if let value = airQuality.pm2_5 {
-                        WeatherFact(symbol: "aqi.medium", label: "PM2.5", value: String(format: "%.1f", value))
+                    if let value = airQuality.usAQI {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text("\(value)")
+                                .font(.system(size: 30, weight: .semibold, design: .rounded).monospacedDigit())
+                                .foregroundStyle(WeatherValue.aqiColor(value))
+                                .contentTransition(.numericText())
+                            Text("US AQI").font(.caption).foregroundStyle(.secondary)
+                        }
+                        AQIScale(value: value)
                     }
-                    if let value = airQuality.pm10 {
-                        WeatherFact(symbol: "aqi.low", label: "PM10", value: String(format: "%.1f", value))
+                    HStack(spacing: 8) {
+                        if let value = airQuality.pm2_5 {
+                            StatTile(
+                                symbol: "aqi.medium", label: "PM2.5", value: String(format: "%.1f µg/m³", value),
+                                tint: .teal)
+                        }
+                        if let value = airQuality.pm10 {
+                            StatTile(
+                                symbol: "aqi.low", label: "PM10", value: String(format: "%.1f µg/m³", value),
+                                tint: .teal)
+                        }
                     }
                 }
-                .padding(10)
-                .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 9))
             }
         }
+    }
+}
+
+private struct AQIScale: View {
+    let value: Int
+
+    var body: some View {
+        GeometryReader { geometry in
+            let fraction = min(1, max(0, Double(value) / 300))
+            ZStack(alignment: .leading) {
+                Capsule().fill(
+                    LinearGradient(
+                        colors: [.green, .yellow, .orange, .red, .purple],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .opacity(0.75)
+                Circle()
+                    .fill(.white)
+                    .frame(width: 10, height: 10)
+                    .shadow(color: .black.opacity(0.35), radius: 2)
+                    .offset(x: fraction * (geometry.size.width - 10))
+            }
+        }
+        .frame(height: 8)
+        .animation(.snappy(duration: 0.4), value: value)
     }
 }
 
 private struct WeatherDetailsSection: View {
     let sample: WeatherSample
+    let accent: ModuleAccent
 
     var body: some View {
         let current = sample.forecast.current
         let units = sample.forecast.units
-        VStack(alignment: .leading, spacing: 8) {
-            Text("DETAILS").weatherSectionLabel()
-            Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 9) {
-                GridRow {
-                    WeatherFact(
-                        symbol: "humidity",
-                        label: "Humidity",
-                        value: current.humidity.map { String(format: "%.0f%%", $0) } ?? "—"
-                    )
-                    WeatherFact(
-                        symbol: "wind",
-                        label: "Wind",
-                        value: WeatherValue.wind(current.windSpeed, direction: current.windDirection, units: units)
-                    )
-                }
-                GridRow {
-                    WeatherFact(
-                        symbol: "gauge.with.dots.needle.50percent",
-                        label: "Pressure",
-                        value: WeatherValue.pressure(current.pressureMSL, units: units)
-                    )
-                    WeatherFact(
-                        symbol: "cloud.fill",
-                        label: "Cloud cover",
-                        value: current.cloudCover.map { String(format: "%.0f%%", $0) } ?? "—"
-                    )
-                }
-                GridRow {
-                    WeatherFact(
-                        symbol: "drop.fill",
-                        label: "Precipitation",
-                        value: current.precipitation.map {
-                            String(format: "%.2f %@", $0, units.precipitation.symbol)
-                        } ?? "—"
-                    )
-                    WeatherFact(
-                        symbol: "wind.snow",
-                        label: "Gusts",
-                        value: current.windGusts.map {
-                            String(format: "%.0f %@", $0, units.windSpeed.symbol)
-                        } ?? "—"
-                    )
+        GlassCard {
+            VStack(alignment: .leading, spacing: 8) {
+                SectionLabel("Details")
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                    StatTile(
+                        symbol: "humidity.fill", label: "Humidity",
+                        value: current.humidity.map { String(format: "%.0f%%", $0) } ?? "—", tint: accent.primary)
+                    StatTile(
+                        symbol: "wind", label: "Wind",
+                        value: WeatherValue.wind(current.windSpeed, direction: current.windDirection, units: units),
+                        tint: accent.primary)
+                    StatTile(
+                        symbol: "gauge.with.dots.needle.50percent", label: "Pressure",
+                        value: WeatherValue.pressure(current.pressureMSL, units: units), tint: accent.secondary)
+                    StatTile(
+                        symbol: "cloud.fill", label: "Cloud cover",
+                        value: current.cloudCover.map { String(format: "%.0f%%", $0) } ?? "—", tint: .secondary)
+                    StatTile(
+                        symbol: "drop.fill", label: "Precipitation",
+                        value: current.precipitation.map { String(format: "%.2f %@", $0, units.precipitation.symbol) }
+                            ?? "—", tint: Color(hex: 0x60A5FA))
+                    StatTile(
+                        symbol: "wind.snow", label: "Gusts",
+                        value: current.windGusts.map { String(format: "%.0f %@", $0, units.windSpeed.symbol) } ?? "—",
+                        tint: accent.primary)
                 }
             }
         }
-    }
-}
-
-private struct WeatherFact: View {
-    let symbol: String
-    let label: String
-    let value: String
-
-    var body: some View {
-        HStack(spacing: 7) {
-            Image(systemName: symbol)
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(.cyan)
-                .frame(width: 18)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(label).font(.caption2).foregroundStyle(.secondary)
-                Text(value).font(.caption.weight(.medium)).lineLimit(1)
-            }
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -565,11 +709,5 @@ private enum WeatherValue {
         case ...300: .purple
         default: .brown
         }
-    }
-}
-
-private extension View {
-    func weatherSectionLabel() -> some View {
-        font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
     }
 }

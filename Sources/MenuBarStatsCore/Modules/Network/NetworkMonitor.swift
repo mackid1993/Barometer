@@ -137,6 +137,60 @@ public actor NetworkMonitor: Monitor {
     private var lastPublicIPAttempt: Date?
     private var lastWiFiRefresh: Date?
     private var cachedWiFi: WiFiSnapshot?
+    private var lastMetadataRefresh: Date?
+    private var cachedMetadata: ConnectionMetadata?
+
+    /// Slow-changing parts of a system snapshot, reused between metadata refreshes.
+    private struct ConnectionMetadata {
+        let addresses: [String: (ipv4: [String], ipv6: [String])]
+        let primaryInterface: String?
+        let router: String?
+        let dnsServers: [String]
+
+        init(snapshot: SystemNetworkSnapshot) {
+            var addresses: [String: (ipv4: [String], ipv6: [String])] = [:]
+            for interface in snapshot.interfaces {
+                addresses[interface.name] = (interface.ipv4Addresses, interface.ipv6Addresses)
+            }
+            self.addresses = addresses
+            primaryInterface = snapshot.primaryInterface
+            router = snapshot.router
+            dnsServers = snapshot.dnsServers
+        }
+
+        func applied(to snapshot: SystemNetworkSnapshot) -> SystemNetworkSnapshot {
+            SystemNetworkSnapshot(
+                interfaces: snapshot.interfaces.map { interface in
+                    let cached = addresses[interface.name]
+                    return NetworkInterfaceSnapshot(
+                        name: interface.name,
+                        index: interface.index,
+                        isUp: interface.isUp,
+                        isLoopback: interface.isLoopback,
+                        isPointToPoint: interface.isPointToPoint,
+                        ipv4Addresses: cached?.ipv4 ?? interface.ipv4Addresses,
+                        ipv6Addresses: cached?.ipv6 ?? interface.ipv6Addresses,
+                        receivedBytes: interface.receivedBytes,
+                        sentBytes: interface.sentBytes,
+                        receivedPackets: interface.receivedPackets,
+                        sentPackets: interface.sentPackets,
+                        inputErrors: interface.inputErrors,
+                        outputErrors: interface.outputErrors
+                    )
+                },
+                primaryInterface: primaryInterface,
+                router: router,
+                dnsServers: dnsServers
+            )
+        }
+    }
+
+    static func shouldRefreshMetadata(lastRefresh: Date?, now: Date) -> Bool {
+        guard let lastRefresh else {
+            return true
+        }
+        return now.timeIntervalSince(lastRefresh) >= metadataRefreshInterval
+    }
     private static let logger = Logger(subsystem: "com.barometer.app", category: "network")
 
     /// Whether route counters are available.
@@ -180,22 +234,36 @@ public actor NetworkMonitor: Monitor {
     /// Invalidates cached connection metadata after the system network configuration changes.
     public func refreshConnectionDetails() {
         lastWiFiRefresh = nil
+        lastMetadataRefresh = nil
     }
+
+    /// Addresses and global configuration change rarely, so they are refreshed on this
+    /// cadence (and immediately after a configuration change) instead of every sample.
+    static let metadataRefreshInterval: TimeInterval = 10
 
     /// Reads interfaces and calculates transfer rates since the previous sample.
     public func sample() async throws -> NetworkSample {
         let timestamp = Date()
-        let snapshot = try networkSource.read()
+        let refreshesMetadata = Self.shouldRefreshMetadata(lastRefresh: lastMetadataRefresh, now: timestamp)
+        var snapshot = try networkSource.read(includesMetadata: refreshesMetadata)
+        if refreshesMetadata {
+            lastMetadataRefresh = timestamp
+            cachedMetadata = ConnectionMetadata(snapshot: snapshot)
+        } else if let cachedMetadata {
+            snapshot = cachedMetadata.applied(to: snapshot)
+        }
         var nextCounters: [String: PreviousCounter] = [:]
         let interfaces = snapshot.interfaces.map { interface in
             let previous = previousCounters[interface.name]
             let elapsed = previous.map { timestamp.timeIntervalSince($0.timestamp) } ?? 0
-            let receivedDelta = previous.map {
-                Self.counterDelta(from: $0.receivedBytes, to: interface.receivedBytes)
-            } ?? 0
-            let sentDelta = previous.map {
-                Self.counterDelta(from: $0.sentBytes, to: interface.sentBytes)
-            } ?? 0
+            let receivedDelta =
+                previous.map {
+                    Self.counterDelta(from: $0.receivedBytes, to: interface.receivedBytes)
+                } ?? 0
+            let sentDelta =
+                previous.map {
+                    Self.counterDelta(from: $0.sentBytes, to: interface.sentBytes)
+                } ?? 0
             nextCounters[interface.name] = PreviousCounter(
                 timestamp: timestamp,
                 receivedBytes: interface.receivedBytes,
@@ -279,7 +347,7 @@ public actor NetworkMonitor: Monitor {
             }
             cachedTopProcesses = counters.compactMap { counter in
                 guard let previous = previousProcessCounters[counter.processIdentifier],
-                      previous.fallbackName == counter.fallbackName
+                    previous.fallbackName == counter.fallbackName
                 else {
                     return nil
                 }

@@ -3,6 +3,9 @@ import SwiftUI
 
 /// GPU utilization, memory, frequency, temperature, and power detail.
 public struct GPUDropdownView: View {
+    /// Fixed hosted content width; height follows the content.
+    public static let contentSize = CGSize(width: 380, height: 520)
+
     private let store: ModuleStore<GPUSample>
     private let settingsStore: SettingsStore
 
@@ -15,64 +18,90 @@ public struct GPUDropdownView: View {
     public var body: some View {
         let sample = store.latestSample
         let _ = store.revision
-        VStack(alignment: .leading, spacing: 13) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("GPU").font(.headline)
-                    Text(sample?.name ?? "Unavailable").font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Text(sample.map { String(format: "%.1f%%", $0.deviceUtilizationPercent) } ?? "—")
-                    .font(.system(.title2, design: .rounded).monospacedDigit().weight(.semibold))
-            }
+        let accent = ModuleAccent.resolve(settingsStore.settings, module: .gpu)
+        let history = store.history.entries.suffix(300).map { min(1, max(0, $0.value.deviceUtilizationPercent / 100)) }
 
-            GPUHistoryGraph(
-                samples: store.history.entries,
-                color: AppearanceColorResolver.graph(settingsStore.settings, module: .gpu)
+        DropdownScaffold(size: Self.contentSize) {
+            HeroHeader(
+                symbolName: "square.stack.3d.up.fill",
+                title: "GPU",
+                subtitle: sample?.name ?? "Waiting for the first sample",
+                value: sample.map { String(format: "%.1f%%", $0.deviceUtilizationPercent) } ?? "—",
+                accent: accent
             )
-                .frame(height: 110)
-                .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 7))
 
-            Text("UTILIZATION").gpuSectionLabel()
-            GPUMetricRow(label: "Device", value: percent(sample?.deviceUtilizationPercent))
-            GPUMetricRow(label: "Renderer", value: percent(sample?.rendererUtilizationPercent))
-            GPUMetricRow(label: "Tiler", value: percent(sample?.tilerUtilizationPercent))
-
-            Divider()
-            Text("MEMORY").gpuSectionLabel()
-            if let used = sample?.memoryInUseBytes, let allocated = sample?.memoryAllocatedBytes, allocated > 0 {
-                ProgressView(value: Double(min(used, allocated)), total: Double(allocated))
-                GPUMetricRow(label: "In use", value: Self.bytes(used))
-                GPUMetricRow(label: "Allocated", value: Self.bytes(allocated))
-            } else {
-                Text("Unavailable").font(.caption).foregroundStyle(.secondary)
+            GlassCard(tint: accent.primary) {
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionLabel("History") {
+                        Text("Device utilization")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    AreaGraph(values: history, accent: accent)
+                        .frame(height: 96)
+                }
             }
 
-            Divider()
-            Text("HARDWARE").gpuSectionLabel()
-            GPUMetricRow(label: "Frequency", value: frequency(sample?.frequencyMHz))
-            GPUMetricRow(label: "Power", value: power(sample?.powerWatts))
-            GPUMetricRow(label: "Temperature", value: temperature(sample?.temperatureCelsius))
-            Spacer(minLength: 0)
-        }
-        .padding(14)
-        .frame(width: 380, height: 500)
-    }
+            GlassCard {
+                VStack(alignment: .leading, spacing: 9) {
+                    SectionLabel("Utilization")
+                    UtilizationRow(label: "Device", percent: sample?.deviceUtilizationPercent, accent: accent)
+                    UtilizationRow(label: "Renderer", percent: sample?.rendererUtilizationPercent, accent: accent)
+                    UtilizationRow(label: "Tiler", percent: sample?.tilerUtilizationPercent, accent: accent)
+                }
+            }
 
-    private func percent(_ value: Double?) -> String {
-        value.map { String(format: "%.1f%%", $0) } ?? "Unavailable"
+            GlassCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionLabel("Memory")
+                    if let used = sample?.memoryInUseBytes, let allocated = sample?.memoryAllocatedBytes, allocated > 0
+                    {
+                        CapsuleBar(
+                            fraction: Double(min(used, allocated)) / Double(allocated),
+                            gradient: accent.horizontalGradient,
+                            height: 7,
+                            glowColor: accent.primary
+                        )
+                        HStack(spacing: 8) {
+                            StatTile(
+                                symbol: "memorychip", label: "In use", value: Self.bytes(used), tint: accent.primary)
+                            StatTile(
+                                symbol: "square.dashed", label: "Allocated", value: Self.bytes(allocated),
+                                tint: accent.secondary)
+                        }
+                    } else {
+                        Text("Unavailable").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            GlassCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionLabel("Hardware")
+                    HStack(spacing: 8) {
+                        StatTile(
+                            symbol: "waveform.path.ecg", label: "Frequency", value: frequency(sample?.frequencyMHz),
+                            tint: accent.primary)
+                        StatTile(symbol: "bolt.fill", label: "Power", value: power(sample?.powerWatts), tint: .yellow)
+                        StatTile(
+                            symbol: "thermometer.medium", label: "Temperature",
+                            value: temperature(sample?.temperatureCelsius), tint: .orange)
+                    }
+                }
+            }
+        }
     }
 
     private func frequency(_ value: Double?) -> String {
-        value.map { String(format: "%.0f MHz", $0) } ?? "Unavailable"
+        value.map { String(format: "%.0f MHz", $0) } ?? "—"
     }
 
     private func power(_ value: Double?) -> String {
-        value.map { String(format: "%.2f W", $0) } ?? "Unavailable"
+        value.map { String(format: "%.2f W", $0) } ?? "—"
     }
 
     private func temperature(_ celsius: Double?) -> String {
-        guard let celsius else { return "Unavailable" }
+        guard let celsius else { return "—" }
         let reading = SensorReading(
             id: "gpu:temperature",
             name: "GPU Temperature",
@@ -95,41 +124,27 @@ public struct GPUDropdownView: View {
     }
 }
 
-private struct GPUMetricRow: View {
+private struct UtilizationRow: View {
     let label: String
-    let value: String
+    let percent: Double?
+    let accent: ModuleAccent
 
     var body: some View {
-        HStack {
-            Text(label).foregroundStyle(.secondary)
-            Spacer()
-            Text(value).monospacedDigit()
-        }
-        .font(.subheadline)
-    }
-}
-
-private struct GPUHistoryGraph: View {
-    let samples: [HistoryEntry<GPUSample>]
-    let color: Color
-
-    var body: some View {
-        Canvas { context, size in
-            let values = samples.suffix(300).map { min(1, max(0, $0.value.deviceUtilizationPercent / 100)) }
-            guard values.count > 1 else { return }
-            var path = Path()
-            for (index, value) in values.enumerated() {
-                let x = CGFloat(index) / CGFloat(values.count - 1) * size.width
-                let y = (1 - CGFloat(value)) * size.height
-                index == 0 ? path.move(to: CGPoint(x: x, y: y)) : path.addLine(to: CGPoint(x: x, y: y))
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label).font(.callout).foregroundStyle(.secondary)
+                Spacer()
+                Text(percent.map { String(format: "%.1f%%", $0) } ?? "—")
+                    .font(BarometerDesign.valueFont)
+                    .contentTransition(.numericText())
+                    .animation(.snappy(duration: 0.3), value: percent ?? 0)
             }
-            context.stroke(path, with: .color(color), lineWidth: 1.6)
+            CapsuleBar(
+                fraction: (percent ?? 0) / 100,
+                gradient: accent.horizontalGradient,
+                height: 5,
+                glowColor: accent.primary
+            )
         }
-    }
-}
-
-private extension View {
-    func gpuSectionLabel() -> some View {
-        font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
     }
 }

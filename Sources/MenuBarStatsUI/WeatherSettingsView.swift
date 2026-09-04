@@ -115,7 +115,7 @@ struct WeatherSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("Weather")
+        .settingsPane(module: .weather, settings: settingsStore.settings)
         .task(id: searchQuery) {
             await search()
         }
@@ -142,17 +142,23 @@ struct WeatherSettingsView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Button { moveLocation(from: index, offset: -1) } label: {
+            Button {
+                moveLocation(from: index, offset: -1)
+            } label: {
                 Image(systemName: "chevron.up")
             }
             .buttonStyle(.borderless)
             .disabled(index == 0)
-            Button { moveLocation(from: index, offset: 1) } label: {
+            Button {
+                moveLocation(from: index, offset: 1)
+            } label: {
                 Image(systemName: "chevron.down")
             }
             .buttonStyle(.borderless)
             .disabled(index == weather.locations.count - 1)
-            Button(role: .destructive) { remove(location) } label: {
+            Button(role: .destructive) {
+                remove(location)
+            } label: {
                 Image(systemName: "trash")
             }
             .buttonStyle(.borderless)

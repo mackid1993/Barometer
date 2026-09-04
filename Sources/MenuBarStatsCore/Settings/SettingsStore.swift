@@ -1,6 +1,6 @@
 import Foundation
-import Observation
 import OSLog
+import Observation
 
 /// Validation errors for settings documents selected by the user.
 public enum SettingsImportError: LocalizedError, Equatable {
@@ -12,9 +12,9 @@ public enum SettingsImportError: LocalizedError, Equatable {
         switch self {
         case .documentTooLarge:
             "The settings file is larger than 1 MB."
-        case let .valueOutOfRange(name):
+        case .valueOutOfRange(let name):
             "The settings file contains an out-of-range value for \(name)."
-        case let .invalidColor(name):
+        case .invalidColor(let name):
             "The settings file contains an invalid RGB color for \(name)."
         }
     }
@@ -46,7 +46,8 @@ public final class SettingsStore {
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         if let data = defaults.data(forKey: Self.defaultsKey),
-           let decoded = try? JSONDecoder().decode(AppSettings.self, from: data) {
+            let decoded = try? JSONDecoder().decode(AppSettings.self, from: data)
+        {
             settings = decoded
         } else {
             settings = AppSettings()
@@ -98,10 +99,10 @@ public final class SettingsStore {
     }
 
     private static func validate(_ settings: AppSettings) throws {
-        guard (9...14).contains(settings.fontSize) else {
+        guard AppSettings.menuBarFontSizeRange.contains(settings.fontSize) else {
             throw SettingsImportError.valueOutOfRange("font size")
         }
-        guard (0.75...1.35).contains(settings.menuBarScale) else {
+        guard AppSettings.menuBarScaleRange.contains(settings.menuBarScale) else {
             throw SettingsImportError.valueOutOfRange("icon and graph size")
         }
         guard (0...12).contains(settings.menuBarSpacing) else {
@@ -128,10 +129,13 @@ public final class SettingsStore {
             throw SettingsImportError.invalidColor("global appearance")
         }
         for module in settings.modules.values {
-            let colors = [module.lightColor, module.darkColor] + [
-                module.graphLightColor, module.graphDarkColor, module.fillLightColor, module.fillDarkColor,
-                module.warningLightColor, module.warningDarkColor, module.criticalLightColor, module.criticalDarkColor,
-            ].compactMap { $0 }
+            let colors =
+                [module.lightColor, module.darkColor]
+                + [
+                    module.graphLightColor, module.graphDarkColor, module.fillLightColor, module.fillDarkColor,
+                    module.warningLightColor, module.warningDarkColor, module.criticalLightColor,
+                    module.criticalDarkColor,
+                ].compactMap { $0 }
             guard colors.allSatisfy(isRGBHex) else {
                 throw SettingsImportError.invalidColor("module appearance")
             }

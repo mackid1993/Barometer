@@ -52,7 +52,7 @@ struct BatterySettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("Battery")
+        .settingsPane(module: .battery, settings: settingsStore.settings)
     }
 
     private func moduleBinding<Value>(_ keyPath: WritableKeyPath<ModuleSettings, Value>) -> Binding<Value> {

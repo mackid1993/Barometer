@@ -1,7 +1,7 @@
 import AppKit
 import MenuBarStatsCore
-import Observation
 import OSLog
+import Observation
 
 /// Image and spoken value produced for one status item update.
 public struct StatusItemContent {
@@ -22,12 +22,13 @@ public struct StatusItemContent {
 @MainActor
 public final class StatusItemController<Sample: Sendable> {
     /// Rendering closure specialized for a module's sample type.
-    public typealias Render = @MainActor (
-        Sample?,
-        [HistoryEntry<Sample>],
-        ModuleSettings,
-        RenderContext
-    ) -> StatusItemContent
+    public typealias Render =
+        @MainActor (
+            Sample?,
+            [HistoryEntry<Sample>],
+            ModuleSettings,
+            RenderContext
+        ) -> StatusItemContent
 
     /// Visibility policy evaluated from the current application and module settings.
     public typealias IsEnabled = @MainActor (AppSettings, ModuleSettings) -> Bool
@@ -40,6 +41,7 @@ public final class StatusItemController<Sample: Sendable> {
     private let isEnabled: IsEnabled
     private let logger = Logger(subsystem: "com.barometer.app", category: "render")
     private var appliedLength: CGFloat?
+    private var appliedGeometry: StatusItemGeometry?
     private var lengthSettings: AppSettings?
 
     /// Creates and begins observing a status item controller.
@@ -58,6 +60,17 @@ public final class StatusItemController<Sample: Sendable> {
         self.isEnabled = isEnabled
         renderContent = render
         observeChanges()
+        // Controllers are created once per permanent status item and live for the whole
+        // process, so the observation is never removed.
+        NotificationCenter.default.addObserver(
+            forName: .barometerStageItemWidths,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.update()
+            }
+        }
         update()
     }
 
@@ -67,6 +80,10 @@ public final class StatusItemController<Sample: Sendable> {
         let moduleSettings = appSettings.modules[module] ?? ModuleSettings()
         let isHiddenInCombined = StatusItemRendering.isHiddenByCombined(module: module, settings: appSettings)
         guard isEnabled(appSettings, moduleSettings), !isHiddenInCombined else {
+            // Remember the geometry settings seen while hidden. If this item is enabled
+            // later, the settings delta makes its safe first render use current geometry
+            // instead of a stale committed width.
+            lengthSettings = appSettings
             if statusItem.isVisible {
                 statusItem.isVisible = false
             }
@@ -77,30 +94,66 @@ public final class StatusItemController<Sample: Sendable> {
             return
         }
 
-        let appearance: MenuBarAppearance = button.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        let appearance: MenuBarAppearance =
+            button.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
             ? .dark
             : .light
+        let currentGeometry = StatusItemGeometry(settings: appSettings)
+        let activeGeometry = appliedGeometry ?? currentGeometry
         let context = StatusItemRendering.context(
             button: button,
             appSettings: appSettings,
             moduleSettings: moduleSettings,
-            appearance: appearance
+            appearance: appearance,
+            geometry: activeGeometry
         )
         let content = renderContent(store.latestSample, store.history.entries, moduleSettings, context)
-        button.image = content.image
+        // Menu bar managers on macOS 27 can move an item when its AppKit length changes.
+        // Once this controller has applied geometry and length, both are immutable for the
+        // rest of the process lifetime. Layout settings stage a different persisted width
+        // for the next launch, when it can be applied before the item becomes visible.
+        let stagedImage: NSImage
+        if currentGeometry != activeGeometry {
+            let stagedContext = StatusItemRendering.context(
+                button: button,
+                appSettings: appSettings,
+                moduleSettings: moduleSettings,
+                appearance: appearance,
+                geometry: currentGeometry
+            )
+            stagedImage =
+                renderContent(
+                    store.latestSample,
+                    store.history.entries,
+                    moduleSettings,
+                    stagedContext
+                ).image
+        } else {
+            stagedImage = content.image
+        }
+        let naturalLength = StatusItemRendering.itemLength(for: stagedImage)
+        let committedLength = StatusItemRendering.committedLength(autosaveName: statusItem.autosaveName)
+        let settingsChangedAfterInitialRender = lengthSettings.map { $0 != appSettings } ?? false
+        let proposedLength =
+            settingsChangedAfterInitialRender
+            ? StatusItemRendering.roundedLength(naturalLength)
+            : StatusItemRendering.normalizedLength(natural: naturalLength, committed: committedLength)
+        if proposedLength != committedLength {
+            StatusItemRendering.commitLength(proposedLength, autosaveName: statusItem.autosaveName)
+        }
+        let activeLength = StatusItemRendering.activeLength(applied: appliedLength, proposed: proposedLength)
+        button.image = StatusItemRendering.image(content.image, fittedTo: activeLength)
+        // CONTRACT: This is the sole production writer of statusItem.length. It may run
+        // once per controller lifetime, before the item is made visible. See
+        // docs/MACOS27_STATUS_ITEM_SIZING.md before changing this branch.
         // NSStatusItem.variableLength adds AppKit's standard 8-point image inset
         // on both sides. An explicit length makes the rendered canvas authoritative,
         // so the user-controlled spacing can reach zero while each module remains
         // a separate, movable status item.
-        let targetLength = StatusItemRendering.itemLength(for: content.image)
-        let layoutChanged = lengthSettings != appSettings
-        if StatusItemRendering.shouldUpdateLength(
-            current: appliedLength,
-            target: targetLength,
-            allowsResize: layoutChanged
-        ) {
-            statusItem.length = targetLength
-            appliedLength = targetLength
+        if StatusItemRendering.shouldAssignInitialLength(current: appliedLength) {
+            statusItem.length = activeLength
+            appliedLength = activeLength
+            appliedGeometry = currentGeometry
         }
         lengthSettings = appSettings
         button.setAccessibilityValue(content.accessibilityValue)
@@ -128,6 +181,23 @@ public final class StatusItemController<Sample: Sendable> {
     }
 }
 
+/// Menu bar geometry that becomes immutable after an item first appears.
+struct StatusItemGeometry: Equatable {
+    let fontSize: Double
+    let scale: Double
+    let horizontalSpacing: Double
+    let fontWeight: MenuBarFontWeight
+    let usesCompactLayout: Bool
+
+    init(settings: AppSettings) {
+        fontSize = settings.effectiveMenuBarFontSize
+        scale = AppSettings.clampedMenuBarScale(settings.menuBarScale)
+        horizontalSpacing = min(12, max(0, settings.menuBarSpacing))
+        fontWeight = settings.fontWeight
+        usesCompactLayout = settings.usesCompactLayout
+    }
+}
+
 @MainActor
 enum StatusItemRendering {
     static func isHiddenByCombined(module: ModuleID, settings: AppSettings) -> Bool {
@@ -141,11 +211,82 @@ enum StatusItemRendering {
         max(1, ceil(image.size.width))
     }
 
-    static func shouldUpdateLength(current: CGFloat?, target: CGFloat, allowsResize: Bool = true) -> Bool {
-        guard let current else {
+    /// Item lengths are rounded up to this grid so small typography changes cannot move them.
+    static let widthStep: CGFloat = 4
+
+    private static let committedLengthRoot = "Barometer.CommittedWidth."
+    private static let committedLengthPrefix = "Barometer.CommittedWidth.v3."
+
+    static func committedLengthKey(autosaveName: String) -> String {
+        committedLengthPrefix + autosaveName
+    }
+
+    /// The width recorded for an item, if it has rendered before.
+    static func committedLength(autosaveName: String?) -> CGFloat? {
+        guard let autosaveName, !autosaveName.isEmpty else {
+            return nil
+        }
+        let value = UserDefaults.standard.double(forKey: committedLengthKey(autosaveName: autosaveName))
+        return value > 0 ? value : nil
+    }
+
+    static func commitLength(_ length: CGFloat, autosaveName: String?) {
+        guard let autosaveName, !autosaveName.isEmpty else {
+            return
+        }
+        UserDefaults.standard.set(Double(length), forKey: committedLengthKey(autosaveName: autosaveName))
+    }
+
+    /// Forgets every recorded width so current renderings can stage replacement widths.
+    static func clearCommittedLengths() {
+        let defaults = UserDefaults.standard
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(committedLengthRoot) {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    /// The length to apply: the recorded width when there is one, otherwise the natural
+    /// width rounded up to the grid.
+    static func normalizedLength(natural: CGFloat, committed: CGFloat?) -> CGFloat {
+        if let committed, committed > 0 {
+            return committed
+        }
+        return roundedLength(natural)
+    }
+
+    static func roundedLength(_ natural: CGFloat) -> CGFloat {
+        max(widthStep, (natural / widthStep).rounded(.up) * widthStep)
+    }
+
+    /// Keeps the live AppKit frame immutable while allowing a new width to be staged.
+    static func activeLength(applied: CGFloat?, proposed: CGFloat) -> CGFloat {
+        applied ?? proposed
+    }
+
+    /// Fits a rendering into a canvas of exactly `length` points: narrower content is centered,
+    /// wider content is scaled down proportionally. The image is returned unchanged when it
+    /// already matches.
+    static func image(_ image: NSImage, fittedTo length: CGFloat) -> NSImage {
+        guard abs(length - image.size.width) > 0.01 else {
+            return image
+        }
+        let height = image.size.height
+        let scale = min(1, length / max(1, image.size.width))
+        let drawnSize = NSSize(width: image.size.width * scale, height: height * scale)
+        let fitted = NSImage(size: NSSize(width: length, height: height), flipped: false) { rect in
+            let origin = NSPoint(
+                x: floor((rect.width - drawnSize.width) / 2),
+                y: floor((rect.height - drawnSize.height) / 2)
+            )
+            image.draw(in: NSRect(origin: origin, size: drawnSize))
             return true
         }
-        return allowsResize && abs(current - target) > 0.01
+        fitted.isTemplate = image.isTemplate
+        return fitted
+    }
+
+    static func shouldAssignInitialLength(current: CGFloat?) -> Bool {
+        current == nil
     }
 
     static func visibilityPreferenceKeys(autosaveName: String) -> [String] {
@@ -168,12 +309,13 @@ enum StatusItemRendering {
         button: NSStatusBarButton,
         appSettings: AppSettings,
         moduleSettings: ModuleSettings,
-        appearance: MenuBarAppearance? = nil
+        appearance: MenuBarAppearance? = nil,
+        geometry: StatusItemGeometry? = nil
     ) -> RenderContext {
-        let resolvedAppearance = appearance ?? (
-            button.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light
-        )
-        let scale = min(1.35, max(0.75, appSettings.menuBarScale))
+        let resolvedAppearance =
+            appearance
+            ?? (button.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light)
+        let geometry = geometry ?? StatusItemGeometry(settings: appSettings)
         return RenderContext(
             thickness: NSStatusBar.system.thickness,
             appearance: resolvedAppearance,
@@ -197,13 +339,13 @@ enum StatusItemRendering {
                 light: NSColor(hex: appSettings.criticalLightColor(for: moduleSettings)) ?? .systemRed,
                 dark: NSColor(hex: appSettings.criticalDarkColor(for: moduleSettings)) ?? .systemRed
             ),
-            fontSize: min(14, max(9, appSettings.fontSize)),
+            fontSize: geometry.fontSize,
             isMonochrome: appSettings.isMonochrome,
-            scale: scale,
-            horizontalSpacing: min(12, max(0, appSettings.menuBarSpacing)),
+            scale: geometry.scale,
+            horizontalSpacing: geometry.horizontalSpacing,
             graphOpacity: appSettings.graphOpacity,
-            fontWeight: appSettings.fontWeight,
-            usesCompactLayout: appSettings.usesCompactLayout
+            fontWeight: geometry.fontWeight,
+            usesCompactLayout: geometry.usesCompactLayout
         )
     }
 }
@@ -221,4 +363,9 @@ extension NSColor {
             alpha: 1
         )
     }
+}
+
+extension Notification.Name {
+    /// Posted after recorded widths are cleared so every item stages its current natural width.
+    public static let barometerStageItemWidths = Notification.Name("com.barometer.app.stageItemWidths")
 }

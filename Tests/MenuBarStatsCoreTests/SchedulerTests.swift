@@ -1,4 +1,6 @@
+import Foundation
 import Testing
+
 @testable import MenuBarStatsCore
 
 @Suite("SchedulerTests")
@@ -102,5 +104,38 @@ private actor CountingMonitor: Monitor {
 
     func availabilityCheckCount() -> Int {
         availabilityChecks
+    }
+}
+
+@Suite("SchedulerAlignmentTests")
+struct SchedulerAlignmentTests {
+    @Test("delays land on wall-clock multiples of the period")
+    func alignsToBoundaries() {
+        let base = Date(timeIntervalSinceReferenceDate: 1_000)
+        let delay = Scheduler<CPUMonitor>.alignedDelay(period: .seconds(1), now: base.addingTimeInterval(0.4))
+        #expect(abs(delay.secondsForTest - 0.6) < 0.001)
+
+        let fiveSecond = Scheduler<CPUMonitor>.alignedDelay(period: .seconds(5), now: base.addingTimeInterval(1.5))
+        #expect(abs(fiveSecond.secondsForTest - 3.5) < 0.001)
+    }
+
+    @Test("an imminent boundary is skipped so samples never double-fire")
+    func skipsImminentBoundary() {
+        let base = Date(timeIntervalSinceReferenceDate: 1_000)
+        let delay = Scheduler<CPUMonitor>.alignedDelay(period: .seconds(1), now: base.addingTimeInterval(0.9))
+        #expect(abs(delay.secondsForTest - 1.1) < 0.001)
+    }
+
+    @Test("tolerance is a small fraction of the period")
+    func toleranceScales() {
+        #expect(abs(Scheduler<CPUMonitor>.tolerance(for: .seconds(1)).secondsForTest - 0.1) < 0.001)
+        #expect(abs(Scheduler<CPUMonitor>.tolerance(for: .seconds(60)).secondsForTest - 1) < 0.001)
+        #expect(abs(Scheduler<CPUMonitor>.tolerance(for: .milliseconds(100)).secondsForTest - 0.02) < 0.001)
+    }
+}
+
+extension Duration {
+    fileprivate var secondsForTest: Double {
+        Double(components.seconds) + Double(components.attoseconds) / 1e18
     }
 }

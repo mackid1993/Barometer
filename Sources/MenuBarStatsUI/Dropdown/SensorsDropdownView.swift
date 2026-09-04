@@ -3,6 +3,9 @@ import SwiftUI
 
 /// Live grouped hardware readings and session energy shown by every Sensors widget.
 public struct SensorsDropdownView: View {
+    /// Fixed hosted content width; height follows the content.
+    public static let contentSize = CGSize(width: 380, height: 620)
+
     private let store: ModuleStore<SensorSample>
     private let settingsStore: SettingsStore
     private let resetEnergyAction: @MainActor () -> Void
@@ -21,73 +24,91 @@ public struct SensorsDropdownView: View {
     public var body: some View {
         let sample = store.latestSample
         let settings = settingsStore.settings.sensors
-        let readings = sample?.displayReadings(
-            hidesDuplicates: settings.hidesDuplicates,
-            showsRawNames: settings.showsRawNames
-        ) ?? []
+        let readings =
+            sample?.displayReadings(
+                hidesDuplicates: settings.hidesDuplicates,
+                showsRawNames: settings.showsRawNames
+            ) ?? []
         let _ = store.revision
+        let accent = ModuleAccent.resolve(settingsStore.settings, module: .sensors)
 
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("Sensors").font(.headline)
-                    Spacer()
-                    if let hottest = sample?.hottestTemperature {
-                        Text("Hottest  " + formatted(hottest))
-                            .font(.system(.headline, design: .rounded).monospacedDigit())
-                    } else {
-                        Text("Unavailable").foregroundStyle(.secondary)
-                    }
-                }
+        DropdownScaffold(size: Self.contentSize) {
+            HeroHeader(
+                symbolName: "thermometer.medium",
+                title: "Sensors",
+                subtitle: sample == nil ? "Discovering sensors" : Self.subtitle(readings: readings),
+                value: sample?.hottestTemperature.map(formatted) ?? "—",
+                accent: accent
+            )
 
-                if let sample, !sample.sessionEnergy.isEmpty {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text("SESSION ENERGY").sensorSectionLabel()
-                            Text("Energy used since Barometer opened")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+            if let sample, !sample.sessionEnergy.isEmpty {
+                GlassCard(tint: .yellow) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        SectionLabel("Session energy") {
+                            Button("Reset", action: resetEnergyAction)
+                                .buttonStyle(.glass)
+                                .controlSize(.mini)
                         }
-                        Spacer()
-                        Button("Reset", action: resetEnergyAction).buttonStyle(.plain)
-                    }
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 112), spacing: 8)], spacing: 7) {
-                        ForEach(sample.sessionEnergy) { energy in
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(energy.name).font(.caption2).foregroundStyle(.secondary)
-                                Text(Self.energy(energy.joules))
-                                    .font(.caption.monospacedDigit().weight(.medium))
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                            ForEach(sample.sessionEnergy) { energy in
+                                StatTile(
+                                    symbol: "bolt.fill", label: energy.name, value: Self.energy(energy.joules),
+                                    tint: .yellow)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(7)
-                            .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 6))
                         }
+                        Text("Energy used since Barometer opened")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                 }
+            }
 
-                ForEach(SensorKind.allCases, id: \.self) { kind in
-                    let grouped = readings.filter { $0.kind == kind }
-                    if !grouped.isEmpty {
-                        Text(kind.title.uppercased()).sensorSectionLabel()
-                        ForEach(grouped) { reading in
-                            SensorReadingRow(
-                                reading: reading,
-                                displayName: displayName(reading),
-                                formattedValue: formatted(reading),
-                                history: history(for: reading)
-                            )
+            ForEach(SensorKind.allCases, id: \.self) { kind in
+                let grouped = Self.ordered(readings.filter { $0.kind == kind }, kind: kind)
+                if !grouped.isEmpty {
+                    GlassCard(tint: kind.color) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            SectionLabel(kind.title) {
+                                Chip(text: "\(grouped.count)", color: kind.color, symbol: kind.symbol)
+                            }
+                            ForEach(grouped) { reading in
+                                SensorReadingRow(
+                                    displayName: displayName(reading),
+                                    formattedValue: formatted(reading),
+                                    history: history(for: reading),
+                                    color: kind.color
+                                )
+                            }
                         }
                     }
                 }
             }
-            .padding(14)
+
+            if readings.isEmpty {
+                GlassCard {
+                    ContentUnavailableView("No sensor readings yet", systemImage: "thermometer.medium")
+                }
+            }
         }
-        .frame(width: 420, height: 600)
+    }
+
+    private static func subtitle(readings: [SensorReading]) -> String {
+        let counts = SensorKind.allCases.compactMap { kind -> String? in
+            let count = readings.filter { $0.kind == kind }.count
+            return count > 0 ? "\(count) \(kind.title.lowercased())" : nil
+        }
+        return counts.isEmpty ? "No readings yet" : counts.joined(separator: "  ·  ")
+    }
+
+    /// Hottest temperatures first; other kinds keep their discovery order.
+    private static func ordered(_ readings: [SensorReading], kind: SensorKind) -> [SensorReading] {
+        guard kind == .temperature else { return readings }
+        return readings.sorted { $0.value > $1.value }
     }
 
     private func displayName(_ reading: SensorReading) -> String {
         guard settingsStore.settings.sensors.showsRawNames,
-              reading.name != reading.rawName
+            reading.name != reading.rawName
         else {
             return reading.name
         }
@@ -119,49 +140,40 @@ public struct SensorsDropdownView: View {
 }
 
 private struct SensorReadingRow: View {
-    let reading: SensorReading
     let displayName: String
     let formattedValue: String
     let history: [Double]
+    let color: Color
+    @State private var isHovering = false
 
     var body: some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(displayName).lineLimit(1)
-                Text(reading.source.title).font(.caption2).foregroundStyle(.tertiary)
-            }
-            Spacer()
-            SensorSparkline(values: history, kind: reading.kind)
-                .frame(width: 72, height: 20)
+        HStack(spacing: 10) {
+            Text(displayName)
+                .font(.callout)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 6)
+            Sparkline(values: history, color: color)
+                .frame(width: 64, height: 16)
             Text(formattedValue)
-                .monospacedDigit()
-                .frame(minWidth: 68, alignment: .trailing)
+                .font(BarometerDesign.valueFont)
+                .frame(minWidth: 64, alignment: .trailing)
+                .contentTransition(.numericText())
+                .animation(.snappy(duration: 0.3), value: formattedValue)
         }
-        .font(.caption)
+        .padding(.vertical, 3)
+        .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.primary.opacity(isHovering ? 0.06 : 0))
+        )
+        .onHover { isHovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: isHovering)
     }
 }
 
-private struct SensorSparkline: View {
-    let values: [Double]
-    let kind: SensorKind
-
-    var body: some View {
-        Canvas { context, size in
-            guard values.count > 1 else { return }
-            var path = Path()
-            for (index, raw) in values.enumerated() {
-                let x = CGFloat(index) / CGFloat(values.count - 1) * size.width
-                let y = (1 - CGFloat(min(1, max(0, raw)))) * size.height
-                index == 0 ? path.move(to: CGPoint(x: x, y: y)) : path.addLine(to: CGPoint(x: x, y: y))
-            }
-            context.stroke(path, with: .color(kind.color), lineWidth: 1.25)
-        }
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 4))
-    }
-}
-
-private extension SensorKind {
-    var title: String {
+extension SensorKind {
+    fileprivate var title: String {
         switch self {
         case .temperature: "Temperatures"
         case .fan: "Fans"
@@ -171,7 +183,17 @@ private extension SensorKind {
         }
     }
 
-    var color: Color {
+    fileprivate var symbol: String {
+        switch self {
+        case .temperature: "thermometer.medium"
+        case .fan: "fan.fill"
+        case .power: "bolt.fill"
+        case .voltage: "waveform.path"
+        case .current: "arrow.right.circle"
+        }
+    }
+
+    fileprivate var color: Color {
         switch self {
         case .temperature: .orange
         case .fan: .cyan
@@ -179,22 +201,5 @@ private extension SensorKind {
         case .voltage: .purple
         case .current: .mint
         }
-    }
-}
-
-private extension SensorSourceKind {
-    var title: String {
-        switch self {
-        case .derived: "Summary"
-        case .hid: "IOHID"
-        case .smc: "SMC"
-        case .ioReport: "IOReport"
-        }
-    }
-}
-
-private extension View {
-    func sensorSectionLabel() -> some View {
-        font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
     }
 }

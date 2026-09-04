@@ -276,7 +276,7 @@ public actor SensorsMonitor: Monitor {
         var readings: [SensorReading] = []
         for value in try await source.sensorValues() {
             guard let number = value.numericValue,
-                  let kind = smcKind(key: value.key, value: number)
+                let kind = smcKind(key: value.key, value: number)
             else {
                 continue
             }
@@ -325,7 +325,15 @@ public actor SensorsMonitor: Monitor {
         }
     }
 
-    private static func addDerivedTemperatures(to readings: [SensorReading]) -> [SensorReading] {
+    /// Appends the summary readings shown by the menu bar and the top of the dropdown.
+    ///
+    /// The CPU value is the hottest processor die sensor, in this order of preference:
+    /// the IOHID `PMU tdie*` sensors (`SoC die N`), then the SMC `TPD*` die keys, and only
+    /// then the broad SMC `Tp*`/`Te*` families. On the M4 Pro those broad families include
+    /// package and hotspot sensors that read 20 to 30 degrees above the cores, which made
+    /// the earlier "hottest of anything named CPU" rule report a CPU temperature no other
+    /// monitor agreed with.
+    static func addDerivedTemperatures(to readings: [SensorReading]) -> [SensorReading] {
         var result = readings
         let temperatures = readings.filter { $0.kind == .temperature }
         if let hottest = temperatures.max(by: { $0.value < $1.value }) {
@@ -338,20 +346,27 @@ public actor SensorsMonitor: Monitor {
                 )
             )
         }
-        for domain in ["CPU", "GPU"] {
-            let matches = temperatures.filter { $0.name.hasPrefix(domain + " ") || $0.name == domain }
-            if let hottest = matches.max(by: { $0.value < $1.value }) {
-                result.append(
-                    derivedTemperature(
-                        id: domain.lowercased(),
-                        name: "\(domain) Temperature",
-                        shortName: domain,
-                        value: hottest.value
-                    )
-                )
-            }
+        if let cpu = cpuDieReadings(in: temperatures).max(by: { $0.value < $1.value }) {
+            result.append(derivedTemperature(id: "cpu", name: "CPU Temperature", shortName: "CPU", value: cpu.value))
+        }
+        let gpuMatches = temperatures.filter { $0.name.hasPrefix("GPU ") || $0.name == "GPU" }
+        if let gpu = gpuMatches.max(by: { $0.value < $1.value }) {
+            result.append(derivedTemperature(id: "gpu", name: "GPU Temperature", shortName: "GPU", value: gpu.value))
         }
         return result
+    }
+
+    /// The readings that represent processor die temperature, best source first.
+    static func cpuDieReadings(in temperatures: [SensorReading]) -> [SensorReading] {
+        let dieSensors = temperatures.filter { $0.source == .hid && $0.name.hasPrefix("SoC die") }
+        if !dieSensors.isEmpty {
+            return dieSensors
+        }
+        let packageDieKeys = temperatures.filter { $0.source == .smc && $0.rawName.hasPrefix("TPD") }
+        if !packageDieKeys.isEmpty {
+            return packageDieKeys
+        }
+        return temperatures.filter { $0.name.hasPrefix("CPU ") || $0.name == "CPU" }
     }
 
     private static func derivedTemperature(
@@ -529,8 +544,8 @@ public enum SensorsMonitorError: Error, Sendable {
     case noReadings
 }
 
-private extension SensorSourceKind {
-    var priority: Int {
+extension SensorSourceKind {
+    fileprivate var priority: Int {
         switch self {
         case .derived: 0
         case .ioReport: 1
@@ -540,8 +555,8 @@ private extension SensorSourceKind {
     }
 }
 
-private extension SensorKind {
-    var sortIndex: Int {
+extension SensorKind {
+    fileprivate var sortIndex: Int {
         switch self {
         case .temperature: 0
         case .fan: 1
@@ -552,8 +567,8 @@ private extension SensorKind {
     }
 }
 
-private extension SensorReading {
-    var isFriendly: Bool {
+extension SensorReading {
+    fileprivate var isFriendly: Bool {
         switch source {
         case .derived, .hid, .ioReport:
             return true

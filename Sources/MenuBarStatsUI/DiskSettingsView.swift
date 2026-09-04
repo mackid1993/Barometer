@@ -20,13 +20,6 @@ struct DiskSettingsView: View {
         Form {
             Section {
                 Toggle("Show in menu bar", isOn: moduleBinding(\.isEnabled))
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Live Preview").font(.caption).foregroundStyle(.secondary)
-                    Image(nsImage: previewImage)
-                        .padding(.horizontal, 12)
-                        .frame(height: 34)
-                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
-                }
             }
 
             Section("Menu Bar") {
@@ -97,7 +90,7 @@ struct DiskSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("Disks")
+        .settingsPane(module: .disks, settings: settingsStore.settings, preview: previewImage)
     }
 
     private var availableVolumes: [DiskVolumeSample] {
@@ -126,7 +119,7 @@ struct DiskSettingsView: View {
             thickness: NSStatusBar.system.thickness,
             appearance: .dark,
             palette: MenuBarPalette(light: color, dark: color),
-            fontSize: min(14, max(9, appSettings.fontSize)),
+            fontSize: appSettings.effectiveMenuBarFontSize,
             isMonochrome: appSettings.isMonochrome,
             scale: appSettings.menuBarScale,
             horizontalSpacing: appSettings.menuBarSpacing

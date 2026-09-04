@@ -83,6 +83,32 @@ public actor Scheduler<Source: Monitor> {
         intervalOverride = interval
     }
 
+    /// Delay until the next wall-clock multiple of `period`.
+    ///
+    /// Every scheduler sleeping toward the same boundaries means the one-second CPU, GPU,
+    /// and network monitors wake the process once per second together, and the slower
+    /// monitors land on those same instants, instead of each loop drifting to its own phase
+    /// and waking the process several times per second.
+    nonisolated static func alignedDelay(period: Duration, now: Date) -> Duration {
+        let periodSeconds = period.seconds
+        guard periodSeconds >= 0.25, periodSeconds <= 3_600 else {
+            return period
+        }
+        let elapsed = now.timeIntervalSinceReferenceDate
+        var delay = periodSeconds - elapsed.truncatingRemainder(dividingBy: periodSeconds)
+        // A boundary that is almost here would double-fire; skip to the next one.
+        if delay < periodSeconds * 0.3 {
+            delay += periodSeconds
+        }
+        return .seconds(delay)
+    }
+
+    /// Timer tolerance that stays small relative to the period.
+    nonisolated static func tolerance(for period: Duration) -> Duration {
+        let seconds = min(1, max(0.02, period.seconds * 0.1))
+        return .seconds(seconds)
+    }
+
     private func runLoop(generation currentGeneration: Int) async {
         var errorDelaySeconds = 1
 
@@ -100,8 +126,11 @@ public actor Scheduler<Source: Monitor> {
                 continuation.yield(sample)
                 errorDelaySeconds = 1
                 let monitorInterval = await monitor.interval
-                let interval = intervalOverride ?? monitorInterval
-                try await clock.sleep(for: interval * intervalMultiplier)
+                let period = (intervalOverride ?? monitorInterval) * intervalMultiplier
+                try await clock.sleep(
+                    for: Self.alignedDelay(period: period, now: Date()),
+                    tolerance: Self.tolerance(for: period)
+                )
             } catch is CancellationError {
                 break
             } catch {
@@ -120,5 +149,12 @@ public actor Scheduler<Source: Monitor> {
         if generation == currentGeneration {
             runTask = nil
         }
+    }
+}
+
+extension Duration {
+    fileprivate var seconds: Double {
+        let components = self.components
+        return Double(components.seconds) + Double(components.attoseconds) / 1e18
     }
 }

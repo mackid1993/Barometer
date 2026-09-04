@@ -1,8 +1,9 @@
 import AppKit
-@testable import MenuBarStatsCore
 import SystemSources
-@testable import MenuBarStatsUI
 import Testing
+
+@testable import MenuBarStatsCore
+@testable import MenuBarStatsUI
 
 @MainActor
 struct MenuBarRendererTests {
@@ -116,10 +117,12 @@ struct MenuBarRendererTests {
     func weatherRefreshAgeMakesSuccessfulUpdatesVisible() {
         let now = Date(timeIntervalSince1970: 10_000)
 
-        #expect(WeatherDropdownView.updatedText(fetchedAt: now.addingTimeInterval(-12), now: now)
-            == "Weather updated just now")
-        #expect(WeatherDropdownView.updatedText(fetchedAt: now.addingTimeInterval(-125), now: now)
-            == "Weather updated 2 min ago")
+        #expect(
+            WeatherDropdownView.updatedText(fetchedAt: now.addingTimeInterval(-12), now: now)
+                == "Weather updated just now")
+        #expect(
+            WeatherDropdownView.updatedText(fetchedAt: now.addingTimeInterval(-125), now: now)
+                == "Weather updated 2 min ago")
     }
 
     @Test
@@ -152,9 +155,10 @@ struct MenuBarRendererTests {
     @Test
     func samplingRunsOnlyForEnabledModulesAndCombinedDependencies() {
         var settings = AppSettings()
-        settings.modules = Dictionary(uniqueKeysWithValues: ModuleID.allCases.map {
-            ($0, ModuleSettings())
-        })
+        settings.modules = Dictionary(
+            uniqueKeysWithValues: ModuleID.allCases.map {
+                ($0, ModuleSettings())
+            })
         settings.modules[.gpu]?.isEnabled = true
         settings.modules[.gpu]?.mode = "combinedCPU"
         settings.modules[.combined]?.isEnabled = true
@@ -252,9 +256,11 @@ struct MenuBarRendererTests {
 
     @Test
     func helperProcessesUseTheirOwningApplicationIcon() {
-        let discordHelper = "/Applications/Discord.app/Contents/Frameworks/"
+        let discordHelper =
+            "/Applications/Discord.app/Contents/Frameworks/"
             + "Discord Helper.app/Contents/MacOS/Discord Helper"
-        let spotifyHelper = "/Applications/Spotify.app/Contents/Frameworks/"
+        let spotifyHelper =
+            "/Applications/Spotify.app/Contents/Frameworks/"
             + "Spotify Helper.app/Contents/MacOS/Spotify Helper"
 
         #expect(ProcessIconResolver.applicationURL(for: discordHelper)?.path == "/Applications/Discord.app")
@@ -365,7 +371,7 @@ struct MenuBarRendererTests {
             palette: context.palette,
             fontSize: context.fontSize,
             isMonochrome: context.isMonochrome,
-            scale: 1.35
+            scale: 1.15
         )
 
         let smallText = TextRenderer(text: "42%").render(in: smallGraphics)
@@ -398,10 +404,12 @@ struct MenuBarRendererTests {
             usesCompactLayout: true
         )
 
-        #expect(IconTextRenderer(symbolName: "cloud", text: "77°F").render(in: compact).size.width
-            < IconTextRenderer(symbolName: "cloud", text: "77°F").render(in: regular).size.width)
-        #expect(GraphRenderer(values: [0.2, 0.8], style: .line).render(in: compact).size.width
-            < GraphRenderer(values: [0.2, 0.8], style: .line).render(in: regular).size.width)
+        #expect(
+            IconTextRenderer(symbolName: "cloud", text: "77°F").render(in: compact).size.width
+                < IconTextRenderer(symbolName: "cloud", text: "77°F").render(in: regular).size.width)
+        #expect(
+            GraphRenderer(values: [0.2, 0.8], style: .line).render(in: compact).size.width
+                < GraphRenderer(values: [0.2, 0.8], style: .line).render(in: regular).size.width)
     }
 
     @Test
@@ -410,22 +418,18 @@ struct MenuBarRendererTests {
         let target = StatusItemRendering.itemLength(for: image)
 
         #expect(target == ceil(image.size.width))
-        #expect(!StatusItemRendering.shouldUpdateLength(current: target, target: target))
-        #expect(StatusItemRendering.shouldUpdateLength(current: nil, target: target))
-        #expect(StatusItemRendering.shouldUpdateLength(current: target + 1, target: target))
-        #expect(!StatusItemRendering.shouldUpdateLength(
-            current: target + 1,
-            target: target,
-            allowsResize: false
-        ))
+        #expect(StatusItemRendering.shouldAssignInitialLength(current: nil))
+        #expect(!StatusItemRendering.shouldAssignInitialLength(current: target))
+        #expect(!StatusItemRendering.shouldAssignInitialLength(current: target + 1))
     }
 
     @Test
     func hiddenStatusItemsRemoveOnlyVisibilityPreferences() {
-        #expect(StatusItemRendering.visibilityPreferenceKeys(autosaveName: "Barometer.Disks") == [
-            "NSStatusItem VisibleCC Barometer.Disks",
-            "NSStatusItem Visible Barometer.Disks",
-        ])
+        #expect(
+            StatusItemRendering.visibilityPreferenceKeys(autosaveName: "Barometer.Disks") == [
+                "NSStatusItem VisibleCC Barometer.Disks",
+                "NSStatusItem Visible Barometer.Disks",
+            ])
     }
 
     @Test
@@ -698,5 +702,274 @@ struct MenuBarRendererTests {
             #expect(content.accessibilityValue.contains("Disks read"))
             #expect(unavailable.image.size == content.image.size)
         }
+    }
+}
+
+@MainActor
+struct MenuBarSizingTests {
+    private func context(thickness: CGFloat, fontSize: CGFloat, scale: CGFloat = 1.15) -> RenderContext {
+        RenderContext(
+            thickness: thickness,
+            appearance: .dark,
+            palette: MenuBarPalette(light: .black, dark: .white),
+            fontSize: fontSize,
+            isMonochrome: true,
+            scale: scale
+        )
+    }
+
+    @Test
+    func defaultFontSizeKeepsTheOriginalCompactGrid() {
+        #expect(MenuBarLayoutMetrics(context: context(thickness: 22, fontSize: 12)).compactPointSize == 9)
+        #expect(MenuBarLayoutMetrics(context: context(thickness: 24, fontSize: 12)).compactPointSize == 10)
+    }
+
+    @Test
+    func fontSizeSliderMovesTwoRowTextAcrossItsRange() {
+        let sizes = stride(
+            from: AppSettings.menuBarFontSizeRange.lowerBound,
+            through: AppSettings.menuBarFontSizeRange.upperBound,
+            by: 0.5
+        ).map {
+            MenuBarLayoutMetrics(context: context(thickness: 22, fontSize: $0)).compactPointSize
+        }
+        #expect(sizes.first == 8)
+        #expect(sizes.last == 9)
+        #expect(sizes == sizes.sorted())
+        #expect(Set(sizes).count >= 3)
+        #expect(MenuBarLayoutMetrics.maximumCompactPointSize(thickness: 22) == 11)
+        #expect(MenuBarLayoutMetrics.maximumCompactPointSize(thickness: 24) == 12.5)
+        #expect(sizes.allSatisfy { $0 <= MenuBarLayoutMetrics.maximumCompactPointSize(thickness: 22) })
+    }
+
+    @Test
+    func largerFontWidensTwoRowItemsButNeverChangesTheirHeight() {
+        let small = StackedLabelRenderer(label: "CPU", value: "42%", reservedValue: "100%")
+            .render(in: context(thickness: 22, fontSize: 9))
+        let large = StackedLabelRenderer(label: "CPU", value: "42%", reservedValue: "100%")
+            .render(in: context(thickness: 22, fontSize: 12))
+        #expect(large.size.width > small.size.width)
+        #expect(small.size.height == 22)
+        #expect(large.size.height == 22)
+    }
+
+    @Test
+    func iconScaleResizesCompactSymbolsAndGraphs() {
+        let native = NSSize(width: 20, height: 16)
+        let small = MenuBarLayoutMetrics(context: context(thickness: 22, fontSize: 12, scale: 0.75))
+        let maximum = MenuBarLayoutMetrics(context: context(thickness: 22, fontSize: 12, scale: 1.15))
+
+        #expect(maximum.compactSymbolVisibleHeight == 10)
+        #expect(small.compactSymbolVisibleHeight < maximum.compactSymbolVisibleHeight)
+        let padded = NSRect(x: 2, y: 3, width: 16, height: 10)
+        #expect(maximum.compactSymbolSize(nativeSize: native, alignmentRect: padded).height == 16)
+        #expect(maximum.compactSymbolSize(nativeSize: native).height == 10)
+
+        #expect(maximum.graphVerticalInset(default: 3) == 3)
+        #expect(small.graphVerticalInset(default: 3) > maximum.graphVerticalInset(default: 3))
+
+        let narrow = GraphRenderer(values: [0.2, 0.6, 0.4], style: .area)
+            .render(in: context(thickness: 22, fontSize: 12, scale: 0.75))
+        let wide = GraphRenderer(values: [0.2, 0.6, 0.4], style: .area)
+            .render(in: context(thickness: 22, fontSize: 12, scale: 1.15))
+        #expect(wide.size.width > narrow.size.width)
+        #expect(wide.size.height == 22)
+    }
+}
+
+@MainActor
+struct CompactLayoutTests {
+    private func context(compact: Bool, fontSize: CGFloat = 12) -> RenderContext {
+        RenderContext(
+            thickness: 22,
+            appearance: .dark,
+            palette: MenuBarPalette(light: .black, dark: .white),
+            fontSize: fontSize,
+            isMonochrome: true,
+            scale: 1.15,
+            usesCompactLayout: compact
+        )
+    }
+
+    @Test
+    func sensorsStackGetsScaledSidePaddingAndCompactTightensIt() {
+        let values = [
+            SensorStackValue(label: "CPU", value: "66.7°C", reservedValue: "99.9°C"),
+            SensorStackValue(label: "GPU", value: "52.8°C", reservedValue: "99.9°C"),
+        ]
+        let regular = SensorStackRenderer(values: values).render(in: context(compact: false))
+        let compact = SensorStackRenderer(values: values).render(in: context(compact: true))
+        #expect(MenuBarLayoutMetrics(context: context(compact: false)).denseTextPadding == 3)
+        #expect(MenuBarLayoutMetrics(context: context(compact: false, fontSize: 12)).denseTextPadding == 3)
+        #expect(MenuBarLayoutMetrics(context: context(compact: true)).denseTextPadding == 1)
+        #expect(compact.size.width < regular.size.width)
+        #expect(regular.size.height == 22)
+    }
+
+    @Test
+    func compactLayoutTightensEveryTextRenderer() {
+        let regular = context(compact: false)
+        let compact = context(compact: true)
+        #expect(compact.font(ofSize: 10, weight: .regular, monospacedDigits: true).pointSize == 10)
+        #expect(
+            StackedLabelRenderer(label: "MEM", value: "61%", reservedValue: "100%").render(in: compact).size.width
+                < StackedLabelRenderer(label: "MEM", value: "61%", reservedValue: "100%").render(in: regular).size.width
+        )
+        #expect(
+            TextRenderer(text: "42.0%", reservedText: "100.0%").render(in: compact).size.width
+                < TextRenderer(text: "42.0%", reservedText: "100.0%").render(in: regular).size.width
+        )
+        let combinedRegular = CombinedRenderer(renderers: [
+            TextRenderer(text: "42%"), TextRenderer(text: "61%"),
+        ]).render(in: regular)
+        let combinedCompact = CombinedRenderer(renderers: [
+            TextRenderer(text: "42%"), TextRenderer(text: "61%"),
+        ]).render(in: compact)
+        #expect(combinedCompact.size.width < combinedRegular.size.width)
+    }
+}
+
+@MainActor
+struct StableCanvasTests {
+    private let context = RenderContext(
+        thickness: 22,
+        appearance: .dark,
+        palette: MenuBarPalette(light: .black, dark: .white),
+        fontSize: 12,
+        isMonochrome: true,
+        scale: 1.15,
+        fontWeight: .semibold
+    )
+
+    private func reading(id: String, name: String, shortName: String, value: Double, kind: SensorKind = .temperature)
+        -> SensorReading
+    {
+        SensorReading(
+            id: id,
+            name: name,
+            shortName: shortName,
+            rawName: id,
+            kind: kind,
+            source: .derived,
+            value: value,
+            unit: kind == .fan ? .rpm : .celsius
+        )
+    }
+
+    private func sensorsWidth(sample: SensorSample?) -> CGFloat {
+        var widget = SensorWidgetSettings(id: 1)
+        widget.sensorIDs = ["derived:temperature:cpu", "derived:temperature:gpu"]
+        widget.mode = .compactStack
+        return SensorsMenuBarPresenter.content(
+            sample: sample,
+            history: [],
+            moduleSettings: ModuleSettings(mode: "compactStack", interval: 5),
+            sensorSettings: SensorSettings(),
+            widget: widget,
+            temperatureUnit: .celsius,
+            context: context
+        ).image.size.width
+    }
+
+    @Test
+    func sensorsCanvasIsIdenticalBeforeDuringAndAfterDiscovery() {
+        let cpu = reading(id: "derived:temperature:cpu", name: "CPU Temperature", shortName: "CPU", value: 45.6)
+        let gpu = reading(id: "derived:temperature:gpu", name: "GPU Temperature", shortName: "GPU", value: 54.0)
+        let unavailable = sensorsWidth(sample: nil)
+        let partial = sensorsWidth(sample: SensorSample(timestamp: Date(), readings: [cpu], sessionEnergy: []))
+        let live = sensorsWidth(sample: SensorSample(timestamp: Date(), readings: [cpu, gpu], sessionEnergy: []))
+        let hot = sensorsWidth(
+            sample: SensorSample(
+                timestamp: Date(),
+                readings: [
+                    reading(id: "derived:temperature:cpu", name: "CPU Temperature", shortName: "CPU", value: 109.9),
+                    reading(id: "derived:temperature:gpu", name: "GPU Temperature", shortName: "GPU", value: 99.9),
+                ], sessionEnergy: []))
+        #expect(unavailable == partial)
+        #expect(partial == live)
+        #expect(live == hot)
+    }
+
+    @Test
+    func stackedWeatherWidthDoesNotFollowTheConditionGlyph() {
+        let widths = ["cloud", "cloud.sun.rain", "sun.max", "cloud.bolt.rain", "wind"].map { symbol in
+            IconStackRenderer(symbolName: symbol, text: "70°F", reservedText: "99°F").render(in: context).size.width
+        }
+        #expect(Set(widths).count == 1)
+    }
+}
+
+@MainActor
+struct RecordedWidthTests {
+    @Test
+    func recordedLengthsAlwaysWin() {
+        #expect(StatusItemRendering.normalizedLength(natural: 29, committed: nil) == 32)
+        #expect(StatusItemRendering.normalizedLength(natural: 32, committed: nil) == 32)
+        #expect(StatusItemRendering.normalizedLength(natural: 31, committed: 32) == 32)
+        #expect(StatusItemRendering.normalizedLength(natural: 20, committed: 32) == 32)
+        #expect(StatusItemRendering.normalizedLength(natural: 45, committed: 32) == 32)
+        #expect(StatusItemRendering.normalizedLength(natural: 1, committed: nil) == 4)
+    }
+
+    @Test
+    func liveLengthAlwaysWinsOverStagedFontAndGlyphWidths() {
+        #expect(StatusItemRendering.activeLength(applied: nil, proposed: 40) == 40)
+        #expect(StatusItemRendering.activeLength(applied: 32, proposed: 40) == 32)
+        #expect(StatusItemRendering.activeLength(applied: 32, proposed: 20) == 32)
+        #expect(StatusItemRendering.roundedLength(33) == 36)
+
+        let narrowContext = RenderContext(
+            thickness: 22,
+            appearance: .dark,
+            palette: MenuBarPalette(light: .black, dark: .white),
+            fontSize: 12,
+            isMonochrome: true,
+            scale: 0.75
+        )
+        let wideContext = RenderContext(
+            thickness: 22,
+            appearance: .dark,
+            palette: MenuBarPalette(light: .black, dark: .white),
+            fontSize: 12,
+            isMonochrome: true,
+            scale: 1.15
+        )
+        let renderer = GraphRenderer(values: [0.2, 0.8, 0.4], style: .line)
+        let applied = StatusItemRendering.roundedLength(renderer.render(in: narrowContext).size.width)
+        let staged = StatusItemRendering.roundedLength(renderer.render(in: wideContext).size.width)
+        #expect(staged > applied)
+        #expect(StatusItemRendering.activeLength(applied: applied, proposed: staged) == applied)
+    }
+
+    @Test
+    func fittedImagesKeepCanvasHeightAndTemplateFlag() {
+        let image = NSImage(size: NSSize(width: 29, height: 22), flipped: false) { _ in true }
+        image.isTemplate = true
+        let padded = StatusItemRendering.image(image, fittedTo: 32)
+        #expect(padded.size == NSSize(width: 32, height: 22))
+        #expect(padded.isTemplate)
+        let shrunk = StatusItemRendering.image(image, fittedTo: 24)
+        #expect(shrunk.size == NSSize(width: 24, height: 22))
+        #expect(StatusItemRendering.image(image, fittedTo: 29) === image)
+    }
+
+    @Test
+    func appliedGeometryDoesNotFollowLiveCompactOrSizingChanges() {
+        var settings = AppSettings(fontSize: 12, menuBarScale: 1.15, menuBarSpacing: 3)
+        let applied = StatusItemGeometry(settings: settings)
+
+        settings.fontSize = 9
+        settings.menuBarScale = 0.75
+        settings.menuBarSpacing = 0
+        settings.fontWeight = .regular
+        settings.usesCompactLayout = true
+        let proposed = StatusItemGeometry(settings: settings)
+
+        #expect(proposed != applied)
+        #expect(applied.fontSize == 12)
+        #expect(applied.scale == 1.15)
+        #expect(applied.horizontalSpacing == 3)
+        #expect(applied.fontWeight == .medium)
+        #expect(!applied.usesCompactLayout)
     }
 }

@@ -138,7 +138,23 @@ After this correction, David restarted Bartender and confirmed that all Baromete
 ### Live values must not resize status items
 
 Reassigning even the same `statusItem.length` on every sample caused items to return to AppKit placement after a menu
-bar manager restarted. The controller must assign length only for initial layout or a genuine user settings change.
+bar manager restarted. A later UI refactor reintroduced the failure through a settings-change exception: changing the
+font size, font weight, compact layout, glyph scale, or spacing wrote a new live length and made items move again.
+
+The rule is absolute: each controller may assign `statusItem.length` at most once per process lifetime, before making
+the item visible. There is no exception for a user-initiated layout change, a debounced update, a manual recompute
+command, or assigning the same numeric value. `StatusItemController` must remain the only production writer.
+
+Settings previews render new typography and glyph geometry immediately, but a live status item continues rendering
+with the geometry it first applied. Its readings continue to refresh. Barometer separately calculates the new
+natural width, rounds it to the four-point grid, and records it under
+`Barometer.CommittedWidth.v3.<autosaveName>`, but must not apply it to the live AppKit item. On the next app launch,
+the controller reads that committed width and assigns it before the item becomes visible. The active image canvas
+always uses the applied live width and geometry, never the pending values.
+
+The complete decision, algorithm, prohibited alternatives, and regression checks are in
+[`MACOS27_STATUS_ITEM_SIZING.md`](MACOS27_STATUS_ITEM_SIZING.md). Read it before changing menu bar typography,
+rendered widths, or status-item lifecycle code.
 
 AppKit's variable-length image presentation also introduced its standard eight-point image inset on each side. An
 explicit status-item length equal to the rendered image width is what makes zero user spacing possible while keeping

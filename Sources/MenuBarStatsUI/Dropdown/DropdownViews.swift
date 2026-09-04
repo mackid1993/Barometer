@@ -2,8 +2,9 @@ import AppKit
 import Darwin
 import MenuBarStatsCore
 import SwiftUI
+import SystemSources
 
-private enum HistoryRange: String, CaseIterable, Identifiable {
+enum HistoryRange: String, CaseIterable, Identifiable {
     case oneMinute = "1m"
     case fiveMinutes = "5m"
     case thirtyMinutes = "30m"
@@ -23,8 +24,13 @@ private enum HistoryRange: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - CPU
+
 /// Live CPU details shown inside the CPU status-item menu.
 public struct CPUDropdownView: View {
+    /// Fixed hosted content size for the menu item.
+    public static let contentSize = CGSize(width: 380, height: 500)
+
     private let store: ModuleStore<CPUSample>
     private let settingsStore: SettingsStore
     @State private var range: HistoryRange = .fiveMinutes
@@ -43,57 +49,103 @@ public struct CPUDropdownView: View {
             .map { $0.value.totalPercent / 100 }
         let _ = store.revision
         let settings = settingsStore.settings.modules[.cpu] ?? ModuleSettings()
+        let accent = ModuleAccent.resolve(settingsStore.settings, module: .cpu)
 
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("CPU").font(.headline)
-                    Spacer()
-                    Text(sample.map { String(format: "%.1f%%", $0.totalPercent) } ?? "Unavailable")
-                        .font(.system(.headline, design: .rounded).monospacedDigit())
-                }
+        DropdownScaffold(size: Self.contentSize) {
+            HeroHeader(
+                symbolName: "cpu",
+                title: "CPU",
+                subtitle: sample.map(Self.subtitle) ?? "Waiting for the first sample",
+                value: sample.map { String(format: "%.1f%%", $0.totalPercent) } ?? "—",
+                accent: accent
+            )
 
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("HISTORY").sectionLabel()
-                    Picker("Range", selection: $range) {
-                        ForEach(HistoryRange.allCases) { value in
-                            Text(value.rawValue).tag(value)
-                        }
+            GlassCard(tint: accent.primary) {
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionLabel("History") {
+                        CapsulePicker(
+                            options: HistoryRange.allCases,
+                            selection: $range,
+                            label: \.rawValue,
+                            accent: accent
+                        )
                     }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .controlSize(.small)
-                    .frame(maxWidth: .infinity)
-                }
-                HistoryGraph(values: values, color: AppearanceColorResolver.graph(settingsStore.settings, module: .cpu))
-                    .frame(height: 72)
-
-                if let sample {
-                    Text("CORES").sectionLabel()
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 62), spacing: 8)], spacing: 7) {
-                        ForEach(sample.perCore, id: \.index) { core in
-                            CoreBar(core: core)
-                        }
-                    }
-
-                    Divider()
-                    MetricRow(label: "Load Average", value: sample.loadAverages.map {
-                        String(format: "%.2f", $0)
-                    }.joined(separator: "  "))
-                    MetricRow(label: "Uptime", value: Self.uptime(sample.uptime))
-                    MetricRow(label: "Processes", value: "\(sample.processCount)  ·  \(sample.threadCount) threads")
-
-                    if settings.showsProcesses, !sample.topProcesses.isEmpty {
-                        Text("TOP PROCESSES").sectionLabel()
-                        ForEach(sample.topProcesses.prefix(settings.processCount), id: \.processIdentifier) { process in
-                            CPUProcessRow(process: process)
+                    AreaGraph(values: values, accent: accent)
+                        .frame(height: 84)
+                    if let sample {
+                        HStack(spacing: 6) {
+                            Chip(text: String(format: "User %.0f%%", sample.userPercent), color: accent.primary)
+                            Chip(text: String(format: "System %.0f%%", sample.systemPercent), color: accent.secondary)
+                            Chip(text: String(format: "Idle %.0f%%", sample.idlePercent), color: .secondary)
                         }
                     }
                 }
             }
-            .padding(14)
+
+            if let sample {
+                GlassCard {
+                    VStack(alignment: .leading, spacing: 8) {
+                        SectionLabel("Cores") {
+                            Text(Self.coreSummary(sample))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), spacing: 8)], spacing: 8) {
+                            ForEach(sample.perCore, id: \.index) { core in
+                                CoreBar(core: core, accent: accent)
+                            }
+                        }
+                    }
+                }
+
+                GlassCard {
+                    VStack(alignment: .leading, spacing: 2) {
+                        SectionLabel("System")
+                        MetricRow(
+                            label: "Load average",
+                            value: sample.loadAverages.map { String(format: "%.2f", $0) }.joined(separator: "  ·  "),
+                            symbol: "gauge.with.dots.needle.33percent",
+                            tint: accent.primary
+                        )
+                        MetricRow(
+                            label: "Uptime", value: Self.uptime(sample.uptime), symbol: "clock", tint: accent.primary)
+                        MetricRow(
+                            label: "Processes",
+                            value: "\(sample.processCount)  ·  \(sample.threadCount) threads",
+                            symbol: "square.stack.3d.up",
+                            tint: accent.primary
+                        )
+                    }
+                }
+
+                if settings.showsProcesses, !sample.topProcesses.isEmpty {
+                    GlassCard {
+                        VStack(alignment: .leading, spacing: 2) {
+                            SectionLabel("Top processes")
+                            ForEach(sample.topProcesses.prefix(settings.processCount), id: \.processIdentifier) {
+                                process in
+                                CPUProcessRow(process: process, accent: accent)
+                            }
+                        }
+                    }
+                }
+            }
         }
-        .frame(width: 320, height: 438)
+    }
+
+    private static func subtitle(_ sample: CPUSample) -> String {
+        String(
+            format: "%.0f%% user  ·  %.0f%% system  ·  %.0f%% idle", sample.userPercent, sample.systemPercent,
+            sample.idlePercent)
+    }
+
+    private static func coreSummary(_ sample: CPUSample) -> String {
+        let performance = sample.perCore.filter { $0.kind == .performance }.count
+        let efficiency = sample.perCore.count - performance
+        guard efficiency > 0 else {
+            return "\(sample.perCore.count) cores"
+        }
+        return "\(performance) performance · \(efficiency) efficiency"
     }
 
     private static func uptime(_ interval: TimeInterval?) -> String {
@@ -105,8 +157,82 @@ public struct CPUDropdownView: View {
     }
 }
 
+private struct CoreBar: View {
+    let core: CPUCoreSample
+    let accent: ModuleAccent
+
+    var body: some View {
+        let isPerformance = core.kind == .performance
+        let gradient =
+            isPerformance
+            ? accent.horizontalGradient
+            : LinearGradient(
+                colors: [accent.secondary, Color(hex: 0x6EE7B7)], startPoint: .leading, endPoint: .trailing)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 3) {
+                Text(isPerformance ? "P\(core.index + 1)" : "E\(core.index + 1)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(String(format: "%.0f%%", core.usagePercent))
+                    .font(.caption2.monospacedDigit())
+                    .contentTransition(.numericText())
+                    .animation(.snappy(duration: 0.3), value: core.usagePercent)
+            }
+            CapsuleBar(
+                fraction: core.usagePercent / 100,
+                gradient: gradient,
+                height: 5,
+                glowColor: isPerformance ? accent.primary : accent.secondary
+            )
+        }
+    }
+}
+
+private struct CPUProcessRow: View {
+    let process: CPUProcessSample
+    let accent: ModuleAccent
+
+    var body: some View {
+        ProcessRow(
+            icon: ProcessIconResolver.image(processIdentifier: process.processIdentifier, path: process.path),
+            name: process.name,
+            detail: String(format: "%.1f%%", process.cpuPercent),
+            fraction: min(1, process.cpuPercent / 100),
+            accent: accent
+        ) {
+            Button(action: terminate) {
+                Image(systemName: "xmark.circle.fill")
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Quit process")
+        }
+    }
+
+    private func terminate() {
+        if process.userIdentifier != UInt32(getuid()) {
+            let alert = NSAlert()
+            alert.messageText = "Quit \(process.name)?"
+            alert.informativeText =
+                "This process belongs to another user or to macOS. "
+                + "Quitting it may affect the system."
+            alert.addButton(withTitle: "Quit Process")
+            alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+        _ = Darwin.kill(process.processIdentifier, SIGTERM)
+    }
+}
+
+// MARK: - Memory
+
 /// Live memory details shown inside the Memory status-item menu.
 public struct MemoryDropdownView: View {
+    /// Fixed hosted content size for the menu item.
+    public static let contentSize = CGSize(width: 380, height: 450)
+
     private let store: ModuleStore<MemorySample>
     private let settingsStore: SettingsStore
 
@@ -121,155 +247,163 @@ public struct MemoryDropdownView: View {
         let values = store.history.entries.map { $0.value.pressurePercent / 100 }
         let _ = store.revision
         let settings = settingsStore.settings.modules[.memory] ?? ModuleSettings()
+        let accent = ModuleAccent.resolve(settingsStore.settings, module: .memory)
 
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("Memory").font(.headline)
-                    Spacer()
-                    Text(sample.map(Self.usedText) ?? "Unavailable")
-                        .font(.system(.headline, design: .rounded).monospacedDigit())
+        DropdownScaffold(size: Self.contentSize) {
+            HeroHeader(
+                symbolName: "memorychip",
+                title: "Memory",
+                subtitle: sample.map(Self.usedText) ?? "Waiting for the first sample",
+                value: sample.map { Self.usedPercent($0) } ?? "—",
+                accent: accent
+            )
+
+            if let sample {
+                GlassCard(tint: accent.primary) {
+                    VStack(alignment: .leading, spacing: 9) {
+                        SectionLabel("Breakdown") {
+                            Text("\(Self.bytes(sample.free)) free")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .contentTransition(.numericText())
+                        }
+                        MemoryBreakdownBar(sample: sample, accent: accent)
+                            .frame(height: 12)
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+                            Chip(text: "App \(Self.bytes(sample.app))", color: accent.primary)
+                            Chip(text: "Wired \(Self.bytes(sample.wired))", color: accent.secondary)
+                            Chip(text: "Compressed \(Self.bytes(sample.compressed))", color: .orange)
+                            Chip(text: "Cached \(Self.bytes(sample.cached))", color: .secondary)
+                        }
+                    }
                 }
 
-                if let sample {
-                    MemoryBreakdownBar(sample: sample).frame(height: 12)
-                    HStack(spacing: 10) {
-                        LegendDot(color: .blue, label: "App \(Self.bytes(sample.app))")
-                        LegendDot(color: .purple, label: "Wired \(Self.bytes(sample.wired))")
-                    }
-                    HStack(spacing: 10) {
-                        LegendDot(color: .orange, label: "Compressed \(Self.bytes(sample.compressed))")
-                        LegendDot(color: .gray, label: "Cached \(Self.bytes(sample.cached))")
-                    }
-
-                    Text("PRESSURE").sectionLabel()
-                    HistoryGraph(
-                        values: values,
-                        color: pressureColor(sample.pressurePercent, settings: settingsStore.settings)
-                    )
+                GlassCard {
+                    VStack(alignment: .leading, spacing: 8) {
+                        SectionLabel("Pressure") {
+                            Chip(
+                                text: Self.pressureName(sample.pressureLevel),
+                                color: pressureColor(
+                                    sample.pressurePercent, settings: settingsStore.settings, accent: accent),
+                                symbol: Self.pressureSymbol(sample.pressureLevel)
+                            )
+                        }
+                        AreaGraph(
+                            values: values,
+                            accent: ModuleAccent(
+                                primary: pressureColor(
+                                    sample.pressurePercent, settings: settingsStore.settings, accent: accent),
+                                secondary: accent.secondary
+                            )
+                        )
                         .frame(height: 72)
-                    MetricRow(
-                        label: "Memory Pressure",
-                        value: String(format: "%.0f%%", sample.pressurePercent)
-                    )
-                    MetricRow(label: "Swap", value: "\(Self.bytes(sample.swapUsed)) of \(Self.bytes(sample.swapTotal))")
+                        MetricRow(
+                            label: "Memory pressure",
+                            value: String(format: "%.0f%%", sample.pressurePercent),
+                            symbol: "gauge.with.needle",
+                            tint: accent.primary
+                        )
+                        MetricRow(
+                            label: "Swap",
+                            value: "\(Self.bytes(sample.swapUsed)) of \(Self.bytes(sample.swapTotal))",
+                            symbol: "arrow.left.arrow.right",
+                            tint: accent.primary
+                        )
+                    }
+                }
 
-                    if settings.showsProcesses, !sample.topProcesses.isEmpty {
-                        Text("TOP PROCESSES").sectionLabel()
-                        ForEach(sample.topProcesses.prefix(settings.processCount), id: \.processIdentifier) { process in
-                            MemoryProcessRow(process: process)
+                if settings.showsProcesses, !sample.topProcesses.isEmpty {
+                    GlassCard {
+                        VStack(alignment: .leading, spacing: 2) {
+                            SectionLabel("Top processes")
+                            ForEach(sample.topProcesses.prefix(settings.processCount), id: \.processIdentifier) {
+                                process in
+                                ProcessRow(
+                                    icon: ProcessIconResolver.image(
+                                        processIdentifier: process.processIdentifier,
+                                        path: process.path
+                                    ),
+                                    name: process.name,
+                                    detail: Self.bytes(process.physicalFootprint),
+                                    fraction: sample.total > 0
+                                        ? Double(process.physicalFootprint) / Double(sample.total)
+                                        : nil,
+                                    accent: accent
+                                )
+                            }
                         }
                     }
                 }
             }
-            .padding(14)
         }
-        .frame(width: 320, height: 386)
     }
 
     private static func usedText(_ sample: MemorySample) -> String {
-        "\(bytes(sample.used)) / \(bytes(sample.total))"
+        "\(bytes(sample.used)) of \(bytes(sample.total)) used"
+    }
+
+    private static func usedPercent(_ sample: MemorySample) -> String {
+        guard sample.total > 0 else { return "—" }
+        return String(format: "%.0f%%", Double(sample.used) / Double(sample.total) * 100)
     }
 
     fileprivate static func bytes(_ value: UInt64) -> String {
         ByteCountFormatter.string(fromByteCount: Int64(clamping: value), countStyle: .memory)
     }
 
-    private func pressureColor(_ pressure: Double, settings: AppSettings) -> Color {
+    private static func pressureName(_ level: MemoryPressureLevel) -> String {
+        switch level {
+        case .normal: "Normal"
+        case .warning: "Warning"
+        case .critical: "Critical"
+        case .unavailable: "Unknown"
+        }
+    }
+
+    private static func pressureSymbol(_ level: MemoryPressureLevel) -> String {
+        switch level {
+        case .normal: "checkmark.circle.fill"
+        case .warning: "exclamationmark.triangle.fill"
+        case .critical: "exclamationmark.octagon.fill"
+        case .unavailable: "questionmark.circle"
+        }
+    }
+
+    private func pressureColor(_ pressure: Double, settings: AppSettings, accent: ModuleAccent) -> Color {
         if pressure >= 80 {
             return AppearanceColorResolver.critical(settings, module: .memory)
         }
         if pressure >= 60 {
             return AppearanceColorResolver.warning(settings, module: .memory)
         }
-        return AppearanceColorResolver.graph(settings, module: .memory)
+        return accent.primary
     }
 }
 
-private struct HistoryGraph: View {
-    let values: [Double]
-    let color: Color
+private struct MemoryBreakdownBar: View {
+    let sample: MemorySample
+    let accent: ModuleAccent
 
     var body: some View {
-        Canvas { context, size in
-            guard values.count > 1 else { return }
-            var path = Path()
-            for (index, rawValue) in values.enumerated() {
-                let fraction = CGFloat(index) / CGFloat(values.count - 1)
-                let value = CGFloat(min(max(rawValue, 0), 1))
-                let point = CGPoint(x: fraction * size.width, y: (1 - value) * size.height)
-                index == 0 ? path.move(to: point) : path.addLine(to: point)
+        GeometryReader { geometry in
+            HStack(spacing: 1) {
+                segment(sample.app, color: accent.primary, width: geometry.size.width)
+                segment(sample.wired, color: accent.secondary, width: geometry.size.width)
+                segment(sample.compressed, color: .orange, width: geometry.size.width)
+                segment(sample.cached, color: .secondary.opacity(0.55), width: geometry.size.width)
+                segment(sample.free, color: .primary.opacity(0.08), width: geometry.size.width)
             }
-            context.stroke(path, with: .color(color), lineWidth: 1.75)
+            .clipShape(Capsule())
         }
-        .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 6))
+        .animation(.snappy(duration: 0.35), value: sample.used)
+    }
+
+    private func segment(_ amount: UInt64, color: Color, width: CGFloat) -> some View {
+        color.frame(width: sample.total > 0 ? width * CGFloat(amount) / CGFloat(sample.total) : 0)
     }
 }
 
-private struct CoreBar: View {
-    let core: CPUCoreSample
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 3) {
-                Text("C\(core.index + 1)").font(.caption2)
-                Spacer()
-                Text(String(format: "%.0f%%", core.usagePercent)).font(.caption2.monospacedDigit())
-            }
-            ProgressView(value: core.usagePercent, total: 100)
-                .progressViewStyle(.linear)
-                .tint(core.kind == .performance ? .cyan : .mint)
-        }
-    }
-}
-
-private struct CPUProcessRow: View {
-    let process: CPUProcessSample
-
-    var body: some View {
-        HStack(spacing: 7) {
-            ProcessIcon(processIdentifier: process.processIdentifier, path: process.path)
-            Text(process.name).lineLimit(1)
-            Spacer()
-            Text(String(format: "%.1f%%", process.cpuPercent)).monospacedDigit().foregroundStyle(.secondary)
-            Button(action: terminate) {
-                Image(systemName: "xmark.circle")
-            }
-            .buttonStyle(.plain)
-            .help("Quit process")
-        }
-        .font(.caption)
-    }
-
-    private func terminate() {
-        if process.userIdentifier != UInt32(getuid()) {
-            let alert = NSAlert()
-            alert.messageText = "Quit \(process.name)?"
-            alert.informativeText = "This process belongs to another user or to macOS. "
-                + "Quitting it may affect the system."
-            alert.addButton(withTitle: "Quit Process")
-            alert.addButton(withTitle: "Cancel")
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
-        }
-        _ = Darwin.kill(process.processIdentifier, SIGTERM)
-    }
-}
-
-private struct MemoryProcessRow: View {
-    let process: MemoryProcessSample
-
-    var body: some View {
-        HStack(spacing: 7) {
-            ProcessIcon(processIdentifier: process.processIdentifier, path: process.path)
-            Text(process.name).lineLimit(1)
-            Spacer()
-            Text(MemoryDropdownView.bytes(process.physicalFootprint))
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-        }
-        .font(.caption)
-    }
-}
+// MARK: - Shared process helpers
 
 struct ProcessIcon: View {
     let processIdentifier: pid_t
@@ -293,7 +427,8 @@ enum ProcessIconResolver {
             return cached
         }
 
-        let image = applicationURL(for: path).map { NSWorkspace.shared.icon(forFile: $0.path) }
+        let image =
+            applicationURL(for: path).map { NSWorkspace.shared.icon(forFile: $0.path) }
             ?? NSRunningApplication(processIdentifier: processIdentifier)?.icon
             ?? path.map { NSWorkspace.shared.icon(forFile: $0) }
             ?? NSImage(systemSymbolName: "terminal.fill", accessibilityDescription: "Command-line process")
@@ -315,60 +450,5 @@ enum ProcessIconResolver {
             candidate.deleteLastPathComponent()
         }
         return outermostApplication
-    }
-}
-
-private struct MemoryBreakdownBar: View {
-    let sample: MemorySample
-
-    var body: some View {
-        GeometryReader { geometry in
-            HStack(spacing: 0) {
-                segment(sample.app, color: .blue, width: geometry.size.width)
-                segment(sample.wired, color: .purple, width: geometry.size.width)
-                segment(sample.compressed, color: .orange, width: geometry.size.width)
-                segment(sample.cached, color: .gray, width: geometry.size.width)
-                segment(sample.free, color: .secondary.opacity(0.22), width: geometry.size.width)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-        }
-    }
-
-    private func segment(_ amount: UInt64, color: Color, width: CGFloat) -> some View {
-        color.frame(width: sample.total > 0 ? width * CGFloat(amount) / CGFloat(sample.total) : 0)
-    }
-}
-
-private struct LegendDot: View {
-    let color: Color
-    let label: String
-
-    var body: some View {
-        Label {
-            Text(label).lineLimit(1)
-        } icon: {
-            Circle().fill(color).frame(width: 7, height: 7)
-        }
-        .font(.caption2)
-    }
-}
-
-private struct MetricRow: View {
-    let label: String
-    let value: String
-
-    var body: some View {
-        HStack {
-            Text(label).foregroundStyle(.secondary)
-            Spacer()
-            Text(value).monospacedDigit()
-        }
-        .font(.caption)
-    }
-}
-
-private extension View {
-    func sectionLabel() -> some View {
-        font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
     }
 }
