@@ -1,4 +1,5 @@
 import AppKit
+import MenuBarStatsCore
 import MenuBarStatsUI
 import OSLog
 
@@ -12,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusItemRegistry: StatusItemRegistry?
     private var settingsWindowController: SettingsWindowController?
+    private var monitoringCoordinator: MonitoringCoordinator?
+    private var settingsStore: SettingsStore?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard claimSingleInstance() else {
@@ -26,10 +29,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil
         )
 
-        statusItemRegistry = StatusItemRegistry(
+        let registry = StatusItemRegistry(
             settingsAction: { [weak self] in self?.showSettings() },
             quitAction: { NSApp.terminate(nil) }
         )
+        let settingsStore = SettingsStore()
+        statusItemRegistry = registry
+        self.settingsStore = settingsStore
+        monitoringCoordinator = MonitoringCoordinator(registry: registry, settingsStore: settingsStore)
         Self.logger.info("MenuBarStats started")
     }
 
@@ -43,6 +50,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        monitoringCoordinator?.stop()
+        settingsStore?.saveNow()
         DistributedNotificationCenter.default().removeObserver(self)
     }
 

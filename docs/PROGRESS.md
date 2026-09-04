@@ -249,3 +249,36 @@ top processes:
 The independent `memory_pressure` tool reported `System-wide memory free percentage: 57%`, exactly matching the
 probe's derived 43% pressure. `sysctl vm.swapusage` independently reported total and used swap of 0.00 MiB, matching
 the probe. Direct Activity Monitor visual comparison remains part of manual review.
+
+## P1-T4 Menu bar rendering framework
+
+Implemented the `MenuBarRenderer` protocol, render context and light/dark palette, fixed-width monospaced text,
+line/area/bar graphs, stacked labels, SF Symbol plus text, and combined-renderer scaffold. Added generic observable
+status-item controllers that only update `button.image` and AXValue, plus a coordinator connecting CPU and Memory
+stores, schedulers, power-aware interval multipliers, and display sleep/wake pause and resume.
+
+CPU supports percentage, history graph, per-core bars, stacked label/value, and icon/text modes. Memory supports used
+percentage, pressure percentage, history graph, used bar, and stacked label/value modes.
+
+User feedback changed the defaults from ambiguous bare percentages to labeled, two-line iStat-style presentations:
+`CPU` and `MEM` above their values. A one-time presentation-default migration updated the settings created by the
+earlier Phase 1 launch without touching status-item position preferences. The persisted settings now contain:
+
+```text
+"cpu" ... "mode":"stacked"
+"memory" ... "mode":"stacked"
+```
+
+`make run` built, signed, and launched the live app successfully. Render logs confirmed changing values:
+
+```text
+module=Memory value=Memory 79.4 percent used, pressure 56.0 percent
+module=CPU value=CPU 37.1 percent
+module=CPU value=CPU 28.3 percent
+module=Memory value=Memory 80.3 percent used, pressure 53.0 percent
+```
+
+Screenshots were captured in `dist/phase1-light.png` and `dist/phase1-dark.png`. Both appearances rendered without
+clipping. The required temporary switch to light appearance was visible to the user before the scripted restoration
+completed; dark appearance was immediately restored and verified through both global defaults and a new screenshot.
+Do not change the user's system appearance again without an explicit warning immediately before the change.

@@ -80,6 +80,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Per-module settings keyed by stable module identity.
     public var modules: [ModuleID: ModuleSettings]
 
+    /// Version of one-time default presentation migrations already applied.
+    public private(set) var presentationDefaultsVersion: Int
+
     /// Creates settings with production defaults.
     public init(
         schemaVersion: Int = AppSettings.currentSchemaVersion,
@@ -93,6 +96,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.isMonochrome = isMonochrome
         self.fontSize = fontSize
         self.modules = modules
+        presentationDefaultsVersion = 1
     }
 
     /// Default module settings, with CPU and Memory enabled for Phase 1.
@@ -100,8 +104,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         var values = Dictionary(uniqueKeysWithValues: ModuleID.allCases.map { module in
             (module, ModuleSettings())
         })
-        values[.cpu] = ModuleSettings(isEnabled: true, interval: 1)
-        values[.memory] = ModuleSettings(isEnabled: true, mode: "usedPercentage", interval: 2)
+        values[.cpu] = ModuleSettings(isEnabled: true, mode: "stacked", interval: 1)
+        values[.memory] = ModuleSettings(isEnabled: true, mode: "stacked", interval: 2)
         return values
     }
 
@@ -111,6 +115,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case isMonochrome
         case fontSize
         case modules
+        case presentationDefaultsVersion
     }
 
     /// Decodes current settings or migrates the unversioned version 0 shape.
@@ -128,12 +133,26 @@ public struct AppSettings: Codable, Equatable, Sendable {
             isMonochrome = try container.decodeIfPresent(Bool.self, forKey: .isMonochrome) ?? true
             fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? 11
             modules = Self.defaultModules
+            presentationDefaultsVersion = 1
         case Self.currentSchemaVersion:
             schemaVersion = version
             reducesSamplingOnBattery = try container.decode(Bool.self, forKey: .reducesSamplingOnBattery)
             isMonochrome = try container.decode(Bool.self, forKey: .isMonochrome)
             fontSize = try container.decode(Double.self, forKey: .fontSize)
             modules = try container.decode([ModuleID: ModuleSettings].self, forKey: .modules)
+            presentationDefaultsVersion = try container.decodeIfPresent(
+                Int.self,
+                forKey: .presentationDefaultsVersion
+            ) ?? 0
+            if presentationDefaultsVersion < 1 {
+                if modules[.cpu]?.mode == "percentage" {
+                    modules[.cpu]?.mode = "stacked"
+                }
+                if modules[.memory]?.mode == "usedPercentage" {
+                    modules[.memory]?.mode = "stacked"
+                }
+                presentationDefaultsVersion = 1
+            }
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .schemaVersion,
