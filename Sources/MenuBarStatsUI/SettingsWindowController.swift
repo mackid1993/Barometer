@@ -46,14 +46,14 @@ public final class SettingsWindowController: NSWindowController {
 
     /// Brings the settings window to the front.
     public func show(module: ModuleID? = nil) {
-        navigationModel?.selection = module.map(SettingsSelection.module) ?? .general
+        navigationModel?.open(module: module)
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate()
     }
 }
 
-private enum SettingsSelection: Hashable {
+enum SettingsSelection: Hashable {
     case general
     case module(ModuleID)
     case about
@@ -69,8 +69,12 @@ private enum SettingsSelection: Hashable {
 
 @MainActor
 @Observable
-private final class SettingsNavigationModel {
+final class SettingsNavigationModel {
     var selection: SettingsSelection? = .general
+
+    func open(module: ModuleID?) {
+        selection = module.map(SettingsSelection.module) ?? .general
+    }
 }
 
 private struct SettingsRootView: View {
@@ -106,30 +110,30 @@ private struct SettingsRootView: View {
             switch navigationModel.selection ?? .general {
             case .general:
                 GeneralSettingsView(settingsStore: settingsStore)
-            case let .module(module) where module == .cpu || module == .memory:
-                ModuleSettingsView(module: module, settingsStore: settingsStore)
-            case let .module(module) where module == .gpu:
+            case .module(.cpu):
+                ModuleSettingsView(module: .cpu, settingsStore: settingsStore)
+            case .module(.memory):
+                ModuleSettingsView(module: .memory, settingsStore: settingsStore)
+            case .module(.gpu):
                 GPUSettingsView(store: gpuStore, settingsStore: settingsStore)
-            case let .module(module) where module == .battery:
+            case .module(.battery):
                 BatterySettingsView(store: batteryStore, settingsStore: settingsStore)
-            case let .module(module) where module == .time:
+            case .module(.time):
                 TimeSettingsView(
                     store: timeStore,
                     settingsStore: settingsStore,
                     requestCalendarAccess: calendarAccessAction
                 )
-            case let .module(module) where module == .combined:
+            case .module(.combined):
                 CombinedSettingsView(settingsStore: settingsStore)
-            case let .module(module) where module == .weather:
+            case .module(.weather):
                 WeatherSettingsView(settingsStore: settingsStore)
-            case let .module(module) where module == .network:
+            case .module(.network):
                 NetworkSettingsView(store: networkStore, settingsStore: settingsStore)
-            case let .module(module) where module == .disks:
+            case .module(.disks):
                 DiskSettingsView(store: diskStore, settingsStore: settingsStore)
-            case let .module(module) where module == .sensors:
+            case .module(.sensors):
                 SensorSettingsView(store: sensorStore, settingsStore: settingsStore)
-            case let .module(module):
-                FutureModuleSettingsView(module: module)
             case .about:
                 AboutSettingsView()
             }
@@ -682,19 +686,6 @@ private struct ModuleSettingsView: View {
                 settingsStore.settings = appSettings
             }
         )
-    }
-}
-
-private struct FutureModuleSettingsView: View {
-    let module: ModuleID
-
-    var body: some View {
-        ContentUnavailableView(
-            "\(module.displayName) arrives in a later phase",
-            systemImage: module.symbolName,
-            description: Text("Its permanent menu-bar identity is already reserved.")
-        )
-        .navigationTitle(module.displayName)
     }
 }
 

@@ -1399,3 +1399,26 @@ Verification:
 - Local strict signature verification and DMG checksum verification passed. The local bundle is intentionally ad hoc
   signed; Developer ID, hardened-runtime timestamping, Gatekeeper assessment, and optional stapling run only in CI.
 - `xcrun notarytool` and `xcrun stapler` were not invoked, honoring the request not to notarize.
+
+## P7-T4 Stability and performance pass
+
+Disabled-module schedulers now pause instead of continuing to poll expensive system interfaces. Modules included in
+Combined remain active even when their individual item is hidden, and GPU's combined CPU/GPU presentation keeps its
+CPU dependency. Display wake restores only the required scheduler set. This reduces idle work without removing or
+recreating any status item.
+
+Every widget's Settings command now has an explicit tested route to its own pane. The sidebar switch is exhaustive—
+there is no remaining future-module placeholder—and Weather now exposes the same per-module color controls as the
+other widgets.
+
+Verification:
+
+- `swift test` and `swift build -c release` exited 0. New coverage verifies scheduler activation for enabled modules,
+  Combined members and GPU dependencies, plus the exact Settings destination for every `ModuleID`.
+- Ten consecutive waited quit/relaunch cycles succeeded with all 11 autosave names unchanged.
+- A bounded live run recorded the same identity-set hash on every sample. Resident memory rose while history and
+  hardware-source caches warmed; those histories have separately tested fixed capacities. CPU ranged from 6–12%
+  with GPU, Network, Sensors, and Weather active on the test system.
+- David explicitly declined the planned one-hour soak, so it was stopped after the bounded measurements rather than
+  represented as completed. No Thaw preferences or processes were touched.
+- `git diff --check` and the 120-column check passed.

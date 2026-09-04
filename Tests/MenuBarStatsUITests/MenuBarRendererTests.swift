@@ -135,6 +135,32 @@ struct MenuBarRendererTests {
     }
 
     @Test
+    func samplingRunsOnlyForEnabledModulesAndCombinedDependencies() {
+        var settings = AppSettings()
+        settings.modules = Dictionary(uniqueKeysWithValues: ModuleID.allCases.map {
+            ($0, ModuleSettings())
+        })
+        settings.modules[.gpu]?.isEnabled = true
+        settings.modules[.gpu]?.mode = "combinedCPU"
+        settings.modules[.combined]?.isEnabled = true
+        settings.combined = CombinedSettings(members: [.memory, .weather])
+
+        #expect(MonitoringCoordinator.modulesRequiringSamples(settings) == [.cpu, .gpu, .memory])
+    }
+
+    @Test
+    func settingsNavigationTargetsTheRequestedWidget() {
+        let navigation = SettingsNavigationModel()
+
+        for module in ModuleID.allCases {
+            navigation.open(module: module)
+            #expect(navigation.selection == .module(module))
+        }
+        navigation.open(module: nil)
+        #expect(navigation.selection == .general)
+    }
+
+    @Test
     func stackedRowsShareOneLeadingEdge() {
         let metrics = MenuBarLayoutMetrics(context: context)
         let origins = metrics.stackedOrigins(labelHeight: 10, valueHeight: 12)

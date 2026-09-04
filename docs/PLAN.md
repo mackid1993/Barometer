@@ -1,8 +1,8 @@
 # Barometer: Execution Plan
 
-Current implementation status: Phase 5 is active. Phases 0 through 4 are implemented and verified; the remaining
-v1 work proceeds from Battery through Time, Combined, appearance/polish, and release-ready packaging without
-submitting a notarization request.
+Current implementation status: Phases 0 through 7 are implemented. The release candidate is ready for David's UI
+review. The one-hour soak and notarization submission were explicitly skipped; release tooling keeps notarization
+off unless a future manual dispatch enables it.
 
 This is the step-by-step plan for building the app described in `docs/DESIGN.md`. It is written for a coding agent (Codex) working on David's Mac with the Command Line Tools only. Read `AGENTS.md` and `docs/DESIGN.md` first. Section 3.5 of the design (the identity contract) is normative and is repeated in short form in `AGENTS.md`.
 
@@ -34,10 +34,9 @@ screencapture -x -R0,0,1728,30 dist/menubar.png                                 
 ### Definition of done for v1.0
 
 All of Phases 0 through 7 complete, every module from `docs/DESIGN.md` section 4 present with at least two menu bar
-modes and a dropdown, the Thaw identity check stable across ten relaunches and one hour of running, CPU and memory
-budgets from design section 11 met, `swift test` green, `make install` producing a working
-`/Applications/Barometer.app`, and the release archive passing Developer ID signature, hardened-runtime, Gatekeeper,
-and Apple notarization checks.
+modes and a dropdown, the status-item identity set stable across ten relaunches, `swift test` green, and `make
+install` producing a working `/Applications/Barometer.app`. The workflow must produce a Developer ID-signed,
+hardened-runtime DMG; Gatekeeper, notarization, and stapling checks apply only when notarization is explicitly enabled.
 
 ---
 

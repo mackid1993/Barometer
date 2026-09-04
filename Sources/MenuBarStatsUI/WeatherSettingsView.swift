@@ -1,3 +1,4 @@
+import AppKit
 import CoreLocation
 import MenuBarStatsCore
 import SwiftUI
@@ -95,6 +96,23 @@ struct WeatherSettingsView: View {
                     Text("Precipitation chance").tag("precipitation")
                 }
             }
+
+            Section("Menu Bar Colors") {
+                MenuBarColorPickerRows(
+                    lightColor: colorBinding(\.lightColor),
+                    darkColor: colorBinding(\.darkColor),
+                    isDisabled: settingsStore.settings.usesGlobalColors || settingsStore.settings.isMonochrome
+                )
+                if settingsStore.settings.usesGlobalColors {
+                    Text("The global palette in General is active.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if settingsStore.settings.isMonochrome {
+                    Text("Turn off Monochrome menu bar in General to display colors.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .formStyle(.grouped)
         .navigationTitle("Weather")
@@ -181,6 +199,29 @@ struct WeatherSettingsView: View {
 
     private var refreshIntervalBinding: Binding<Int> {
         weatherBinding(\.refreshIntervalMinutes)
+    }
+
+    private func colorBinding(_ keyPath: WritableKeyPath<ModuleSettings, String>) -> Binding<Color> {
+        Binding(
+            get: {
+                let module = settingsStore.settings.modules[.weather] ?? ModuleSettings()
+                return Color(nsColor: NSColor(hex: module[keyPath: keyPath]) ?? .controlAccentColor)
+            },
+            set: { color in
+                guard let components = NSColor(color).usingColorSpace(.sRGB) else { return }
+                var settings = settingsStore.settings
+                var module = settings.modules[.weather] ?? ModuleSettings()
+                module[keyPath: keyPath] = String(
+                    format: "#%02X%02X%02X",
+                    Int(components.redComponent * 255),
+                    Int(components.greenComponent * 255),
+                    Int(components.blueComponent * 255)
+                )
+                settings.modules[.weather] = module
+                settings.appearancePreset = .custom
+                settingsStore.settings = settings
+            }
+        )
     }
 
     private func search() async {

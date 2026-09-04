@@ -373,16 +373,7 @@ public final class MonitoringCoordinator {
         configureWeatherMonitoring()
         configureCurrentLocation()
 
-        Task {
-            await cpuScheduler.start()
-            await memoryScheduler.start()
-            await gpuScheduler.start()
-            await networkScheduler.start()
-            await diskScheduler.start()
-            await sensorsScheduler.start()
-            await batteryScheduler.start()
-            await timeScheduler.start()
-        }
+        updateSchedulerActivity()
     }
 
     /// Stops monitor tasks and finishes their streams.
@@ -541,14 +532,7 @@ public final class MonitoringCoordinator {
                 return
             }
             Task {
-                await self.cpuScheduler.resume()
-                await self.memoryScheduler.resume()
-                await self.gpuScheduler.resume()
-                await self.networkScheduler.resume()
-                await self.diskScheduler.resume()
-                await self.sensorsScheduler.resume()
-                await self.batteryScheduler.resume()
-                await self.timeScheduler.resume()
+                self.updateSchedulerActivity()
                 await self.weatherSession?.resume()
             }
         }
@@ -572,6 +556,8 @@ public final class MonitoringCoordinator {
     private func observeSettings() {
         withObservationTracking {
             _ = settingsStore.settings.reducesSamplingOnBattery
+            _ = settingsStore.settings.modules
+            _ = settingsStore.settings.combined
             _ = settingsStore.settings.modules[.cpu]?.interval
             _ = settingsStore.settings.modules[.memory]?.interval
             _ = settingsStore.settings.modules[.gpu]?.interval
@@ -595,6 +581,7 @@ public final class MonitoringCoordinator {
                 }
                 self.applyPowerState(self.powerStateObserver.currentState)
                 self.applySamplingIntervals()
+                self.updateSchedulerActivity()
                 self.configureWeatherMonitoring()
                 self.configureCurrentLocation()
                 self.applyNetworkSettings()
@@ -604,6 +591,41 @@ public final class MonitoringCoordinator {
         }
         applySamplingIntervals()
         applyNetworkSettings()
+    }
+
+    private func updateSchedulerActivity() {
+        let active = Self.modulesRequiringSamples(settingsStore.settings)
+        Task {
+            await setScheduler(cpuScheduler, active: active.contains(.cpu))
+            await setScheduler(memoryScheduler, active: active.contains(.memory))
+            await setScheduler(gpuScheduler, active: active.contains(.gpu))
+            await setScheduler(networkScheduler, active: active.contains(.network))
+            await setScheduler(diskScheduler, active: active.contains(.disks))
+            await setScheduler(sensorsScheduler, active: active.contains(.sensors))
+            await setScheduler(batteryScheduler, active: active.contains(.battery))
+            await setScheduler(timeScheduler, active: active.contains(.time))
+        }
+    }
+
+    private func setScheduler<Source: Monitor>(_ scheduler: Scheduler<Source>, active: Bool) async {
+        if active {
+            await scheduler.resume()
+        } else {
+            await scheduler.pause()
+        }
+    }
+
+    static func modulesRequiringSamples(_ settings: AppSettings) -> Set<ModuleID> {
+        var active = Set(ModuleID.allCases.filter { module in
+            module != .weather && module != .combined && settings.modules[module]?.isEnabled == true
+        })
+        if settings.modules[.combined]?.isEnabled == true {
+            active.formUnion(settings.combined.members.filter { $0 != .weather && $0 != .combined })
+        }
+        if settings.modules[.gpu]?.mode == "combinedCPU", active.contains(.gpu) {
+            active.insert(.cpu)
+        }
+        return active
     }
 
     private func applySamplingIntervals() {
