@@ -17,6 +17,9 @@ typedef struct __IOHIDEvent *MBSIOHIDEventRef;
 #define MBS_IOHID_EVENT_TYPE_POWER 25
 #define MBS_IOHID_EVENT_FIELD_BASE(type) ((int32_t)(type) << 16)
 
+int32_t mbs_iohid_event_field_base(int64_t type);
+void mbs_iohid_event_release(MBSIOHIDEventRef event);
+
 IOHIDEventSystemClientRef IOHIDEventSystemClientCreate(CFAllocatorRef allocator);
 int IOHIDEventSystemClientSetMatching(IOHIDEventSystemClientRef client, CFDictionaryRef matching);
 MBSIOHIDEventRef IOHIDServiceClientCopyEvent(

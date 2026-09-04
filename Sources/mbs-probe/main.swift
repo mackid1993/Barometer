@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import MenuBarStatsCore
+import SystemSources
 
 private enum ProbeCommand: String {
     case cpu
@@ -9,6 +10,7 @@ private enum ProbeCommand: String {
     case identity
     case memory
     case net
+    case temps
     case version
     case weather
     case wifi
@@ -174,6 +176,26 @@ private func runWiFiProbe() async throws {
     )
 }
 
+private func runTemperatureProbe() async throws {
+    let readings = try await HIDTemperatureSource().read()
+    guard !readings.isEmpty else {
+        print("Temperature sensors unavailable")
+        return
+    }
+    for reading in readings {
+        print(
+            String(
+                format: "%@: %.2f °C (%@, %d %@)",
+                reading.name,
+                reading.celsius,
+                reading.rawName,
+                reading.sampleCount,
+                reading.sampleCount == 1 ? "service" : "services"
+            )
+        )
+    }
+}
+
 private func runGeocodingProbe(query: String) async throws {
     let results = try await OpenMeteoClient().geocode(query)
     for result in results {
@@ -286,8 +308,8 @@ private enum ProbeMain {
         let arguments = Array(CommandLine.arguments.dropFirst())
         guard let commandName = arguments.first, let command = ProbeCommand(rawValue: commandName) else {
             writeError(
-                "usage: mbs-probe <cpu [--watch]|disks [--watch]|geocode QUERY|identity|memory|net [--watch]|version|"
-                    + "weather --lat N --lon N|wifi>"
+                "usage: mbs-probe <cpu [--watch]|disks [--watch]|geocode QUERY|identity|memory|net [--watch]|"
+                    + "temps|version|weather --lat N --lon N|wifi>"
             )
             exit(EXIT_FAILURE)
         }
@@ -330,6 +352,12 @@ private enum ProbeMain {
                     exit(EXIT_FAILURE)
                 }
                 try await runNetworkProbe(watch: arguments.count == 2)
+            case .temps:
+                guard arguments.count == 1 else {
+                    writeError("usage: mbs-probe temps")
+                    exit(EXIT_FAILURE)
+                }
+                try await runTemperatureProbe()
             case .version:
                 guard arguments.count == 1 else {
                     writeError("usage: mbs-probe version")

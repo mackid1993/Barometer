@@ -61,3 +61,32 @@ import Testing
     #expect(DiskSource.bsdName(fromMountSource: "/dev/disk3s3s1") == "disk3s3s1")
     #expect(DiskSource.bsdName(fromMountSource: "map auto_home") == nil)
 }
+
+@Test func hidTemperatureSourceNormalizesFiltersAndAveragesReadings() {
+    let readings = HIDTemperatureSource.readings(
+        from: [
+            "PMU tdie3": [48, 54, -9_199, .nan],
+            "gas gauge battery": [31.5],
+            "NAND CH0 temp": [34],
+            "PMU tcal": [51.75],
+            "invalid": [-1, 0, 126, .infinity],
+        ]
+    )
+
+    #expect(readings.count == 4)
+    #expect(readings.first { $0.rawName == "PMU tdie3" }?.name == "SoC die 3")
+    #expect(readings.first { $0.rawName == "PMU tdie3" }?.celsius == 51)
+    #expect(readings.first { $0.rawName == "PMU tdie3" }?.sampleCount == 2)
+    #expect(readings.first { $0.rawName == "gas gauge battery" }?.name == "Battery")
+    #expect(readings.first { $0.rawName == "NAND CH0 temp" }?.name == "SSD")
+    #expect(readings.first { $0.rawName == "PMU tcal" }?.name == "PMU")
+    #expect(!readings.contains { $0.rawName == "invalid" })
+}
+
+@Test func hidTemperatureSourceReadsValidHardwareSensors() async throws {
+    let readings = try await HIDTemperatureSource().read()
+
+    #expect(!readings.isEmpty)
+    #expect(readings.allSatisfy { $0.celsius > 0 && $0.celsius <= 125 })
+    #expect(Set(readings.map(\.rawName)).count == readings.count)
+}

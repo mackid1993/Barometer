@@ -75,7 +75,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "mbs-probe",
-            dependencies: ["MenuBarStatsCore"],
+            dependencies: ["MenuBarStatsCore", "SystemSources"],
             swiftSettings: strictConcurrency
         ),
         .testTarget(

@@ -941,3 +941,26 @@ Verification:
   integer widths, and IOReport return types before the declarations were added.
 - P4-T1 introduces declarations but no IOReport call sites, so the plan's `nm` symbol check remains intentionally
   pending until P4-T3 links the first IOReport source.
+
+## P4-T2 IOHID temperature source
+
+Added an actor-isolated IOHID temperature source that creates one event-system client, caches the matched service
+list, and reuses both across samples. Each read fetches current temperature events, discards non-finite, nonpositive,
+and implausibly high values, then averages duplicate product names. Friendly labels map PMU die sensors, the battery,
+SSD, and PMU calibration sensor without losing their raw hardware names.
+
+The C shim now exposes the event-field calculation and balanced event release as ordinary functions because Swift
+cannot import the function-like field macro or directly release the private opaque event pointer. Client and service
+objects remain under Swift Core Foundation ownership. `mbs-probe temps` prints the normalized name, Celsius value,
+raw name, and number of duplicate services contributing to each reading.
+
+Verification:
+
+- `swift test` rebuilt and linked every target and exited 0. Deterministic coverage verifies friendly naming,
+  invalid-value rejection, duplicate averaging, and sample counts; a live smoke test verifies unique, valid sensors.
+- `swift run mbs-probe temps` reported Battery at 31.40 °C, SSD at 34.00 °C, PMU at 51.82 °C, and all 14 SoC die
+  sensors between 50.15 °C and 55.83 °C. No negative `PMU tdev` readings were emitted.
+- The raw machine exposed three same-named IOHID services per die and six battery services. The source averaged those
+  duplicates and retained their counts instead of arbitrarily selecting one service.
+- `swift build` completed under Swift 6 strict concurrency. `git diff --check` passed, and all changed Swift files
+  stay within 120 columns.
