@@ -56,8 +56,13 @@ public final class StatusItemController<Sample: Sendable> {
     /// Renders the latest store and settings state immediately.
     public func update() {
         let moduleSettings = settingsStore.settings.modules[module] ?? ModuleSettings()
-        statusItem.isVisible = moduleSettings.isEnabled
-        guard moduleSettings.isEnabled, let button = statusItem.button else {
+        guard moduleSettings.isEnabled else {
+            if statusItem.isVisible {
+                statusItem.isVisible = false
+            }
+            return
+        }
+        guard let button = statusItem.button else {
             return
         }
 
@@ -81,6 +86,9 @@ public final class StatusItemController<Sample: Sendable> {
         let content = renderContent(store.latestSample, store.history.entries, moduleSettings, context)
         button.image = content.image
         button.setAccessibilityValue(content.accessibilityValue)
+        if !statusItem.isVisible {
+            statusItem.isVisible = true
+        }
         let message = "module=\(module.displayName) value=\(content.accessibilityValue)"
         logger.debug("\(message, privacy: .public)")
     }

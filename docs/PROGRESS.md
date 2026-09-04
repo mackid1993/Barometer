@@ -484,3 +484,35 @@ Verification:
 - A controlled launch used only `open dist/Barometer.app`. The running process had bundle identifier
   `com.barometer.app`, and Bartender's read-only catalog associated both `Barometer.CPU` and `Barometer.Memory` with
   that bundle identifier. The app was stopped immediately after verification; Thaw was not launched or modified.
+
+## macOS menu-bar registration diagnostics
+
+Compared Barometer directly with the current `exelban/stats` source after a live Barometer build produced valid but
+unplaced status-item scenes. Stats relies on `LSUIElement` instead of changing the process activation policy before
+the AppKit run loop, and it creates only the status items used by active modules. Barometer now follows that startup
+shape: the registry creates an item on first request, content is rendered before a hidden item is made visible, and
+visibility is written only when it changes. The diagnostic self-test records the actual owner bundle, executable,
+AX identity, rendered image properties, and status-scene geometry at
+`~/Library/Logs/Barometer/identity.json`.
+
+The hand-built bundle was also missing standard AppKit metadata present in Stats. Added `NSPrincipalClass =
+NSApplication`, `CFBundleInfoDictionaryVersion`, the development region, and the Utilities application category.
+Removed the redundant pre-run-loop `setActivationPolicy(.accessory)` call; `LSUIElement` remains the source of the
+agent application policy.
+
+Verification:
+
+- `swift build --disable-sandbox` completed successfully with task-local Swift and Clang module caches.
+- `swift test --disable-sandbox` built all test targets and exited 0. As previously recorded, this Command Line Tools
+  runner did not print a test execution summary.
+- `make run` rebuilt, ad hoc signed, and launched the corrected bundle. The diagnostic report showed one process at
+  `dist/Barometer.app/Contents/MacOS/Barometer`, bundle identifier `com.barometer.app`, and only the implemented CPU
+  and Memory status items.
+- Both items had stable `Barometer.*` autosave and AX identifiers, empty button titles, nonempty template images,
+  enabled visibility, and current accessibility values.
+- macOS still assigned both scenes a zero-height fallback frame and wrote no Barometer entry to
+  `com.apple.MenuBarAgent` even though Stats has existing placement records on the same Mac. This matches Stats'
+  documented macOS 26 requirement that each third-party app be explicitly enabled under System Settings > Menu Bar
+  > Allow in the Menu Bar. Bartender's own hidden/visible choice is a separate setting and cannot grant the macOS
+  permission. The System Settings Menu Bar pane was opened for manual authorization; no Apple, Bartender, Stats, or
+  Thaw preference was changed by Barometer or the build process.

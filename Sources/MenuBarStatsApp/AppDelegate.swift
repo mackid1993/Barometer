@@ -34,10 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil
         )
 
-        let registry = StatusItemRegistry(
-            settingsAction: { [weak self] in self?.showSettings() },
-            quitAction: { NSApp.terminate(nil) }
-        )
+        let registry = StatusItemRegistry()
         let settingsStore = SettingsStore()
         statusItemRegistry = registry
         self.settingsStore = settingsStore
