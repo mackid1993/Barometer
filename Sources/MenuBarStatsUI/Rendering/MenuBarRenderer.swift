@@ -295,14 +295,7 @@ struct MenuBarLayoutMetrics {
     }
 
     func symbolSize(nativeSize: NSSize, font: NSFont) -> NSSize {
-        // A glyph beside text has the whole bar to work with, so it is sized against the bar rather
-        // than against the font. Sizing it from the point size left it noticeably smaller than the
-        // icons other menu bar apps draw, which reads as padding around the glyph rather than as a
-        // smaller glyph. Two points of breathing room top and bottom matches them.
-        let height = min(
-            max(font.pointSize * context.scale, context.thickness - 6),
-            context.thickness - 4
-        )
+        let height = min(font.pointSize * context.scale, context.thickness - 4)
         let aspectRatio = max(0.5, nativeSize.width / max(1, nativeSize.height))
         return NSSize(width: ceil(height * aspectRatio), height: height)
     }

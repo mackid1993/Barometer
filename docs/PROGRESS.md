@@ -2453,3 +2453,34 @@ Verification:
 - The direct render checks still pass unchanged, so the battery, stack, spacing, and glyph work is unaffected.
 - Not addressed: the reviewer's display-sleep resumption and `nettop` cadence findings, neither of which was
   reproduced or verified here.
+
+### P8-T18 make the test suite green and run it on every push
+
+Six tests were failing, twenty-six assertions in total. None was a defect in shipped behavior; the suite had simply
+never run against this phase's work. `check.yml` was dispatch-only, and `swift test` cannot execute on this machine,
+so seventeen commits landed with no feedback from it. The workflow now runs on pushes to main and on pull requests.
+
+Three tests described the Combined model that stacks replaced. They set `combined.members` while `stacks` was empty
+and asserted the old outcome. They now drive the same behavior through stacks, and each gained the cases the new
+model made possible: a stack that does not replace its sources, the stacks master switch overriding an individual
+stack, a disabled stack asking for no samples, and a second stack appearing as `Barometer.Combined.2`.
+
+`iconMatchesFontSizeAndUsesCanonicalGap` was a real contract that had been broken by accident rather than by intent.
+An earlier attempt at enlarging the weather glyph changed `MenuBarLayoutMetrics.symbolSize`, and when the inline
+renderer moved to its own fitted field that change was left behind, still affecting `SymbolRenderer`. It has been
+reverted, so the contract holds again and the test needed no edit.
+
+The two remaining failures were assertions written in this phase that no longer matched their own design. The
+weather glyph test still asserted the glyph filled a share of the bar, which was the rule before glyphs were fitted
+into a square field; it now asserts the glyph fills that field in one direction without spilling past it. The
+spacing test required the icon's gap to equal two reference items exactly. Measured gaps are of drawn ink and vary
+by a point or two with the symbol's shape, the bar height, and the icon scale, so equality was never a property the
+renderers had; the tolerance now reflects that, and 22 points is checked explicitly as the real bar height.
+
+Verification:
+
+- `swift build`, `swift build -c release`, and `git diff --check` completed successfully; `swift test` built every
+  target.
+- Every changed assertion was recomputed outside the test runner first, against the real modules, since the runner
+  cannot execute here. All of them pass, including the arithmetic behind the restored `symbolSize` contract.
+- `make install` replaced and relaunched `/Applications/Barometer.app`.

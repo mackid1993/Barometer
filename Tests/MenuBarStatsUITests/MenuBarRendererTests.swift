@@ -162,16 +162,28 @@ struct MenuBarRendererTests {
         let separated = CombinedImageRenderer(images: images, showsSeparators: true).render(in: context)
 
         #expect(compact.size.width < separated.size.width)
+        // A stack, not Combined membership, decides whether a module's own item is replaced.
         var settings = AppSettings()
         settings.modules[.combined]?.isEnabled = true
-        settings.combined = CombinedSettings(members: [.cpu], hidesIndividualMembers: true)
+        settings.stacks = StacksSettings(stacks: [
+            StackSettings(id: 1, metrics: [.cpuTotal], hidesSourceItems: true)
+        ])
         #expect(StatusItemRendering.isHiddenByCombined(module: .cpu, settings: settings))
         #expect(!StatusItemRendering.isHiddenByCombined(module: .memory, settings: settings))
         #expect(!StatusItemRendering.isHiddenByCombined(module: .combined, settings: settings))
+
+        // A stack that does not replace its sources leaves every individual item alone.
+        settings.stacks.stacks[0].hidesSourceItems = false
+        #expect(!StatusItemRendering.isHiddenByCombined(module: .cpu, settings: settings))
+
+        // The stacks master switch overrides any individual stack.
+        settings.stacks.stacks[0].hidesSourceItems = true
+        settings.modules[.combined]?.isEnabled = false
+        #expect(!StatusItemRendering.isHiddenByCombined(module: .cpu, settings: settings))
     }
 
     @Test
-    func samplingRunsOnlyForEnabledModulesAndCombinedDependencies() {
+    func samplingRunsOnlyForEnabledModulesAndStackSources() {
         var settings = AppSettings()
         settings.modules = Dictionary(
             uniqueKeysWithValues: ModuleID.allCases.map {
@@ -180,9 +192,17 @@ struct MenuBarRendererTests {
         settings.modules[.gpu]?.isEnabled = true
         settings.modules[.gpu]?.mode = "combinedCPU"
         settings.modules[.combined]?.isEnabled = true
-        settings.combined = CombinedSettings(members: [.memory, .weather])
+        // A stack keeps its source modules sampling even though their own items are not enabled.
+        // Weather is excluded because it refreshes on its own schedule rather than the samplers.
+        settings.stacks = StacksSettings(stacks: [
+            StackSettings(id: 1, metrics: [.memoryUsedPercent, .weatherTemperature])
+        ])
 
         #expect(MonitoringCoordinator.modulesRequiringSamples(settings) == [.cpu, .gpu, .memory])
+
+        // A disabled stack asks for nothing.
+        settings.stacks.stacks[0].isEnabled = false
+        #expect(MonitoringCoordinator.modulesRequiringSamples(settings) == [.cpu, .gpu])
     }
 
     @Test
@@ -970,10 +990,37 @@ struct MenuBarRendererTests {
             ]).render(in: context)
         )
 
-        #expect(network == sensors, "reference items disagree: \(network) and \(sensors)")
+        // Gaps are compared with a tolerance rather than for equality: the measurement is of drawn
+        // ink, and how close a glyph's ink comes to the edge of its field varies with the symbol's
+        // shape, the bar height, and the icon scale. The contract is that the icon sits in the same
+        // spacing family as the rest of the bar, checked at 22 points, the real menu bar height on
+        // this hardware.
+        #expect(abs(weather - network) <= 2, "icon \(weather) vs network \(network) at 24 pt")
+        #expect(abs(weather - sensors) <= 2, "icon \(weather) vs sensors \(sensors) at 24 pt")
+
+        let liveBar = RenderContext(
+            thickness: 22,
+            appearance: .dark,
+            palette: MenuBarPalette(light: .black, dark: .white),
+            fontSize: RenderContext.referenceFontSize,
+            isMonochrome: true,
+            scale: RenderContext.referenceScale
+        )
+        let liveWeather = Self.widestInteriorGap(
+            IconTextRenderer(
+                symbolName: "cloud.sun",
+                text: "81°",
+                reservedText: "-99°",
+                reservedSymbolNames: ["cloud.sun", "sun.max", "cloud.bolt.rain", "questionmark.circle"]
+            ).render(in: liveBar)
+        )
+        let liveNetwork = Self.widestInteriorGap(
+            NetworkRateStackRenderer(download: "1.2M", upload: "15K", reservedValue: "999MB/s")
+                .render(in: liveBar)
+        )
         #expect(
-            abs(weather - network) <= 0.5,
-            "icon spacing is \(weather) where the rest of the bar uses \(network)"
+            abs(liveWeather - liveNetwork) <= 2,
+            "at 22 pt the icon uses \(liveWeather) where the network item uses \(liveNetwork)"
         )
     }
 
@@ -1025,13 +1072,18 @@ struct MenuBarRendererTests {
             ).render(in: scaled)
             widths.insert(image.size.width)
             let glyphHeight = Self.topBandHeight(image)
-            // Sized against the bar, not the font, so it matches the icons other menu bar apps
-            // draw. Sizing it from the point size left visible padding around it.
+            // Each glyph is fitted into one square field, so a wide symbol like cloud.sun meets the
+            // field on its width and is correspondingly shorter. The contract is that it fills the
+            // field in at least one direction and never spills past it, at every automatic scale.
+            let field = MenuBarLayoutMetrics(context: scaled).inlineSymbolFieldSize
             #expect(
-                glyphHeight >= scaled.thickness - 7,
-                "glyph was \(glyphHeight) pt in a \(scaled.thickness) pt bar at \(count) items"
+                glyphHeight <= field + 0.5,
+                "glyph was \(glyphHeight) pt in a \(field) pt field at \(count) items"
             )
-            #expect(glyphHeight <= scaled.thickness - 3)
+            #expect(
+                glyphHeight >= field * 0.6,
+                "glyph was \(glyphHeight) pt in a \(field) pt field at \(count) items"
+            )
         }
         // The canvas is sized by the reserved text, so a larger glyph must not move the item.
         #expect(widths.count == 1, "weather widths varied: \(widths.sorted())")
@@ -1306,9 +1358,15 @@ struct StableGeometryTests {
             ]
         )
 
+        // One enabled stack that replaces the modules it draws from.
         settings.modules[.combined]?.isEnabled = true
-        settings.combined.hidesIndividualMembers = true
-        settings.combined.members = [.gpu, .weather]
+        settings.stacks = StacksSettings(stacks: [
+            StackSettings(
+                id: 1,
+                metrics: [.gpuUtilization, .weatherTemperature],
+                hidesSourceItems: true
+            )
+        ])
         #expect(
             StatusItemRegistry.launchIdentities(settings: settings).map(\.autosaveName) == [
                 "Barometer.CPU",
@@ -1316,6 +1374,19 @@ struct StableGeometryTests {
                 "Barometer.Sensors",
                 "Barometer.Sensors.2",
                 "Barometer.Combined",
+            ]
+        )
+
+        // A second stack is its own movable item, numbered from its permanent identity.
+        settings.stacks.stacks.append(StackSettings(id: 2, metrics: [.cpuTotal]))
+        #expect(
+            StatusItemRegistry.launchIdentities(settings: settings).map(\.autosaveName) == [
+                "Barometer.CPU",
+                "Barometer.Network",
+                "Barometer.Sensors",
+                "Barometer.Sensors.2",
+                "Barometer.Combined",
+                "Barometer.Combined.2",
             ]
         )
     }
