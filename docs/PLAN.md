@@ -71,7 +71,7 @@ Goal: a signed `.app` that shows one static status item with the correct identit
 - `AppDelegate`: single-instance guard (design 3.5 rule 10), logging setup, create `StatusItemRegistry`, create the Settings window controller lazily, handle `applicationShouldTerminate`.
 - `StatusItemRegistry` (in `MenuBarStatsUI`): owns every `NSStatusItem`. Creates all standard and saved extra
   identities before any item becomes visible, with the autosave names from the identity table, `button.title = ""`,
-  a unique accessibility identifier, the common accessibility label `Barometer`, and no `.removalAllowed`.
+  a unique accessibility identifier, a stable per-widget accessibility label, and no `.removalAllowed`.
 - `ModuleID` enum in `MenuBarStatsCore` with `autosaveName` and `displayName` computed properties. This is the single source of truth for the identity table.
 - Identity self-test: in debug builds, one second after launch, log each item's `autosaveName`, `button.window?.title`, AX identifier, AX label, AX title under category `identity`, and `assert` that label and identifier match.
 - Menu: the CPU item gets an `NSMenu` with "Settings…" and "Quit Barometer".

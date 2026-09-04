@@ -1743,3 +1743,31 @@ all eleven prepared identities—including the disabled items and `Barometer.Sen
 their AX identifiers remain unique and their live AX values name the module. Bartender's existing cold-start catalog
 still contains its pre-fix records; David must restart or refresh the manager to perform the external movement check.
 Barometer did not modify the manager, its preferences, or its process.
+
+### P7-T4 distinguish every movable child
+
+The common-label experiment made all status items expose the same accessibility label even though their autosave
+names and AX identifiers remained unique. That collapsed a second child-level discriminator used by menu bar
+managers. Simple text items could still appear movable while wider or composite items such as Network and Weather
+failed, making the behavior look renderer-specific.
+
+Restored each permanent child label from `StatusItemIdentity.displayName`, including numbered Sensors instances.
+The rendered image carries that same immutable label on every refresh because AppKit derives the button label from a
+replacement image. All items still belong to the one signed `com.barometer.app` process; the bundle is the common
+Barometer application identity, while the autosave name, AX identifier, and label distinguish movable children.
+Barometer does not request Accessibility permission because owning and preserving its own status items does not
+require it. Manager applications request that permission for their own inspection and movement features.
+
+Removed the iStat Menus comparison from the user-facing README.
+
+Verification:
+
+- `swift test` exited 0 and built and linked every test target successfully.
+- `swift build -c release`, `git diff --check`, and `make install` completed successfully.
+- The installed app is the Developer ID signed `/Applications/Barometer.app`, has bundle identifier
+  `com.barometer.app`, Team ID `BQNYYA2UND`, and passes strict code-signature verification. No notarization ran.
+- The live identity report records distinct labels and matching identifiers for all eleven prepared items. Network is
+  labeled `Network` with `Barometer.Network`; Weather is labeled `Weather` with `Barometer.Weather`; numbered Sensors
+  is labeled `Sensors 2` with `Barometer.Sensors.2`.
+- A desktop capture confirmed the active widgets are visible after installation. Barometer did not modify or automate
+  Bartender, Thaw, or their preferences.

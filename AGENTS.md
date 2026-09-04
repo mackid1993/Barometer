@@ -24,8 +24,8 @@ Full text in `docs/DESIGN.md` section 3.5. Short form:
 2. Bundle identifier `com.barometer.app`. Never change it.
 3. Autosave names are fixed: `Barometer.CPU`, `Barometer.GPU`, `Barometer.Memory`, `Barometer.Disks`, `Barometer.Network`, `Barometer.Sensors`, `Barometer.Battery`, `Barometer.Weather`, `Barometer.Time`, `Barometer.Combined`. Extra instances are `Barometer.Weather.2` and so on. `ModuleID` in `MenuBarStatsCore` is the only place these strings live.
 4. `NSStatusBarButton.title` is always empty. Menu bar content is an `NSImage` in `button.image`.
-5. `setAccessibilityIdentifier(autosaveName)` and `setAccessibilityLabel("Barometer")` once, never changed. The
-   common label identifies the owning app to menu bar managers; the unique identifier distinguishes movable children.
+5. `setAccessibilityIdentifier(autosaveName)` and `setAccessibilityLabel(displayName)` once, never changed. The
+   bundle identifies the owning Barometer app; the unique identifier and stable child label distinguish movable items.
    Live readings, including the module name, go in `setAccessibilityValue` only.
 6. Never set the status item window's title. Never remove a status item; toggle `isVisible`. No `.removalAllowed`.
 7. Single running instance.

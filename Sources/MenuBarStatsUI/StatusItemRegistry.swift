@@ -6,7 +6,6 @@ import OSLog
 @MainActor
 public final class StatusItemRegistry: NSObject {
     private static let identityLogger = Logger(subsystem: "com.barometer.app", category: "identity")
-    static let accessibilityOwnerLabel = "Barometer"
 
     private var items: [StatusItemIdentity: NSStatusItem] = [:]
 
@@ -70,7 +69,10 @@ public final class StatusItemRegistry: NSObject {
         button.imagePosition = .imageOnly
         button.imageScaling = .scaleNone
         button.setAccessibilityIdentifier(identity.autosaveName)
-        button.setAccessibilityLabel(Self.accessibilityOwnerLabel)
+        // The process and bundle provide the common Barometer app identity. Each child
+        // still needs a permanent, unique human-readable label so menu bar managers can
+        // reliably distinguish complex siblings that share the same owner.
+        button.setAccessibilityLabel(identity.displayName)
         // Creation and identity setup are synchronous on the main actor. Hide before
         // returning to the run loop, so managers never observe the placeholder.
         statusItem.isVisible = false
@@ -123,7 +125,7 @@ public final class StatusItemRegistry: NSObject {
             assert(windowTitle == identity.autosaveName)
             assert(autosaveName == identity.autosaveName)
             assert(identifier == identity.autosaveName)
-            assert(label == Self.accessibilityOwnerLabel)
+            assert(label == identity.displayName)
             assert(title.isEmpty)
             assert(button.title.isEmpty)
         }

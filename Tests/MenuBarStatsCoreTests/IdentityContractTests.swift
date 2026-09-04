@@ -22,4 +22,14 @@ struct IdentityContractTests {
         #expect(ModuleID.sensors.autosaveName(instance: 2) == "Barometer.Sensors.2")
         #expect(StatusItemIdentity(module: .sensors, instance: 3).displayName == "Sensors 3")
     }
+
+    @Test("movable children retain distinct static labels")
+    func movableChildrenRetainDistinctStaticLabels() {
+        let labels = ModuleID.allCases.map(\.displayName)
+
+        #expect(Set(labels).count == ModuleID.allCases.count)
+        #expect(StatusItemIdentity(module: .network).displayName == "Network")
+        #expect(StatusItemIdentity(module: .weather).displayName == "Weather")
+        #expect(StatusItemIdentity(module: .sensors, instance: 2).displayName == "Sensors 2")
+    }
 }

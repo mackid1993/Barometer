@@ -32,7 +32,7 @@
 
 Barometer is a free, open source system monitor for the macOS menu bar. It shows CPU, GPU, memory, disks, network,
 temperatures, fans, power, battery, weather, and time as menu bar items. Click an item to open a panel with the
-details. Barometer is meant as a replacement for iStat Menus and it works with menu bar managers such as Bartender
+details. Barometer works with menu bar managers such as Bartender
 and Thaw on macOS 27.
 
 There is no account, no subscription, and no telemetry. Barometer is one app running as one process with no helper

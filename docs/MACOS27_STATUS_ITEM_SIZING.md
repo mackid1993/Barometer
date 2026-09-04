@@ -75,10 +75,10 @@ without risking reassessment by at least one manager.
 
 ## Common application identity
 
-Every status item is owned by the single `com.barometer.app` process and uses the static AX label `Barometer`, so every
-child groups under the same source app in a manager. Each movable child still requires a unique autosave name and
-matching AX identifier, such as `Barometer.CPU`; giving all children the same key would create an identity collision
-rather than a common owner.
+Every status item is owned by the single `com.barometer.app` process, so every child groups under the same source app
+in a manager. Each movable child still requires a unique autosave name, matching AX identifier, and static label, such
+as `Barometer.CPU` and `CPU`; giving all children the same child identity would create a collision rather than a
+common owner.
 
 Prepare every standard identity and every saved extra Sensors identity before allowing any item to become visible.
 Assign each autosave name and AX identity synchronously before its first `isVisible` transition. Do not create another

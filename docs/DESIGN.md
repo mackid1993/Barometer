@@ -107,8 +107,8 @@ These rules are part of the public contract of the app. Changing any of them aft
 
    Multiple instances of one module (two weather locations, two sensor items) use `Barometer.Weather.2`, `Barometer.Weather.3`, and so on, allocated once and stored in settings so the numbering is stable.
 4. `button.title` is always the empty string. All menu bar content is rendered into an `NSImage` and assigned to `button.image`. Text in the menu bar is drawn text, not a title.
-5. `button.setAccessibilityIdentifier(autosaveName)` and `button.setAccessibilityLabel("Barometer")`. The common
-   label identifies the owning app to menu bar managers; the unique identifier distinguishes each movable child.
+5. `button.setAccessibilityIdentifier(autosaveName)` and `button.setAccessibilityLabel(displayName)`. The bundle
+   identifies the owning Barometer app; the stable label and unique identifier distinguish each movable child.
    Both are set once and never changed.
 6. The live reading goes into `button.setAccessibilityValue(...)` only. This is what Control Center does for its Battery module, which Thaw identifies as `com.apple.controlcenter:Battery` regardless of the percentage.
 7. Never set the status item window's title. Never call `NSWindow.title` on `button.window`.

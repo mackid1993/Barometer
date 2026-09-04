@@ -39,6 +39,7 @@ public final class StatusItemController<Sample: Sendable> {
     private let settingsStore: SettingsStore
     private let renderContent: Render
     private let isEnabled: IsEnabled
+    private let accessibilityLabel: String
     private let logger = Logger(subsystem: "com.barometer.app", category: "render")
     private var lengthLatch = StatusItemLengthLatch()
     private var geometryLatch = StatusItemGeometryLatch()
@@ -57,6 +58,7 @@ public final class StatusItemController<Sample: Sendable> {
         self.store = store
         self.settingsStore = settingsStore
         self.isEnabled = isEnabled
+        accessibilityLabel = statusItem.button?.accessibilityLabel() ?? module.displayName
         renderContent = render
         observeChanges()
         update()
@@ -104,7 +106,10 @@ public final class StatusItemController<Sample: Sendable> {
         let proposedLength = StatusItemRendering.roundedLength(naturalLength)
         let lengthDecision = lengthLatch.resolve(proposedLength)
         let displayedImage = StatusItemRendering.image(content.image, framedTo: lengthDecision.length)
-        displayedImage.accessibilityDescription = StatusItemRegistry.accessibilityOwnerLabel
+        // AppKit derives the button's AX label from its replacement image. Reapply the
+        // permanent child label on every render so dynamic images never collapse distinct
+        // Barometer widgets into one accessibility identity.
+        displayedImage.accessibilityDescription = accessibilityLabel
         button.image = displayedImage
         // CONTRACT: This is the sole production writer of statusItem.length. It may run
         // once per controller lifetime, before the item is made visible. See

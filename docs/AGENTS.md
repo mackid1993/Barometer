@@ -165,9 +165,9 @@ Text, icon, and graph sizing is automatic and follows the enabled-item count. Do
 automatic tiers are 115 percent for 1–3 items, 100 for 4–6, 90 for 7–8, 85 for 9–11, 80 for 12–14, and 75 for
 15 or more. Each enabled Sensors instance counts; Combined counts once and its hidden members do not count.
 
-Every item has the common app owner `com.barometer.app` and the static AX label `Barometer`, while its autosave name and
-AX identifier remain unique child keys. The common label is the source-app identity exposed to menu bar managers; the
-unique identifier is what keeps each child independently movable. Prepare every standard identity and every saved
+Every item has the common app owner `com.barometer.app`, while its autosave name, AX identifier, and static
+accessibility label remain unique child keys. The bundle is the common source-app identity; the child keys keep each
+item independently movable. Prepare every standard identity and every saved
 extra Sensors identity before any item becomes visible, then set each `autosaveName` and AX identity synchronously
 before its first `isVisible` transition. Do not create another item beside the live set; newly added Sensors identities
 join on the next normal launch. Never delete or rewrite AppKit's `NSStatusItem Visible`, preferred-position, or
