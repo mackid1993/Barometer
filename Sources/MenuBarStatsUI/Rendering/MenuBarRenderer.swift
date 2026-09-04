@@ -655,6 +655,10 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
         let bottomValue = NSAttributedString(string: bottomParts.value, attributes: attributes)
         let reservedTopValue = NSAttributedString(string: reservedTopParts.value, attributes: attributes)
         let reservedBottomValue = NSAttributedString(string: reservedBottomParts.value, attributes: attributes)
+        // Rows without a leading arrow reserve no marker column at all. Keeping the gap would push
+        // every value one gap off center, which is visible on a two-row item that has no arrows.
+        let hasMarker = !(topParts.marker.isEmpty && bottomParts.marker.isEmpty
+            && reservedTopParts.marker.isEmpty && reservedBottomParts.marker.isEmpty)
         let markerWidth = ceil(
             max(topMarker.size().width, bottomMarker.size().width, reservedTopMarker.size().width,
                 reservedBottomMarker.size().width)
@@ -663,7 +667,7 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
             max(topValue.size().width, bottomValue.size().width, reservedTopValue.size().width,
                 reservedBottomValue.size().width)
         )
-        let pairGap = metrics.densePairGap
+        let pairGap = hasMarker ? metrics.densePairGap : 0
         let width =
             MenuBarLayoutMetrics.contentInset * 2
             + markerWidth

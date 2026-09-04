@@ -2157,3 +2157,37 @@ Verification:
   and live readings only in the accessibility value.
 - No notarization was run; `make app` signs locally only, and notarization remains a manual CI release step.
 - No new permission category, helper, bundle, or dependency was added.
+
+### P8-T7 stacks and battery presentation polish
+
+David used the build and reported four problems. All four were real.
+
+Stacks were capped, undeletable, and prefilled. They are now uncapped, deletable, and start empty. Deletion is safe
+because instance numbers come from a persisted high-water mark rather than the largest id in use, so a deleted
+stack's autosave name is never handed out again.
+
+A stack no longer names itself. Generating a name from the permanent instance number would have drifted to
+"Stack 47" after enough adding and deleting, and generating one from list position would silently rename every stack
+below a deleted one. Adding a stack now prompts for a name, and the migrated Combined item keeps the name
+`Combined`.
+
+Changing the Battery presentation resized the item and moved it in the menu bar. A status item keeps one length for
+the life of the process, so a wider presentation was squeezed into the old length until the next launch, and the
+item then moved. Every Battery presentation now draws centered on the widest canvas any presentation needs. The
+first attempt reused `StatusItemRendering.image(_:framedTo:)`, which pins content to the leading edge; that is right
+where it frames to a latched length but left the stacked rows visibly off center, which David saw immediately. The
+presenter now centers explicitly.
+
+The stacked percentage over time was still one gap off center after that. `NetworkRateStackRenderer` reserves a
+leading column for the `↑` and `↓` arrows and kept the gap after it even when both rows had no arrow. Rows without a
+marker now reserve no gap, which leaves the Network item unchanged because its rows always carry arrows.
+
+Verification:
+
+- `swift build`, `swift build -c release`, and `git diff --check` completed successfully; `swift test` built every
+  target, and the runner remains unavailable on this machine.
+- The direct checks were extended to measure ink margins on the rendered images. Every Battery presentation now
+  measures the same width and is centered on it within one point at the widest live values, where the renderer's own
+  reserved slack is zero. All checks passed.
+- `make install` replaced and relaunched `/Applications/Barometer.app`, and the identity diagnostics showed every
+  item with its permanent autosave name and label.

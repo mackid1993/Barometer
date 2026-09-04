@@ -53,14 +53,14 @@ public struct StackSettings: Codable, Equatable, Identifiable, Sendable {
         self.hidesSourceItems = hidesSourceItems
     }
 
-    /// The name shown in Settings, falling back to the permanent instance name.
-    public var settingsName: String {
-        name.isEmpty ? defaultName : name
-    }
-
-    /// The name a never-renamed stack shows.
-    public var defaultName: String {
-        id == 1 ? "Stack 1" : "Stack \(id)"
+    /// The name to show for this stack.
+    ///
+    /// Stacks are named by the person who creates them. Nothing here invents a name: a generated
+    /// one would either follow the permanent instance number, which only moves upward and would
+    /// reach "Stack 47", or follow the list position, which would silently rename every stack below
+    /// a deleted one. The fallback exists only for a record that predates the naming prompt.
+    public var displayName: String {
+        name.isEmpty ? "Untitled" : name
     }
 
     /// Modules whose schedulers this stack needs running.
@@ -186,6 +186,8 @@ public struct StacksSettings: Codable, Equatable, Sendable {
             StackSettings(
                 id: 1,
                 isEnabled: true,
+                // Keeps the name the item already had in the menu bar.
+                name: "Combined",
                 metrics: metrics,
                 hidesSourceItems: combined.hidesIndividualMembers
             )

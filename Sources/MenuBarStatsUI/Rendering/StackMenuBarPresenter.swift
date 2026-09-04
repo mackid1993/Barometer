@@ -24,7 +24,7 @@ enum StackMenuBarPresenter {
         guard !values.isEmpty else {
             return StatusItemContent(
                 image: TextRenderer(text: "—").render(in: context),
-                accessibilityValue: "\(stack.defaultName) has no readings"
+                accessibilityValue: "\(stack.displayName) has no readings"
             )
         }
         let renderer: any MenuBarRenderer

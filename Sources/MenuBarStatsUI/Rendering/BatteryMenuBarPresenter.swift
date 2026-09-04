@@ -39,10 +39,23 @@ public enum BatteryMenuBarPresenter {
     private static func image(sample: BatterySample?, mode: String, context: RenderContext) -> NSImage {
         let drawn = renderer(sample: sample, mode: mode).render(in: context)
         let width = sharedWidth(context: context)
-        guard width > drawn.size.width else {
+        guard width - drawn.size.width > 0.01 else {
             return drawn
         }
-        return StatusItemRendering.image(drawn, framedTo: width)
+        // Centered, not flush left. `StatusItemRendering.image(_:framedTo:)` pins its content to the
+        // leading edge, which is correct where it frames to a latched item length but would leave a
+        // narrower presentation hanging off center inside this shared canvas.
+        let centered = NSImage(size: NSSize(width: width, height: drawn.size.height), flipped: false) { rect in
+            drawn.draw(
+                in: NSRect(
+                    origin: NSPoint(x: ((rect.width - drawn.size.width) / 2).rounded(), y: 0),
+                    size: drawn.size
+                )
+            )
+            return true
+        }
+        centered.isTemplate = drawn.isTemplate
+        return centered
     }
 
     /// Widest canvas any presentation needs, measured from the reserved placeholders alone.

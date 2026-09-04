@@ -9,6 +9,9 @@ import SwiftUI
 struct CombinedSettingsView: View {
     let settingsStore: SettingsStore
 
+    @State private var isNamingStack = false
+    @State private var newStackName = ""
+
     private var settings: StacksSettings {
         settingsStore.settingsIncludingPendingMenuBarChanges.stacks
     }
@@ -28,7 +31,8 @@ struct CombinedSettingsView: View {
 
             Section {
                 Button {
-                    addStack()
+                    newStackName = ""
+                    isNamingStack = true
                 } label: {
                     Label("Add Stack", systemImage: "plus")
                 }
@@ -59,13 +63,23 @@ struct CombinedSettingsView: View {
         }
         .formStyle(.grouped)
         .settingsPane(module: .combined, settings: settingsStore.settings)
+        // The person creating the stack names it. Nothing here invents one for them.
+        .alert("Name this stack", isPresented: $isNamingStack) {
+            TextField("Name", text: $newStackName)
+            Button("Cancel", role: .cancel) {}
+            Button("Add") { addStack(named: newStackName) }
+                .disabled(newStackName.trimmingCharacters(in: .whitespaces).isEmpty)
+        } message: {
+            Text("Choose a name you will recognize in Settings, such as Performance or Power.")
+        }
     }
 
     @ViewBuilder
     private func stackSection(_ stack: StackSettings) -> some View {
-        Section(stack.settingsName) {
+        let name = stack.displayName
+        Section(name) {
             Toggle("Show in menu bar", isOn: settingsStore.stackVisibilityBinding(for: stack.id))
-            TextField("Name", text: stackBinding(stack.id, \.name), prompt: Text(stack.defaultName))
+            TextField("Name", text: stackBinding(stack.id, \.name), prompt: Text("Name this stack"))
             Picker("Layout", selection: stackBinding(stack.id, \.layout)) {
                 Text("Two rows per column").tag(StackLayout.columns)
                 Text("One row").tag(StackLayout.singleRow)
@@ -121,20 +135,24 @@ struct CombinedSettingsView: View {
             Button(role: .destructive) {
                 deleteStack(stack.id)
             } label: {
-                Label("Delete \(stack.settingsName)", systemImage: "trash")
+                Label("Delete \(name)", systemImage: "trash")
             }
         }
     }
 
     // MARK: - Mutation
 
-    private func addStack() {
+    private func addStack(named name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
         var appSettings = settingsStore.settings
         // Ids come from a saved high-water mark, so a new stack never reuses a deleted stack's
         // autosave name and therefore never inherits its saved menu bar position. The stack starts
         // empty and hidden, and its visibility is staged like a new Sensors widget.
         let id = appSettings.stacks.allocateID()
-        appSettings.stacks.stacks.append(StackSettings(id: id, isEnabled: false, metrics: []))
+        appSettings.stacks.stacks.append(
+            StackSettings(id: id, isEnabled: false, name: trimmed, metrics: [])
+        )
         settingsStore.settings = appSettings
         settingsStore.stageStackVisibility(true, for: id)
         settingsStore.stageMenuBarVisibility(true, for: .combined)

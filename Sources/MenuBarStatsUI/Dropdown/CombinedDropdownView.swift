@@ -46,6 +46,11 @@ public struct CombinedDropdownView: View {
         self.settingsStore = settingsStore
     }
 
+    /// The name the person who created this stack gave it.
+    private var stackName: String {
+        settingsStore.settings.stacks.stack(id: stackID)?.displayName ?? "Stack"
+    }
+
     /// Source modules of the stack's metrics, in metric order and without repeats.
     private var members: [ModuleID] {
         guard let stack = settingsStore.settings.stacks.stack(id: stackID) else {
@@ -66,7 +71,7 @@ public struct CombinedDropdownView: View {
             HStack(spacing: 12) {
                 IconTile(symbolName: "rectangle.3.group.fill", accent: accent)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(stack?.settingsName ?? "Stack").font(BarometerDesign.titleFont)
+                    Text(stackName).font(BarometerDesign.titleFont)
                     Text("\(stack?.metrics.count ?? 0) readings")
                         .font(.caption)
                         .foregroundStyle(.secondary)
