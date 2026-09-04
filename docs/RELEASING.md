@@ -1,6 +1,7 @@
 # Releasing Barometer
 
-Barometer's GitHub workflows run only when manually dispatched. A build produces a Developer ID-signed DMG.
+Barometer's build and release workflows run only when manually dispatched; the test workflow also runs on pushes to
+`main`. A build produces a Developer ID-signed DMG.
 Notarization is disabled by default and runs only when the person dispatching the workflow explicitly enables it.
 
 ## Repository secrets
@@ -34,12 +35,22 @@ certificate.
 The workflow imports the certificate into an ephemeral keychain, signs the single `Barometer.app` executable with
 the hardened runtime, builds `Barometer-VERSION.dmg`, verifies both artifacts, and deletes the temporary certificate.
 
-## Publish a release
+## Prepare a release
 
 Open **Actions → Release → Run workflow**, enter the version and optional release notes, and choose whether to
-notarize. After every build, signing, and requested notarization check passes, the workflow creates or updates the
-published GitHub release, marks it as latest, and attaches only the versioned DMG. Pushing a commit never publishes a
-release; this workflow remains manual-dispatch only.
+notarize. After every build, signing, and requested notarization check passes, the workflow creates or refreshes a
+**draft** GitHub release and attaches only the versioned DMG.
+
+The workflow never publishes. A draft is not public, is not tagged latest, and does not appear on the releases page
+to anyone else, so the notes and the notarized DMG can be reviewed before anything ships.
+
+To ship it, open **Releases**, check the draft, and press **Publish release**. GitHub marks it latest at that point.
+
+Re-dispatching the same version refreshes the draft and replaces its DMG. If that version has already been
+published the workflow fails instead, because rewriting a public release would change what people have already
+downloaded; bump the version instead.
+
+Pushing a commit never builds, signs, notarizes, or releases anything. This workflow remains manual-dispatch only.
 
 ## Optional future notarization
 

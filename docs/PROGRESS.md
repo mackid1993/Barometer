@@ -2543,3 +2543,22 @@ Verification:
 - Every corrected assertion was recomputed against the real modules first, including the sizing ladder from one to
   twenty items, each module adding exactly one item, and stacks adding one item and removing the sources they
   replace.
+
+### P8-T21 leave releases as drafts for a person to publish
+
+The Release workflow created a published release and marked it latest in the same run that built it, so a dispatch
+was the moment something became public. It now creates a draft and stops. A draft is not visible to anyone else and
+is not tagged latest, so the notes and the notarized DMG can be checked before shipping, and publishing is a
+deliberate press of a button in the Releases page.
+
+Re-dispatching a version refreshes its draft and replaces the attached DMG. Re-dispatching a version that is already
+published now fails instead, because rewriting a public release would change what people have already downloaded.
+The run summary links the draft.
+
+Verification:
+
+- `git diff --check` completed successfully, and the workflow's release job was reviewed step by step against the
+  `gh release` semantics it relies on: `--draft` on create, `--draft=true` on refresh, `--latest` deliberately not
+  passed because GitHub applies it when a person publishes.
+- `docs/RELEASING.md` now describes preparing and then publishing a release, including the refusal to rewrite a
+  published version.
