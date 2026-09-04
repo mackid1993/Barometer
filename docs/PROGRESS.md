@@ -540,3 +540,32 @@ placement failure without changing any application or manager preferences:
 Because macOS 27 status-item placement depends on the stable installed bundle path, `make run` now delegates to
 `make install`. `make app` remains the repository-only command for producing `dist/Barometer.app`; interactive menu
 bar compatibility checks always launch `/Applications/Barometer.app`.
+
+## P2-T1 Open-Meteo client
+
+Added the dependency-free async Open-Meteo client, detailed forecast, geocoding, air-quality, weather-unit, WMO-code,
+and lunar-phase models. Forecast requests include current conditions, 240 hourly points, and ten daily points. The
+client uses an ephemeral `URLSession`, a 15-second request and resource timeout, a stable Barometer user agent, and
+surfaces Open-Meteo HTTP error reasons. Real Boston forecast, geocoding, and air-quality responses were saved as test
+fixtures. The weather tests cover detailed decoding, empty geocoding results, WMO descriptions and day/night symbols,
+known new/full moon dates, and every lunar-phase SF Symbol name.
+
+The command-line probe now supports `weather --lat N --lon N` and `geocode QUERY`. It remains a data-only executable
+and does not import AppKit or create status items. The current Open-Meteo forecast, geocoding, and air-quality
+documentation was checked before live verification; every requested variable remains supported.
+
+Verification:
+
+- `swift test --disable-sandbox --filter Weather` built `MenuBarStatsCoreTests`, linked
+  `BarometerPackageTests.xctest`, and exited 0. The Command Line Tools runner still emitted no execution summary, as
+  documented in Phase 1.
+- `swift run --disable-sandbox mbs-probe weather --lat 42.3601 --lon -71.0589` contacted the live API and printed
+  `Current 65.9°F, feels like 69.8°F, Overcast`, `Humidity 92%; wind 2 mph; AQI 49`, followed by ten dated daily
+  rows from September 3 through September 12.
+- `swift run --disable-sandbox mbs-probe geocode Boston` returned ten results. The first was Boston, Massachusetts,
+  United States at `[42.35843, -71.05977]` in `America/New_York`.
+- The first live probe inside the restricted command sandbox could not resolve the Open-Meteo host. Repeating the
+  identical probe with explicitly approved network access succeeded; this was an agent sandbox restriction, not an
+  application or API failure.
+- `git diff --check` reported no whitespace errors, and the weather sources and tests contain no lines longer than
+  120 columns.

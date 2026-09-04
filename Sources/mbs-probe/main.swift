@@ -4,9 +4,11 @@ import MenuBarStatsCore
 
 private enum ProbeCommand: String {
     case cpu
+    case geocode
     case identity
     case memory
     case version
+    case weather
 }
 
 private func runIdentityProbe() {
@@ -86,6 +88,57 @@ private func runMemoryProbe() async throws {
     printMemorySample(sample)
 }
 
+private func runGeocodingProbe(query: String) async throws {
+    let results = try await OpenMeteoClient().geocode(query)
+    for result in results {
+        let region = [result.admin, result.country].compactMap { $0 }.joined(separator: ", ")
+        print("\(result.name), \(region) [\(result.latitude), \(result.longitude)] \(result.timeZone)")
+    }
+}
+
+private func runWeatherProbe(latitude: Double, longitude: Double) async throws {
+    let location = Location(
+        id: "probe",
+        name: "Probe Location",
+        admin: nil,
+        country: "",
+        latitude: latitude,
+        longitude: longitude,
+        timeZone: "auto"
+    )
+    let client = OpenMeteoClient()
+    let forecast = try await client.forecast(for: location, units: .imperial)
+    let airQuality = try await client.airQuality(for: location)
+    print(
+        String(
+            format: "Current %.1f°F, feels like %.1f°F, %@",
+            forecast.current.temperature,
+            forecast.current.apparentTemperature ?? forecast.current.temperature,
+            forecast.current.code.description
+        )
+    )
+    print(
+        "Humidity \(format(forecast.current.humidity, suffix: "%")); "
+            + "wind \(format(forecast.current.windSpeed, suffix: " mph")); "
+            + "AQI \(airQuality.usAQI.map(String.init) ?? "unavailable")"
+    )
+    let formatter = DateFormatter()
+    formatter.timeZone = forecast.timeZone
+    formatter.dateFormat = "EEE MMM d"
+    print("10-day forecast:")
+    for day in forecast.daily {
+        let high = format(day.high, suffix: "°")
+        let low = format(day.low, suffix: "°")
+        let precipitation = format(day.precipitationProbability, suffix: "%")
+        let condition = day.code?.description ?? "Unknown"
+        print("  \(formatter.string(from: day.date)): \(condition), \(high)/\(low), rain \(precipitation)")
+    }
+}
+
+private func format(_ value: Double?, suffix: String) -> String {
+    value.map { String(format: "%.0f%@", $0, suffix) } ?? "unavailable"
+}
+
 private func printMemorySample(_ sample: MemorySample) {
     print("Memory \(formatBytes(sample.used)) used of \(formatBytes(sample.total))")
     print(
@@ -136,7 +189,7 @@ private enum ProbeMain {
         setbuf(stdout, nil)
         let arguments = Array(CommandLine.arguments.dropFirst())
         guard let commandName = arguments.first, let command = ProbeCommand(rawValue: commandName) else {
-            writeError("usage: mbs-probe <cpu [--watch]|identity|memory|version>")
+            writeError("usage: mbs-probe <cpu [--watch]|geocode QUERY|identity|memory|version|weather --lat N --lon N>")
             exit(EXIT_FAILURE)
         }
 
@@ -148,6 +201,12 @@ private enum ProbeMain {
                     exit(EXIT_FAILURE)
                 }
                 try await runCPUProbe(watch: arguments.count == 2)
+            case .geocode:
+                guard arguments.count >= 2 else {
+                    writeError("usage: mbs-probe geocode QUERY")
+                    exit(EXIT_FAILURE)
+                }
+                try await runGeocodingProbe(query: arguments.dropFirst().joined(separator: " "))
             case .identity:
                 guard arguments.count == 1 else {
                     writeError("usage: mbs-probe identity")
@@ -166,6 +225,17 @@ private enum ProbeMain {
                     exit(EXIT_FAILURE)
                 }
                 printVersion()
+            case .weather:
+                guard arguments.count == 5,
+                      arguments[1] == "--lat",
+                      let latitude = Double(arguments[2]),
+                      arguments[3] == "--lon",
+                      let longitude = Double(arguments[4])
+                else {
+                    writeError("usage: mbs-probe weather --lat N --lon N")
+                    exit(EXIT_FAILURE)
+                }
+                try await runWeatherProbe(latitude: latitude, longitude: longitude)
             }
         } catch {
             writeError(String(describing: error))

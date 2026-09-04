@@ -79,6 +79,9 @@ let package = Package(
         .testTarget(
             name: "MenuBarStatsCoreTests",
             dependencies: ["MenuBarStatsCore"],
+            resources: [
+                .process("Fixtures"),
+            ],
             swiftSettings: testSwiftSettings,
             linkerSettings: testLinkerSettings
         ),
