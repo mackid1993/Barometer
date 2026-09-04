@@ -53,7 +53,7 @@ private func printVersion() {
 }
 
 private func runCPUProbe(watch: Bool) async throws {
-    let monitor = CPUMonitor()
+    let monitor = CPUMonitor(processRefreshInterval: 0.2)
     _ = try await monitor.sample()
 
     repeat {

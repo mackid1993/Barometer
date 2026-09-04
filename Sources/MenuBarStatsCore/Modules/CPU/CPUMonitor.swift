@@ -78,7 +78,12 @@ public actor CPUMonitor: Monitor {
     private let cpuSource: CPUSource
     private let processSource: ProcessSource
     private let topology: CoreTopology
+    private let processRefreshInterval: TimeInterval
     private var previousTicks: CPUTickSnapshot?
+    private var lastProcessRefresh: Date?
+    private var cachedProcessCount = 0
+    private var cachedThreadCount = 0
+    private var cachedTopProcesses: [CPUProcessSample] = []
 
     /// Whether the Mach CPU source is available.
     public var isAvailable: Bool {
@@ -86,8 +91,9 @@ public actor CPUMonitor: Monitor {
     }
 
     /// Creates a CPU monitor.
-    public init(interval: Duration = .seconds(1)) {
+    public init(interval: Duration = .seconds(1), processRefreshInterval: TimeInterval = 3) {
         self.interval = interval
+        self.processRefreshInterval = processRefreshInterval
         let source = CPUSource()
         cpuSource = source
         processSource = ProcessSource()
@@ -100,8 +106,34 @@ public actor CPUMonitor: Monitor {
         let usage = Self.calculateUsage(previous: previousTicks, current: currentTicks, topology: topology)
         previousTicks = currentTicks
 
-        let processes = processSource.readProcesses(logicalCPUCount: currentTicks.cores.count)
-        let topProcesses = processes.processes
+        let timestamp = Date()
+        refreshProcessesIfNeeded(at: timestamp, logicalCPUCount: currentTicks.cores.count)
+
+        return CPUSample(
+            timestamp: timestamp,
+            totalPercent: usage.total,
+            userPercent: usage.user,
+            systemPercent: usage.system,
+            idlePercent: usage.idle,
+            nicePercent: usage.nice,
+            perCore: usage.perCore,
+            loadAverages: cpuSource.loadAverages(),
+            uptime: cpuSource.uptime(),
+            processCount: cachedProcessCount,
+            threadCount: cachedThreadCount,
+            topProcesses: cachedTopProcesses
+        )
+    }
+
+    private func refreshProcessesIfNeeded(at timestamp: Date, logicalCPUCount: Int) {
+        if let lastProcessRefresh,
+           timestamp.timeIntervalSince(lastProcessRefresh) < processRefreshInterval {
+            return
+        }
+        let processes = processSource.readProcesses(logicalCPUCount: logicalCPUCount)
+        cachedProcessCount = processes.processCount
+        cachedThreadCount = processes.threadCount
+        cachedTopProcesses = processes.processes
             .sorted { lhs, rhs in
                 if lhs.cpuPercent == rhs.cpuPercent {
                     return lhs.physicalFootprint > rhs.physicalFootprint
@@ -118,21 +150,7 @@ public actor CPUMonitor: Monitor {
                     userIdentifier: process.userIdentifier
                 )
             }
-
-        return CPUSample(
-            timestamp: Date(),
-            totalPercent: usage.total,
-            userPercent: usage.user,
-            systemPercent: usage.system,
-            idlePercent: usage.idle,
-            nicePercent: usage.nice,
-            perCore: usage.perCore,
-            loadAverages: cpuSource.loadAverages(),
-            uptime: cpuSource.uptime(),
-            processCount: processes.processCount,
-            threadCount: processes.threadCount,
-            topProcesses: topProcesses
-        )
+        lastProcessRefresh = timestamp
     }
 
     private static func calculateUsage(

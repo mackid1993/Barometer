@@ -45,9 +45,12 @@ public final class ProcessSource {
         let path: String?
         let cpuTime: UInt64
         let observedAt: ContinuousClock.Instant
+        let threadCount: Int
+        let userIdentifier: uid_t
     }
 
     private var cache: [pid_t: CacheEntry] = [:]
+    private var lastDetailRefresh: ContinuousClock.Instant?
     private let timebaseScale: Double
 
     /// Whether libproc returns at least one process identifier.
@@ -69,6 +72,7 @@ public final class ProcessSource {
     public func readProcesses(logicalCPUCount: Int) -> ProcessListSnapshot {
         let processIdentifiers = processIdentifiers()
         let now = ContinuousClock().now
+        let refreshDetails = lastDetailRefresh.map { $0.duration(to: now).timeInterval >= 15 } ?? true
         let divisor = Double(max(1, logicalCPUCount))
         var nextCache: [pid_t: CacheEntry] = [:]
         var snapshots: [ProcessSnapshot] = []
@@ -94,8 +98,15 @@ public final class ProcessSource {
                 cpuPercent = 0
             }
 
-            let threadCount = processThreadCount(for: processIdentifier)
-            let userIdentifier = processUserIdentifier(for: processIdentifier)
+            let threadCount: Int
+            let userIdentifier: uid_t
+            if metadataMatches, !refreshDetails, let cached {
+                threadCount = cached.threadCount
+                userIdentifier = cached.userIdentifier
+            } else {
+                threadCount = processThreadCount(for: processIdentifier)
+                userIdentifier = processUserIdentifier(for: processIdentifier)
+            }
             totalThreads += threadCount
             snapshots.append(
                 ProcessSnapshot(
@@ -113,11 +124,16 @@ public final class ProcessSource {
                 name: name,
                 path: path,
                 cpuTime: cpuTime,
-                observedAt: now
+                observedAt: now,
+                threadCount: threadCount,
+                userIdentifier: userIdentifier
             )
         }
 
         cache = nextCache
+        if refreshDetails {
+            lastDetailRefresh = now
+        }
         return ProcessListSnapshot(
             processes: snapshots,
             processCount: processIdentifiers.count,

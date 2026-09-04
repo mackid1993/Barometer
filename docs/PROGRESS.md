@@ -386,3 +386,42 @@ TeamIdentifier=not set
 This requested identifier change creates a new macOS status-item namespace, so positions saved under the pre-release
 identifier do not transfer. The obsolete generated app bundle and temporary benchmark helpers were moved to `/tmp`
 rather than left beside the new product.
+
+## P1-T7 Performance pass
+
+The first measurement showed that enumerating every process on every module sample caused periodic CPU spikes.
+Process lists are now refreshed independently of the lightweight system counters (CPU every 3 seconds, Memory every
+5 seconds), while stable process ownership and thread metadata are cached for 15 seconds. This preserves fresh top
+processes and counts while avoiding thousands of redundant libproc calls. The command-line CPU probe uses a short
+refresh interval so its one-shot output still contains meaningful deltas.
+
+For the required test, reduced battery sampling was disabled only in Barometer's settings domain, the app was
+relaunched with CPU at 1 second and Memory at 2 seconds, and the exact `top -l 5 -stats pid,cpu,mem -pid 22332`
+command was run. Relevant unedited process rows were:
+
+```text
+PID    %CPU MEM
+22332  0.0  30M
+PID    %CPU MEM
+22332  1.0  30M-
+PID    %CPU MEM
+22332  0.3  30M
+PID    %CPU MEM
+22332  0.5  30M
+PID    %CPU MEM
+22332  0.8  30M
+```
+
+The five-sample arithmetic mean was 0.52% CPU, below the 0.7% limit, with approximately 30 MB resident memory. The
+machine was under substantial unrelated load during the measurement (system-wide CPU use ranged from 30% to 38%).
+The original battery-sampling preference was restored immediately afterward, and temporary benchmark files were
+moved to `/tmp`.
+
+Final regression verification:
+
+- `swift test` exited 0 after building and linking all targets and the `BarometerPackageTests` bundle. The installed
+  Command Line Tools runner still did not print an execution summary, as documented in P0-T5 and P1-T1.
+- `swift run mbs-probe cpu` reported 19.2% total use, all 14 cores, 773 processes, 5,022 threads, load averages,
+  uptime, and nonzero top-process CPU values.
+- `swift run mbs-probe memory` reported 39.34 GiB used of 48.00 GiB, 51% normal pressure, swap, and top-process
+  footprints.

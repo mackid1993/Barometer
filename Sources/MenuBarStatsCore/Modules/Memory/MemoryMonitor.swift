@@ -65,6 +65,9 @@ public actor MemoryMonitor: Monitor {
 
     private let memorySource: MemorySource
     private let processSource: ProcessSource
+    private let processRefreshInterval: TimeInterval
+    private var lastProcessRefresh: Date?
+    private var cachedTopProcesses: [MemoryProcessSample] = []
 
     /// Whether Mach and sysctl memory statistics are available.
     public var isAvailable: Bool {
@@ -72,8 +75,9 @@ public actor MemoryMonitor: Monitor {
     }
 
     /// Creates a Memory monitor.
-    public init(interval: Duration = .seconds(2)) {
+    public init(interval: Duration = .seconds(2), processRefreshInterval: TimeInterval = 5) {
         self.interval = interval
+        self.processRefreshInterval = processRefreshInterval
         memorySource = MemorySource()
         processSource = ProcessSource()
     }
@@ -81,21 +85,11 @@ public actor MemoryMonitor: Monitor {
     /// Collects one complete Memory sample.
     public func sample() throws -> MemorySample {
         let memory = try memorySource.read()
-        let processes = processSource.readProcesses(logicalCPUCount: ProcessInfo.processInfo.processorCount)
-        let topProcesses = processes.processes
-            .sorted { $0.physicalFootprint > $1.physicalFootprint }
-            .prefix(10)
-            .map { process in
-                MemoryProcessSample(
-                    processIdentifier: process.processIdentifier,
-                    name: process.name,
-                    path: process.path,
-                    physicalFootprint: process.physicalFootprint
-                )
-            }
+        let timestamp = Date()
+        refreshProcessesIfNeeded(at: timestamp)
 
         return MemorySample(
-            timestamp: Date(),
+            timestamp: timestamp,
             total: memory.total,
             used: memory.used,
             app: memory.app,
@@ -107,7 +101,27 @@ public actor MemoryMonitor: Monitor {
             pressureLevel: memory.pressureLevel,
             swapUsed: memory.swapUsed,
             swapTotal: memory.swapTotal,
-            topProcesses: topProcesses
+            topProcesses: cachedTopProcesses
         )
+    }
+
+    private func refreshProcessesIfNeeded(at timestamp: Date) {
+        if let lastProcessRefresh,
+           timestamp.timeIntervalSince(lastProcessRefresh) < processRefreshInterval {
+            return
+        }
+        let processes = processSource.readProcesses(logicalCPUCount: ProcessInfo.processInfo.processorCount)
+        cachedTopProcesses = processes.processes
+            .sorted { $0.physicalFootprint > $1.physicalFootprint }
+            .prefix(10)
+            .map { process in
+                MemoryProcessSample(
+                    processIdentifier: process.processIdentifier,
+                    name: process.name,
+                    path: process.path,
+                    physicalFootprint: process.physicalFootprint
+                )
+            }
+        lastProcessRefresh = timestamp
     }
 }
