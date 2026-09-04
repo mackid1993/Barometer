@@ -40,6 +40,7 @@ public final class StatusItemController<Sample: Sendable> {
     private let renderContent: Render
     private let isEnabled: IsEnabled
     private var accessibilityLabel: String
+    private var visibilityLatch = StatusItemVisibilityLatch()
     private let logger = Logger(subsystem: "com.barometer.app", category: "render")
     private var lengthLatch = StatusItemLengthLatch()
     private var geometryLatch = StatusItemGeometryLatch()
@@ -71,6 +72,14 @@ public final class StatusItemController<Sample: Sendable> {
         }
         self.statusItem = statusItem
         accessibilityLabel = statusItem.button?.accessibilityLabel() ?? module.displayName
+        update()
+    }
+
+    /// Allows the fully configured item to follow its settings visibility.
+    public func activateVisibility() {
+        guard visibilityLatch.activate() else {
+            return
+        }
         update()
     }
 
@@ -131,7 +140,7 @@ public final class StatusItemController<Sample: Sendable> {
             statusItem.length = lengthDecision.length
         }
         button.setAccessibilityValue(content.accessibilityValue)
-        if !statusItem.isVisible {
+        if visibilityLatch.isActivated, !statusItem.isVisible {
             statusItem.isVisible = true
         }
         let message = "module=\(module.displayName) value=\(content.accessibilityValue)"
@@ -186,6 +195,20 @@ struct StatusItemLengthLatch {
         }
         length = proposed
         return (proposed, true)
+    }
+}
+
+/// Prevents a controller from publishing its AX child before the coordinator has
+/// finished configuring the complete launch set.
+struct StatusItemVisibilityLatch {
+    private(set) var isActivated = false
+
+    mutating func activate() -> Bool {
+        guard !isActivated else {
+            return false
+        }
+        isActivated = true
+        return true
     }
 }
 

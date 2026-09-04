@@ -81,11 +81,17 @@ as `Barometer.CPU` and `CPU`; giving all children the same child identity would 
 common owner.
 
 Prepare exactly the enabled, non-Combined-hidden identities before allowing any item to become visible. Assign each
-autosave name and AX identity synchronously before its first `isVisible` transition. Do not create disabled hidden
-items: their persistence slots have no visible AX counterparts, so macOS 27 managers can pair the slots and children
-by conflicting ordinals. Create a newly enabled identity once, assign its full identity, attach its controller and
-menu, and only then make it visible. Do not manually delete AppKit's position defaults. An incomplete first snapshot
-can also pair one child's autosave slot with another child's AX identity.
+autosave name and AX identity synchronously before its first `isVisible` transition. Render every launch item and
+attach every controller and menu while the complete set remains hidden, then reveal the set synchronously in the
+same canonical `ModuleID` order used to construct the registry. Revealing controllers while the coordinator is only
+partly assembled exposes a different child order and lets an external manager save a valid autosave identity against
+the wrong ordinal.
+
+Do not create disabled hidden items: their persistence slots have no visible AX counterparts, so macOS 27 managers
+can pair the slots and children by conflicting ordinals. Create a newly enabled identity once, assign its full
+identity, attach its controller and menu, render it while hidden, and only then activate visibility. Do not manually
+delete AppKit's position defaults. An incomplete first snapshot can also pair one child's autosave slot with another
+child's AX identity.
 
 ## Why the width is explicit
 

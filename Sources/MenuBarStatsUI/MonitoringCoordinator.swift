@@ -93,6 +93,7 @@ public final class MonitoringCoordinator {
     private var weatherGeneration = 0
     private var isTrackingCurrentLocation = false
     private var lastPublicIPEnabled: Bool?
+    private var hasActivatedStatusItems = false
 
     /// Creates and starts application monitoring.
     public init(
@@ -365,6 +366,7 @@ public final class MonitoringCoordinator {
             quitAction: quitAction
         )
         configureSensorWidgets()
+        activateLaunchStatusItems()
 
         startSampleConsumption()
         configurePowerAwareness()
@@ -672,7 +674,7 @@ public final class MonitoringCoordinator {
             }
             let instance = widget.id
             let statusItem = registry.prepareItem(for: identity)
-            sensorControllers[instance] = StatusItemController(
+            let controller = StatusItemController(
                 module: .sensors,
                 statusItem: statusItem,
                 store: sensorStore,
@@ -698,6 +700,7 @@ public final class MonitoringCoordinator {
                     )
                 }
             )
+            sensorControllers[instance] = controller
             sensorDropdowns[instance] = DropdownController(
                 moduleName: ModuleID.sensors.displayName(instance: instance),
                 statusItem: statusItem,
@@ -720,7 +723,40 @@ public final class MonitoringCoordinator {
                 settingsAction: { self.settingsAction(.sensors) },
                 quitAction: quitAction
             )
+            if hasActivatedStatusItems {
+                controller.activateVisibility()
+            }
         }
+    }
+
+    /// Reveals the complete launch set only after every item has its final image, length, menu, and identity.
+    /// The order must match registry construction so external managers never observe conflicting ordinals.
+    private func activateLaunchStatusItems() {
+        for identity in StatusItemRegistry.launchIdentities(settings: settingsStore.settings) {
+            switch identity.module {
+            case .cpu:
+                cpuController?.activateVisibility()
+            case .gpu:
+                gpuController?.activateVisibility()
+            case .memory:
+                memoryController?.activateVisibility()
+            case .disks:
+                diskController?.activateVisibility()
+            case .network:
+                networkController?.activateVisibility()
+            case .sensors:
+                sensorControllers[identity.instance]?.activateVisibility()
+            case .battery:
+                batteryController?.activateVisibility()
+            case .weather:
+                weatherController?.activateVisibility()
+            case .time:
+                timeController?.activateVisibility()
+            case .combined:
+                combinedController?.activateVisibility()
+            }
+        }
+        hasActivatedStatusItems = true
     }
 
     private func prepareNewlyEnabledItems() {
@@ -761,6 +797,9 @@ public final class MonitoringCoordinator {
     ) {
         dropdown?.attach(statusItem: statusItem)
         controller?.attach(statusItem: statusItem)
+        if hasActivatedStatusItems {
+            controller?.activateVisibility()
+        }
     }
 
     private func configureNetworkChangeAwareness() {

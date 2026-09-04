@@ -1842,3 +1842,36 @@ Verification:
   app's identity report with nonzero immutable lengths.
 - The current Disk item reports the static `Disks` label and `Barometer.Disks` AX identifier. The current Network item
   reports `Network` and `Barometer.Network` with a 50-point image and status-item length.
+
+### P7-T4 gate visibility until the complete launch set is configured
+
+Weather remained the easiest item on which to reproduce failed placement, while the same risk applied to every
+module. The registry created status items in canonical `ModuleID` order, but each controller immediately made its
+item visible during coordinator construction. Controller construction used a different order, so an external menu
+bar manager could observe a valid but incomplete AX child list and join those ordinals to the wrong persistence
+slots.
+
+`StatusItemController` now renders and sizes its item while visibility is gated. After all standard controllers,
+Sensors instances, dropdown menus, images, lengths, autosave names, and AX identities are ready, the coordinator
+activates the complete launch set synchronously in the same canonical order as the registry. Newly enabled modules
+and later Sensors instances use the same attach, render, then activate lifecycle. A one-way activation latch prevents
+an item from being published twice.
+
+Read-only diagnostics also isolated external state left by the iterative pre-fix builds. Barometer's installed live
+report had nine exact autosave/AX pairs, including `Barometer.Weather` to `Barometer.Weather`, while Bartender's
+existing catalog rejoined several current AX children to old `Combined` and second-Sensors records after Barometer
+restarted underneath the already-running manager. An AX-first autosave timing experiment did not repair that cached
+manager data and was reverted. Barometer did not modify Bartender, its preferences, or its process. The durable rule
+is to prevent partial discovery in fresh catalogs and have the user refresh contaminated external catalogs through
+the manager itself.
+
+Verification:
+
+- `swift test` built and linked every test target successfully. New coverage verifies the visibility latch activates
+  exactly once; the existing launch-set test verifies canonical identity order.
+- `swift build -c release` and `git diff --check` completed successfully. A source scan still finds exactly one guarded
+  production assignment to `statusItem.length`.
+- `make install` installed and launched the Developer ID signed `/Applications/Barometer.app`. Strict signature
+  verification passed. No notarization or stapling command ran.
+- The installed identity report contains nine visible, nonzero items. Every autosave name equals its AX identifier,
+  every label is static and distinct, and Weather reports `Barometer.Weather`, `Weather`, and a fixed 22-point canvas.

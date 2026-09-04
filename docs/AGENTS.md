@@ -175,6 +175,18 @@ or rewrite AppKit's preferred-position or
 restore-position defaults. Doing so recycles persistence slots and can make managers pair one Barometer child's
 identity with another.
 
+At launch, controller construction order is not allowed to control visibility. Render and attach the entire prepared
+set while hidden, then activate it synchronously in the same canonical `ModuleID` order used by
+`StatusItemRegistry`. Otherwise a manager can observe a partial AX list whose ordinal order disagrees with the
+already-created autosave slots. The activation gate belongs to the shared controller lifecycle and applies to every
+module, including Weather, Network, graphs, and later Sensors instances.
+
+A manager catalog contaminated by an earlier broken build is external state. A Barometer relaunch can expose that
+stale join again even when the new process reports a completely correct live identity set. Do not mutate, delete, or
+special-case another application's catalog to make a local test pass. Verify the Barometer report first, then ask the
+user to refresh or reset Barometer's entries through that manager's own interface. A manager launched after the
+complete Barometer set is already present has repeatedly rebuilt the correct one-to-one joins.
+
 AppKit's variable-length image presentation also introduced its standard eight-point image inset on each side. An
 explicit status-item length equal to the rendered image width is what makes zero user spacing possible while keeping
 each module independently movable.

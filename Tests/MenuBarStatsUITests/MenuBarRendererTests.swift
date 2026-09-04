@@ -911,6 +911,17 @@ struct StableGeometryTests {
     }
 
     @Test
+    func visibilityLatchActivatesExactlyOnce() {
+        var latch = StatusItemVisibilityLatch()
+        #expect(!latch.isActivated)
+        let firstActivation = latch.activate()
+        #expect(firstActivation)
+        #expect(latch.isActivated)
+        let secondActivation = latch.activate()
+        #expect(!secondActivation)
+    }
+
+    @Test
     func framedImagesKeepFullScaleCanvasHeightAndTemplateFlag() {
         let image = NSImage(size: NSSize(width: 29, height: 22), flipped: false) { _ in true }
         image.isTemplate = true
