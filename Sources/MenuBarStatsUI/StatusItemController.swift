@@ -65,6 +65,7 @@ public final class StatusItemController<Sample: Sendable> {
             ? .dark
             : .light
         let appSettings = settingsStore.settings
+        let scale = min(1.35, max(0.75, appSettings.menuBarScale))
         let context = RenderContext(
             thickness: NSStatusBar.system.thickness,
             appearance: appearance,
@@ -72,8 +73,10 @@ public final class StatusItemController<Sample: Sendable> {
                 light: NSColor(hex: moduleSettings.lightColor) ?? .controlAccentColor,
                 dark: NSColor(hex: moduleSettings.darkColor) ?? .controlAccentColor
             ),
-            fontSize: appSettings.fontSize,
-            isMonochrome: appSettings.isMonochrome
+            fontSize: min(14, appSettings.fontSize * scale),
+            isMonochrome: appSettings.isMonochrome,
+            scale: scale,
+            horizontalSpacing: min(12, max(0, appSettings.menuBarSpacing))
         )
         let content = renderContent(store.latestSample, store.history.entries, moduleSettings, context)
         button.image = content.image

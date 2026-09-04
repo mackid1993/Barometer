@@ -26,8 +26,25 @@ struct SettingsTests {
         #expect(!migrated.reducesSamplingOnBattery)
         #expect(!migrated.isMonochrome)
         #expect(migrated.fontSize == 12)
+        #expect(migrated.menuBarScale == 1.15)
+        #expect(migrated.menuBarSpacing == 3)
         #expect(migrated.modules[.cpu]?.isEnabled == true)
         #expect(migrated.modules[.memory]?.isEnabled == true)
+    }
+
+    @Test("existing schema one settings gain size and spacing defaults")
+    func migratePresentationDefaults() throws {
+        let encoded = try JSONEncoder().encode(AppSettings())
+        var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        object.removeValue(forKey: "menuBarScale")
+        object.removeValue(forKey: "menuBarSpacing")
+        object["presentationDefaultsVersion"] = 1
+
+        let oldData = try JSONSerialization.data(withJSONObject: object)
+        let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
+
+        #expect(migrated.menuBarScale == 1.15)
+        #expect(migrated.menuBarSpacing == 3)
     }
 
     @Test("settings store persists immediately")

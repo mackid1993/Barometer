@@ -44,19 +44,29 @@ public struct RenderContext {
     /// Whether the result should be an adaptive template image.
     public let isMonochrome: Bool
 
+    /// Scale applied to renderer widths and symbol sizes.
+    public let scale: CGFloat
+
+    /// Blank horizontal space added to each side of an item.
+    public let horizontalSpacing: CGFloat
+
     /// Creates a render context.
     public init(
         thickness: CGFloat,
         appearance: MenuBarAppearance,
         palette: MenuBarPalette,
         fontSize: CGFloat,
-        isMonochrome: Bool
+        isMonochrome: Bool,
+        scale: CGFloat = 1,
+        horizontalSpacing: CGFloat = 0
     ) {
         self.thickness = thickness
         self.appearance = appearance
         self.palette = palette
         self.fontSize = fontSize
         self.isMonochrome = isMonochrome
+        self.scale = scale
+        self.horizontalSpacing = horizontalSpacing
     }
 
     /// Foreground color to use when drawing.
@@ -116,7 +126,7 @@ public struct GraphRenderer: MenuBarRenderer {
     /// Renders the graph image.
     @MainActor
     public func render(in context: RenderContext) -> NSImage {
-        makeImage(width: width, context: context) { rect in
+        makeImage(width: width * context.scale, context: context) { rect in
             let drawingRect = rect.insetBy(dx: 2, dy: 3)
             let normalized = values.isEmpty ? [0] : values.map { min(1, max(0, $0)) }
             context.foregroundColor.setFill()
@@ -246,7 +256,7 @@ public struct CombinedRenderer: MenuBarRenderer {
     @MainActor
     public func render(in context: RenderContext) -> NSImage {
         let images = renderers.map { $0.render(in: context) }
-        let gap: CGFloat = 6
+        let gap: CGFloat = 6 * context.scale
         let width = images.reduce(0) { $0 + $1.size.width } + gap * CGFloat(max(0, images.count - 1))
         return makeImage(width: width, context: context) { rect in
             var x: CGFloat = 0
@@ -274,11 +284,13 @@ private func makeImage(
     context: RenderContext,
     drawing: @escaping (NSRect) -> Void
 ) -> NSImage {
+    let contentWidth = max(1, ceil(width))
+    let spacing = max(0, context.horizontalSpacing)
     let image = NSImage(
-        size: NSSize(width: max(1, ceil(width)), height: context.thickness),
+        size: NSSize(width: contentWidth + spacing * 2, height: context.thickness),
         flipped: false
     ) { rect in
-        drawing(rect)
+        drawing(NSRect(x: spacing, y: 0, width: contentWidth, height: rect.height))
         return true
     }
     image.isTemplate = context.isMonochrome

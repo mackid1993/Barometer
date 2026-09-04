@@ -101,6 +101,20 @@ private struct GeneralSettingsView: View {
                         .monospacedDigit()
                         .frame(width: 50, alignment: .trailing)
                 }
+                HStack {
+                    Text("Menu bar size")
+                    Slider(value: appBinding(\.menuBarScale), in: 0.75...1.35, step: 0.05)
+                    Text(settingsStore.settings.menuBarScale, format: .percent.precision(.fractionLength(0)))
+                        .monospacedDigit()
+                        .frame(width: 42, alignment: .trailing)
+                }
+                HStack {
+                    Text("Item spacing")
+                    Slider(value: appBinding(\.menuBarSpacing), in: 0...12, step: 1)
+                    Text("\(Int(settingsStore.settings.menuBarSpacing)) pt")
+                        .monospacedDigit()
+                        .frame(width: 42, alignment: .trailing)
+                }
             }
 
             Section("Settings File") {
@@ -257,12 +271,15 @@ private struct ModuleSettingsView: View {
 
     private var previewImage: NSImage {
         let color = NSColor(hexString: settings.darkColor) ?? .controlAccentColor
+        let scale = settingsStore.settings.menuBarScale
         let context = RenderContext(
             thickness: NSStatusBar.system.thickness,
             appearance: .dark,
             palette: MenuBarPalette(light: color, dark: color),
-            fontSize: settingsStore.settings.fontSize,
-            isMonochrome: settingsStore.settings.isMonochrome
+            fontSize: min(14, settingsStore.settings.fontSize * scale),
+            isMonochrome: settingsStore.settings.isMonochrome,
+            scale: scale,
+            horizontalSpacing: settingsStore.settings.menuBarSpacing
         )
         let value = module == .cpu ? "42%" : "68%"
         let renderer: any MenuBarRenderer

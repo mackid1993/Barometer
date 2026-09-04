@@ -77,6 +77,12 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Global menu bar font size.
     public var fontSize: Double
 
+    /// Scale applied to all menu bar content, including graphs and icons.
+    public var menuBarScale: Double
+
+    /// Horizontal padding on each side of every menu bar item, in points.
+    public var menuBarSpacing: Double
+
     /// Per-module settings keyed by stable module identity.
     public var modules: [ModuleID: ModuleSettings]
 
@@ -89,14 +95,18 @@ public struct AppSettings: Codable, Equatable, Sendable {
         reducesSamplingOnBattery: Bool = true,
         isMonochrome: Bool = true,
         fontSize: Double = 11,
+        menuBarScale: Double = 1.15,
+        menuBarSpacing: Double = 3,
         modules: [ModuleID: ModuleSettings] = AppSettings.defaultModules
     ) {
         self.schemaVersion = schemaVersion
         self.reducesSamplingOnBattery = reducesSamplingOnBattery
         self.isMonochrome = isMonochrome
         self.fontSize = fontSize
+        self.menuBarScale = menuBarScale
+        self.menuBarSpacing = menuBarSpacing
         self.modules = modules
-        presentationDefaultsVersion = 1
+        presentationDefaultsVersion = 2
     }
 
     /// Default module settings, with CPU and Memory enabled for Phase 1.
@@ -114,6 +124,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case reducesSamplingOnBattery
         case isMonochrome
         case fontSize
+        case menuBarScale
+        case menuBarSpacing
         case modules
         case presentationDefaultsVersion
     }
@@ -132,13 +144,17 @@ public struct AppSettings: Codable, Equatable, Sendable {
             ) ?? true
             isMonochrome = try container.decodeIfPresent(Bool.self, forKey: .isMonochrome) ?? true
             fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? 11
+            menuBarScale = 1.15
+            menuBarSpacing = 3
             modules = Self.defaultModules
-            presentationDefaultsVersion = 1
+            presentationDefaultsVersion = 2
         case Self.currentSchemaVersion:
             schemaVersion = version
             reducesSamplingOnBattery = try container.decode(Bool.self, forKey: .reducesSamplingOnBattery)
             isMonochrome = try container.decode(Bool.self, forKey: .isMonochrome)
             fontSize = try container.decode(Double.self, forKey: .fontSize)
+            menuBarScale = try container.decodeIfPresent(Double.self, forKey: .menuBarScale) ?? 1.15
+            menuBarSpacing = try container.decodeIfPresent(Double.self, forKey: .menuBarSpacing) ?? 3
             modules = try container.decode([ModuleID: ModuleSettings].self, forKey: .modules)
             presentationDefaultsVersion = try container.decodeIfPresent(
                 Int.self,
@@ -152,6 +168,11 @@ public struct AppSettings: Codable, Equatable, Sendable {
                     modules[.memory]?.mode = "stacked"
                 }
                 presentationDefaultsVersion = 1
+            }
+            if presentationDefaultsVersion < 2 {
+                menuBarScale = 1.15
+                menuBarSpacing = 3
+                presentationDefaultsVersion = 2
             }
         default:
             throw DecodingError.dataCorruptedError(

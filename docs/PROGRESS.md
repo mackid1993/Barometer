@@ -346,3 +346,13 @@ settings handoff and terminated, leaving exactly one owner process:
 `swift test --filter Settings` exited 0 after compiling and linking the test bundle; the previously documented silent
 Swift Testing runner behavior remains. The interactive CPU hide/show check against Thaw remains for David's review;
 Thaw was not launched or modified, as required by the repository rules.
+
+Follow-up visual review found that font size alone was not enough control for the compact stacked labels. Added a
+separate 75%-to-135% menu-bar scale that grows text, icons, and graph widths together, plus 0-to-12-point horizontal
+item spacing. Both controls update live in General settings. The production default is now 115% scale with 3 points
+of padding on each side, and a one-time presentation migration applies those more readable values to settings from
+the earlier Phase 1 build.
+
+`swift test --filter Settings` compiled and linked successfully after adding focused migration assertions for the new
+values (exit 0; the installed test runner remains silent). `make run` then rebuilt, signed, and launched the packaged
+app with the larger migrated presentation.
