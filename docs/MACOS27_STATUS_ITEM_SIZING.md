@@ -67,9 +67,9 @@ There are no live-resize exceptions. In particular, do not add an exception for:
 3. Barometer rounds the natural width up to a two-point grid, assigns the AppKit length once, and only then makes the
    item visible. No width from an earlier process is read or preferred.
 4. Later settings and samples may redraw colors and readings, but cannot change launch geometry or the live AppKit
-   length. The renderer does not add edge insets. A live numeric value is trailing-aligned within its reserved field,
-   so unavoidable width reserve remains on the leading side instead of becoming a visible gap before the next item.
-   The outer canvas is never recentered or miniaturized.
+   length. The renderer does not add edge insets. Single-line numeric fields are trailing-aligned within their
+   reserved width, while stacked label/value modes keep both rows on one leading edge. The outer canvas is never
+   recentered or miniaturized.
 5. Module and Sensors-widget visibility controls remain staged until the user selects **Apply Changes**. Apply saves
    the complete visibility set and performs a controlled application reopen; it never mutates a live item length.
    All geometry and widths are then freshly calculated from the saved configuration before any item appears.
@@ -105,9 +105,9 @@ rendered canvas so zero app-added spacing is attainable while CPU, Memory, Weath
 remain separate items that the user can move independently.
 
 Reserved fields are stability space, not decoration. Do not add generic `+ 4` width allowances, half-point edge
-insets, or renderer-specific side padding. Center a symbol only inside a symbol field whose width must remain stable;
-trailing-align changing text inside its stable numeric field. This keeps the visible right edge adjacent to the next
-AppKit frame while preserving the one-time outer length.
+insets, or renderer-specific side padding. Center a symbol only inside a symbol field whose width must remain stable.
+Trailing-align a standalone changing value inside its stable numeric field, but never offset one row of a stacked
+label/value pair from the other. This preserves the one-time outer length without breaking row alignment.
 
 Do not replace the separate items with one combined status item as a sizing workaround. Combined is an optional
 module, not the implementation of density.

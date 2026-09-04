@@ -1916,16 +1916,17 @@ stack added its own side padding. Short live values were also centered or leadin
 fields, concentrating unused reserve at the edge next to the following item.
 
 All shared renderers now follow one zero-edge-inset contract. Generic text no longer adds width beyond its measured
-reserved field, and dense sensor stacks no longer add side padding. Stacked readings and icon-and-text values keep a
-fixed trailing edge inside their reserved numeric fields, while changing symbols remain centered only within their
-stable symbol field. The outer status-item lengths remain immutable; this change removes internal blank canvas rather
-than resizing live AppKit items. The rule is recorded in both the macOS 27 sizing guide and the repository agent
-guidance so later UI changes do not reintroduce invisible spacing.
+reserved field, and dense sensor stacks no longer add side padding. Standalone and icon-and-text readings keep a fixed
+trailing edge inside their reserved numeric fields, while stacked label/value rows retain their shared leading edge
+and changing symbols remain centered only within their stable symbol field. The outer status-item lengths remain
+immutable; this change removes internal blank canvas rather than resizing live AppKit items. The rule is recorded in
+both the macOS 27 sizing guide and the repository agent guidance so later UI changes do not reintroduce invisible
+spacing or row misalignment.
 
 Verification:
 
-- `swift test` exited 0, including new coverage for zero shared insets, exact generic-text width, and trailing-edge
-  stability inside reserved fields.
+- `swift test` exited 0, including new coverage for zero shared insets, exact generic-text width, trailing-edge
+  stability inside standalone fields, and the shared leading edge for every stacked top-label mode.
 - `swift build -c release` completed successfully, and `git diff --check` reported no whitespace errors.
 - A source scan found exactly one guarded production assignment to `statusItem.length` in
   `StatusItemController.swift`.

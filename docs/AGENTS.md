@@ -159,9 +159,9 @@ rendered widths, or status-item lifecycle code.
 Barometer adds zero horizontal padding around item canvases, including generic text, label/value stacks, sensor
 stacks, icon-and-text rows, symbols, and vertical icon stacks. Do not expose item-spacing controls: changing
 transparent padding inside an immutable frame only redistributes the same blank area and cannot change the actual item
-spacing. Changing numeric readings must remain trailing-aligned inside their reserved fields so stability slack stays
-on the leading side instead of appearing as extra space before the next independently movable item. Do not add
-generic width allowances, half-point insets, or renderer-specific side padding.
+spacing. Standalone numeric readings remain trailing-aligned inside their reserved fields, but stacked label/value
+rows must share one leading edge; never move the value independently from its label. Do not add generic width
+allowances, half-point insets, or renderer-specific side padding.
 Never bring back a live-width slider. Show/hide controls are the deliberate exception to otherwise-live settings:
 stage those choices until the user selects **Apply Changes**, persist the complete set once, and perform a controlled
 application reopen. The reopen is required so automatic sizing is calculated from the final enabled-item count before

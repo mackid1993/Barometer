@@ -182,9 +182,12 @@ struct MenuBarRendererTests {
     func stackedRowsShareOneLeadingEdge() {
         let metrics = MenuBarLayoutMetrics(context: context)
         let origins = metrics.stackedOrigins(labelHeight: 10, valueHeight: 12)
+        let rendererOrigins = StackedLabelRenderer.rowXOrigins
 
         #expect(origins.label.x == origins.value.x)
         #expect(origins.label.x == MenuBarLayoutMetrics.contentInset)
+        #expect(rendererOrigins.label == rendererOrigins.value)
+        #expect(rendererOrigins.label == MenuBarLayoutMetrics.contentInset)
         #expect(MenuBarLayoutMetrics.contentInset == 0)
         #expect(metrics.denseTextPadding == 0)
         #expect(origins.value.y == 1)
@@ -202,23 +205,6 @@ struct MenuBarRendererTests {
 
         #expect(image.size.width == ceil(reservedWidth))
         #expect(TextRenderer.trailingOffset(valueWidth: 12, reservedWidth: 20) == 8)
-    }
-
-    @Test
-    func stackedReadingsKeepTheirTrailingEdgeFixed() {
-        let shortWidth: CGFloat = 14
-        let reservedWidth: CGFloat = 22
-        let shortOffset = StackedLabelRenderer.trailingOffset(
-            valueWidth: shortWidth,
-            reservedWidth: reservedWidth
-        )
-        let fullOffset = StackedLabelRenderer.trailingOffset(
-            valueWidth: reservedWidth,
-            reservedWidth: reservedWidth
-        )
-
-        #expect(shortOffset + shortWidth == reservedWidth)
-        #expect(fullOffset == 0)
     }
 
     @Test

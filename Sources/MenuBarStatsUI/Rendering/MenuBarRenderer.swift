@@ -572,26 +572,26 @@ public struct StackedLabelRenderer: MenuBarRenderer {
         )
         let width =
             contentWidth + MenuBarLayoutMetrics.contentInset * 2
+        let xOrigins = Self.rowXOrigins
         return makeImage(width: width, context: context) { _ in
             labelText.draw(
                 at: NSPoint(
-                    x: MenuBarLayoutMetrics.contentInset,
+                    x: xOrigins.label,
                     y: metrics.compactRowY(0, textHeight: labelText.size().height)
                 )
             )
             valueText.draw(
                 at: NSPoint(
-                    x: MenuBarLayoutMetrics.contentInset
-                        + Self.trailingOffset(valueWidth: valueText.size().width, reservedWidth: contentWidth),
+                    x: xOrigins.value,
                     y: metrics.compactRowY(1, textHeight: valueText.size().height)
                 )
             )
         }
     }
 
-    /// Keeps the reading's trailing edge fixed while its digit count changes.
-    static func trailingOffset(valueWidth: CGFloat, reservedWidth: CGFloat) -> CGFloat {
-        max(0, reservedWidth - valueWidth)
+    /// Every label-over-value mode shares one horizontal origin for both rows.
+    static var rowXOrigins: (label: CGFloat, value: CGFloat) {
+        (MenuBarLayoutMetrics.contentInset, MenuBarLayoutMetrics.contentInset)
     }
 }
 
