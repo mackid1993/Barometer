@@ -2060,3 +2060,9 @@ latest-release link had nothing public to resolve.
 Release remains manual-dispatch only. After its reusable macOS job succeeds, it now creates or updates a published
 GitHub release, marks that version as latest, and uploads only `Barometer-VERSION.dmg`. Re-running a version safely
 replaces the DMG and refreshes its title and notes.
+
+### P7-T5 align weather refresh age with its displayed time
+
+The weather card displays its absolute refresh time only to the minute, but its relative age previously floored raw
+elapsed seconds. A refresh displayed as 8:13 could therefore still say `1 min ago` after the clock reached 8:15.
+Relative age now advances on wall-clock minute boundaries, keeping both parts of the same label consistent.

@@ -103,16 +103,18 @@ public struct WeatherDropdownView: View {
         formatter.timeStyle = .short
         formatter.timeZone = timeZone
         let absoluteTime = formatter.string(from: fetchedAt)
-        let age = max(0, now.timeIntervalSince(fetchedAt))
+        let fetchedMinute = floor(fetchedAt.timeIntervalSince1970 / 60)
+        let currentMinute = floor(now.timeIntervalSince1970 / 60)
+        let elapsedMinutes = max(0, Int(currentMinute - fetchedMinute))
         let relativeTime: String
-        if age < 60 {
+        if elapsedMinutes == 0 {
             relativeTime = "just now"
-        } else if age < 3_600 {
-            relativeTime = "\(Int(age / 60)) min ago"
-        } else if age < 86_400 {
-            relativeTime = "\(Int(age / 3_600)) hr ago"
+        } else if elapsedMinutes < 60 {
+            relativeTime = "\(elapsedMinutes) min ago"
+        } else if elapsedMinutes < 1_440 {
+            relativeTime = "\(elapsedMinutes / 60) hr ago"
         } else {
-            relativeTime = "\(Int(age / 86_400)) days ago"
+            relativeTime = "\(elapsedMinutes / 1_440) days ago"
         }
         return "Updated \(absoluteTime) · \(relativeTime)"
     }

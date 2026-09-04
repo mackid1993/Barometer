@@ -131,11 +131,17 @@ struct MenuBarRendererTests {
             now: now,
             timeZone: timeZone
         )
+        let crossedTwoClockMinutes = WeatherDropdownView.updatedText(
+            fetchedAt: Date(timeIntervalSince1970: 7_259),
+            now: Date(timeIntervalSince1970: 7_320),
+            timeZone: timeZone
+        )
 
         #expect(recent.hasPrefix("Updated "))
         #expect(recent.hasSuffix(" · just now"))
         #expect(older.hasPrefix("Updated "))
         #expect(older.hasSuffix(" · 2 min ago"))
+        #expect(crossedTwoClockMinutes.hasSuffix(" · 2 min ago"))
     }
 
     @Test
