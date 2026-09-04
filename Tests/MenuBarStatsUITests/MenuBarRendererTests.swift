@@ -516,41 +516,32 @@ struct MenuBarRendererTests {
     }
 
     @Test
-    func networkRowsKeepMarkersAttachedAndBalanceReservedWidth() {
+    func networkRowsKeepMarkersAndValueOriginsFixed() {
         #expect(NetworkRateStackRenderer.rowParts("↑1.2MB/s").marker == "↑")
         #expect(NetworkRateStackRenderer.rowParts("↑1.2MB/s").value == "1.2MB/s")
 
         let shortOrigins = NetworkRateStackRenderer.rowOrigins(
-            containerWidth: 53,
-            markerWidth: 8,
-            valueWidth: 24,
+            markerFieldWidth: 8,
             gap: 3,
             backingScaleFactor: 2
         )
         let longOrigins = NetworkRateStackRenderer.rowOrigins(
-            containerWidth: 53,
-            markerWidth: 8,
-            valueWidth: 34,
+            markerFieldWidth: 8,
             gap: 3,
             backingScaleFactor: 2
         )
-        #expect(shortOrigins.marker == 9)
-        #expect(shortOrigins.value == 20)
-        #expect(longOrigins.marker == 4)
-        #expect(longOrigins.value == 15)
-        #expect(shortOrigins.value - shortOrigins.marker == 11)
-        #expect(longOrigins.value - longOrigins.marker == 11)
-        #expect(53 - (shortOrigins.value + 24) == 9)
-        #expect(53 - (longOrigins.value + 34) == 4)
+        #expect(shortOrigins.marker == 0)
+        #expect(shortOrigins.value == 11)
+        #expect(longOrigins == shortOrigins)
 
         let fractionalMarker = NetworkRateStackRenderer.rowOrigins(
-            containerWidth: 53,
-            markerWidth: 8.2,
-            valueWidth: 24,
+            markerFieldWidth: 8.2,
             gap: 3,
             backingScaleFactor: 2
         )
-        #expect(fractionalMarker.value - (fractionalMarker.marker + 8.2) >= 3)
+        #expect(fractionalMarker.marker == 0)
+        #expect(fractionalMarker.value == 11.5)
+        #expect(fractionalMarker.value - 8.2 >= 3)
     }
 
     @Test

@@ -672,16 +672,12 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
 
         return makeImage(width: width, context: context) { _ in
             let topOrigins = Self.rowOrigins(
-                containerWidth: markerWidth + pairGap + valueWidth,
-                markerWidth: topMarker.size().width,
-                valueWidth: topValue.size().width,
+                markerFieldWidth: markerWidth,
                 gap: pairGap,
                 backingScaleFactor: context.backingScaleFactor
             )
             let bottomOrigins = Self.rowOrigins(
-                containerWidth: markerWidth + pairGap + valueWidth,
-                markerWidth: bottomMarker.size().width,
-                valueWidth: bottomValue.size().width,
+                markerFieldWidth: markerWidth,
                 gap: pairGap,
                 backingScaleFactor: context.backingScaleFactor
             )
@@ -719,19 +715,16 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
         return (String(first), String(text.dropFirst()))
     }
 
-    /// Keeps the arrow attached to its live value and balances unused reserve around the pair.
+    /// Pins every arrow to one leading column and starts every live value after the fixed internal gap.
     static func rowOrigins(
-        containerWidth: CGFloat,
-        markerWidth: CGFloat,
-        valueWidth: CGFloat,
+        markerFieldWidth: CGFloat,
         gap: CGFloat,
         backingScaleFactor: CGFloat
     ) -> (marker: CGFloat, value: CGFloat) {
-        let unusedWidth = max(0, containerWidth - markerWidth - gap - valueWidth)
         let scale = max(1, backingScaleFactor)
-        let marker = floor(unusedWidth / 2 * scale) / scale
-        let markerEdge = ceil((marker + markerWidth) * scale) / scale
-        return (marker, markerEdge + gap)
+        let marker: CGFloat = 0
+        let markerFieldEdge = ceil(markerFieldWidth * scale) / scale
+        return (marker, markerFieldEdge + gap)
     }
 }
 
