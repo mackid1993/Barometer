@@ -154,7 +154,15 @@ struct MenuBarLayoutMetrics {
     /// renderer positions the icon by its measured ink, which has no bearing to contribute, so the
     /// constant has to be the visible gap itself for the spacing to match the rest of the bar.
     var inlineIconTextGap: CGFloat {
-        densePairGap + 3
+        densePairGap + 2
+    }
+
+    /// Side of the square field every inline glyph is fitted into.
+    ///
+    /// One field for every symbol means the icon never changes width, so nothing has to be reserved
+    /// for the widest one and no empty pocket forms around a narrow glyph.
+    var inlineSymbolFieldSize: CGFloat {
+        min(context.thickness - 6, max(12, round(context.fontSize * 1.35)))
     }
 
     /// Dense blocks use the same edge contract as every other status-item renderer.
@@ -943,32 +951,22 @@ public struct IconTextRenderer: MenuBarRenderer {
         let textSize = textValue.size()
         let reservedTextSize = NSAttributedString(string: reservedText, attributes: attributes).size()
         let metrics = MenuBarLayoutMetrics(context: context)
-        // Measure the glyph by its ink, not its image box. An SF Symbol carries transparent optical
-        // padding on every side, and reserving the box put that padding between the icon and the
-        // text on top of the gap, which read as a large unexplained hole.
-        let visibleHeight = symbol.map { metrics.symbolSize(nativeSize: $0.size, font: font).height } ?? 0
+        // Every glyph is fitted to one square field measured by its ink, so the icon occupies the
+        // same width whatever it is currently showing. Reserving the widest glyph instead left a
+        // round symbol like sun.max sitting in a pocket of empty space, because it is far narrower
+        // than cloud.sun once both are normalized to the same height, and the pocket changed size
+        // with the weather. An SF Symbol's image box is not used at all: it carries transparent
+        // optical padding that would reappear as unexplained space beside the value.
+        let symbolField = metrics.inlineSymbolFieldSize
         let inkKey = "\(symbolName)|\(symbolPointSize)|\(context.fontWeight)|inline"
-        let placement = symbol.map {
-            SymbolInkMeasurer.placement(of: $0, key: inkKey, visibleHeight: visibleHeight)
-        }
-        let reservedSymbolWidth =
-            reservedSymbolNames.compactMap { name -> CGFloat? in
-                guard
-                    let reservedImage = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-                        .withSymbolConfiguration(configuration)
-                else {
-                    return nil
-                }
-                return SymbolInkMeasurer.placement(
-                    of: reservedImage,
-                    key: "\(name)|\(symbolPointSize)|\(context.fontWeight)|inline",
-                    visibleHeight: visibleHeight
-                ).inkSize.width
-            }.max() ?? 0
-        // A renderer that reserves symbol width keeps the gap even when the current symbol fails to
-        // resolve, so one missing glyph cannot change the item's width.
-        let gap = symbol == nil && reservedSymbolWidth == 0 ? 0 : metrics.inlineIconTextGap
-        let symbolFieldWidth = max(placement?.inkSize.width ?? 0, reservedSymbolWidth)
+        let placement = symbol
+            .map { SymbolInkMeasurer.placement(of: $0, key: inkKey, visibleHeight: symbolField) }
+            .map { $0.fitted(toWidth: symbolField) }
+        // A renderer that shows an icon keeps the gap even when the symbol fails to resolve, so one
+        // missing glyph cannot change the item's width.
+        let hasIcon = symbol != nil || !reservedSymbolNames.isEmpty
+        let gap = hasIcon ? metrics.inlineIconTextGap : 0
+        let symbolFieldWidth = hasIcon ? symbolField : 0
         let textFieldWidth = ceil(max(textSize.width, reservedTextSize.width))
         let width =
             MenuBarLayoutMetrics.contentInset * 2
@@ -978,11 +976,13 @@ public struct IconTextRenderer: MenuBarRenderer {
         return makeImage(width: width, context: context) { rect in
             var x = MenuBarLayoutMetrics.contentInset
             if let symbol, let placement {
-                // The ink sits against the trailing edge of its reserved field, so the separation
-                // from the value is always exactly the gap. Centering it here put half the width
-                // reserved for a wider condition glyph between the icon and the temperature, which
-                // read as a hole that changed size with the weather.
-                let inkOrigin = x + (symbolFieldWidth - placement.inkSize.width)
+                // Icon, gap, and value are laid out as one group against the leading edge, and the
+                // canvas is sized for the worst case so all the spare width collects at the trailing
+                // edge. Anything else puts the difference between this condition's glyph and the
+                // widest one around the icon: a round symbol like sun.max is far narrower than
+                // cloud.sun once both are normalized to the same height, so it would sit in a pocket
+                // of empty space that changed size with the weather.
+                let inkOrigin = x + (symbolFieldWidth - placement.inkSize.width) / 2
                 let symbolRect = NSRect(
                     x: inkOrigin - (placement.inkCenter.x - placement.inkSize.width / 2),
                     y: rect.height / 2 - placement.inkCenter.y,
@@ -990,6 +990,8 @@ public struct IconTextRenderer: MenuBarRenderer {
                     height: placement.boxSize.height
                 )
                 symbol.draw(in: symbolRect)
+            }
+            if hasIcon {
                 x += symbolFieldWidth + gap
             }
             textValue.draw(

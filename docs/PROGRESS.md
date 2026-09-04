@@ -2393,3 +2393,29 @@ Verification:
 - The weather glyph test was rewritten for the inline layout; it previously asserted the glyph fit inside half the
   bar, which was the rule for the stacked presentation that no longer exists.
 - `make install` replaced and relaunched `/Applications/Barometer.app`.
+
+### P8-T16 give every condition glyph one field
+
+David sent a screenshot with `sun.max` showing and said the padding around the icon was not standardized with the
+other widgets. It was not, and the earlier measurements had missed it because they used `cloud.sun`.
+
+Glyphs were normalized to a common ink height, which makes a round symbol much narrower than a wide one:
+at the same height `sun.max` measures about 16 points across where `cloud.sun` measures about 24. The renderer then
+reserved the widest of them, so whichever glyph was showing sat in a pocket of leftover width, and the pocket
+changed size with the weather. `cloud.sun` filled the reservation exactly, which is why every earlier check looked
+correct.
+
+Each glyph is now fitted into one square field sized from the bar, so the icon occupies the same space whatever the
+weather is doing and nothing has to be reserved for the widest one. The icon, gap, and value are laid out as one
+group against the leading edge, so what spare width remains collects at the trailing edge instead of around the
+icon. The gap constant lost the point it had gained, because a fitted glyph no longer contributes its own slack.
+
+Verification:
+
+- `swift build`, `swift build -c release`, and `git diff --check` completed successfully; `swift test` built every
+  target, and the runner remains unavailable on this machine.
+- Measured across `sun.max`, `cloud.sun`, `cloud`, `cloud.bolt.rain`, `moon.stars`, and `snowflake`: identical item
+  width, zero leading margin, and 5.00 pt to the value, matching the network and sensor items. The item is 48 points
+  wide, down from 58.
+- A test pins the shared field: every condition glyph must produce one width and sit flush with the leading edge.
+- `make install` replaced and relaunched `/Applications/Barometer.app`.

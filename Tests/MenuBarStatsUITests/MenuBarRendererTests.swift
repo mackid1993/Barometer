@@ -913,6 +913,40 @@ struct MenuBarRendererTests {
         return origins
     }
 
+    @Test("every condition glyph occupies the same field with no padding around it")
+    func inlineIconsShareOneField() {
+        // Normalizing glyphs to a common height makes a round symbol far narrower than a wide one,
+        // so reserving the widest left the narrow ones sitting in a pocket of empty space that
+        // changed size with the weather. One fixed field removes the reservation entirely.
+        var widths: Set<Double> = []
+        var leadingMargins: Set<CGFloat> = []
+        for name in ["sun.max", "cloud.sun", "cloud", "cloud.bolt.rain", "moon.stars", "snowflake"] {
+            let image = IconTextRenderer(
+                symbolName: name,
+                text: "80°",
+                reservedText: "-99°",
+                reservedSymbolNames: ["sun.max", "cloud.sun", "cloud.bolt.rain"]
+            ).render(in: context)
+            widths.insert(image.size.width)
+            leadingMargins.insert(Self.leadingInkMargin(image).rounded())
+        }
+        #expect(widths.count == 1, "condition glyphs produced widths \(widths.sorted())")
+        #expect(leadingMargins == [0], "icon is not flush with the leading edge: \(leadingMargins)")
+    }
+
+    /// Blank columns before the first inked column.
+    private static func leadingInkMargin(_ image: NSImage) -> CGFloat {
+        guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff) else {
+            return 0
+        }
+        for x in 0..<bitmap.pixelsWide {
+            for y in 0..<bitmap.pixelsHigh where (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.05 {
+                return CGFloat(x) / (CGFloat(bitmap.pixelsWide) / image.size.width)
+            }
+        }
+        return 0
+    }
+
     @Test("an icon beside a value is spaced like every other multi-part item")
     func inlineIconSpacingMatchesTheRestOfTheBar() {
         // The gap is measured from the rendered ink, not from the layout constants, because the
