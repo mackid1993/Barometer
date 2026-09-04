@@ -34,10 +34,32 @@ public struct History<Value: Sendable>: Sendable {
     }
 
     /// Entries in chronological order.
+    ///
+    /// Materializes the whole buffer, which can hold a day of samples. Prefer `recent(_:)` on any
+    /// path that runs per sample.
     public var entries: [HistoryEntry<Value>] {
-        (0..<count).compactMap { offset in
-            storage[(startIndex + offset) % capacity]
+        recent(count)
+    }
+
+    /// The newest `maxCount` entries in chronological order.
+    ///
+    /// Menu bar graphs are a few dozen points wide and dropdowns show a bounded window, so callers
+    /// ask for what they draw. Building the full array instead made every status item update cost
+    /// one allocation and copy per retained sample, which grew with uptime until a single CPU item
+    /// was copying tens of thousands of samples every second.
+    public func recent(_ maxCount: Int) -> [HistoryEntry<Value>] {
+        let wanted = min(max(0, maxCount), count)
+        guard wanted > 0 else {
+            return []
         }
+        var result: [HistoryEntry<Value>] = []
+        result.reserveCapacity(wanted)
+        for offset in (count - wanted)..<count {
+            if let entry = storage[(startIndex + offset) % capacity] {
+                result.append(entry)
+            }
+        }
+        return result
     }
 
     /// Appends a value, replacing the oldest entry when the buffer is full.

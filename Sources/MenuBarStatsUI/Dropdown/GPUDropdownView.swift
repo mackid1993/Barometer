@@ -19,7 +19,7 @@ public struct GPUDropdownView: View {
         let sample = store.latestSample
         let _ = store.revision
         let accent = ModuleAccent.resolve(settingsStore.settings, module: .gpu)
-        let history = store.history.entries.suffix(300).map { min(1, max(0, $0.value.deviceUtilizationPercent / 100)) }
+        let history = store.history.recent(300).map { min(1, max(0, $0.value.deviceUtilizationPercent / 100)) }
 
         DropdownScaffold(size: Self.contentSize) {
             HeroHeader(

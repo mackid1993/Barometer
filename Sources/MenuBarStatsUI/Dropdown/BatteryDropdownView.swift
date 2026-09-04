@@ -20,7 +20,7 @@ public struct BatteryDropdownView: View {
         let sample = store.latestSample
         let _ = store.revision
         let accent = ModuleAccent.resolve(settingsStore.settings, module: .battery)
-        let history = store.history.entries.suffix(720).map { min(1, max(0, $0.value.chargePercent / 100)) }
+        let history = store.history.recent(720).map { min(1, max(0, $0.value.chargePercent / 100)) }
 
         DropdownScaffold(size: Self.contentSize) {
             HeroHeader(

@@ -2419,3 +2419,37 @@ Verification:
   wide, down from 58.
 - A test pins the shared field: every condition glyph must produce one width and sit flush with the leading edge.
 - `make install` replaced and relaunched `/Applications/Barometer.app`.
+
+### P8-T17 release host port references and stop rebuilding history every update
+
+An independent review of `f50443f` reported a Mach port ownership bug and history processing that grows with uptime.
+Both were verified against the code before changing anything; two further findings about display-sleep resumption
+and `nettop` were not verified and were left alone.
+
+`mach_host_self` returns a send right and adds a user reference to it on every call. Three calls had no matching
+`mach_port_deallocate`, two of them on the per-sample path, so the reference count climbed for the life of the
+process. All three now release the right. `MemorySource` also called `host_page_size` on every sample; the page size
+cannot change while the system runs, so it is read once.
+
+`History.entries` rebuilt the whole buffer on every access, and `StatusItemController.update` passed it on every
+sample regardless of presentation. CPU retains 86,400 samples, so a steady-state CPU item allocated and copied an
+86,400 element array once a second, each element carrying two nested arrays. `History.recent(_:)` materializes only
+the newest entries, and rendering asks for 240 of them.
+
+That does change the graph modes rather than being purely an optimization: `GraphRenderer` plots every value it is
+given across about forty points of width, so CPU and Memory graphs previously compressed a whole day of samples into
+that space. They now show the most recent window, matching what GPU, Sensors, and the dropdowns already did through
+`suffix`.
+
+Replacing a status item's image makes AppKit redraw it, and the image was assigned on every sample even when
+identical. It is now compared by its drawn pixels first, so a graph that moves while its reading is unchanged still
+updates, while a text item repeating the same value does not. The accessibility value is likewise only set when it
+changes.
+
+Verification:
+
+- `swift build`, `swift build -c release`, and `git diff --check` completed successfully; `swift test` built every
+  target, and the runner remains unavailable on this machine.
+- The direct render checks still pass unchanged, so the battery, stack, spacing, and glyph work is unaffected.
+- Not addressed: the reviewer's display-sleep resumption and `nettop` cadence findings, neither of which was
+  reproduced or verified here.

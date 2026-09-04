@@ -43,6 +43,7 @@ public final class StatusItemController<Sample: Sendable> {
     private var visibilityLatch = StatusItemVisibilityLatch()
     private let logger = Logger(subsystem: "com.barometer.app", category: "render")
     private var lengthLatch = StatusItemLengthLatch()
+    private var appliedImageFingerprint: Int?
     private var geometryLatch = StatusItemGeometryLatch()
 
     /// Creates and begins observing a status item controller.
@@ -115,7 +116,15 @@ public final class StatusItemController<Sample: Sendable> {
             appearance: appearance,
             geometry: geometry
         )
-        let content = renderContent(store.latestSample, store.history.entries, moduleSettings, context)
+        // Renderers get the newest samples rather than the whole buffer, which meant every update
+        // allocated and copied one entry per retained sample and grew with uptime.
+        //
+        // This does change the graph modes: `GraphRenderer` plots every value it is given across
+        // about forty points of width, so CPU and Memory graphs previously smeared an entire day of
+        // samples into that space. They now show the most recent window instead, which is the
+        // readable interpretation and the one the other modules already used via `suffix`.
+        let history = store.history.recent(StatusItemRendering.renderedHistoryLimit)
+        let content = renderContent(store.latestSample, history, moduleSettings, context)
         let reservedFontWeightWidth: CGFloat
         if lengthLatch.length == nil, appSettings.fontWeight != .semibold {
             var sizingSettings = appSettings
@@ -129,7 +138,7 @@ public final class StatusItemController<Sample: Sendable> {
             )
             reservedFontWeightWidth = renderContent(
                 store.latestSample,
-                store.history.entries,
+                history,
                 moduleSettings,
                 sizingContext
             ).image.size.width
@@ -148,7 +157,14 @@ public final class StatusItemController<Sample: Sendable> {
         // permanent child label on every render so dynamic images never collapse distinct
         // Barometer widgets into one accessibility identity.
         displayedImage.accessibilityDescription = accessibilityLabel
-        button.image = displayedImage
+        // Replacing the image makes AppKit redraw the item, so an unchanged image is skipped. The
+        // fingerprint is the drawn pixels, not the reading, so graphs that move while their value
+        // reads the same still update.
+        let fingerprint = displayedImage.tiffRepresentation?.hashValue
+        if fingerprint == nil || fingerprint != appliedImageFingerprint {
+            button.image = displayedImage
+            appliedImageFingerprint = fingerprint
+        }
         // CONTRACT: This is the sole production writer of statusItem.length. It may run
         // once per controller lifetime, before the item is made visible. See
         // docs/MACOS27_STATUS_ITEM_SIZING.md before changing this branch.
@@ -158,7 +174,9 @@ public final class StatusItemController<Sample: Sendable> {
         if lengthDecision.shouldAssign {
             statusItem.length = lengthDecision.length
         }
-        button.setAccessibilityValue(content.accessibilityValue)
+        if button.accessibilityValue() as? String != content.accessibilityValue {
+            button.setAccessibilityValue(content.accessibilityValue)
+        }
         if visibilityLatch.isActivated, !statusItem.isVisible {
             statusItem.isVisible = true
         }
@@ -232,6 +250,12 @@ struct StatusItemVisibilityLatch {
 
 @MainActor
 enum StatusItemRendering {
+    /// Newest samples handed to a renderer.
+    ///
+    /// The widest menu bar graph is well under this, so it bounds the per-update cost without
+    /// changing any drawn output.
+    static let renderedHistoryLimit = 240
+
     /// Whether an enabled stack replaces this module's individual item.
     static func isHiddenByCombined(module: ModuleID, settings: AppSettings) -> Bool {
         module != .combined && settings.hiddenBySourceStacks.contains(module)

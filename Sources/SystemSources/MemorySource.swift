@@ -102,13 +102,21 @@ public struct MemorySource: Sendable {
         return value
     }
 
-    private static func pageSize() throws -> UInt64 {
+    /// The page size never changes while the system is running, so it is read once.
+    private static let cachedPageSize: Result<UInt64, MemorySourceError> = {
         var value: vm_size_t = 0
-        let result = host_page_size(mach_host_self(), &value)
+        // See `CPUSource.readTicks`: the send right this returns must be released.
+        let host = mach_host_self()
+        defer { mach_port_deallocate(mach_task_self_, host) }
+        let result = host_page_size(host, &value)
         guard result == KERN_SUCCESS else {
-            throw MemorySourceError.machError(result)
+            return .failure(.machError(result))
         }
-        return UInt64(value)
+        return .success(UInt64(value))
+    }()
+
+    private static func pageSize() throws -> UInt64 {
+        try cachedPageSize.get()
     }
 
     private static func virtualMemoryStatistics() throws -> vm_statistics64 {
@@ -116,9 +124,11 @@ public struct MemorySource: Sendable {
         var count = mach_msg_type_number_t(
             MemoryLayout<vm_statistics64_data_t>.size / MemoryLayout<integer_t>.size
         )
+        let host = mach_host_self()
+        defer { mach_port_deallocate(mach_task_self_, host) }
         let result = withUnsafeMutablePointer(to: &statistics) { pointer in
             pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { reboundPointer in
-                host_statistics64(mach_host_self(), HOST_VM_INFO64, reboundPointer, &count)
+                host_statistics64(host, HOST_VM_INFO64, reboundPointer, &count)
             }
         }
         guard result == KERN_SUCCESS else {

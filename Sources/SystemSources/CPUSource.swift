@@ -56,8 +56,12 @@ public struct CPUSource: Sendable {
         var processorCount: natural_t = 0
         var processorInfo: processor_info_array_t?
         var processorInfoCount: mach_msg_type_number_t = 0
+        // mach_host_self() returns a send right and adds a user reference to it every call. This
+        // runs once a second for the life of the process, so the reference has to be given back.
+        let host = mach_host_self()
+        defer { mach_port_deallocate(mach_task_self_, host) }
         let result = host_processor_info(
-            mach_host_self(),
+            host,
             PROCESSOR_CPU_LOAD_INFO,
             &processorCount,
             &processorInfo,
