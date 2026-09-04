@@ -2025,6 +2025,10 @@ Verification:
 - `swift build -c release` and `git diff --check` completed successfully.
 - GitHub Actions run 33870340413 stamped version 1.0.0 and exposed the portability failures before signing; its
   signing and notarization steps were therefore correctly skipped.
+- GitHub Actions run 33871409992 executed all 142 tests successfully, signed the application and DMG, received
+  Apple's notarization acceptance, stapled and validated the ticket, passed Gatekeeper assessment, and uploaded the
+  `Barometer-1.0.0.dmg` artifact. The downloaded artifact also passed local stapler and Gatekeeper validation; its
+  SHA-256 is `eb3891e5ff8e0a07fa0014a123fe13587bb2ba19fb8333aad939827dc4f41454`.
 
 ### P7-T5 refresh Wi-Fi identity after Location authorization
 
