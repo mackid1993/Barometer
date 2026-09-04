@@ -90,3 +90,54 @@ import Testing
     #expect(readings.allSatisfy { $0.celsius > 0 && $0.celsius <= 125 })
     #expect(Set(readings.map(\.rawName)).count == readings.count)
 }
+
+@Test func ioReportConvertsEnergyUnitsUsingTheMeasuredInterval() {
+    #expect(IOReportSource.watts(energy: 2, unit: "J", elapsedSeconds: 0.5) == 4)
+    #expect(IOReportSource.watts(energy: 2_000, unit: "mJ", elapsedSeconds: 0.5) == 4)
+    #expect(IOReportSource.watts(energy: 2_000_000, unit: "uJ", elapsedSeconds: 0.5) == 4)
+    #expect(IOReportSource.watts(energy: 2_000_000_000, unit: "nJ", elapsedSeconds: 0.5) == 4)
+    #expect(IOReportSource.watts(energy: 1, unit: "unknown", elapsedSeconds: 1) == nil)
+}
+
+@Test func ioReportNormalizesDynamicFrequencyTableWithoutDroppingStates() {
+    let values: [UInt32] = [600_000, 600_000, 1_470_000]
+    let bytes = values.flatMap { frequency in
+        withUnsafeBytes(of: frequency.littleEndian) { Array($0) }
+            + withUnsafeBytes(of: UInt32(800).littleEndian) { Array($0) }
+    }
+
+    #expect(IOReportSource.normalizedFrequencyTable(data: Data(bytes)) == [600, 600, 1_470])
+}
+
+@Test func ioReportFrequencyExcludesIdleResidencyAndWeightsActiveStates() {
+    let states = [
+        IOReportStateReading(name: "DOWN", residency: 10),
+        IOReportStateReading(name: "IDLE", residency: 20),
+        IOReportStateReading(name: "P1", residency: 30),
+        IOReportStateReading(name: "P2", residency: 40),
+    ]
+    let result = IOReportSource.frequency(states: states, candidates: [[1_000, 2_000]], kind: .lowerCPU)
+
+    #expect(result.averageMHz == 11_000.0 / 7.0)
+    #expect(result.activePercent == 70)
+}
+
+@Test func ioReportRecognizesAggregateCPUEnergyNamesWithoutCoreCounts() {
+    for name in ["CPU Energy", "DIE0 CPU Energy", "EACC_CPU", "PACC12_CPU", "MCPU0", "SCPU"] {
+        #expect(IOReportSource.isCPUEnergyChannel(name))
+    }
+    for name in ["EACC_CPU0", "PACC_0", "MCPU0_0", "PCPM", "GPU Energy"] {
+        #expect(!IOReportSource.isCPUEnergyChannel(name))
+    }
+}
+
+@Test func ioReportReadsRuntimeDiscoveredChannels() async throws {
+    let source = try IOReportSource()
+    let snapshot = try await source.sample(over: .milliseconds(50))
+
+    #expect(snapshot.elapsedSeconds > 0)
+    #expect(!snapshot.energy.isEmpty)
+    #expect(!snapshot.frequencies.isEmpty)
+    #expect(snapshot.power.allSatisfy { $0.watts >= 0 && $0.watts.isFinite })
+    #expect(snapshot.frequencies.allSatisfy { (0...100).contains($0.activePercent) })
+}

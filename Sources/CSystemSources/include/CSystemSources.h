@@ -49,6 +49,7 @@ MBSIOReportSubscriptionRef IOReportCreateSubscription(
     uint64_t options,
     CFTypeRef reserved
 );
+void mbs_ioreport_subscription_release(MBSIOReportSubscriptionRef subscription);
 CFDictionaryRef IOReportCreateSamples(
     MBSIOReportSubscriptionRef subscription,
     CFMutableDictionaryRef channels,
@@ -67,6 +68,26 @@ int64_t IOReportSimpleGetIntegerValue(CFDictionaryRef channel, int32_t index);
 int32_t IOReportStateGetCount(CFDictionaryRef channel);
 CFStringRef IOReportStateGetNameForIndex(CFDictionaryRef channel, int32_t index);
 int64_t IOReportStateGetResidency(CFDictionaryRef channel, int32_t index);
+
+CFDictionaryRef mbs_ioreport_copy_channels_in_group(CFStringRef group, CFStringRef subgroup);
+void mbs_ioreport_merge_channels(CFDictionaryRef destination, CFDictionaryRef source);
+MBSIOReportSubscriptionRef mbs_ioreport_create_subscription(
+    CFMutableDictionaryRef channels,
+    CFMutableDictionaryRef *subscribedChannels
+);
+CFDictionaryRef mbs_ioreport_create_samples(
+    MBSIOReportSubscriptionRef subscription,
+    CFMutableDictionaryRef channels
+);
+CFDictionaryRef mbs_ioreport_create_samples_delta(CFDictionaryRef previous, CFDictionaryRef current);
+CFStringRef mbs_ioreport_channel_get_group(CFDictionaryRef channel);
+CFStringRef mbs_ioreport_channel_get_subgroup(CFDictionaryRef channel);
+CFStringRef mbs_ioreport_channel_get_name(CFDictionaryRef channel);
+CFStringRef mbs_ioreport_channel_get_unit_label(CFDictionaryRef channel);
+int64_t mbs_ioreport_simple_get_integer_value(CFDictionaryRef channel, int32_t index);
+int32_t mbs_ioreport_state_get_count(CFDictionaryRef channel);
+CFStringRef mbs_ioreport_state_get_name(CFDictionaryRef channel, int32_t index);
+int64_t mbs_ioreport_state_get_residency(CFDictionaryRef channel, int32_t index);
 
 // MARK: - AppleSMC external-method ABI
 

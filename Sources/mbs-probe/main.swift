@@ -6,10 +6,12 @@ import SystemSources
 private enum ProbeCommand: String {
     case cpu
     case disks
+    case freq
     case geocode
     case identity
     case memory
     case net
+    case power
     case temps
     case version
     case weather
@@ -196,6 +198,46 @@ private func runTemperatureProbe() async throws {
     }
 }
 
+private func runIOReportProbe(command: ProbeCommand, watch: Bool) async throws {
+    let source = try IOReportSource()
+    repeat {
+        let sample = try await source.sample(over: .seconds(1))
+        switch command {
+        case .power:
+            print(String(format: "Power sample %.3f s", sample.elapsedSeconds))
+            for reading in sample.power {
+                print(String(format: "  %@: %.3f W", reading.name, reading.watts))
+            }
+            if !sample.power.contains(where: { $0.name == "CPU" }) {
+                print("  CPU: unavailable (IOReport CPU energy channels returned no value)")
+            }
+        case .freq:
+            print(String(format: "Frequency sample %.3f s", sample.elapsedSeconds))
+            let tables = await source.availableFrequencyTables()
+            print(
+                "  Discovered tables: "
+                    + tables.map { "\($0.count) states / \(Int($0.last ?? 0)) MHz max" }.joined(separator: ", ")
+            )
+            for reading in sample.frequencies {
+                let frequency = reading.averageMHz.map { String(format: "%.0f MHz", $0) } ?? "unavailable"
+                let states = reading.states.map { $0.name }.joined(separator: ",")
+                print(
+                    String(
+                        format: "  %@ [%@]: %@, %.1f%% active; states %@",
+                        reading.name,
+                        reading.kind.rawValue,
+                        frequency,
+                        reading.activePercent,
+                        states
+                    )
+                )
+            }
+        default:
+            return
+        }
+    } while watch
+}
+
 private func runGeocodingProbe(query: String) async throws {
     let results = try await OpenMeteoClient().geocode(query)
     for result in results {
@@ -308,8 +350,8 @@ private enum ProbeMain {
         let arguments = Array(CommandLine.arguments.dropFirst())
         guard let commandName = arguments.first, let command = ProbeCommand(rawValue: commandName) else {
             writeError(
-                "usage: mbs-probe <cpu [--watch]|disks [--watch]|geocode QUERY|identity|memory|net [--watch]|"
-                    + "temps|version|weather --lat N --lon N|wifi>"
+                "usage: mbs-probe <cpu [--watch]|disks [--watch]|freq [--watch]|geocode QUERY|identity|memory|"
+                    + "net [--watch]|power [--watch]|temps|version|weather --lat N --lon N|wifi>"
             )
             exit(EXIT_FAILURE)
         }
@@ -328,6 +370,12 @@ private enum ProbeMain {
                     exit(EXIT_FAILURE)
                 }
                 try await runDiskProbe(watch: arguments.count == 2)
+            case .freq:
+                guard arguments.count == 1 || arguments == ["freq", "--watch"] else {
+                    writeError("usage: mbs-probe freq [--watch]")
+                    exit(EXIT_FAILURE)
+                }
+                try await runIOReportProbe(command: command, watch: arguments.count == 2)
             case .geocode:
                 guard arguments.count >= 2 else {
                     writeError("usage: mbs-probe geocode QUERY")
@@ -352,6 +400,12 @@ private enum ProbeMain {
                     exit(EXIT_FAILURE)
                 }
                 try await runNetworkProbe(watch: arguments.count == 2)
+            case .power:
+                guard arguments.count == 1 || arguments == ["power", "--watch"] else {
+                    writeError("usage: mbs-probe power [--watch]")
+                    exit(EXIT_FAILURE)
+                }
+                try await runIOReportProbe(command: command, watch: arguments.count == 2)
             case .temps:
                 guard arguments.count == 1 else {
                     writeError("usage: mbs-probe temps")

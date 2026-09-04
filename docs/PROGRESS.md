@@ -964,3 +964,37 @@ Verification:
   duplicates and retained their counts instead of arbitrarily selecting one service.
 - `swift build` completed under Swift 6 strict concurrency. `git diff --check` passed, and all changed Swift files
   stay within 120 columns.
+
+## P4-T3 IOReport source
+
+Added a cached IOReport source with independent runtime-discovered subscriptions for `Energy Model`, the older
+`PMP` energy-counter fallback, `CPU Stats`, and `GPU Stats`. Each reading uses two snapshots across one monotonic
+interval and Apple's delta function. Energy conversion honors the channel's reported J/mJ/uJ/nJ unit, strips the
+`INT64_MIN` unpopulated sentinel, and avoids double-counting core rails when aggregate cluster rails are present.
+
+Frequency tables are discovered from every `pmgr` property whose name begins with `voltage-states`; no Mac model,
+core count, or voltage-state property number is compiled into Barometer. Raw Hz, kHz, and MHz tables are normalized
+by magnitude, repeated states remain in index order, and runtime state counts select lower-, middle-, upper-tier CPU
+and GPU tables. DOWN, IDLE, and OFF residency is excluded from the active-frequency weighted average but included in
+the active percentage denominator. Raw states and energy channels remain in the source model for field diagnostics.
+
+The CLT SDK contains no IOReport link stub even though `/usr/lib/libIOReport.dylib` is present in the dyld shared
+cache. Direct references therefore failed at link time on macOS 27. The C bridge now opens that system path and
+resolves every IOReport symbol behind null checks. A removed framework or symbol makes the source unavailable rather
+than preventing Barometer from launching.
+
+Verification:
+
+- `swift test` rebuilt and linked every target and exited 0. Tests cover exact J/mJ/uJ/nJ conversion, dynamic Hz/kHz
+  normalization, repeated performance states, residency weighting, aggregate CPU-rail recognition without fixed
+  core counts, and live runtime-discovered IOReport channels.
+- `swift run mbs-probe freq` discovered seven distinct frequency tables at runtime. Representative readings were
+  ECPU 733 MHz, PCPU 4,355 MHz, and GPU 338 MHz; all carried live active-residency percentages and state names.
+- `swift run mbs-probe power` reported GPU power and ANE availability consistently. One idle sample also reported
+  CPU 1.127 W and DRAM 0.190 W from aggregate cluster rails. Subsequent macOS 27 samples, including a temporary
+  four-process CPU load, marked every CPU rail unpopulated while GPU continued changing. Barometer reports CPU power
+  unavailable for those intervals rather than `0 W` or a sentinel-derived negative value. P4-T4 will test read-only
+  SMC power keys as the nearest legitimate fallback; no value was invented and all temporary load processes exited.
+- `nm .build/debug/mbs-probe | grep -c IOReport` returned 465, confirming the bridge and source are present in the
+  linked probe despite runtime resolution. `git diff --check` passed, and all changed Swift files stay within 120
+  columns.
