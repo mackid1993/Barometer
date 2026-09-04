@@ -148,18 +148,17 @@ struct WeatherTests {
             refreshError: "offline"
         )
 
-        #expect(
-            WeatherPresentationFormatter.menuBar(
-                sample: imperialSample,
-                mode: "iconTemperature"
-            ).text == "66°F"
-        )
-        #expect(
-            WeatherPresentationFormatter.menuBar(
-                sample: metricSample,
-                mode: "temperature"
-            ).text == "66°C"
-        )
+        // One presentation: the condition glyph and the temperature, with no unit letter. The unit
+        // is the reader's own choice and the menu bar has no room to repeat it.
+        let imperialPresentation = WeatherPresentationFormatter.menuBar(sample: imperialSample)
+        #expect(imperialPresentation.text == "66°")
+        #expect(imperialPresentation.symbolName != nil)
+
+        let metricPresentation = WeatherPresentationFormatter.menuBar(sample: metricSample)
+        #expect(metricPresentation.text == "66°")
+        #expect(metricPresentation.symbolName != nil)
+
+        #expect(WeatherPresentationFormatter.reservedMenuBarText == "-99°")
     }
 
     private func fixture(named name: String) throws -> Data {

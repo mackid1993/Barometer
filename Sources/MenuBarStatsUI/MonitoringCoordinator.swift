@@ -1249,7 +1249,7 @@ public final class MonitoringCoordinator {
         case .weatherTemperature:
             return field(
                 weatherStore.latestSample.map {
-                    WeatherPresentationFormatter.menuBar(sample: $0, mode: "temperature").text
+                    WeatherPresentationFormatter.degree($0.forecast.current.temperature)
                 }
             )
         case .timeClock:
@@ -1287,44 +1287,31 @@ public final class MonitoringCoordinator {
         settings: ModuleSettings,
         context: RenderContext
     ) -> StatusItemContent {
+        // Weather has one presentation: the current condition glyph beside the current
+        // temperature. The alternatives were either unreadable at this size or variations of
+        // the same reading, and one well-made option beats a menu of mediocre ones.
         let presentation =
-            sample.map {
-                WeatherPresentationFormatter.menuBar(sample: $0, mode: settings.mode)
-            }
-            ?? WeatherMenuBarPresentation(
-                symbolName: settings.mode == "temperature" || settings.mode == "highLow" ? nil : "cloud.sun",
-                text: "—"
-            )
-        let reservedText = weatherReservedText(mode: settings.mode)
-        let isStacked = settings.mode == "iconTemperatureStacked"
-        let reservedSymbols = settings.mode == "iconTemperature" || isStacked ? [] : weatherSymbolNames
-        // Icon and temperature sit side by side by default. Stacking gives each of them half the
-        // bar, which leaves both hard to read; one row lets the glyph and the value each use the
-        // full height, at approximately twice the width. The stack stays available for anyone who
-        // would rather spend the menu bar space than the legibility.
-        let renderer: any MenuBarRenderer =
-            if isStacked, let symbolName = presentation.symbolName {
-                IconStackRenderer(
-                    symbolName: symbolName,
-                    text: presentation.text,
-                    reservedText: reservedText,
-                    reservedSymbolNames: reservedSymbols
-                )
-            } else if let symbolName = presentation.symbolName {
-                IconTextRenderer(
-                    symbolName: symbolName,
-                    text: presentation.text,
-                    reservedText: reservedText,
-                    reservedSymbolNames: reservedSymbols
-                )
-            } else {
-                TextRenderer(text: presentation.text, reservedText: reservedText)
-            }
+            sample.map(WeatherPresentationFormatter.menuBar)
+            ?? WeatherMenuBarPresentation(symbolName: "cloud.sun", text: "\u{2014}")
+        let renderer = IconTextRenderer(
+            symbolName: presentation.symbolName ?? "cloud.sun",
+            text: presentation.text,
+            reservedText: WeatherPresentationFormatter.reservedMenuBarText,
+            // Every condition glyph is reserved, so the item keeps one width as conditions change.
+            reservedSymbolNames: weatherSymbolNames
+        )
         guard let sample else {
-            return StatusItemContent(image: renderer.render(in: context), accessibilityValue: "Weather unavailable")
+            return StatusItemContent(
+                image: renderer.render(in: context),
+                accessibilityValue: "Weather unavailable"
+            )
         }
         let forecast = sample.forecast
-        let temperature = String(format: "%.0f%@", forecast.current.temperature, forecast.units.temperature.symbol)
+        let temperature = String(
+            format: "%.0f%@",
+            forecast.current.temperature,
+            forecast.units.temperature.symbol
+        )
         let staleDescription = sample.isStale ? ", stale" : ""
         return StatusItemContent(
             image: renderer.render(in: context),
@@ -1337,16 +1324,6 @@ public final class MonitoringCoordinator {
         "sun.max", "moon.stars", "cloud.sun", "cloud.moon", "cloud", "cloud.fog", "cloud.drizzle",
         "cloud.rain", "cloud.sleet", "cloud.snow", "cloud.heavyrain", "cloud.bolt.rain", "questionmark.circle",
     ]
-
-    private static func weatherReservedText(mode: String) -> String {
-        switch mode {
-        case "iconTemperatureStacked": "-99°"
-        case "conditions": "99°F Thunderstorm with heavy hail"
-        case "highLow": "H 99°  L 99°"
-        case "precipitation": "100%"
-        default: "99°F"
-        }
-    }
 
 }
 

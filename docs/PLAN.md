@@ -402,6 +402,14 @@ allow `.combined` instances.
 - A glyph drawn beside text is never shrunk below its reference-scale size by the automatic item-count scale.
 - Verify: the glyph and the temperature are legible at every automatic scale; both modes are selectable.
 
+### P8-T13 One Weather presentation
+
+- Weather shows the current condition glyph beside the current temperature, and nothing else. The mode picker and
+  the high/low, precipitation, conditions, text-only, and stacked variants are gone, along with their formatting.
+- The unit letter is dropped from the menu bar; the reader chose the unit and the space is scarce.
+- Every condition glyph is reserved, so changing weather cannot change the item's width.
+- Verify: saved settings in any old mode resolve to the single presentation.
+
 ### P8-T6 Battery power adapter correctness
 
 - `AppleSmartBattery` keeps publishing an `AdapterDetails` stub after the adapter is unplugged, which made the

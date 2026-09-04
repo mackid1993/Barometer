@@ -88,14 +88,9 @@ struct WeatherSettingsView: View {
 
             Section("Menu Bar") {
                 Toggle("Show in menu bar", isOn: moduleEnabledBinding)
-                Picker("Display", selection: moduleModeBinding) {
-                    Text("Icon and temperature").tag("iconTemperature")
-                    Text("Icon over temperature (compact)").tag("iconTemperatureStacked")
-                    Text("Temperature").tag("temperature")
-                    Text("Icon + temperature + condition").tag("conditions")
-                    Text("High / low").tag("highLow")
-                    Text("Precipitation chance").tag("precipitation")
-                }
+                Text("Shows the current conditions and temperature. Set the unit under Units.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Menu Bar Colors") {
@@ -184,9 +179,6 @@ struct WeatherSettingsView: View {
         settingsStore.menuBarVisibilityBinding(for: .weather)
     }
 
-    private var moduleModeBinding: Binding<String> {
-        moduleBinding(\.mode)
-    }
 
     private var temperatureBinding: Binding<TemperatureUnit> {
         unitBinding(\.temperature)

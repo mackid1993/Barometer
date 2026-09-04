@@ -481,12 +481,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
             if presentationDefaultsVersion < 3 {
                 presentationDefaultsVersion = 3
             }
-            if modules[.weather]?.mode == "percentage" {
-                modules[.weather]?.mode = "iconTemperature"
-            }
-            if modules[.weather]?.mode == "template" {
-                modules[.weather]?.mode = "iconTemperature"
-            }
+            // Weather has exactly one presentation now, so every saved mode resolves to it.
+            modules[.weather]?.mode = "iconTemperature"
             if version < 5, modules[.network]?.mode == "percentage" {
                 modules[.network]?.mode = "twoLine"
             }

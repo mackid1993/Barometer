@@ -2316,3 +2316,26 @@ Verification:
   first attempt, where the enlarged glyph collided with the temperature.
 - Widths and glyph ink were measured at every automatic scale from 3 to 16 items. All existing checks still pass.
 - `make install` replaced and relaunched `/Applications/Barometer.app`.
+
+### P8-T13 reduce Weather to one good presentation
+
+David asked for one option: the current conditions and the current temperature, done well. Weather had six modes,
+most of them variations nobody needed and two that could not be read at this size.
+
+Weather now has no display picker. It renders the condition glyph beside the temperature, both using the full bar
+height. The unit letter is dropped, so it reads `81°` rather than `81°F`: the reader chose the unit, and the letter
+cost a glyph of width in the place where width is scarcest. Every condition glyph is reserved, so a change in the
+weather cannot change the item's width, which the previous icon-and-temperature mode did not do.
+
+The mode-based formatter, its reserved-text table, and the high/low, precipitation, conditions, text-only, and
+stacked branches are deleted rather than left unreachable. Any saved weather mode now resolves to the single
+presentation on load.
+
+Verification:
+
+- `swift build`, `swift build -c release`, and `git diff --check` completed successfully; `swift test` built every
+  target, and the runner remains unavailable on this machine.
+- The Weather formatting test now pins the single presentation in both unit systems and the reserved width.
+- Rendering the item beside CPU, Battery, and a stack confirmed the glyph and temperature read at the same weight as
+  their neighbors. All direct checks still pass.
+- `make install` replaced and relaunched `/Applications/Barometer.app`.
