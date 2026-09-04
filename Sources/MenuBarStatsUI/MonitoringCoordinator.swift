@@ -4,7 +4,7 @@ import MenuBarStatsCore
 import Observation
 import SwiftUI
 
-/// Wires Phase 1 monitors, stores, schedulers, and status item controllers together.
+/// Wires active monitors, stores, schedulers, and status item controllers together.
 @MainActor
 public final class MonitoringCoordinator {
     /// Observable CPU state used by status items and dropdowns.
@@ -19,6 +19,9 @@ public final class MonitoringCoordinator {
     /// Observable Network state used by its status item, dropdown, and settings.
     public let networkStore = ModuleStore<NetworkSample>(historyCapacity: 86_400)
 
+    /// Observable Disk state used by its status item, dropdown, and settings.
+    public let diskStore = ModuleStore<DiskSample>(historyCapacity: 86_400)
+
     /// Shared application settings.
     public let settingsStore: SettingsStore
 
@@ -26,28 +29,33 @@ public final class MonitoringCoordinator {
     private let memoryScheduler: Scheduler<MemoryMonitor>
     private let networkMonitor: NetworkMonitor
     private let networkScheduler: Scheduler<NetworkMonitor>
+    private let diskScheduler: Scheduler<DiskMonitor>
     private let powerStateObserver = PowerStateObserver()
     private let displaySleepWatcher = DisplaySleepWatcher()
     private let networkChangeObserver = NetworkChangeObserver()
+    private let volumeMountWatcher = VolumeMountWatcher()
     private var weatherSession: WeatherMonitoringSession?
     private var weatherConfiguration: WeatherConfiguration?
     private var cpuController: StatusItemController<CPUSample>?
     private var memoryController: StatusItemController<MemorySample>?
     private var weatherController: StatusItemController<WeatherSample>?
     private var networkController: StatusItemController<NetworkSample>?
+    private var diskController: StatusItemController<DiskSample>?
     private var cpuDropdown: DropdownController?
     private var memoryDropdown: DropdownController?
     private var weatherDropdown: DropdownController?
     private var networkDropdown: DropdownController?
+    private var diskDropdown: DropdownController?
     private var cpuSampleTask: Task<Void, Never>?
     private var memorySampleTask: Task<Void, Never>?
     private var weatherSampleTask: Task<Void, Never>?
     private var networkSampleTask: Task<Void, Never>?
+    private var diskSampleTask: Task<Void, Never>?
     private var weatherGeneration = 0
     private var isTrackingCurrentLocation = false
     private var lastPublicIPEnabled: Bool?
 
-    /// Creates and starts Phase 1 monitoring.
+    /// Creates and starts application monitoring.
     public init(
         registry: StatusItemRegistry,
         settingsStore: SettingsStore,
@@ -60,6 +68,7 @@ public final class MonitoringCoordinator {
         let networkMonitor = NetworkMonitor()
         self.networkMonitor = networkMonitor
         networkScheduler = Scheduler(monitor: networkMonitor)
+        diskScheduler = Scheduler(monitor: DiskMonitor())
 
         cpuController = StatusItemController(
             module: .cpu,
@@ -101,6 +110,21 @@ public final class MonitoringCoordinator {
                     history: history,
                     moduleSettings: moduleSettings,
                     networkSettings: settingsStore.settings.network,
+                    context: context
+                )
+            }
+        )
+        diskController = StatusItemController(
+            module: .disks,
+            statusItem: registry.item(for: .disks),
+            store: diskStore,
+            settingsStore: settingsStore,
+            render: { sample, history, moduleSettings, context in
+                DiskMenuBarPresenter.content(
+                    sample: sample,
+                    history: history,
+                    moduleSettings: moduleSettings,
+                    diskSettings: settingsStore.settings.disks,
                     context: context
                 )
             }
@@ -156,11 +180,22 @@ public final class MonitoringCoordinator {
             settingsAction: settingsAction,
             quitAction: quitAction
         )
+        diskDropdown = DropdownController(
+            moduleName: ModuleID.disks.displayName,
+            statusItem: registry.item(for: .disks),
+            rootView: AnyView(DiskDropdownView(store: diskStore, settingsStore: settingsStore)),
+            contentHeight: 520,
+            contentWidth: 380,
+            tickAction: { [weak diskStore] in diskStore?.tick() },
+            settingsAction: settingsAction,
+            quitAction: quitAction
+        )
 
         startSampleConsumption()
         configurePowerAwareness()
         configureDisplaySleepAwareness()
         configureNetworkChangeAwareness()
+        configureVolumeMountAwareness()
         observeSettings()
         configureWeatherMonitoring()
         configureCurrentLocation()
@@ -169,6 +204,7 @@ public final class MonitoringCoordinator {
             await cpuScheduler.start()
             await memoryScheduler.start()
             await networkScheduler.start()
+            await diskScheduler.start()
         }
     }
 
@@ -178,11 +214,13 @@ public final class MonitoringCoordinator {
         memorySampleTask?.cancel()
         weatherSampleTask?.cancel()
         networkSampleTask?.cancel()
+        diskSampleTask?.cancel()
         CurrentLocationProvider.shared.stop()
         Task {
             await cpuScheduler.stop()
             await memoryScheduler.stop()
             await networkScheduler.stop()
+            await diskScheduler.stop()
             await weatherSession?.stop()
         }
     }
@@ -217,6 +255,16 @@ public final class MonitoringCoordinator {
                 self?.networkStore.receive(sample, at: sample.timestamp)
             }
         }
+
+        let diskSamples = diskScheduler.samples
+        diskSampleTask = Task { [weak self] in
+            for await sample in diskSamples {
+                guard !Task.isCancelled else {
+                    break
+                }
+                self?.diskStore.receive(sample, at: sample.timestamp)
+            }
+        }
     }
 
     private func configurePowerAwareness() {
@@ -235,6 +283,7 @@ public final class MonitoringCoordinator {
                 await self.cpuScheduler.pause()
                 await self.memoryScheduler.pause()
                 await self.networkScheduler.pause()
+                await self.diskScheduler.pause()
                 await self.weatherSession?.pause()
             }
         }
@@ -246,6 +295,7 @@ public final class MonitoringCoordinator {
                 await self.cpuScheduler.resume()
                 await self.memoryScheduler.resume()
                 await self.networkScheduler.resume()
+                await self.diskScheduler.resume()
                 await self.weatherSession?.resume()
             }
         }
@@ -258,6 +308,7 @@ public final class MonitoringCoordinator {
             await cpuScheduler.setIntervalMultiplier(multiplier)
             await memoryScheduler.setIntervalMultiplier(multiplier)
             await networkScheduler.setIntervalMultiplier(multiplier)
+            await diskScheduler.setIntervalMultiplier(multiplier)
         }
     }
 
@@ -268,8 +319,10 @@ public final class MonitoringCoordinator {
             _ = settingsStore.settings.modules[.memory]?.interval
             _ = settingsStore.settings.modules[.weather]?.isEnabled
             _ = settingsStore.settings.modules[.network]?.interval
+            _ = settingsStore.settings.modules[.disks]?.interval
             _ = settingsStore.settings.weather
             _ = settingsStore.settings.network
+            _ = settingsStore.settings.disks
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else {
@@ -291,10 +344,12 @@ public final class MonitoringCoordinator {
         let cpuSeconds = settingsStore.settings.modules[.cpu]?.interval ?? 1
         let memorySeconds = settingsStore.settings.modules[.memory]?.interval ?? 2
         let networkSeconds = settingsStore.settings.modules[.network]?.interval ?? 1
+        let diskSeconds = settingsStore.settings.modules[.disks]?.interval ?? 1
         Task {
             await cpuScheduler.setInterval(.milliseconds(Int64(max(0.25, cpuSeconds) * 1_000)))
             await memoryScheduler.setInterval(.milliseconds(Int64(max(0.25, memorySeconds) * 1_000)))
             await networkScheduler.setInterval(.milliseconds(Int64(max(0.25, networkSeconds) * 1_000)))
+            await diskScheduler.setInterval(.milliseconds(Int64(max(0.25, diskSeconds) * 1_000)))
         }
     }
 
@@ -306,6 +361,17 @@ public final class MonitoringCoordinator {
             Task {
                 await self.networkMonitor.refreshPublicIP()
                 await self.networkScheduler.refresh()
+            }
+        }
+    }
+
+    private func configureVolumeMountAwareness() {
+        volumeMountWatcher.onChange = { [weak self] in
+            guard let self else {
+                return
+            }
+            Task {
+                await self.diskScheduler.refresh()
             }
         }
     }

@@ -16,6 +16,35 @@ public struct DiskVolumeSample: Equatable, Sendable {
     public let isRemovable: Bool
     public let isReadOnly: Bool
 
+    /// Creates one normalized mounted-volume sample.
+    public init(
+        id: String,
+        name: String,
+        mountPoint: String,
+        bsdName: String?,
+        physicalBSDName: String?,
+        totalBytes: UInt64,
+        usedBytes: UInt64,
+        availableBytes: UInt64,
+        kind: DiskVolumeKind,
+        isEjectable: Bool,
+        isRemovable: Bool,
+        isReadOnly: Bool
+    ) {
+        self.id = id
+        self.name = name
+        self.mountPoint = mountPoint
+        self.bsdName = bsdName
+        self.physicalBSDName = physicalBSDName
+        self.totalBytes = totalBytes
+        self.usedBytes = usedBytes
+        self.availableBytes = availableBytes
+        self.kind = kind
+        self.isEjectable = isEjectable
+        self.isRemovable = isRemovable
+        self.isReadOnly = isReadOnly
+    }
+
     /// Percentage of total capacity currently in use.
     public var usedPercent: Double {
         totalBytes > 0 ? Double(usedBytes) / Double(totalBytes) * 100 : 0
@@ -36,6 +65,35 @@ public struct DiskDeviceSample: Equatable, Sendable {
     public let writeOperations: UInt64
     public let readErrors: UInt64
     public let writeErrors: UInt64
+
+    /// Creates one physical-disk rate and counter sample.
+    public init(
+        bsdName: String,
+        model: String?,
+        readBytesPerSecond: Double,
+        writeBytesPerSecond: Double,
+        readOperationsPerSecond: Double,
+        writeOperationsPerSecond: Double,
+        bytesRead: UInt64,
+        bytesWritten: UInt64,
+        readOperations: UInt64,
+        writeOperations: UInt64,
+        readErrors: UInt64,
+        writeErrors: UInt64
+    ) {
+        self.bsdName = bsdName
+        self.model = model
+        self.readBytesPerSecond = readBytesPerSecond
+        self.writeBytesPerSecond = writeBytesPerSecond
+        self.readOperationsPerSecond = readOperationsPerSecond
+        self.writeOperationsPerSecond = writeOperationsPerSecond
+        self.bytesRead = bytesRead
+        self.bytesWritten = bytesWritten
+        self.readOperations = readOperations
+        self.writeOperations = writeOperations
+        self.readErrors = readErrors
+        self.writeErrors = writeErrors
+    }
 }
 
 /// Mounted volumes and physical disk activity sampled together.
@@ -43,6 +101,13 @@ public struct DiskSample: Equatable, Sendable {
     public let timestamp: Date
     public let volumes: [DiskVolumeSample]
     public let devices: [DiskDeviceSample]
+
+    /// Creates a complete Disk sample.
+    public init(timestamp: Date, volumes: [DiskVolumeSample], devices: [DiskDeviceSample]) {
+        self.timestamp = timestamp
+        self.volumes = volumes
+        self.devices = devices
+    }
 }
 
 /// Converts cumulative block-driver statistics into live disk throughput and operation rates.

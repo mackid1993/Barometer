@@ -24,7 +24,7 @@ struct SettingsTests {
         )
         let migrated = try JSONDecoder().decode(AppSettings.self, from: versionZero)
 
-        #expect(migrated.schemaVersion == 6)
+        #expect(migrated.schemaVersion == 7)
         #expect(!migrated.reducesSamplingOnBattery)
         #expect(!migrated.isMonochrome)
         #expect(migrated.fontSize == 12)
@@ -49,7 +49,7 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.schemaVersion == 6)
+        #expect(migrated.schemaVersion == 7)
         #expect(migrated.weather.refreshIntervalMinutes == 15)
         #expect(migrated.weather.units.temperature == .fahrenheit)
         #expect(migrated.sensorTemperatureUnit == .celsius)
@@ -74,9 +74,10 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.schemaVersion == 6)
+        #expect(migrated.schemaVersion == 7)
         #expect(migrated.network == NetworkSettings())
         #expect(migrated.modules[.network]?.mode == "twoLine")
+        #expect(migrated.disks == DiskSettings())
     }
 
     @Test("older settings gain an inactive global palette")
@@ -94,6 +95,29 @@ struct SettingsTests {
         #expect(!migrated.usesGlobalColors)
         #expect(migrated.globalLightColor == "#2F7CF6")
         #expect(migrated.globalDarkColor == "#6BA4FF")
+    }
+
+    @Test("schema six settings gain Disk defaults")
+    func migrateSchemaSixDiskDefaults() throws {
+        let encoded = try JSONEncoder().encode(AppSettings())
+        var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        object["schemaVersion"] = 6
+        object.removeValue(forKey: "disks")
+        var modules = try #require(object["modules"] as? [Any])
+        if let index = modules.firstIndex(where: { ($0 as? String) == ModuleID.disks.rawValue }),
+           modules.indices.contains(index + 1),
+           var diskModule = modules[index + 1] as? [String: Any] {
+            diskModule["mode"] = "percentage"
+            modules[index + 1] = diskModule
+            object["modules"] = modules
+        }
+
+        let oldData = try JSONSerialization.data(withJSONObject: object)
+        let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
+
+        #expect(migrated.schemaVersion == 7)
+        #expect(migrated.disks == DiskSettings())
+        #expect(migrated.modules[.disks]?.mode == "activityGraph")
     }
 
     @Test("global palette overrides module colors without erasing them")

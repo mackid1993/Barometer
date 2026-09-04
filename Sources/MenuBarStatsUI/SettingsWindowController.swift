@@ -7,8 +7,16 @@ import SwiftUI
 @MainActor
 public final class SettingsWindowController: NSWindowController {
     /// Creates the settings window controller.
-    public convenience init(settingsStore: SettingsStore, networkStore: ModuleStore<NetworkSample>) {
-        let rootView = SettingsRootView(settingsStore: settingsStore, networkStore: networkStore)
+    public convenience init(
+        settingsStore: SettingsStore,
+        networkStore: ModuleStore<NetworkSample>,
+        diskStore: ModuleStore<DiskSample>
+    ) {
+        let rootView = SettingsRootView(
+            settingsStore: settingsStore,
+            networkStore: networkStore,
+            diskStore: diskStore
+        )
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Barometer Settings"
@@ -43,6 +51,7 @@ private enum SettingsSelection: Hashable {
 private struct SettingsRootView: View {
     let settingsStore: SettingsStore
     let networkStore: ModuleStore<NetworkSample>
+    let diskStore: ModuleStore<DiskSample>
     @State private var selection: SettingsSelection? = .general
 
     var body: some View {
@@ -70,6 +79,8 @@ private struct SettingsRootView: View {
                 WeatherSettingsView(settingsStore: settingsStore)
             case let .module(module) where module == .network:
                 NetworkSettingsView(store: networkStore, settingsStore: settingsStore)
+            case let .module(module) where module == .disks:
+                DiskSettingsView(store: diskStore, settingsStore: settingsStore)
             case let .module(module):
                 FutureModuleSettingsView(module: module)
             }

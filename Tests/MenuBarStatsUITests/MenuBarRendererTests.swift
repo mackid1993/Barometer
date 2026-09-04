@@ -161,4 +161,54 @@ struct MenuBarRendererTests {
         #expect(first.size == swapped.size)
         #expect(first.size.height == context.thickness)
     }
+
+    @Test
+    func diskPresentationSupportsEveryMenuBarMode() {
+        let volume = DiskVolumeSample(
+            id: "startup",
+            name: "Macintosh HD",
+            mountPoint: "/",
+            bsdName: "disk3s3s1",
+            physicalBSDName: "disk0",
+            totalBytes: 1_000,
+            usedBytes: 650,
+            availableBytes: 350,
+            kind: .internalDisk,
+            isEjectable: false,
+            isRemovable: false,
+            isReadOnly: true
+        )
+        let device = DiskDeviceSample(
+            bsdName: "disk0",
+            model: "Test SSD",
+            readBytesPerSecond: 1_250_000,
+            writeBytesPerSecond: 82_000,
+            readOperationsPerSecond: 20,
+            writeOperationsPerSecond: 5,
+            bytesRead: 10_000_000,
+            bytesWritten: 2_000_000,
+            readOperations: 100,
+            writeOperations: 50,
+            readErrors: 0,
+            writeErrors: 0
+        )
+        let sample = DiskSample(
+            timestamp: Date(timeIntervalSince1970: 10),
+            volumes: [volume],
+            devices: [device]
+        )
+        let history = [HistoryEntry(timestamp: sample.timestamp, value: sample)]
+
+        for mode in ["activityGraph", "freePercentage", "freeBytes", "rates"] {
+            let content = DiskMenuBarPresenter.content(
+                sample: sample,
+                history: history,
+                moduleSettings: ModuleSettings(isEnabled: true, mode: mode),
+                diskSettings: DiskSettings(),
+                context: context
+            )
+            #expect(content.image.size.width > 0)
+            #expect(content.accessibilityValue.contains("Disks read"))
+        }
+    }
 }

@@ -881,3 +881,42 @@ Verification:
 - A short `swift run mbs-probe disks --watch` observation showed ordinary background rates changing across samples,
   including 294.0 KiB/s read and 640.0 KiB/s write. No `dd`, benchmark, speed test, or temporary payload was used.
 - `git diff --check` passed, and all changed Swift files stay within 120 columns.
+
+## P3-T4 Disk module
+
+Completed the independent `Barometer.Disks` status item, scheduler, mount-change refresh, dropdown, and settings pane.
+Menu bar modes include a bidirectional activity graph with reads above and writes below the centerline, free-space
+percentage, compact free bytes, and matched read/write rate rows. The graph supports line, area, and bar styles, and
+graph style stays editable before the user selects the graph mode.
+
+The dropdown shows aggregate read/write activity, a live bidirectional history graph, user-facing volume usage bars,
+mount points, free capacity, physical device names, per-device rates and operations, and eject buttons only for
+removable or ejectable volumes. Eject uses AppKit's throwing `unmountAndEjectDevice(at:)` API and surfaces failures
+inline. Settings select the free-space volume, independently hide any listed volume, hide macOS implementation
+volumes as a group, choose decimal or binary units, set the sampling interval, and use either module colors or the
+global palette.
+
+`VolumeMountWatcher` observes mount, unmount, and volume-rename notifications without polling and immediately
+refreshes the existing scheduler. Disk sampling joins CPU, Memory, Network, and Weather in display-sleep and
+battery-aware scheduling. The settings schema migrates prior builds to the Disk defaults without changing saved
+Network decimals, global colors, or other module preferences.
+
+Verification:
+
+- `swift test` rebuilt and linked all targets and exited 0. Tests cover rate calculation and reset handling,
+  binary/decimal formatting, hidden and system-volume filtering, startup/selected volume fallback, settings
+  migration, all four menu bar modes, and bidirectional graph construction.
+- `make run` release-built, ad hoc signed, installed, and launched `/Applications/Barometer.app`. The running
+  process is the single bundled executable; no helper was created.
+- A temporary 100 MB APFS `MBSTest` disk image appeared as an external volume with 98.9 MiB free, then detached
+  cleanly. Unified logging recorded `Mounted-volume list changed` for both attachment and ejection. The image and its
+  temporary directory were deleted afterward.
+- The dropdown's AppKit eject action compiled against the current macOS 27 SDK. Automated clicking was not attempted
+  because `osascript` lacks Accessibility access, and the project rules prohibit requesting a new TCC permission for
+  this check. A user click remains the appropriate final interaction check for a removable test volume.
+- `codesign --verify --deep --strict --verbose=2 /Applications/Barometer.app` reported the bundle valid on disk and
+  satisfying its designated requirement.
+- The runtime identity report recorded `Barometer.Disks`, accessibility label `Disks`, an empty button title and AX
+  title, and owner bundle `com.barometer.app`. The item remains permanently allocated and hidden with `isVisible`
+  when disabled.
+- `git diff --check` passed, and all changed Swift files stay within 120 columns.
