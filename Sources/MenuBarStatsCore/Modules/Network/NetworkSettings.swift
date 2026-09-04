@@ -107,13 +107,15 @@ public enum NetworkRateFormatter {
         let suffixes = unit == .bits
             ? (compact ? ["b", "k", "m", "g", "t"] : ["b/s", "Kb/s", "Mb/s", "Gb/s", "Tb/s"])
             : (compact ? ["B", "K", "M", "G", "T"] : ["B/s", "KB/s", "MB/s", "GB/s", "TB/s"])
+        let precision = min(2, max(0, decimalPlaces))
+        let compactBoundary = 100 - 0.5 * pow(10, -Double(precision))
+        let unitBoundary = compact ? compactBoundary : 1_000
         var scaled = value / 1_000
         var suffixIndex = 1
-        while scaled >= 1_000, suffixIndex < suffixes.count - 1 {
+        while scaled >= unitBoundary, suffixIndex < suffixes.count - 1 {
             scaled /= 1_000
             suffixIndex += 1
         }
-        let precision = min(2, max(0, decimalPlaces))
         let number = String(format: "%.*f", precision, scaled)
         return compact ? "\(number)\(suffixes[suffixIndex])" : "\(number) \(suffixes[suffixIndex])"
     }

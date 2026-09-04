@@ -13,6 +13,16 @@ struct NetworkTests {
         #expect(NetworkRateFormatter.compactString(bytesPerSecond: 62, unit: .bytes, decimalPlaces: 2) == "0.06K")
         #expect(NetworkRateFormatter.string(bytesPerSecond: -1, unit: .bytes) == "0.0 KB/s")
         #expect(
+            NetworkRateFormatter.compactString(bytesPerSecond: 99_994, unit: .bytes, decimalPlaces: 2) == "99.99K"
+        )
+        #expect(
+            NetworkRateFormatter.compactString(bytesPerSecond: 99_995, unit: .bytes, decimalPlaces: 2) == "0.10M"
+        )
+        #expect(
+            NetworkRateFormatter.compactString(bytesPerSecond: 125_000, unit: .bytes, decimalPlaces: 2) == "0.13M"
+        )
+        #expect(NetworkRateFormatter.string(bytesPerSecond: 125_000, unit: .bytes, decimalPlaces: 2) == "125.00 KB/s")
+        #expect(
             NetworkRateFormatter.compactString(bytesPerSecond: 82_000, unit: .bytes, decimalPlaces: 0) == "82K"
         )
         #expect(

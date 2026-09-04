@@ -1163,3 +1163,20 @@ Verification:
 - `codesign --verify --deep --strict --verbose=2 /Applications/Barometer.app` passed. The installed identifier remains
   `com.barometer.app`, and `Contents/MacOS/Barometer` remains its only executable.
 - `git diff --check` passed, and all changed Swift files stay within 120 columns.
+
+### Fixed network width follow-up
+
+Compact network rates now promote to the next unit before rounding would require a third integer digit. For example,
+`99.99K` advances to `0.10M` instead of expanding to `100.00K`. The existing two-digit fixed-width reservation can
+therefore cover normal rates across K, M, G, and T units without moving neighboring status items or restoring the
+visibly empty three-digit slot. Full dropdown rates retain conventional 1,000-based unit boundaries.
+
+Verification:
+
+- `swift test` exited 0. New coverage checks the rounding boundary, unit promotion, conventional full-rate format,
+  and identical rendered widths across compact K, M, and G values.
+- `swift build -c release` and `make app` completed successfully. The final bundle was installed and launched from
+  `/Applications/Barometer.app`; strict code-signature verification passed.
+- With the saved one-decimal setting, the runtime identity report records a 38-point Network image and status item.
+  That reservation now remains 38 points as live rates promote between compact units.
+- `git diff --check` passed, and all changed Swift files stay within 120 columns.

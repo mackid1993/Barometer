@@ -182,6 +182,25 @@ struct MenuBarRendererTests {
     }
 
     @Test
+    func compactNetworkRatesKeepOneReservedWidthAcrossUnitPromotion() {
+        let placeholder = NetworkRateFormatter.compactPlaceholder(unit: .bytes, decimalPlaces: 2)
+        let images = [99_994.0, 99_995.0, 125_000.0, 99_000_000.0].map { rate in
+            let value = NetworkRateFormatter.compactString(
+                bytesPerSecond: rate,
+                unit: .bytes,
+                decimalPlaces: 2
+            )
+            return NetworkRateStackRenderer(
+                download: value,
+                upload: value,
+                reservedValue: placeholder
+            ).render(in: context)
+        }
+
+        #expect(Set(images.map(\.size.width)).count == 1)
+    }
+
+    @Test
     func sensorStackKeepsStableGeometryAndExpandsByColumns() {
         let cool = SensorStackRenderer(values: [
             SensorStackValue(label: "CPU", value: "39.1°C", reservedValue: "999.9°C"),
