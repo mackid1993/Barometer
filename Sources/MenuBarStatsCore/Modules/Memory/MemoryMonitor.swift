@@ -75,7 +75,7 @@ public actor MemoryMonitor: Monitor {
     }
 
     /// Creates a Memory monitor.
-    public init(interval: Duration = .seconds(2), processRefreshInterval: TimeInterval = 5) {
+    public init(interval: Duration = .seconds(2), processRefreshInterval: TimeInterval = 10) {
         self.interval = interval
         self.processRefreshInterval = processRefreshInterval
         memorySource = MemorySource()

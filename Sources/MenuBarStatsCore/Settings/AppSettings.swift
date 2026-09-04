@@ -150,7 +150,7 @@ public struct ModuleSettings: Codable, Equatable, Sendable {
 /// Versioned application settings persisted as JSON in the app defaults domain.
 public struct AppSettings: Codable, Equatable, Sendable {
     /// Current settings schema version.
-    public static let currentSchemaVersion = 12
+    public static let currentSchemaVersion = 13
 
     /// Schema version encoded in this value.
     public var schemaVersion: Int
@@ -308,7 +308,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         values[.weather] = ModuleSettings(isEnabled: false, mode: "iconTemperature", interval: 900)
         values[.network] = ModuleSettings(isEnabled: false, mode: "twoLine", interval: 1)
         values[.disks] = ModuleSettings(isEnabled: false, mode: "activityGraph", interval: 1)
-        values[.sensors] = ModuleSettings(isEnabled: false, mode: "compactStack", interval: 2)
+        values[.sensors] = ModuleSettings(isEnabled: false, mode: "compactStack", interval: 5)
         values[.battery] = ModuleSettings(isEnabled: false, mode: "glyphPercentage", interval: 10)
         values[.time] = ModuleSettings(isEnabled: false, mode: "custom", interval: 60)
         values[.combined] = ModuleSettings(isEnabled: false, mode: "members", interval: 1)
@@ -492,6 +492,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
             }
             if version < 8, modules[.sensors]?.mode == "percentage" {
                 modules[.sensors]?.mode = "compactStack"
+            }
+            if var sensorModule = modules[.sensors] {
+                sensorModule.interval = max(5, sensorModule.interval)
+                modules[.sensors] = sensorModule
             }
             if let batteryMode = modules[.battery]?.mode {
                 switch batteryMode {

@@ -40,6 +40,7 @@ public final class StatusItemController<Sample: Sendable> {
     private let isEnabled: IsEnabled
     private let logger = Logger(subsystem: "com.barometer.app", category: "render")
     private var appliedLength: CGFloat?
+    private var lengthSettings: AppSettings?
 
     /// Creates and begins observing a status item controller.
     public init(
@@ -92,10 +93,16 @@ public final class StatusItemController<Sample: Sendable> {
         // so the user-controlled spacing can reach zero while each module remains
         // a separate, movable status item.
         let targetLength = StatusItemRendering.itemLength(for: content.image)
-        if StatusItemRendering.shouldUpdateLength(current: appliedLength, target: targetLength) {
+        let layoutChanged = lengthSettings != appSettings
+        if StatusItemRendering.shouldUpdateLength(
+            current: appliedLength,
+            target: targetLength,
+            allowsResize: layoutChanged
+        ) {
             statusItem.length = targetLength
             appliedLength = targetLength
         }
+        lengthSettings = appSettings
         button.setAccessibilityValue(content.accessibilityValue)
         if !statusItem.isVisible {
             statusItem.isVisible = true
@@ -134,8 +141,11 @@ enum StatusItemRendering {
         max(1, ceil(image.size.width))
     }
 
-    static func shouldUpdateLength(current: CGFloat?, target: CGFloat) -> Bool {
-        current.map { abs($0 - target) > 0.01 } ?? true
+    static func shouldUpdateLength(current: CGFloat?, target: CGFloat, allowsResize: Bool = true) -> Bool {
+        guard let current else {
+            return true
+        }
+        return allowsResize && abs(current - target) > 0.01
     }
 
     static func visibilityPreferenceKeys(autosaveName: String) -> [String] {

@@ -4,7 +4,6 @@ import SwiftUI
 
 /// Battery menu bar, warning, sampling, and dropdown preferences.
 struct BatterySettingsView: View {
-    let store: ModuleStore<BatterySample>
     let settingsStore: SettingsStore
 
     private var moduleSettings: ModuleSettings {
@@ -12,14 +11,9 @@ struct BatterySettingsView: View {
     }
 
     var body: some View {
-        let _ = store.revision
         Form {
             Section {
                 Toggle("Show in menu bar", isOn: moduleBinding(\.isEnabled))
-                LabeledContent(
-                    "Live charge",
-                    value: store.latestSample.map { String(format: "%.1f%%", $0.chargePercent) } ?? "Discovering…"
-                )
             }
             Section("Menu Bar") {
                 Picker("Display", selection: moduleBinding(\.mode)) {

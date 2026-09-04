@@ -284,7 +284,7 @@ struct ProcessIcon: View {
 }
 
 @MainActor
-private enum ProcessIconResolver {
+enum ProcessIconResolver {
     private static let cache = NSCache<NSString, NSImage>()
 
     static func image(processIdentifier: pid_t, path: String?) -> NSImage {
@@ -293,8 +293,8 @@ private enum ProcessIconResolver {
             return cached
         }
 
-        let image = NSRunningApplication(processIdentifier: processIdentifier)?.icon
-            ?? applicationURL(for: path).map { NSWorkspace.shared.icon(forFile: $0.path) }
+        let image = applicationURL(for: path).map { NSWorkspace.shared.icon(forFile: $0.path) }
+            ?? NSRunningApplication(processIdentifier: processIdentifier)?.icon
             ?? path.map { NSWorkspace.shared.icon(forFile: $0) }
             ?? NSImage(systemSymbolName: "terminal.fill", accessibilityDescription: "Command-line process")
             ?? NSImage()
@@ -302,18 +302,19 @@ private enum ProcessIconResolver {
         return image
     }
 
-    private static func applicationURL(for path: String?) -> URL? {
+    static func applicationURL(for path: String?) -> URL? {
         guard let path else {
             return nil
         }
         var candidate = URL(fileURLWithPath: path).deletingLastPathComponent()
+        var outermostApplication: URL?
         while candidate.path != "/" {
             if candidate.pathExtension.caseInsensitiveCompare("app") == .orderedSame {
-                return candidate
+                outermostApplication = candidate
             }
             candidate.deleteLastPathComponent()
         }
-        return nil
+        return outermostApplication
     }
 }
 

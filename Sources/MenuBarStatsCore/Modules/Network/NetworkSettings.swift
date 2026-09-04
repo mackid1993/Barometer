@@ -12,6 +12,12 @@ public enum NetworkGraphScale: String, Codable, CaseIterable, Sendable {
     case fixed
 }
 
+/// Vertical ordering of transfer rates in compact Network presentations.
+public enum NetworkRateOrder: String, Codable, CaseIterable, Sendable {
+    case uploadThenDownload
+    case downloadThenUpload
+}
+
 /// Persisted choices specific to the Network module.
 public struct NetworkSettings: Codable, Equatable, Sendable {
     /// Preferred interface, or `nil` to follow the primary route.
@@ -22,6 +28,9 @@ public struct NetworkSettings: Codable, Equatable, Sendable {
 
     /// Number of fractional digits shown in live transfer rates.
     public var decimalPlaces: Int
+
+    /// Transfer direction displayed first in vertical and linear presentations.
+    public var rateOrder: NetworkRateOrder
 
     /// Whether the external public-address lookup is allowed.
     public var showsPublicIP: Bool
@@ -37,6 +46,7 @@ public struct NetworkSettings: Codable, Equatable, Sendable {
         selectedInterfaceName: String? = nil,
         rateUnit: NetworkRateUnit = .bytes,
         decimalPlaces: Int = 1,
+        rateOrder: NetworkRateOrder = .uploadThenDownload,
         showsPublicIP: Bool = false,
         graphScale: NetworkGraphScale = .automatic,
         fixedGraphMaximumBytesPerSecond: Double = 10_000_000
@@ -44,6 +54,7 @@ public struct NetworkSettings: Codable, Equatable, Sendable {
         self.selectedInterfaceName = selectedInterfaceName
         self.rateUnit = rateUnit
         self.decimalPlaces = min(2, max(0, decimalPlaces))
+        self.rateOrder = rateOrder
         self.showsPublicIP = showsPublicIP
         self.graphScale = graphScale
         self.fixedGraphMaximumBytesPerSecond = fixedGraphMaximumBytesPerSecond
@@ -53,6 +64,7 @@ public struct NetworkSettings: Codable, Equatable, Sendable {
         case selectedInterfaceName
         case rateUnit
         case decimalPlaces
+        case rateOrder
         case showsPublicIP
         case graphScale
         case fixedGraphMaximumBytesPerSecond
@@ -64,6 +76,7 @@ public struct NetworkSettings: Codable, Equatable, Sendable {
         selectedInterfaceName = try container.decodeIfPresent(String.self, forKey: .selectedInterfaceName)
         rateUnit = try container.decodeIfPresent(NetworkRateUnit.self, forKey: .rateUnit) ?? .bytes
         decimalPlaces = min(2, max(0, try container.decodeIfPresent(Int.self, forKey: .decimalPlaces) ?? 1))
+        rateOrder = try container.decodeIfPresent(NetworkRateOrder.self, forKey: .rateOrder) ?? .uploadThenDownload
         showsPublicIP = try container.decodeIfPresent(Bool.self, forKey: .showsPublicIP) ?? false
         graphScale = try container.decodeIfPresent(NetworkGraphScale.self, forKey: .graphScale) ?? .automatic
         fixedGraphMaximumBytesPerSecond = try container.decodeIfPresent(
@@ -89,7 +102,7 @@ public enum NetworkRateFormatter {
         format(bytesPerSecond: bytesPerSecond, unit: unit, decimalPlaces: decimalPlaces, compact: true)
     }
 
-    /// Returns the normal two-digit value reserved by the stable two-row renderer.
+    /// Returns the widest value before compact formatting promotes to the next unit.
     public static func compactPlaceholder(unit: NetworkRateUnit, decimalPlaces: Int) -> String {
         let precision = min(2, max(0, decimalPlaces))
         let fraction = precision == 0 ? "" : "." + String(repeating: "9", count: precision)

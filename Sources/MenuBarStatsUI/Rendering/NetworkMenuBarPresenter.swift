@@ -11,30 +11,27 @@ enum NetworkMenuBarPresenter {
         networkSettings: NetworkSettings,
         context: RenderContext
     ) -> StatusItemContent {
-        guard let sample,
-              let interface = sample.interface(named: networkSettings.selectedInterfaceName)
-        else {
-            return StatusItemContent(
-                image: StackedLabelRenderer(label: "NET", value: "—").render(in: context),
-                accessibilityValue: "Network unavailable"
-            )
-        }
-
-        let download = NetworkRateFormatter.compactString(
-            bytesPerSecond: interface.downloadBytesPerSecond,
-            unit: networkSettings.rateUnit,
-            decimalPlaces: networkSettings.decimalPlaces
-        )
-        let upload = NetworkRateFormatter.compactString(
-            bytesPerSecond: interface.uploadBytesPerSecond,
-            unit: networkSettings.rateUnit,
-            decimalPlaces: networkSettings.decimalPlaces
-        )
         let placeholder = NetworkRateFormatter.compactPlaceholder(
             unit: networkSettings.rateUnit,
             decimalPlaces: networkSettings.decimalPlaces
         )
+        let interface = sample?.interface(named: networkSettings.selectedInterfaceName)
+        let download = interface.map {
+            NetworkRateFormatter.compactString(
+                bytesPerSecond: $0.downloadBytesPerSecond,
+                unit: networkSettings.rateUnit,
+                decimalPlaces: networkSettings.decimalPlaces
+            )
+        } ?? "—"
+        let upload = interface.map {
+            NetworkRateFormatter.compactString(
+                bytesPerSecond: $0.uploadBytesPerSecond,
+                unit: networkSettings.rateUnit,
+                decimalPlaces: networkSettings.decimalPlaces
+            )
+        } ?? "—"
         let renderer: any MenuBarRenderer
+        let uploadFirst = networkSettings.rateOrder == .uploadThenDownload
         switch moduleSettings.mode {
         case "graph":
             renderer = GraphRenderer(
@@ -46,17 +43,33 @@ enum NetworkMenuBarPresenter {
                 style: moduleSettings.graphStyle
             )
         case "arrows":
+            let orderedText = uploadFirst
+                ? "↑\(upload) ↓\(download)"
+                : "↓\(download) ↑\(upload)"
+            let orderedPlaceholder = uploadFirst
+                ? "↑\(placeholder) ↓\(placeholder)"
+                : "↓\(placeholder) ↑\(placeholder)"
             renderer = TextRenderer(
-                text: "↓\(download) ↑\(upload)",
-                reservedText: moduleSettings.usesFixedWidth ? "↓\(placeholder) ↑\(placeholder)" : nil
+                text: orderedText,
+                reservedText: moduleSettings.usesFixedWidth ? orderedPlaceholder : nil
             )
         case "stacked":
-            renderer = StackedLabelRenderer(label: "NET", value: download)
+            renderer = StackedLabelRenderer(label: "NET", value: download, reservedValue: placeholder)
         default:
-            renderer = NetworkRateStackRenderer(
-                download: download,
-                upload: upload,
-                reservedValue: placeholder
+            renderer = uploadFirst
+                ? NetworkRateStackRenderer(
+                    top: "↑\(upload)",
+                    bottom: "↓\(download)",
+                    reservedTop: "↑\(placeholder)",
+                    reservedBottom: "↓\(placeholder)"
+                )
+                : NetworkRateStackRenderer(download: download, upload: upload, reservedValue: placeholder)
+        }
+
+        guard let interface else {
+            return StatusItemContent(
+                image: renderer.render(in: context),
+                accessibilityValue: "Network unavailable"
             )
         }
 

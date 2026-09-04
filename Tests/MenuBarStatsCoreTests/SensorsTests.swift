@@ -99,4 +99,21 @@ struct SensorsTests {
         accumulator.reset()
         #expect(accumulator.joules.isEmpty)
     }
+
+    @Test("expensive sensor sources use their configured refresh cadence")
+    func throttlesExpensiveSources() {
+        let start = Date(timeIntervalSince1970: 100)
+
+        #expect(SensorsMonitor.shouldRefresh(lastRefresh: nil, now: start, interval: 10))
+        #expect(!SensorsMonitor.shouldRefresh(
+            lastRefresh: start,
+            now: start.addingTimeInterval(9.9),
+            interval: 10
+        ))
+        #expect(SensorsMonitor.shouldRefresh(
+            lastRefresh: start,
+            now: start.addingTimeInterval(10),
+            interval: 10
+        ))
+    }
 }

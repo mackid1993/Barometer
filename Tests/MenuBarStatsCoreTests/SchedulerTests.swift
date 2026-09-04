@@ -30,6 +30,7 @@ struct SchedulerTests {
         await scheduler.stop()
 
         #expect(await monitor.sampleCount() == 2)
+        #expect(await monitor.availabilityCheckCount() == 1)
     }
 
     private func waitForSamples(_ count: Int, from monitor: CountingMonitor) async {
@@ -82,8 +83,13 @@ private actor RecordingClock: SampleClock {
 
 private actor CountingMonitor: Monitor {
     nonisolated let interval: Duration = .seconds(3_600)
-    nonisolated let isAvailable = true
     private var count = 0
+    private var availabilityChecks = 0
+
+    var isAvailable: Bool {
+        availabilityChecks += 1
+        return true
+    }
 
     func sample() -> Int {
         count += 1
@@ -92,5 +98,9 @@ private actor CountingMonitor: Monitor {
 
     func sampleCount() -> Int {
         count
+    }
+
+    func availabilityCheckCount() -> Int {
+        availabilityChecks
     }
 }

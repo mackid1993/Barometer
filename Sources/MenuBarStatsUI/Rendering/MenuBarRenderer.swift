@@ -439,12 +439,19 @@ public struct DiskActivityGraphRenderer: MenuBarRenderer {
 /// Renders a small label above a value.
 public struct StackedLabelRenderer: MenuBarRenderer {
     private let label: String
+    private let reservedLabel: String
     private let value: String
     private let reservedValue: String?
 
     /// Creates a stacked label renderer.
-    public init(label: String, value: String, reservedValue: String? = nil) {
+    public init(
+        label: String,
+        value: String,
+        reservedLabel: String? = nil,
+        reservedValue: String? = nil
+    ) {
         self.label = label
+        self.reservedLabel = reservedLabel ?? label
         self.value = value
         self.reservedValue = reservedValue
     }
@@ -463,10 +470,17 @@ public struct StackedLabelRenderer: MenuBarRenderer {
             .foregroundColor: context.foregroundColor,
         ]
         let labelText = NSAttributedString(string: label, attributes: labelAttributes)
+        let reservedLabelText = NSAttributedString(string: reservedLabel, attributes: labelAttributes)
         let valueText = NSAttributedString(string: value, attributes: valueAttributes)
         let reservedText = NSAttributedString(string: reservedValue ?? value, attributes: valueAttributes)
-        let width = ceil(max(labelText.size().width, max(valueText.size().width, reservedText.size().width)))
-            + MenuBarLayoutMetrics.contentInset * 2
+        let width = ceil(
+            max(
+                labelText.size().width,
+                reservedLabelText.size().width,
+                valueText.size().width,
+                reservedText.size().width
+            )
+        ) + MenuBarLayoutMetrics.contentInset * 2
         return makeImage(width: width, context: context) { _ in
             labelText.draw(
                 at: NSPoint(
@@ -486,15 +500,25 @@ public struct StackedLabelRenderer: MenuBarRenderer {
 
 /// Renders download and upload as two visually equal, stable-width rows.
 public struct NetworkRateStackRenderer: MenuBarRenderer {
-    private let download: String
-    private let upload: String
-    private let reservedValue: String
+    private let top: String
+    private let bottom: String
+    private let reservedTop: String
+    private let reservedBottom: String
 
     /// Creates an equal two-row network renderer.
     public init(download: String, upload: String, reservedValue: String) {
-        self.download = download
-        self.upload = upload
-        self.reservedValue = reservedValue
+        top = "↓\(download)"
+        bottom = "↑\(upload)"
+        reservedTop = "↓\(reservedValue)"
+        reservedBottom = "↑\(reservedValue)"
+    }
+
+    /// Creates two explicitly ordered transfer rows.
+    public init(top: String, bottom: String, reservedTop: String, reservedBottom: String) {
+        self.top = top
+        self.bottom = bottom
+        self.reservedTop = reservedTop
+        self.reservedBottom = reservedBottom
     }
 
     /// Renders matched arrows and values on a fixed canvas.
@@ -507,30 +531,30 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
             .font: font,
             .foregroundColor: context.foregroundColor,
         ]
-        let downloadText = NSAttributedString(string: "↓\(download)", attributes: attributes)
-        let uploadText = NSAttributedString(string: "↑\(upload)", attributes: attributes)
-        let reservedDownload = NSAttributedString(string: "↓\(reservedValue)", attributes: attributes)
-        let reservedUpload = NSAttributedString(string: "↑\(reservedValue)", attributes: attributes)
+        let topText = NSAttributedString(string: top, attributes: attributes)
+        let bottomText = NSAttributedString(string: bottom, attributes: attributes)
+        let reservedTopText = NSAttributedString(string: reservedTop, attributes: attributes)
+        let reservedBottomText = NSAttributedString(string: reservedBottom, attributes: attributes)
         let width = MenuBarLayoutMetrics.contentInset * 2 + ceil(
             max(
-                downloadText.size().width,
-                uploadText.size().width,
-                reservedDownload.size().width,
-                reservedUpload.size().width
+                topText.size().width,
+                bottomText.size().width,
+                reservedTopText.size().width,
+                reservedBottomText.size().width
             )
         )
 
         return makeImage(width: width, context: context) { _ in
-            downloadText.draw(
+            topText.draw(
                 at: NSPoint(
                     x: MenuBarLayoutMetrics.contentInset,
-                    y: metrics.compactRowY(0, textHeight: downloadText.size().height)
+                    y: metrics.compactRowY(0, textHeight: topText.size().height)
                 )
             )
-            uploadText.draw(
+            bottomText.draw(
                 at: NSPoint(
                     x: MenuBarLayoutMetrics.contentInset,
-                    y: metrics.compactRowY(1, textHeight: uploadText.size().height)
+                    y: metrics.compactRowY(1, textHeight: bottomText.size().height)
                 )
             )
         }
@@ -643,11 +667,20 @@ public struct SensorStackRenderer: MenuBarRenderer {
 public struct IconTextRenderer: MenuBarRenderer {
     private let symbolName: String
     private let text: String
+    private let reservedText: String
+    private let reservedSymbolNames: [String]
 
     /// Creates an icon-and-text renderer.
-    public init(symbolName: String, text: String) {
+    public init(
+        symbolName: String,
+        text: String,
+        reservedText: String? = nil,
+        reservedSymbolNames: [String] = []
+    ) {
         self.symbolName = symbolName
         self.text = text
+        self.reservedText = reservedText ?? text
+        self.reservedSymbolNames = reservedSymbolNames
     }
 
     /// Renders the icon and text image.
@@ -672,10 +705,18 @@ public struct IconTextRenderer: MenuBarRenderer {
         ]
         let textValue = NSAttributedString(string: text, attributes: attributes)
         let textSize = textValue.size()
+        let reservedTextSize = NSAttributedString(string: reservedText, attributes: attributes).size()
         let metrics = MenuBarLayoutMetrics(context: context)
         let symbolSize = symbol.map { metrics.symbolSize(nativeSize: $0.size, font: font) } ?? .zero
+        let reservedSymbolWidth = reservedSymbolNames.compactMap { name in
+            NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+                .withSymbolConfiguration(configuration)
+        }.map { metrics.symbolSize(nativeSize: $0.size, font: font).width }.max() ?? 0
         let gap = symbol == nil ? 0 : metrics.iconTextGap
-        let width = MenuBarLayoutMetrics.contentInset * 2 + symbolSize.width + gap + ceil(textSize.width)
+        let width = MenuBarLayoutMetrics.contentInset * 2
+            + max(symbolSize.width, reservedSymbolWidth)
+            + gap
+            + ceil(max(textSize.width, reservedTextSize.width))
         return makeImage(width: width, context: context) { rect in
             var x = MenuBarLayoutMetrics.contentInset
             if let symbol {
@@ -742,11 +783,20 @@ public struct SymbolRenderer: MenuBarRenderer {
 public struct IconStackRenderer: MenuBarRenderer {
     private let symbolName: String
     private let text: String
+    private let reservedText: String
+    private let reservedSymbolNames: [String]
 
     /// Creates a vertically stacked icon-and-text renderer.
-    public init(symbolName: String, text: String) {
+    public init(
+        symbolName: String,
+        text: String,
+        reservedText: String? = nil,
+        reservedSymbolNames: [String] = []
+    ) {
         self.symbolName = symbolName
         self.text = text
+        self.reservedText = reservedText ?? text
+        self.reservedSymbolNames = reservedSymbolNames
     }
 
     /// Renders the icon and text on the canonical compact two-row grid.
@@ -770,8 +820,14 @@ public struct IconStackRenderer: MenuBarRenderer {
         ]
         let textValue = NSAttributedString(string: text, attributes: attributes)
         let textSize = textValue.size()
+        let reservedTextSize = NSAttributedString(string: reservedText, attributes: attributes).size()
         let symbolSize = symbol.map { metrics.compactSymbolSize(nativeSize: $0.size) } ?? .zero
-        let width = MenuBarLayoutMetrics.contentInset * 2 + ceil(max(symbolSize.width, textSize.width))
+        let reservedSymbolWidth = reservedSymbolNames.compactMap { name in
+            NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+                .withSymbolConfiguration(configuration)
+        }.map { metrics.compactSymbolSize(nativeSize: $0.size).width }.max() ?? 0
+        let width = MenuBarLayoutMetrics.contentInset * 2
+            + ceil(max(symbolSize.width, reservedSymbolWidth, textSize.width, reservedTextSize.width))
 
         return makeImage(width: width, context: context) { rect in
             if let symbol {

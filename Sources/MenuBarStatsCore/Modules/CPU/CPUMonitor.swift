@@ -91,7 +91,7 @@ public actor CPUMonitor: Monitor {
     }
 
     /// Creates a CPU monitor.
-    public init(interval: Duration = .seconds(1), processRefreshInterval: TimeInterval = 3) {
+    public init(interval: Duration = .seconds(1), processRefreshInterval: TimeInterval = 5) {
         self.interval = interval
         self.processRefreshInterval = processRefreshInterval
         let source = CPUSource()

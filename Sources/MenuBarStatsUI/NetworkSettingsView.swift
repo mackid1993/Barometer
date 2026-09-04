@@ -36,6 +36,10 @@ struct NetworkSettingsView: View {
                     Text("NET label and download").tag("stacked")
                     Text("Activity graph").tag("graph")
                 }
+                Picker("Rate order", selection: networkBinding(\.rateOrder)) {
+                    Text("Upload then download").tag(NetworkRateOrder.uploadThenDownload)
+                    Text("Download then upload").tag(NetworkRateOrder.downloadThenUpload)
+                }
                 Toggle("Use fixed-width numbers", isOn: moduleBinding(\.usesFixedWidth))
                 Picker("Graph style", selection: moduleBinding(\.graphStyle)) {
                     ForEach(GraphStyle.allCases, id: \.self) { style in
@@ -151,20 +155,30 @@ struct NetworkSettingsView: View {
         )
         switch moduleSettings.mode {
         case "arrows":
+            let text = networkSettings.rateOrder == .uploadThenDownload
+                ? "↑\(upload) ↓\(download)"
+                : "↓\(download) ↑\(upload)"
+            let reserved = networkSettings.rateOrder == .uploadThenDownload
+                ? "↑\(placeholder) ↓\(placeholder)"
+                : "↓\(placeholder) ↑\(placeholder)"
             renderer = TextRenderer(
-                text: "↓\(download) ↑\(upload)",
-                reservedText: moduleSettings.usesFixedWidth ? "↓\(placeholder) ↑\(placeholder)" : nil
+                text: text,
+                reservedText: moduleSettings.usesFixedWidth ? reserved : nil
             )
         case "stacked":
-            renderer = StackedLabelRenderer(label: "NET", value: download)
+            renderer = StackedLabelRenderer(label: "NET", value: download, reservedValue: placeholder)
         case "graph":
             renderer = GraphRenderer(values: [0.1, 0.35, 0.22, 0.8, 0.55, 0.7], style: moduleSettings.graphStyle)
         default:
-            renderer = NetworkRateStackRenderer(
-                download: download,
-                upload: upload,
-                reservedValue: placeholder
-            )
+            let uploadFirst = networkSettings.rateOrder == .uploadThenDownload
+            renderer = uploadFirst
+                ? NetworkRateStackRenderer(
+                    top: "↑\(upload)",
+                    bottom: "↓\(download)",
+                    reservedTop: "↑\(placeholder)",
+                    reservedBottom: "↓\(placeholder)"
+                )
+                : NetworkRateStackRenderer(download: download, upload: upload, reservedValue: placeholder)
         }
         return renderer.render(in: context)
     }

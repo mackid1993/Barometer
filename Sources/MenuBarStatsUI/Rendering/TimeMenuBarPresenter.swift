@@ -15,7 +15,13 @@ public enum TimeMenuBarPresenter {
               let timeZone = TimeZone(identifier: sample.systemTimeZoneIdentifier)
         else {
             return StatusItemContent(
-                image: TextRenderer(text: "—").render(in: context),
+                image: TextRenderer(
+                    text: "—",
+                    reservedText: TimeFormatEngine.menuBarPlaceholder(
+                        template: timeSettings.menuBarTemplate,
+                        showsSeconds: timeSettings.showsSeconds
+                    )
+                ).render(in: context),
                 accessibilityValue: "Time unavailable"
             )
         }
@@ -26,7 +32,15 @@ public enum TimeMenuBarPresenter {
             showsSeconds: timeSettings.showsSeconds
         )
         return StatusItemContent(
-            image: TextRenderer(text: text, reservedText: settings.usesFixedWidth ? text : nil).render(in: context),
+            image: TextRenderer(
+                text: text,
+                reservedText: settings.usesFixedWidth
+                    ? TimeFormatEngine.menuBarPlaceholder(
+                        template: timeSettings.menuBarTemplate,
+                        showsSeconds: timeSettings.showsSeconds
+                    )
+                    : nil
+            ).render(in: context),
             accessibilityValue: "Time \(text)"
         )
     }

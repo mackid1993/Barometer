@@ -634,7 +634,7 @@ public final class MonitoringCoordinator {
         let gpuSeconds = settingsStore.settings.modules[.gpu]?.interval ?? 1
         let networkSeconds = settingsStore.settings.modules[.network]?.interval ?? 1
         let diskSeconds = settingsStore.settings.modules[.disks]?.interval ?? 1
-        let sensorSeconds = settingsStore.settings.modules[.sensors]?.interval ?? 2
+        let sensorSeconds = settingsStore.settings.modules[.sensors]?.interval ?? 5
         let batterySeconds = settingsStore.settings.modules[.battery]?.interval ?? 10
         let timeShowsSeconds = settingsStore.settings.time.showsSeconds
         let timeShowsCalendarEvents = settingsStore.settings.time.showsCalendarEvents
@@ -645,7 +645,7 @@ public final class MonitoringCoordinator {
             await gpuScheduler.setInterval(.milliseconds(Int64(max(0.5, gpuSeconds) * 1_000)))
             await networkScheduler.setInterval(.milliseconds(Int64(max(0.25, networkSeconds) * 1_000)))
             await diskScheduler.setInterval(.milliseconds(Int64(max(0.25, diskSeconds) * 1_000)))
-            await sensorsScheduler.setInterval(.milliseconds(Int64(max(1, sensorSeconds) * 1_000)))
+            await sensorsScheduler.setInterval(.milliseconds(Int64(max(5, sensorSeconds) * 1_000)))
             await batteryScheduler.setInterval(.milliseconds(Int64(max(2, batterySeconds) * 1_000)))
             await timeMonitor.setShowsSeconds(timeShowsSeconds)
             await timeMonitor.setCalendarConfiguration(
@@ -719,6 +719,7 @@ public final class MonitoringCoordinator {
                 return
             }
             Task {
+                await self.networkMonitor.refreshConnectionDetails()
                 await self.networkMonitor.refreshPublicIP()
                 await self.networkScheduler.refresh()
             }
@@ -840,24 +841,13 @@ public final class MonitoringCoordinator {
         settingsStore.settings = appSettings
     }
 
-    private static func renderCPU(
+    static func renderCPU(
         sample: CPUSample?,
         history: [HistoryEntry<CPUSample>],
         settings: ModuleSettings,
         context: RenderContext
     ) -> StatusItemContent {
-        guard let sample else {
-            let image = TextRenderer(
-                text: "—",
-                reservedText: settings.usesFixedWidth ? "100%" : nil
-            ).render(in: context)
-            return StatusItemContent(
-                image: image,
-                accessibilityValue: "CPU unavailable"
-            )
-        }
-
-        let percentage = String(format: "%.0f%%", sample.totalPercent)
+        let percentage = sample.map { String(format: "%.0f%%", $0.totalPercent) } ?? "—"
         let renderer: any MenuBarRenderer
         switch settings.mode {
         case "graph":
@@ -866,20 +856,25 @@ public final class MonitoringCoordinator {
                 style: settings.graphStyle
             )
         case "perCore":
+            let coreValues = sample?.perCore.map { $0.usagePercent / 100 }
+                ?? Array(repeating: 0, count: ProcessInfo.processInfo.activeProcessorCount)
             renderer = GraphRenderer(
-                values: sample.perCore.map { $0.usagePercent / 100 },
+                values: coreValues,
                 style: .bars,
-                width: max(32, CGFloat(sample.perCore.count) * 3)
+                width: max(32, CGFloat(coreValues.count) * 3)
             )
         case "stacked":
-            renderer = StackedLabelRenderer(label: "CPU", value: percentage)
+            renderer = StackedLabelRenderer(label: "CPU", value: percentage, reservedValue: "100%")
         case "iconText":
-            renderer = IconTextRenderer(symbolName: "cpu", text: percentage)
+            renderer = IconTextRenderer(symbolName: "cpu", text: percentage, reservedText: "100%")
         default:
             renderer = TextRenderer(
                 text: percentage,
                 reservedText: settings.usesFixedWidth ? "100%" : nil
             )
+        }
+        guard let sample else {
+            return StatusItemContent(image: renderer.render(in: context), accessibilityValue: "CPU unavailable")
         }
         return StatusItemContent(
             image: renderer.render(in: context),
@@ -887,26 +882,15 @@ public final class MonitoringCoordinator {
         )
     }
 
-    private static func renderMemory(
+    static func renderMemory(
         sample: MemorySample?,
         history: [HistoryEntry<MemorySample>],
         settings: ModuleSettings,
         context: RenderContext
     ) -> StatusItemContent {
-        guard let sample else {
-            let image = TextRenderer(
-                text: "—",
-                reservedText: settings.usesFixedWidth ? "100%" : nil
-            ).render(in: context)
-            return StatusItemContent(
-                image: image,
-                accessibilityValue: "Memory unavailable"
-            )
-        }
-
-        let usedPercent = sample.total > 0 ? Double(sample.used) / Double(sample.total) * 100 : 0
-        let usedText = String(format: "%.0f%%", usedPercent)
-        let pressureText = String(format: "%.0f%%", sample.pressurePercent)
+        let usedPercent = sample.map { $0.total > 0 ? Double($0.used) / Double($0.total) * 100 : 0 } ?? 0
+        let usedText = sample.map { _ in String(format: "%.0f%%", usedPercent) } ?? "—"
+        let pressureText = sample.map { String(format: "%.0f%%", $0.pressurePercent) } ?? "—"
         let renderer: any MenuBarRenderer
         switch settings.mode {
         case "pressurePercentage":
@@ -924,12 +908,15 @@ public final class MonitoringCoordinator {
         case "bar":
             renderer = GraphRenderer(values: [usedPercent / 100], style: .bars, width: 14)
         case "stacked":
-            renderer = StackedLabelRenderer(label: "MEM", value: usedText)
+            renderer = StackedLabelRenderer(label: "MEM", value: usedText, reservedValue: "100%")
         default:
             renderer = TextRenderer(
                 text: usedText,
                 reservedText: settings.usesFixedWidth ? "100%" : nil
             )
+        }
+        guard let sample else {
+            return StatusItemContent(image: renderer.render(in: context), accessibilityValue: "Memory unavailable")
         }
         return StatusItemContent(
             image: renderer.render(in: context),
@@ -1102,31 +1089,42 @@ public final class MonitoringCoordinator {
         )
     }
 
-    private static func renderWeather(
+    static func renderWeather(
         sample: WeatherSample?,
         history: [HistoryEntry<WeatherSample>],
         settings: ModuleSettings,
         context: RenderContext
     ) -> StatusItemContent {
-        guard let sample else {
-            return StatusItemContent(
-                image: IconStackRenderer(symbolName: "cloud.sun", text: "—").render(in: context),
-                accessibilityValue: "Weather unavailable"
-            )
-        }
-        let forecast = sample.forecast
-        let presentation = WeatherPresentationFormatter.menuBar(
-            sample: sample,
-            mode: settings.mode
+        let presentation = sample.map {
+            WeatherPresentationFormatter.menuBar(sample: $0, mode: settings.mode)
+        } ?? WeatherMenuBarPresentation(
+            symbolName: settings.mode == "temperature" || settings.mode == "highLow" ? nil : "cloud.sun",
+            text: "—"
         )
+        let reservedText = weatherReservedText(mode: settings.mode)
+        let reservedSymbols = settings.mode == "iconTemperature" ? [] : weatherSymbolNames
         let renderer: any MenuBarRenderer = if settings.mode == "iconTemperature",
                                               let symbolName = presentation.symbolName {
-            IconStackRenderer(symbolName: symbolName, text: presentation.text)
+            IconStackRenderer(
+                symbolName: symbolName,
+                text: presentation.text,
+                reservedText: reservedText,
+                reservedSymbolNames: reservedSymbols
+            )
         } else if let symbolName = presentation.symbolName {
-            IconTextRenderer(symbolName: symbolName, text: presentation.text)
+            IconTextRenderer(
+                symbolName: symbolName,
+                text: presentation.text,
+                reservedText: reservedText,
+                reservedSymbolNames: reservedSymbols
+            )
         } else {
-            TextRenderer(text: presentation.text)
+            TextRenderer(text: presentation.text, reservedText: reservedText)
         }
+        guard let sample else {
+            return StatusItemContent(image: renderer.render(in: context), accessibilityValue: "Weather unavailable")
+        }
+        let forecast = sample.forecast
         let temperature = String(format: "%.0f%@", forecast.current.temperature, forecast.units.temperature.symbol)
         let staleDescription = sample.isStale ? ", stale" : ""
         return StatusItemContent(
@@ -1134,6 +1132,20 @@ public final class MonitoringCoordinator {
             accessibilityValue: "Weather in \(forecast.location.name), \(temperature), "
                 + "\(forecast.current.code.description)\(staleDescription)"
         )
+    }
+
+    private static let weatherSymbolNames = [
+        "sun.max", "moon.stars", "cloud.sun", "cloud.moon", "cloud", "cloud.fog", "cloud.drizzle",
+        "cloud.rain", "cloud.sleet", "cloud.snow", "cloud.heavyrain", "cloud.bolt.rain", "questionmark.circle",
+    ]
+
+    private static func weatherReservedText(mode: String) -> String {
+        switch mode {
+        case "conditions": "99°F Thunderstorm with heavy hail"
+        case "highLow": "H 99°  L 99°"
+        case "precipitation": "100%"
+        default: "99°F"
+        }
     }
 
 }

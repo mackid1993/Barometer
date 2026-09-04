@@ -1486,3 +1486,40 @@ Verification:
 - Before the correction, Bartender's read-only cold-start catalog showed the Disks→Weather and Combined→Network
   identity collisions. Live confirmation after installing the correction remains user-driven; Barometer does not
   control Bartender.
+
+### P7-T4 live layout, weather, and efficiency follow-up
+
+Applied the fixed-canvas presentation rule to every live widget. CPU, GPU, Memory, Disks, Network, Sensors, Time,
+and Weather now render unavailable and live states through the same mode-specific geometry. Status-item lengths may
+change when the user changes layout settings, but live values alone cannot resize them. David restarted Bartender and
+confirmed that every Barometer item retained its chosen position. Weather's vertical icon mode now uses a tight
+two-digit temperature envelope without reserving the widest condition glyph or a stale-warning suffix.
+
+Network can place upload above download or download above upload, with upload-first as the default. Both rows retain
+complete units, fixed-width digits, and matched geometry. Process icons now resolve the outermost owning application
+bundle, so nested executables such as Discord Helper and Spotify Helper use their application's actual color icon.
+
+Reduced monitoring overhead without slowing headline rates: availability is no longer probed on every scheduler
+cycle; GPU, sensor, and Wi-Fi metadata use bounded caches; Sensors enforce a five-second minimum; and detailed CPU,
+Memory, and Network process lists refresh less often than their lightweight menu bar counters. A warmed 15-sample
+`top` run averaged 3.75% CPU with CPU, GPU, Memory, Network, Sensors, and Weather enabled, down from the earlier
+7–9% steady range on this Mac.
+
+Open-Meteo's automatic best-match current block was demonstrably fresh but inaccurate at the test coordinates: it
+returned 74.9°F and overcast while other supported models reported about 71°F and drizzle. Forecast requests now
+bypass URL caches, and Barometer overlays only the current conditions using a median/majority consensus from NBM,
+ECMWF, and GEM when available. The detailed best-match forecast remains unchanged, and failure of the supplemental
+models falls back to it. The installed app rewrote its cache with 70.8°F and WMO code 51, and its menu bar showed the
+rain glyph with 71°F. This remains key-free and continues to use Open-Meteo worldwide.
+
+Removed Battery's passive `Live charge` row because it could remain at `Discovering…` when Battery was disabled or
+telemetry was unavailable. The two reliable menu bar display choices and detailed Battery dropdown remain intact.
+
+Verification:
+
+- `swift test` exited 0 and linked all test targets. New tests cover current-condition consensus, stable layout
+  envelopes, Network row order, scheduler availability caching, source throttling, and helper application resolution.
+- `mbs-probe weather --lat 41.1033544 --lon -74.0044601` reported `Current 70.8°F, feels like 76.9°F, Light drizzle`.
+- `make install` built, signed, copied, and launched `/Applications/Barometer.app`; the live cache and screenshot
+  confirmed the corrected weather reading.
+- `git diff --check`, the changed-Swift-file 120-column check, and the American-spelling scan passed.

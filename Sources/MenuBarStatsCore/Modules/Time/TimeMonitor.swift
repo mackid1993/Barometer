@@ -116,6 +116,22 @@ public enum TimeFormatEngine {
         }
     }
 
+    /// Expands tokens to stable, deliberately wide values for menu bar width reservation.
+    public static func menuBarPlaceholder(template: String, showsSeconds: Bool) -> String {
+        let values = [
+            "{time}": showsSeconds ? "00:00:00 AM" : "00:00 AM",
+            "{time24}": showsSeconds ? "00:00:00" : "00:00",
+            "{date}": "Sep 30",
+            "{weekday}": "Wed",
+            "{week}": "99",
+            "{day}": "999",
+            "{zone}": "GMT+00:00",
+        ]
+        return values.reduce(template) { result, pair in
+            result.replacingOccurrences(of: pair.key, with: pair.value)
+        }
+    }
+
     private static func formatted(
         _ date: Date,
         template: String,

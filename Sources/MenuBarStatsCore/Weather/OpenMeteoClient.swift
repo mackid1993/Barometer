@@ -80,7 +80,23 @@ public actor OpenMeteoClient: WeatherClient {
             URLQueryItem(name: "hourly", value: hourly.joined(separator: ",")),
             URLQueryItem(name: "daily", value: daily.joined(separator: ",")),
         ])
-        return try Self.decodeForecast(try await data(from: url), for: location, units: units)
+        let forecast = try Self.decodeForecast(try await data(from: url), for: location, units: units)
+        guard let current = await currentConsensus(
+            for: location,
+            units: units,
+            fallback: forecast.current
+        ) else {
+            return forecast
+        }
+        return Forecast(
+            location: forecast.location,
+            units: forecast.units,
+            timeZone: forecast.timeZone,
+            current: current,
+            hourly: forecast.hourly,
+            daily: forecast.daily,
+            fetchedAt: forecast.fetchedAt
+        )
     }
 
     /// Searches Open-Meteo's geocoding index.
@@ -202,8 +218,10 @@ public actor OpenMeteoClient: WeatherClient {
     }
 
     private func data(from url: URL) async throws -> Data {
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData)
         request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenMeteoError.invalidResponse
@@ -214,6 +232,150 @@ public actor OpenMeteoClient: WeatherClient {
             throw OpenMeteoError.server(statusCode: httpResponse.statusCode, reason: reason)
         }
         return data
+    }
+
+    private func currentConsensus(
+        for location: Location,
+        units: WeatherUnits,
+        fallback: CurrentConditions
+    ) async -> CurrentConditions? {
+        let models = ["ncep_nbm_conus", "ecmwf_ifs025", "gem_seamless"]
+        let session = self.session
+        let readings = await withTaskGroup(of: CurrentConditions?.self, returning: [CurrentConditions].self) {
+            group in
+            for model in models {
+                group.addTask {
+                    try? await Self.fetchCurrent(
+                        for: location,
+                        units: units,
+                        model: model,
+                        session: session
+                    )
+                }
+            }
+            var values: [CurrentConditions] = []
+            for await reading in group {
+                if let reading {
+                    values.append(reading)
+                }
+            }
+            return values
+        }
+        return Self.consensusCurrent(readings, fallback: fallback)
+    }
+
+    private static func fetchCurrent(
+        for location: Location,
+        units: WeatherUnits,
+        model: String,
+        session: URLSession
+    ) async throws -> CurrentConditions {
+        let fields = [
+            "temperature_2m", "relative_humidity_2m", "apparent_temperature", "is_day", "precipitation",
+            "rain", "showers", "snowfall", "weather_code", "cloud_cover", "pressure_msl", "surface_pressure",
+            "wind_speed_10m", "wind_direction_10m", "wind_gusts_10m",
+        ]
+        let url = try url(base: forecastURL, items: [
+            URLQueryItem(name: "latitude", value: String(location.latitude)),
+            URLQueryItem(name: "longitude", value: String(location.longitude)),
+            URLQueryItem(name: "timezone", value: "auto"),
+            URLQueryItem(name: "temperature_unit", value: units.temperature.rawValue),
+            URLQueryItem(name: "wind_speed_unit", value: units.windSpeed.rawValue),
+            URLQueryItem(name: "precipitation_unit", value: units.precipitation.queryValue),
+            URLQueryItem(name: "current", value: fields.joined(separator: ",")),
+            URLQueryItem(name: "models", value: model),
+        ])
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData)
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        let (data, response) = try await session.data(for: request)
+        guard let response = response as? HTTPURLResponse, 200..<300 ~= response.statusCode else {
+            throw OpenMeteoError.invalidResponse
+        }
+        return try decodeCurrent(data)
+    }
+
+    static func decodeCurrent(_ data: Data) throws -> CurrentConditions {
+        let response = try JSONDecoder().decode(CurrentForecastResponse.self, from: data)
+        let timeZone = TimeZone(identifier: response.timezone) ?? .gmt
+        return try currentConditions(from: response.current, timeZone: timeZone)
+    }
+
+    static func consensusCurrent(
+        _ readings: [CurrentConditions],
+        fallback: CurrentConditions
+    ) -> CurrentConditions? {
+        guard !readings.isEmpty else {
+            return nil
+        }
+        return CurrentConditions(
+            time: readings.map(\.time).max() ?? readings[0].time,
+            temperature: median(readings.map(\.temperature)) ?? readings[0].temperature,
+            apparentTemperature: median(readings.compactMap(\.apparentTemperature)),
+            humidity: median(readings.compactMap(\.humidity)),
+            precipitation: median(readings.compactMap(\.precipitation)),
+            rain: median(readings.compactMap(\.rain)),
+            showers: median(readings.compactMap(\.showers)),
+            snowfall: median(readings.compactMap(\.snowfall)),
+            code: consensusCode(readings.map(\.code)) ?? fallback.code,
+            isDay: consensusDaylight(readings.map(\.isDay)) ?? fallback.isDay,
+            cloudCover: median(readings.compactMap(\.cloudCover)),
+            pressureMSL: median(readings.compactMap(\.pressureMSL)),
+            surfacePressure: median(readings.compactMap(\.surfacePressure)),
+            windSpeed: median(readings.compactMap(\.windSpeed)),
+            windDirection: median(readings.compactMap(\.windDirection)),
+            windGusts: median(readings.compactMap(\.windGusts))
+        )
+    }
+
+    private static func currentConditions(from response: CurrentResponse, timeZone: TimeZone) throws
+        -> CurrentConditions {
+        CurrentConditions(
+            time: try parse(response.time, timeZone: timeZone, includesTime: true),
+            temperature: response.temperature,
+            apparentTemperature: response.apparentTemperature,
+            humidity: response.humidity,
+            precipitation: response.precipitation,
+            rain: response.rain,
+            showers: response.showers,
+            snowfall: response.snowfall,
+            code: WMOCode(rawValue: response.weatherCode),
+            isDay: response.isDay == 1,
+            cloudCover: response.cloudCover,
+            pressureMSL: response.pressureMSL,
+            surfacePressure: response.surfacePressure,
+            windSpeed: response.windSpeed,
+            windDirection: response.windDirection,
+            windGusts: response.windGusts
+        )
+    }
+
+    private static func median(_ values: [Double]) -> Double? {
+        guard !values.isEmpty else {
+            return nil
+        }
+        let sorted = values.sorted()
+        let middle = sorted.count / 2
+        return sorted.count.isMultiple(of: 2) ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle]
+    }
+
+    private static func consensusCode(_ values: [WMOCode]) -> WMOCode? {
+        let counts = Dictionary(grouping: values, by: \WMOCode.rawValue).mapValues(\.count)
+        guard let winner = counts.max(by: { lhs, rhs in
+            lhs.value == rhs.value ? lhs.key > rhs.key : lhs.value < rhs.value
+        }), winner.value >= 2 else {
+            return nil
+        }
+        return WMOCode(rawValue: winner.key)
+    }
+
+    private static func consensusDaylight(_ values: [Bool]) -> Bool? {
+        let daylightCount = values.filter { $0 }.count
+        guard daylightCount * 2 != values.count else {
+            return nil
+        }
+        return daylightCount * 2 > values.count
     }
 
     private static func url(base: URL?, items: [URLQueryItem]) throws -> URL {
@@ -246,6 +408,11 @@ private struct ForecastResponse: Decodable {
     let current: CurrentResponse
     let hourly: HourlyResponse
     let daily: DailyResponse
+}
+
+private struct CurrentForecastResponse: Decodable {
+    let timezone: String
+    let current: CurrentResponse
 }
 
 private struct CurrentResponse: Decodable {

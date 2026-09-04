@@ -11,13 +11,7 @@ public enum GPUMenuBarPresenter {
         settings: ModuleSettings,
         context: RenderContext
     ) -> StatusItemContent {
-        guard let sample else {
-            return StatusItemContent(
-                image: StackedLabelRenderer(label: "GPU", value: "—", reservedValue: "99%").render(in: context),
-                accessibilityValue: "GPU unavailable"
-            )
-        }
-        let percentage = String(format: "%.0f%%", sample.deviceUtilizationPercent)
+        let percentage = sample.map { String(format: "%.0f%%", $0.deviceUtilizationPercent) } ?? "—"
         let renderer: any MenuBarRenderer
         switch settings.mode {
         case "graph":
@@ -32,7 +26,13 @@ public enum GPUMenuBarPresenter {
                 SensorStackValue(label: "GPU", value: percentage, reservedValue: "100%"),
             ])
         default:
-            renderer = StackedLabelRenderer(label: "GPU", value: percentage, reservedValue: "99%")
+            renderer = StackedLabelRenderer(label: "GPU", value: percentage, reservedValue: "100%")
+        }
+        guard let sample else {
+            return StatusItemContent(
+                image: renderer.render(in: context),
+                accessibilityValue: "GPU unavailable"
+            )
         }
         return StatusItemContent(
             image: renderer.render(in: context),

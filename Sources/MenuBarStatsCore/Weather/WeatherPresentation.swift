@@ -24,31 +24,30 @@ public enum WeatherPresentationFormatter {
     ) -> WeatherMenuBarPresentation {
         let forecast = sample.forecast
         let temperature = measurement(forecast.current.temperature, unit: forecast.units.temperature.symbol)
-        let staleMarker = sample.isStale ? " ⚠︎" : ""
         let conditionSymbol = forecast.current.code.symbolName(isDay: forecast.current.isDay)
 
         switch mode {
         case "temperature":
-            return WeatherMenuBarPresentation(symbolName: nil, text: temperature + staleMarker)
+            return WeatherMenuBarPresentation(symbolName: nil, text: temperature)
         case "conditions":
             return WeatherMenuBarPresentation(
                 symbolName: conditionSymbol,
-                text: "\(temperature) \(forecast.current.code.description)\(staleMarker)"
+                text: "\(temperature) \(forecast.current.code.description)"
             )
         case "highLow":
             let today = forecast.daily.first
             let high = degree(today?.high)
             let low = degree(today?.low)
-            return WeatherMenuBarPresentation(symbolName: nil, text: "H \(high)  L \(low)\(staleMarker)")
+            return WeatherMenuBarPresentation(symbolName: nil, text: "H \(high)  L \(low)")
         case "precipitation":
             let probability = forecast.hourly.first?.precipitationProbability
                 ?? forecast.daily.first?.precipitationProbability
             return WeatherMenuBarPresentation(
                 symbolName: "drop",
-                text: percentage(probability) + staleMarker
+                text: percentage(probability)
             )
         default:
-            return WeatherMenuBarPresentation(symbolName: conditionSymbol, text: temperature + staleMarker)
+            return WeatherMenuBarPresentation(symbolName: conditionSymbol, text: temperature)
         }
     }
 

@@ -136,7 +136,10 @@ struct DiskSettingsView: View {
         case "freePercentage":
             renderer = TextRenderer(text: "35%", reservedText: moduleSettings.usesFixedWidth ? "100%" : nil)
         case "freeBytes":
-            renderer = TextRenderer(text: diskSettings.unitSystem == .binary ? "321GiB" : "345GB")
+            renderer = TextRenderer(
+                text: diskSettings.unitSystem == .binary ? "321GiB" : "345GB",
+                reservedText: diskSettings.unitSystem == .binary ? "999GiB" : "999GB"
+            )
         case "rates":
             renderer = NetworkRateStackRenderer(
                 download: diskSettings.unitSystem == .binary ? "1.2MiB/s" : "1.2MB/s",

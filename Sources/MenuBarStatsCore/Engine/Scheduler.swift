@@ -16,6 +16,7 @@ public actor Scheduler<Source: Monitor> {
     private var generation = 0
     private var intervalMultiplier = 1
     private var intervalOverride: Duration?
+    private var hasConfirmedAvailability = false
 
     /// Creates a scheduler for one monitor.
     public init(monitor: Source, clock: any SampleClock = ContinuousSampleClock()) {
@@ -87,9 +88,12 @@ public actor Scheduler<Source: Monitor> {
 
         while !Task.isCancelled {
             do {
-                guard await monitor.isAvailable else {
-                    try await clock.sleep(for: .seconds(60))
-                    continue
+                if !hasConfirmedAvailability {
+                    guard await monitor.isAvailable else {
+                        try await clock.sleep(for: .seconds(60))
+                        continue
+                    }
+                    hasConfirmedAvailability = true
                 }
 
                 let sample = try await monitor.sample()

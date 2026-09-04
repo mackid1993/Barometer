@@ -67,7 +67,7 @@ struct SettingsTests {
         )
         let migrated = try JSONDecoder().decode(AppSettings.self, from: versionZero)
 
-        #expect(migrated.schemaVersion == 12)
+        #expect(migrated.schemaVersion == 13)
         #expect(!migrated.reducesSamplingOnBattery)
         #expect(!migrated.isMonochrome)
         #expect(migrated.fontSize == 12)
@@ -92,7 +92,7 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.schemaVersion == 12)
+        #expect(migrated.schemaVersion == 13)
         #expect(migrated.weather.refreshIntervalMinutes == 15)
         #expect(migrated.weather.units.temperature == .fahrenheit)
         #expect(migrated.sensorTemperatureUnit == .celsius)
@@ -117,7 +117,7 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.schemaVersion == 12)
+        #expect(migrated.schemaVersion == 13)
         #expect(migrated.network == NetworkSettings())
         #expect(migrated.modules[.network]?.mode == "twoLine")
         #expect(migrated.disks == DiskSettings())
@@ -158,7 +158,7 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.schemaVersion == 12)
+        #expect(migrated.schemaVersion == 13)
         #expect(migrated.disks == DiskSettings())
         #expect(migrated.modules[.disks]?.mode == "activityGraph")
     }
@@ -181,7 +181,7 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.schemaVersion == 12)
+        #expect(migrated.schemaVersion == 13)
         #expect(migrated.sensors == SensorSettings())
         #expect(migrated.modules[.sensors]?.mode == "compactStack")
     }

@@ -11,20 +11,14 @@ enum DiskMenuBarPresenter {
         diskSettings: DiskSettings,
         context: RenderContext
     ) -> StatusItemContent {
-        guard let sample else {
-            return StatusItemContent(
-                image: StackedLabelRenderer(label: "DISK", value: "—").render(in: context),
-                accessibilityValue: "Disks unavailable"
-            )
-        }
-        let volume = sample.selectedVolume(settings: diskSettings)
-        let rates = aggregateRates(sample)
+        let volume = sample?.selectedVolume(settings: diskSettings)
+        let rates = sample.map(aggregateRates) ?? (read: 0, write: 0)
         let renderer: any MenuBarRenderer
         switch moduleSettings.mode {
         case "freePercentage":
-            let freePercent = volume.map { Self.freePercent($0) } ?? 0
+            let freePercent = volume.map(Self.freePercent)
             renderer = TextRenderer(
-                text: String(format: "%.0f%%", freePercent),
+                text: freePercent.map { String(format: "%.0f%%", $0) } ?? "—",
                 reservedText: moduleSettings.usesFixedWidth ? "100%" : nil
             )
         case "freeBytes":
@@ -44,8 +38,8 @@ enum DiskMenuBarPresenter {
                 compact: true
             )
             renderer = NetworkRateStackRenderer(
-                download: read,
-                upload: write,
+                download: sample == nil ? "—" : read,
+                upload: sample == nil ? "—" : write,
                 reservedValue: diskSettings.unitSystem == .binary ? "999GiB/s" : "999GB/s"
             )
         default:
@@ -55,6 +49,10 @@ enum DiskMenuBarPresenter {
                 writes: graph.writes,
                 style: moduleSettings.graphStyle
             )
+        }
+
+        guard sample != nil else {
+            return StatusItemContent(image: renderer.render(in: context), accessibilityValue: "Disks unavailable")
         }
 
         let read = DiskValueFormatter.rate(rates.read, unitSystem: diskSettings.unitSystem)

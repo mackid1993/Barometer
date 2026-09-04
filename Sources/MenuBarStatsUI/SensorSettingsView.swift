@@ -112,11 +112,14 @@ public struct SensorSettingsView: View {
             Section("Sampling") {
                 HStack {
                     Text("Interval")
-                    Slider(value: moduleBinding(\.interval), in: 1...10, step: 1)
+                    Slider(value: moduleBinding(\.interval), in: 5...30, step: 1)
                     Text("\(Int(moduleSettings.interval)) s")
                         .monospacedDigit()
                         .frame(width: 34, alignment: .trailing)
                 }
+                Text("A five-second minimum keeps private hardware polling energy-efficient.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Menu Bar Colors") {
@@ -141,7 +144,7 @@ public struct SensorSettingsView: View {
     }
 
     private var moduleSettings: ModuleSettings {
-        settingsStore.settings.modules[.sensors] ?? ModuleSettings(mode: "compactStack", interval: 2)
+        settingsStore.settings.modules[.sensors] ?? ModuleSettings(mode: "compactStack", interval: 5)
     }
 
     private var availableReadings: [SensorReading] {

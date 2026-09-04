@@ -55,6 +55,11 @@ public actor GPUMonitor: Monitor {
     private let acceleratorSource: GPUAcceleratorSource
     private let ioReportSource: IOReportSource?
     private let smcSource: SMCClient?
+    private var lastDetailRefresh: Date?
+    private var cachedFrequencyMHz: Double?
+    private var cachedActivePercent: Double?
+    private var cachedPowerWatts: Double?
+    private var cachedTemperatureCelsius: Double?
 
     /// Whether an IOAccelerator publishes `PerformanceStatistics`.
     public var isAvailable: Bool {
@@ -78,28 +83,33 @@ public actor GPUMonitor: Monitor {
             throw GPUMonitorError.noAccelerator
         }
 
-        var frequencyMHz: Double?
-        var activePercent: Double?
-        var powerWatts: Double?
-        var temperatureCelsius: Double?
-        if let ioReportSource {
-            do {
-                let report = try await ioReportSource.sample(over: .milliseconds(250))
-                let frequency = report.frequencies.first { $0.kind == .gpu }
-                frequencyMHz = frequency?.averageMHz
-                activePercent = frequency?.activePercent
-                powerWatts = report.power.first { $0.name == "GPU" }?.watts
-                temperatureCelsius = report.temperatures.map(\.celsius).max()
-            } catch {
-                Self.logger.debug("IOReport GPU details unavailable: \(String(describing: error), privacy: .public)")
+        let timestamp = Date()
+        if Self.shouldRefreshDetails(lastRefresh: lastDetailRefresh, now: timestamp) {
+            lastDetailRefresh = timestamp
+            var refreshedTemperature: Double?
+            if let ioReportSource {
+                do {
+                    let report = try await ioReportSource.sample(over: .milliseconds(250))
+                    let frequency = report.frequencies.first { $0.kind == .gpu }
+                    cachedFrequencyMHz = frequency?.averageMHz
+                    cachedActivePercent = frequency?.activePercent
+                    cachedPowerWatts = report.power.first { $0.name == "GPU" }?.watts
+                    refreshedTemperature = report.temperatures.map(\.celsius).max()
+                } catch {
+                    let message = "IOReport GPU details unavailable: \(String(describing: error))"
+                    Self.logger.debug("\(message, privacy: .public)")
+                }
             }
-        }
-        if temperatureCelsius == nil, let smcSource {
-            temperatureCelsius = try? await Self.smcTemperature(source: smcSource)
+            if refreshedTemperature == nil, let smcSource {
+                refreshedTemperature = try? await Self.smcTemperature(source: smcSource)
+            }
+            if let refreshedTemperature {
+                cachedTemperatureCelsius = refreshedTemperature
+            }
         }
 
         return GPUSample(
-            timestamp: Date(),
+            timestamp: timestamp,
             name: accelerator.name,
             deviceUtilizationPercent: accelerator.deviceUtilizationPercent,
             rendererUtilizationPercent: accelerator.rendererUtilizationPercent,
@@ -107,11 +117,19 @@ public actor GPUMonitor: Monitor {
             memoryInUseBytes: accelerator.memoryInUseBytes,
             memoryAllocatedBytes: accelerator.memoryAllocatedBytes,
             driverMemoryInUseBytes: accelerator.driverMemoryInUseBytes,
-            frequencyMHz: frequencyMHz,
-            activePercent: activePercent,
-            powerWatts: powerWatts,
-            temperatureCelsius: temperatureCelsius
+            frequencyMHz: cachedFrequencyMHz,
+            activePercent: cachedActivePercent,
+            powerWatts: cachedPowerWatts,
+            temperatureCelsius: cachedTemperatureCelsius
         )
+    }
+
+    static func shouldRefreshDetails(
+        lastRefresh: Date?,
+        now: Date,
+        interval: TimeInterval = 10
+    ) -> Bool {
+        lastRefresh.map { now.timeIntervalSince($0) >= interval } ?? true
     }
 
     private static func smcTemperature(source: SMCClient) async throws -> Double? {

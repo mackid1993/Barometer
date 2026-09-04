@@ -39,7 +39,8 @@ public struct NetworkDropdownView: View {
                         sample: sample,
                         limit: moduleSettings.processCount,
                         unit: settings.rateUnit,
-                        decimalPlaces: settings.decimalPlaces
+                        decimalPlaces: settings.decimalPlaces,
+                        rateOrder: settings.rateOrder
                     )
                 }
 
@@ -139,7 +140,8 @@ public struct NetworkDropdownView: View {
         sample: NetworkSample,
         limit: Int,
         unit: NetworkRateUnit,
-        decimalPlaces: Int
+        decimalPlaces: Int,
+        rateOrder: NetworkRateOrder
     ) -> some View {
         Text("TOP NETWORK ACTIVITY").networkSectionLabel()
         if !sample.isProcessActivityAvailable {
@@ -157,25 +159,46 @@ public struct NetworkDropdownView: View {
                     Text(process.name).lineLimit(1)
                     Spacer(minLength: 8)
                     VStack(alignment: .trailing, spacing: 1) {
-                        processRate(
-                            symbol: "↓",
-                            value: process.downloadBytesPerSecond,
-                            unit: unit,
-                            decimalPlaces: decimalPlaces,
-                            color: AppearanceColorResolver.graph(settingsStore.settings, module: .network)
-                        )
-                        processRate(
-                            symbol: "↑",
-                            value: process.uploadBytesPerSecond,
-                            unit: unit,
-                            decimalPlaces: decimalPlaces,
-                            color: AppearanceColorResolver.fill(settingsStore.settings, module: .network)
-                        )
+                        if rateOrder == .uploadThenDownload {
+                            uploadRate(process: process, unit: unit, decimalPlaces: decimalPlaces)
+                            downloadRate(process: process, unit: unit, decimalPlaces: decimalPlaces)
+                        } else {
+                            downloadRate(process: process, unit: unit, decimalPlaces: decimalPlaces)
+                            uploadRate(process: process, unit: unit, decimalPlaces: decimalPlaces)
+                        }
                     }
                 }
                 .font(.caption)
             }
         }
+    }
+
+    private func uploadRate(
+        process: NetworkProcessSample,
+        unit: NetworkRateUnit,
+        decimalPlaces: Int
+    ) -> some View {
+        processRate(
+            symbol: "↑",
+            value: process.uploadBytesPerSecond,
+            unit: unit,
+            decimalPlaces: decimalPlaces,
+            color: AppearanceColorResolver.fill(settingsStore.settings, module: .network)
+        )
+    }
+
+    private func downloadRate(
+        process: NetworkProcessSample,
+        unit: NetworkRateUnit,
+        decimalPlaces: Int
+    ) -> some View {
+        processRate(
+            symbol: "↓",
+            value: process.downloadBytesPerSecond,
+            unit: unit,
+            decimalPlaces: decimalPlaces,
+            color: AppearanceColorResolver.graph(settingsStore.settings, module: .network)
+        )
     }
 
     private func processRate(

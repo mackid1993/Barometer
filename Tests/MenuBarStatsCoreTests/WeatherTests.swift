@@ -62,6 +62,32 @@ struct WeatherTests {
         #expect(quality.ozone == 54)
     }
 
+    @Test("current condition consensus uses median values and an agreed condition")
+    func currentConditionConsensus() throws {
+        let time = Date(timeIntervalSince1970: 1_788_500_000)
+        let cloudy = current(time: time, temperature: 70.8, code: 3, precipitation: 0)
+        let ecmwf = current(time: time, temperature: 69.6, code: 51, precipitation: 0.004)
+        let gem = current(time: time, temperature: 71.8, code: 51, precipitation: 0.004)
+
+        let result = try #require(OpenMeteoClient.consensusCurrent([cloudy, ecmwf, gem], fallback: cloudy))
+
+        #expect(result.temperature == 70.8)
+        #expect(result.precipitation == 0.004)
+        #expect(result.code.rawValue == 51)
+    }
+
+    @Test("current condition consensus does not invent a condition without agreement")
+    func currentConditionConsensusTie() throws {
+        let time = Date(timeIntervalSince1970: 1_788_500_000)
+        let first = current(time: time, temperature: 70, code: 3, precipitation: 0)
+        let second = current(time: time, temperature: 72, code: 51, precipitation: 0.004)
+
+        let result = try #require(OpenMeteoClient.consensusCurrent([first, second], fallback: first))
+
+        #expect(result.temperature == 71)
+        #expect(result.code.rawValue == 3)
+    }
+
     @Test("WMO codes provide descriptions and day/night symbols", arguments: [
         (0, "Clear sky", "sun.max", "moon.stars"),
         (3, "Overcast", "cloud", "cloud"),
@@ -132,12 +158,38 @@ struct WeatherTests {
             WeatherPresentationFormatter.menuBar(
                 sample: metricSample,
                 mode: "temperature"
-            ).text == "66°C ⚠︎"
+            ).text == "66°C"
         )
     }
 
     private func fixture(named name: String) throws -> Data {
         let url = try #require(Bundle.module.url(forResource: name, withExtension: "json"))
         return try Data(contentsOf: url)
+    }
+
+    private func current(
+        time: Date,
+        temperature: Double,
+        code: Int,
+        precipitation: Double
+    ) -> CurrentConditions {
+        CurrentConditions(
+            time: time,
+            temperature: temperature,
+            apparentTemperature: temperature,
+            humidity: 90,
+            precipitation: precipitation,
+            rain: precipitation,
+            showers: 0,
+            snowfall: 0,
+            code: WMOCode(rawValue: code),
+            isDay: false,
+            cloudCover: 100,
+            pressureMSL: 1_010,
+            surfacePressure: 1_000,
+            windSpeed: 5,
+            windDirection: 180,
+            windGusts: 8
+        )
     }
 }

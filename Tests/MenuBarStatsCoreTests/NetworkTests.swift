@@ -37,13 +37,25 @@ struct NetworkTests {
         let encoded = try JSONEncoder().encode(NetworkSettings(rateUnit: .bits, showsPublicIP: true))
         var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
         object.removeValue(forKey: "decimalPlaces")
+        object.removeValue(forKey: "rateOrder")
         let oldData = try JSONSerialization.data(withJSONObject: object)
 
         let migrated = try JSONDecoder().decode(NetworkSettings.self, from: oldData)
 
         #expect(migrated.decimalPlaces == 1)
+        #expect(migrated.rateOrder == .uploadThenDownload)
         #expect(migrated.rateUnit == .bits)
         #expect(migrated.showsPublicIP)
+    }
+
+    @Test("network metadata refresh is throttled without delaying transfer rates")
+    func throttlesConnectionMetadata() {
+        let start = Date(timeIntervalSince1970: 100)
+
+        #expect(NetworkMonitor.shouldRefreshWiFi(lastRefresh: nil, now: start))
+        #expect(!NetworkMonitor.shouldRefreshWiFi(lastRefresh: start, now: start.addingTimeInterval(9.9)))
+        #expect(NetworkMonitor.shouldRefreshWiFi(lastRefresh: start, now: start.addingTimeInterval(10)))
+        #expect(NetworkSettings().rateOrder == .uploadThenDownload)
     }
 
     @Test("selected interfaces fall back to the primary route")

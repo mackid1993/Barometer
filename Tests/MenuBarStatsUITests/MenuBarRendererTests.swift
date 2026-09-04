@@ -1,5 +1,5 @@
 import AppKit
-import MenuBarStatsCore
+@testable import MenuBarStatsCore
 import SystemSources
 @testable import MenuBarStatsUI
 import Testing
@@ -103,6 +103,13 @@ struct MenuBarRendererTests {
 
         #expect(content.image.size.width > 0)
         #expect(content.accessibilityValue == "Time 13:20 UTC")
+        let unavailable = TimeMenuBarPresenter.content(
+            sample: nil,
+            settings: ModuleSettings(isEnabled: true, mode: "custom"),
+            timeSettings: TimeSettings(menuBarTemplate: "{time24} {zone}"),
+            context: context
+        )
+        #expect(unavailable.image.size == content.image.size)
     }
 
     @Test
@@ -220,6 +227,112 @@ struct MenuBarRendererTests {
     }
 
     @Test
+    func iconRenderersReserveTextAndWeatherSymbolWidths() {
+        let symbols = ["sun.max", "cloud.sun", "cloud.bolt.rain"]
+        let horizontal = symbols.map { symbol in
+            IconTextRenderer(
+                symbolName: symbol,
+                text: "7°F",
+                reservedText: "99°F",
+                reservedSymbolNames: symbols
+            ).render(in: context)
+        }
+        let stacked = symbols.map { symbol in
+            IconStackRenderer(
+                symbolName: symbol,
+                text: "7°F",
+                reservedText: "99°F",
+                reservedSymbolNames: symbols
+            ).render(in: context)
+        }
+
+        #expect(Set(horizontal.map(\.size)).count == 1)
+        #expect(Set(stacked.map(\.size)).count == 1)
+    }
+
+    @Test
+    func helperProcessesUseTheirOwningApplicationIcon() {
+        let discordHelper = "/Applications/Discord.app/Contents/Frameworks/"
+            + "Discord Helper.app/Contents/MacOS/Discord Helper"
+        let spotifyHelper = "/Applications/Spotify.app/Contents/Frameworks/"
+            + "Spotify Helper.app/Contents/MacOS/Spotify Helper"
+
+        #expect(ProcessIconResolver.applicationURL(for: discordHelper)?.path == "/Applications/Discord.app")
+        #expect(ProcessIconResolver.applicationURL(for: spotifyHelper)?.path == "/Applications/Spotify.app")
+        #expect(ProcessIconResolver.applicationURL(for: "/usr/bin/curl") == nil)
+    }
+
+    @Test
+    func cpuAndMemoryPresentationsKeepOneWidthFromUnavailableThroughFullUse() {
+        let cores = (0..<ProcessInfo.processInfo.activeProcessorCount).map {
+            CPUCoreSample(index: $0, kind: .unknown, usagePercent: 100)
+        }
+        let cpu = CPUSample(
+            timestamp: .now,
+            totalPercent: 100,
+            userPercent: 75,
+            systemPercent: 25,
+            idlePercent: 0,
+            nicePercent: 0,
+            perCore: cores,
+            loadAverages: [1, 1, 1],
+            uptime: 1,
+            processCount: 1,
+            threadCount: 1,
+            topProcesses: []
+        )
+        let memory = MemorySample(
+            timestamp: .now,
+            total: 100,
+            used: 100,
+            app: 25,
+            wired: 25,
+            compressed: 25,
+            cached: 0,
+            free: 0,
+            pressurePercent: 100,
+            pressureLevel: .critical,
+            swapUsed: 0,
+            swapTotal: 0,
+            topProcesses: []
+        )
+
+        for mode in ["percentage", "stacked", "iconText", "graph", "perCore"] {
+            let settings = ModuleSettings(isEnabled: true, mode: mode)
+            let unavailable = MonitoringCoordinator.renderCPU(
+                sample: nil,
+                history: [],
+                settings: settings,
+                context: context
+            )
+            let full = MonitoringCoordinator.renderCPU(
+                sample: cpu,
+                history: [HistoryEntry(timestamp: cpu.timestamp, value: cpu)],
+                settings: settings,
+                context: context
+            )
+            #expect(unavailable.image.size == full.image.size)
+        }
+
+        for mode in ["usedPercentage", "pressurePercentage", "stacked", "graph", "bar"] {
+            let settings = ModuleSettings(isEnabled: true, mode: mode)
+            let unavailable = MonitoringCoordinator.renderMemory(
+                sample: nil,
+                history: [],
+                settings: settings,
+                context: context
+            )
+            let full = MonitoringCoordinator.renderMemory(
+                sample: memory,
+                history: [HistoryEntry(timestamp: memory.timestamp, value: memory)],
+                settings: settings,
+                context: context
+            )
+            #expect(unavailable.image.size == full.image.size)
+        }
+    }
+
+    @Test
     func horizontalSpacingChangesImageWidthByExactlyTwoInsets() {
         let compact = TextRenderer(text: "42%").render(in: context)
         let spacedContext = RenderContext(
@@ -300,6 +413,11 @@ struct MenuBarRendererTests {
         #expect(!StatusItemRendering.shouldUpdateLength(current: target, target: target))
         #expect(StatusItemRendering.shouldUpdateLength(current: nil, target: target))
         #expect(StatusItemRendering.shouldUpdateLength(current: target + 1, target: target))
+        #expect(!StatusItemRendering.shouldUpdateLength(
+            current: target + 1,
+            target: target,
+            allowsResize: false
+        ))
     }
 
     @Test
@@ -338,15 +456,24 @@ struct MenuBarRendererTests {
         let history = [HistoryEntry(timestamp: sample.timestamp, value: sample)]
 
         for mode in ["twoLine", "arrows", "stacked", "graph"] {
+            let settings = ModuleSettings(isEnabled: true, mode: mode)
             let content = NetworkMenuBarPresenter.content(
                 sample: sample,
                 history: history,
-                moduleSettings: ModuleSettings(isEnabled: true, mode: mode),
+                moduleSettings: settings,
+                networkSettings: NetworkSettings(),
+                context: context
+            )
+            let unavailable = NetworkMenuBarPresenter.content(
+                sample: nil,
+                history: [],
+                moduleSettings: settings,
                 networkSettings: NetworkSettings(),
                 context: context
             )
             #expect(content.image.size.width > 0)
             #expect(content.accessibilityValue.contains("Network en0"))
+            #expect(unavailable.image.size == content.image.size)
         }
     }
 
@@ -462,6 +589,16 @@ struct MenuBarRendererTests {
             )
             #expect(content.image.size.width > 0)
             #expect(content.accessibilityValue.contains("Hottest"))
+            let unavailable = SensorsMenuBarPresenter.content(
+                sample: nil,
+                history: [],
+                moduleSettings: ModuleSettings(isEnabled: true, mode: mode.rawValue),
+                sensorSettings: SensorSettings(),
+                widget: widget,
+                temperatureUnit: .celsius,
+                context: context
+            )
+            #expect(unavailable.image.size == content.image.size)
         }
     }
 
@@ -482,16 +619,25 @@ struct MenuBarRendererTests {
         let history = [HistoryEntry(timestamp: sample.timestamp, value: sample)]
 
         for mode in ["percentage", "graph", "combinedCPU"] {
+            let settings = ModuleSettings(isEnabled: true, mode: mode)
             let content = GPUMenuBarPresenter.content(
                 sample: sample,
                 history: history,
                 cpuPercent: 21,
-                settings: ModuleSettings(isEnabled: true, mode: mode),
+                settings: settings,
+                context: context
+            )
+            let unavailable = GPUMenuBarPresenter.content(
+                sample: nil,
+                history: [],
+                cpuPercent: 21,
+                settings: settings,
                 context: context
             )
             #expect(content.image.size.width > 0)
             #expect(content.image.size.height == context.thickness)
             #expect(content.accessibilityValue == "GPU 42.0 percent")
+            #expect(unavailable.image.size == content.image.size)
         }
     }
 
@@ -533,15 +679,24 @@ struct MenuBarRendererTests {
         let history = [HistoryEntry(timestamp: sample.timestamp, value: sample)]
 
         for mode in ["activityGraph", "freePercentage", "freeBytes", "rates"] {
+            let settings = ModuleSettings(isEnabled: true, mode: mode)
             let content = DiskMenuBarPresenter.content(
                 sample: sample,
                 history: history,
-                moduleSettings: ModuleSettings(isEnabled: true, mode: mode),
+                moduleSettings: settings,
+                diskSettings: DiskSettings(),
+                context: context
+            )
+            let unavailable = DiskMenuBarPresenter.content(
+                sample: nil,
+                history: [],
+                moduleSettings: settings,
                 diskSettings: DiskSettings(),
                 context: context
             )
             #expect(content.image.size.width > 0)
             #expect(content.accessibilityValue.contains("Disks read"))
+            #expect(unavailable.image.size == content.image.size)
         }
     }
 }

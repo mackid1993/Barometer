@@ -135,6 +135,8 @@ public actor NetworkMonitor: Monitor {
     private var isPublicIPEnabled = false
     private var publicIP: PublicIPSnapshot?
     private var lastPublicIPAttempt: Date?
+    private var lastWiFiRefresh: Date?
+    private var cachedWiFi: WiFiSnapshot?
     private static let logger = Logger(subsystem: "com.barometer.app", category: "network")
 
     /// Whether route counters are available.
@@ -175,6 +177,11 @@ public actor NetworkMonitor: Monitor {
         lastPublicIPAttempt = nil
     }
 
+    /// Invalidates cached connection metadata after the system network configuration changes.
+    public func refreshConnectionDetails() {
+        lastWiFiRefresh = nil
+    }
+
     /// Reads interfaces and calculates transfer rates since the previous sample.
     public func sample() async throws -> NetworkSample {
         let timestamp = Date()
@@ -212,17 +219,29 @@ public actor NetworkMonitor: Monitor {
         previousCounters = nextCounters
         refreshProcessActivityIfNeeded(at: timestamp)
         await updatePublicIPIfNeeded(at: timestamp)
+        if Self.shouldRefreshWiFi(lastRefresh: lastWiFiRefresh, now: timestamp) {
+            lastWiFiRefresh = timestamp
+            cachedWiFi = wiFiSource.read(interfaceName: snapshot.primaryInterface)
+        }
         return NetworkSample(
             timestamp: timestamp,
             interfaces: interfaces,
             primaryInterface: snapshot.primaryInterface,
             router: snapshot.router,
             dnsServers: snapshot.dnsServers,
-            wifi: wiFiSource.read(interfaceName: snapshot.primaryInterface),
+            wifi: cachedWiFi,
             publicIP: publicIP,
             isProcessActivityAvailable: isProcessActivityAvailable,
             topProcesses: cachedTopProcesses
         )
+    }
+
+    static func shouldRefreshWiFi(
+        lastRefresh: Date?,
+        now: Date,
+        interval: TimeInterval = 10
+    ) -> Bool {
+        lastRefresh.map { now.timeIntervalSince($0) >= interval } ?? true
     }
 
     static func counterDelta(from previous: UInt64, to current: UInt64) -> UInt64 {
@@ -245,7 +264,7 @@ public actor NetworkMonitor: Monitor {
     }
 
     private func refreshProcessActivityIfNeeded(at timestamp: Date) {
-        if let lastProcessRefresh, timestamp.timeIntervalSince(lastProcessRefresh) < 5 {
+        if let lastProcessRefresh, timestamp.timeIntervalSince(lastProcessRefresh) < 10 {
             return
         }
         let elapsed = lastProcessRefresh.map { timestamp.timeIntervalSince($0) } ?? 0

@@ -13,21 +13,17 @@ public enum SensorsMenuBarPresenter {
         temperatureUnit: TemperatureUnit,
         context: RenderContext
     ) -> StatusItemContent {
-        guard let sample else {
-            return StatusItemContent(
-                image: SensorStackRenderer(
-                    values: [SensorStackValue(label: "SENS", value: "—", reservedValue: "999.9°C")]
-                ).render(in: context),
-                accessibilityValue: "Sensors unavailable"
-            )
-        }
-
-        let readings = selectedReadings(sample: sample, settings: sensorSettings, widget: widget)
+        let readings = sample.map { selectedReadings(sample: $0, settings: sensorSettings, widget: widget) } ?? []
+        let placeholders = placeholderValues(
+            widget: widget,
+            temperatureUnit: temperatureUnit,
+            decimalPlaces: sensorSettings.decimalPlaces
+        )
         let renderer: any MenuBarRenderer
         switch widget.mode {
         case .compactStack:
             renderer = SensorStackRenderer(
-                values: readings.map { reading in
+                values: readings.isEmpty ? placeholders : readings.map { reading in
                     SensorStackValue(
                         label: reading.shortName,
                         value: SensorValueFormatter.string(
@@ -45,7 +41,9 @@ public enum SensorsMenuBarPresenter {
                 }
             )
         case .text:
-            let text = readings.map { reading in
+            let text = readings.isEmpty
+                ? placeholders.map { "\($0.label) —" }.joined(separator: "  ")
+                : readings.map { reading in
                     let value = SensorValueFormatter.string(
                         reading,
                         temperatureUnit: temperatureUnit,
@@ -54,7 +52,9 @@ public enum SensorsMenuBarPresenter {
                     )
                     return "\(reading.shortName) \(value)"
                 }.joined(separator: "  ")
-            let reservedText = readings.map { reading in
+            let reservedText = readings.isEmpty ? placeholders.map {
+                "\($0.label) \($0.reservedValue)"
+            }.joined(separator: "  ") : readings.map { reading in
                 let placeholder = SensorValueFormatter.placeholder(
                     for: reading,
                     temperatureUnit: temperatureUnit,
@@ -76,7 +76,7 @@ public enum SensorsMenuBarPresenter {
             renderer = GraphRenderer(values: values, style: moduleSettings.graphStyle)
         case .fan:
             let fan = readings.first { $0.kind == .fan }
-                ?? sample.readings.first { $0.kind == .fan }
+                ?? sample?.readings.first { $0.kind == .fan }
             renderer = StackedLabelRenderer(
                 label: fan?.shortName ?? "FAN",
                 value: fan.map {
@@ -87,6 +87,7 @@ public enum SensorsMenuBarPresenter {
                         compact: true
                     )
                 } ?? "—",
+                reservedLabel: "FAN99",
                 reservedValue: fan.map {
                     SensorValueFormatter.placeholder(
                         for: $0,
@@ -97,7 +98,7 @@ public enum SensorsMenuBarPresenter {
             )
         }
 
-        let spoken = readings.isEmpty
+        let spoken = sample == nil || readings.isEmpty
             ? "Sensors unavailable"
             : readings.map { reading in
                 let value = SensorValueFormatter.string(
@@ -108,6 +109,27 @@ public enum SensorsMenuBarPresenter {
                 return "\(reading.name) \(value)"
             }.joined(separator: ", ")
         return StatusItemContent(image: renderer.render(in: context), accessibilityValue: spoken)
+    }
+
+    private static func placeholderValues(
+        widget: SensorWidgetSettings,
+        temperatureUnit: TemperatureUnit,
+        decimalPlaces: Int
+    ) -> [SensorStackValue] {
+        let ids = widget.sensorIDs.isEmpty ? ["sensor"] : widget.sensorIDs
+        return ids.map { id in
+            let lowercased = id.lowercased()
+            if lowercased.contains("fan") || lowercased.contains(":f0") {
+                return SensorStackValue(label: "FAN99", value: "—", reservedValue: "9999r")
+            }
+            let fraction = decimalPlaces == 0 ? "" : "." + String(repeating: "9", count: decimalPlaces)
+            let maximum = temperatureUnit == .celsius ? "125" : "257"
+            return SensorStackValue(
+                label: "SENS",
+                value: "—",
+                reservedValue: "\(maximum)\(fraction)\(temperatureUnit.symbol)"
+            )
+        }
     }
 
     private static func selectedReadings(

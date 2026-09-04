@@ -117,7 +117,7 @@ private struct SettingsRootView: View {
             case .module(.gpu):
                 GPUSettingsView(store: gpuStore, settingsStore: settingsStore)
             case .module(.battery):
-                BatterySettingsView(store: batteryStore, settingsStore: settingsStore)
+                BatterySettingsView(settingsStore: settingsStore)
             case .module(.time):
                 TimeSettingsView(
                     store: timeStore,
@@ -641,7 +641,11 @@ private struct ModuleSettingsView: View {
         let renderer: any MenuBarRenderer
         switch settings.mode {
         case "stacked":
-            renderer = StackedLabelRenderer(label: module == .cpu ? "CPU" : "MEM", value: value)
+            renderer = StackedLabelRenderer(
+                label: module == .cpu ? "CPU" : "MEM",
+                value: value,
+                reservedValue: "100%"
+            )
         case "graph":
             renderer = GraphRenderer(values: [0.2, 0.35, 0.28, 0.7, 0.48, 0.62], style: settings.graphStyle)
         case "perCore":
@@ -649,7 +653,7 @@ private struct ModuleSettingsView: View {
         case "bar":
             renderer = GraphRenderer(values: [0.68], style: .bars, width: 14)
         case "iconText":
-            renderer = IconTextRenderer(symbolName: "cpu", text: value)
+            renderer = IconTextRenderer(symbolName: "cpu", text: value, reservedText: "100%")
         default:
             renderer = TextRenderer(text: value, reservedText: settings.usesFixedWidth ? "100%" : nil)
         }

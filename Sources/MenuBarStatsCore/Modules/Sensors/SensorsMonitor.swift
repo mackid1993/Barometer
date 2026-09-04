@@ -174,6 +174,10 @@ public actor SensorsMonitor: Monitor {
     private let smcSource: SMCClient?
     private let ioReportSource: IOReportSource?
     private var energyAccumulator = SensorEnergyAccumulator()
+    private var cachedSMCReadings: [SensorReading] = []
+    private var cachedIOReportReadings: [SensorReading] = []
+    private var lastSMCRefresh: Date?
+    private var lastIOReportRefresh: Date?
 
     /// Whether at least one supported hardware interface opened successfully.
     public var isAvailable: Bool {
@@ -204,24 +208,30 @@ public actor SensorsMonitor: Monitor {
             Self.logger.debug("IOHID sensor read unavailable: \(String(describing: error), privacy: .public)")
         }
 
-        if let smcSource {
+        if let smcSource, Self.shouldRefresh(lastRefresh: lastSMCRefresh, now: timestamp, interval: 10) {
+            lastSMCRefresh = timestamp
             do {
-                readings.append(contentsOf: try await Self.smcReadings(from: smcSource))
+                cachedSMCReadings = try await Self.smcReadings(from: smcSource)
             } catch {
                 Self.logger.debug("SMC sensor read unavailable: \(String(describing: error), privacy: .public)")
             }
         }
+        readings.append(contentsOf: cachedSMCReadings)
 
-        if let ioReportSource {
+        if let ioReportSource, Self.shouldRefresh(lastRefresh: lastIOReportRefresh, now: timestamp, interval: 5) {
+            let previousRefresh = lastIOReportRefresh
+            lastIOReportRefresh = timestamp
             do {
                 let snapshot = try await ioReportSource.sample(over: .seconds(1))
                 let power = Self.ioReportReadings(snapshot.power)
-                readings.append(contentsOf: power)
-                accumulateIOReportEnergy(power, elapsedSeconds: snapshot.elapsedSeconds)
+                cachedIOReportReadings = power
+                let elapsed = previousRefresh.map { timestamp.timeIntervalSince($0) } ?? snapshot.elapsedSeconds
+                accumulateIOReportEnergy(power, elapsedSeconds: max(snapshot.elapsedSeconds, elapsed))
             } catch {
                 Self.logger.debug("IOReport sensor read unavailable: \(String(describing: error), privacy: .public)")
             }
         }
+        readings.append(contentsOf: cachedIOReportReadings)
 
         readings = Self.addDerivedTemperatures(to: readings)
         accumulateSystemEnergy(readings: readings, timestamp: timestamp)
@@ -241,6 +251,10 @@ public actor SensorsMonitor: Monitor {
     /// Clears energy accumulated during the current process session.
     public func resetSessionEnergy() {
         energyAccumulator.reset()
+    }
+
+    static func shouldRefresh(lastRefresh: Date?, now: Date, interval: TimeInterval) -> Bool {
+        lastRefresh.map { now.timeIntervalSince($0) >= interval } ?? true
     }
 
     private static func hidReadings(_ source: [HIDTemperatureReading]) -> [SensorReading] {
