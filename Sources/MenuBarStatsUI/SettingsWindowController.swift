@@ -56,11 +56,13 @@ public final class SettingsWindowController: NSWindowController {
 private enum SettingsSelection: Hashable {
     case general
     case module(ModuleID)
+    case about
 
     var title: String {
         switch self {
         case .general: "General"
         case let .module(module): module.displayName
+        case .about: "About"
         }
     }
 }
@@ -94,6 +96,9 @@ private struct SettingsRootView: View {
                             .tag(SettingsSelection.module(module))
                     }
                 }
+
+                Label("About Barometer", systemImage: "info.circle")
+                    .tag(SettingsSelection.about)
             }
             .navigationTitle("Settings")
             .navigationSplitViewColumnWidth(min: 175, ideal: 195)
@@ -125,6 +130,8 @@ private struct SettingsRootView: View {
                 SensorSettingsView(store: sensorStore, settingsStore: settingsStore)
             case let .module(module):
                 FutureModuleSettingsView(module: module)
+            case .about:
+                AboutSettingsView()
             }
         }
     }
@@ -146,6 +153,15 @@ private struct GeneralSettingsView: View {
                 }
                 if let serviceError {
                     Text(serviceError).font(.caption).foregroundStyle(.red)
+                }
+                LabeledContent("Login item status", value: launchAtLoginStatus)
+                if isRunningFromDistributionFolder {
+                    Label(
+                        "This copy is running from dist. Install Barometer in Applications before enabling login.",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.orange)
                 }
                 Toggle("Reduce sampling rate on battery", isOn: appBinding(\.reducesSamplingOnBattery))
                     .help("Doubles sampling intervals while the Mac is running on battery power.")
@@ -310,6 +326,9 @@ private struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         .navigationTitle("General")
+        .onAppear {
+            launchAtLogin = SMAppService.mainApp.status == .enabled
+        }
     }
 
     private func appBinding<Value>(_ keyPath: WritableKeyPath<AppSettings, Value>) -> Binding<Value> {
@@ -415,6 +434,20 @@ private struct GeneralSettingsView: View {
         }
     }
 
+    private var launchAtLoginStatus: String {
+        switch SMAppService.mainApp.status {
+        case .enabled: "Enabled"
+        case .requiresApproval: "Needs approval in System Settings"
+        case .notFound: "Unavailable for this app copy"
+        case .notRegistered: "Disabled"
+        @unknown default: "Unknown"
+        }
+    }
+
+    private var isRunningFromDistributionFolder: Bool {
+        Bundle.main.bundleURL.pathComponents.contains("dist")
+    }
+
     private func exportSettings() {
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "Barometer Settings.json"
@@ -444,6 +477,46 @@ private struct GeneralSettingsView: View {
         alert.messageText = message
         alert.informativeText = error.localizedDescription
         alert.runModal()
+    }
+}
+
+private struct AboutSettingsView: View {
+    private var version: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Development"
+    }
+
+    private var build: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "Local"
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 112, height: 112)
+            Text("Barometer").font(.largeTitle.weight(.semibold))
+            Text("Version \(version) (\(build))")
+                .foregroundStyle(.secondary)
+            Text("A detailed, customizable system monitor for the macOS menu bar.")
+                .multilineTextAlignment(.center)
+            HStack(spacing: 18) {
+                if let sourceURL = URL(string: "https://github.com/mackid1993/Barometer") {
+                    Link("Source Code", destination: sourceURL)
+                }
+                if let issuesURL = URL(string: "https://github.com/mackid1993/Barometer/issues") {
+                    Link("Report an Issue", destination: issuesURL)
+                }
+            }
+            Text("MIT License")
+                .font(.headline)
+            Text("Weather data by Open-Meteo.com")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .navigationTitle("About")
     }
 }
 

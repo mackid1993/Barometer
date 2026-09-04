@@ -1343,3 +1343,20 @@ Verification:
   schema migration, appearance export/import fidelity, and narrower icon and graph geometry in compact mode.
 - `swift build -c release` completed successfully.
 - The changed Swift files pass the 120-column check.
+
+## P7-T3 About, export and import, launch at login polish
+
+Added an About pane with the installed version and build, application icon, MIT license, Open-Meteo attribution,
+and source and issue links. General settings now report the actual `SMAppService` state, including required user
+approval, and warn when the current bundle is launched from a `dist` folder.
+
+Settings export remains deterministic, pretty-printed JSON. Import now rejects documents larger than 1 MB, future
+schemas, invalid RGB values, unsafe sampling values, and out-of-range appearance controls before changing any live
+setting. The existing settings remain untouched after a failed import.
+
+Verification:
+
+- `swift test --filter SettingsTests` exited 0. New coverage verifies that an invalid settings document is rejected
+  atomically, while complete appearance settings still round trip without loss.
+- `swift build` completed successfully.
+- `git diff --check` and the 120-column check passed.

@@ -22,6 +22,22 @@ struct SettingsTests {
         #expect(decoded == settings)
     }
 
+    @Test("settings import rejects invalid values without changing current settings")
+    @MainActor
+    func rejectsInvalidImport() throws {
+        let suite = try #require(UserDefaults(suiteName: "SettingsTests.invalid-import"))
+        suite.removePersistentDomain(forName: "SettingsTests.invalid-import")
+        let store = SettingsStore(defaults: suite)
+        let original = store.settings
+        var invalid = original
+        invalid.graphOpacity = 4
+
+        #expect(throws: SettingsImportError.valueOutOfRange("graph opacity")) {
+            try store.importJSON(JSONEncoder().encode(invalid))
+        }
+        #expect(store.settings == original)
+    }
+
     @Test("version zero settings migrate to the current schema")
     func migrateVersionZero() throws {
         let versionZero = Data(
