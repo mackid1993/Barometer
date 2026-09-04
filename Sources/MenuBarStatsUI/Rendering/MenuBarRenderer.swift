@@ -674,6 +674,11 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
             + pairGap
             + valueWidth
 
+        // With arrows, every row starts at the same leading edge so the markers form one column.
+        // Without them the rows are two bare readings of different lengths, and left-aligning leaves
+        // a ragged column, so each row is centered on the other instead.
+        let topValueOffset = hasMarker ? 0 : ((valueWidth - ceil(topValue.size().width)) / 2).rounded()
+        let bottomValueOffset = hasMarker ? 0 : ((valueWidth - ceil(bottomValue.size().width)) / 2).rounded()
         return makeImage(width: width, context: context) { _ in
             let topOrigins = Self.rowOrigins(
                 markerFieldWidth: markerWidth,
@@ -693,7 +698,7 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
             )
             topValue.draw(
                 at: NSPoint(
-                    x: MenuBarLayoutMetrics.contentInset + topOrigins.value,
+                    x: MenuBarLayoutMetrics.contentInset + topOrigins.value + topValueOffset,
                     y: metrics.compactRowY(0, textHeight: max(topMarker.size().height, topValue.size().height))
                 )
             )
@@ -705,7 +710,7 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
             )
             bottomValue.draw(
                 at: NSPoint(
-                    x: MenuBarLayoutMetrics.contentInset + bottomOrigins.value,
+                    x: MenuBarLayoutMetrics.contentInset + bottomOrigins.value + bottomValueOffset,
                     y: metrics.compactRowY(1, textHeight: max(bottomMarker.size().height, bottomValue.size().height))
                 )
             )

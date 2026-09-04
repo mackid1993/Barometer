@@ -2191,3 +2191,23 @@ Verification:
   reserved slack is zero. All checks passed.
 - `make install` replaced and relaunched `/Applications/Barometer.app`, and the identity diagnostics showed every
   item with its permanent autosave name and label.
+
+### P8-T8 align the stacked battery rows
+
+David reported that the percentage over time remaining was not aligned. Measuring the rendered image ruled out the
+first two suspects: both rows sit exactly where the CPU and Memory stacks put theirs, so nothing was off vertically
+or out of step with its neighbors. The fault was horizontal. `NetworkRateStackRenderer` starts every row at one
+leading edge so the `↑` and `↓` arrows form a column, which is right for Network but leaves two bare readings of
+different lengths, such as `78%` over `7:30`, ragged against each other.
+
+Rows that carry no marker are now centered on each other. Network is unchanged because its rows always have arrows,
+which the test pins by asserting its two leading edges still match.
+
+Verification:
+
+- `swift build`, `swift build -c release`, and `git diff --check` completed successfully; `swift test` built every
+  target, and the runner remains unavailable on this machine.
+- Direct image measurement: the two rows share a horizontal center within half a point at 5, 9, 78, and 100 percent
+  with estimates from 3 minutes to 12 hours, both rows still land on the same scanlines as the CPU stack, every
+  Battery presentation still measures one width, and the Network item's arrows still share one leading edge.
+- `make install` replaced and relaunched `/Applications/Barometer.app`.

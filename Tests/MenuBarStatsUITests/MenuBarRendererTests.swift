@@ -848,6 +848,64 @@ struct MenuBarRendererTests {
         #expect(widths.count == 1, "stack produced widths \(widths.sorted())")
     }
 
+    @Test("two bare readings stacked in one item share a center")
+    func stackedReadingsShareACenter() {
+        // Rows with arrows keep one leading column so the markers line up. Rows without them are two
+        // readings of different lengths, and left-aligning leaves a visibly ragged column.
+        for (charge, minutes) in [(78.0, 450), (5.0, 3), (100.0, 725), (9.0, 62)] {
+            let image = BatteryMenuBarPresenter.content(
+                sample: batterySample(charge: charge, charging: false, minutes: minutes),
+                moduleSettings: ModuleSettings(mode: "percentageTime"),
+                batterySettings: BatterySettings(),
+                context: context
+            ).image
+            let centers = Self.rowCenters(image)
+            #expect(centers.count == 2)
+            #expect(abs(centers[0] - centers[1]) <= 1, "\(Int(charge))% rows differ by \(centers)")
+        }
+
+        // The Network item still pins its arrows to one leading column.
+        let network = NetworkRateStackRenderer(
+            download: "1.2M", upload: "15K", reservedValue: "999MB/s"
+        ).render(in: context)
+        let networkEdges = Self.rowLeadingEdges(network)
+        #expect(networkEdges.count == 2)
+        #expect(abs(networkEdges[0] - networkEdges[1]) <= 1, "network arrows misaligned: \(networkEdges)")
+    }
+
+    /// Horizontal center of the ink in the top and bottom halves of an image.
+    private static func rowCenters(_ image: NSImage) -> [CGFloat] {
+        bands(image) { first, last, scale in (CGFloat(first) + CGFloat(last)) / 2 / scale }
+    }
+
+    /// Leading ink edge in the top and bottom halves of an image.
+    private static func rowLeadingEdges(_ image: NSImage) -> [CGFloat] {
+        bands(image) { first, _, scale in CGFloat(first) / scale }
+    }
+
+    private static func bands(
+        _ image: NSImage,
+        _ measure: (Int, Int, CGFloat) -> CGFloat
+    ) -> [CGFloat] {
+        guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff) else {
+            return []
+        }
+        let middle = bitmap.pixelsHigh / 2
+        return [(0, middle), (middle, bitmap.pixelsHigh)].map { band in
+            var first = bitmap.pixelsWide
+            var last = -1
+            for x in 0..<bitmap.pixelsWide {
+                for y in band.0..<band.1 where (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.05 {
+                    first = min(first, x)
+                    last = max(last, x)
+                    break
+                }
+            }
+            guard last >= 0 else { return 0 }
+            return measure(first, last, CGFloat(bitmap.pixelsWide) / image.size.width)
+        }
+    }
+
     private func batterySample(charge: Double, charging: Bool, minutes: Int? = nil) -> BatterySample {
         BatterySample(
             snapshot: BatterySnapshot(
