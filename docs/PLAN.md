@@ -1,5 +1,9 @@
 # Barometer: Execution Plan
 
+Current implementation status: Phase 5 is active. Phases 0 through 4 are implemented and verified; the remaining
+v1 work proceeds from Battery through Time, Combined, appearance/polish, and release-ready packaging without
+submitting a notarization request.
+
 This is the step-by-step plan for building the app described in `docs/DESIGN.md`. It is written for a coding agent (Codex) working on David's Mac with the Command Line Tools only. Read `AGENTS.md` and `docs/DESIGN.md` first. Section 3.5 of the design (the identity contract) is normative and is repeated in short form in `AGENTS.md`.
 
 ## 0. How to work this plan

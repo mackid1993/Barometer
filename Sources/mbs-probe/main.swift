@@ -4,6 +4,7 @@ import MenuBarStatsCore
 import SystemSources
 
 private enum ProbeCommand: String {
+    case battery
     case cpu
     case disks
     case fans
@@ -20,6 +21,29 @@ private enum ProbeCommand: String {
     case version
     case weather
     case wifi
+}
+
+private func runBatteryProbe() throws {
+    let sample = try BatterySource().read()
+    print(String(format: "Battery %.1f%% — %@", sample.chargePercent, sample.state.rawValue))
+    print(
+        "time \(sample.timeRemainingMinutes.map { "\($0) min" } ?? "unavailable"); "
+            + "health \(sample.healthPercent.map { String(format: "%.1f%%", $0) } ?? "unavailable"); "
+            + "cycles \(sample.cycleCount.map(String.init) ?? "unavailable")"
+    )
+    print(
+        "temperature \(sample.temperatureCelsius.map { String(format: "%.2f °C", $0) } ?? "unavailable"); "
+            + "voltage \(sample.voltageVolts.map { String(format: "%.3f V", $0) } ?? "unavailable"); "
+            + "current \(sample.amperageAmps.map { String(format: "%.3f A", $0) } ?? "unavailable"); "
+            + "power \(sample.wattageWatts.map { String(format: "%.2f W", $0) } ?? "unavailable")"
+    )
+    if let adapter = sample.adapter {
+        print(
+            "adapter \(adapter.name ?? adapter.description ?? "unknown"); "
+                + "rated \(adapter.watts.map { String(format: "%.0f W", $0) } ?? "unavailable")"
+        )
+    }
+    print("low power mode: \(sample.isLowPowerModeEnabled ? "on" : "off")")
 }
 
 private func runIdentityProbe() {
@@ -461,7 +485,8 @@ private enum ProbeMain {
         let arguments = Array(CommandLine.arguments.dropFirst())
         guard let commandName = arguments.first, let command = ProbeCommand(rawValue: commandName) else {
             writeError(
-                "usage: mbs-probe <cpu [--watch]|disks [--watch]|fans|freq [--watch]|geocode QUERY|gpu [--watch]|"
+                "usage: mbs-probe <battery|cpu [--watch]|disks [--watch]|fans|freq [--watch]|geocode QUERY|"
+                    + "gpu [--watch]|"
                     + "identity|"
                     + "memory|net [--watch]|power [--watch]|sensors [--watch]|smc --list|temps|version|"
                     + "weather --lat N --lon N|wifi>"
@@ -471,6 +496,12 @@ private enum ProbeMain {
 
         do {
             switch command {
+            case .battery:
+                guard arguments.count == 1 else {
+                    writeError("usage: mbs-probe battery")
+                    exit(EXIT_FAILURE)
+                }
+                try runBatteryProbe()
             case .cpu:
                 guard arguments.count == 1 || arguments == ["cpu", "--watch"] else {
                     writeError("usage: mbs-probe cpu [--watch]")

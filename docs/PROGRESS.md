@@ -1180,3 +1180,27 @@ Verification:
 - With the saved one-decimal setting, the runtime identity report records a 38-point Network image and status item.
   That reservation now remains 38 points as live rates promote between compact units.
 - `git diff --check` passed, and all changed Swift files stay within 120 columns.
+
+## P5-T1 Battery source
+
+Design alternatives considered before implementation:
+
+- IOPS alone uses a public normalized API and provides charge state and time estimates, but not the detailed health,
+  current, voltage, temperature, cycle, or adapter values required by the design.
+- IORegistry alone exposes the detailed runtime keys, but state and time fields are less stable across hardware and
+  OS versions. The selected design merges IOPS summary data with optional runtime `AppleSmartBattery` and
+  `AppleSmartBatteryPack` properties and degrades each missing field independently.
+
+Implemented a normalized battery source that combines IOPS charge/state estimates with optional battery-pack,
+electrical, thermal, health, cycle, condition, low-power-mode, and adapter details. Signed current conversion handles
+the unsigned integer representation published by IORegistry. Time remaining is shown only while charging or
+discharging, so a Mac connected to AC without actively charging does not present a false zero-minute estimate.
+
+Verification:
+
+- `swift test --filter BatterySourceTests` rebuilt the package and exited 0. Coverage verifies signed 32-bit current,
+  battery temperature scaling and invalid sentinels, capacity-based health, and live value ranges.
+- `swift run mbs-probe battery` reported the internal battery at 90.0% on AC, 99.9% health, 45 cycles, 31.29 °C,
+  12.570 V, 0.000 A, and 0.00 W. It identified the connected 140W USB-C Power Adapter and correctly reported time
+  remaining as unavailable in the on-AC state.
+- `swift build` and `git diff --check` completed successfully.
