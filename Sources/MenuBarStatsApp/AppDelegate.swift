@@ -5,9 +5,9 @@ import OSLog
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private static let bundleIdentifier = "net.brustein.MenuBarStats"
+    private static let bundleIdentifier = "com.barometer.app"
     private static let openSettingsNotification = Notification.Name(
-        "net.brustein.MenuBarStats.openSettings"
+        "com.barometer.app.openSettings"
     )
     private static let logger = Logger(subsystem: bundleIdentifier, category: "application")
 
@@ -42,11 +42,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settingsAction: { [weak self] in self?.showSettings() },
             quitAction: { NSApp.terminate(nil) }
         )
-        Self.logger.info("MenuBarStats started")
+        Self.logger.info("Barometer started")
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        Self.logger.info("MenuBarStats will terminate")
+        Self.logger.info("Barometer will terminate")
         return .terminateNow
     }
 
@@ -76,7 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             deliverImmediately: true
         )
         existingApplication.activate()
-        Self.logger.notice("Another MenuBarStats instance is already running")
+        Self.logger.notice("Another Barometer instance is already running")
         return false
     }
 

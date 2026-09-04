@@ -1,10 +1,10 @@
-# MenuBarStats: Design
+# Barometer: Design
 
 Status: v1 design, written 2026-09-03. Companion documents: `docs/PLAN.md` (phased execution plan), `docs/CODEX_PROMPT.md` (the prompt that kicks off implementation), `AGENTS.md` (standing rules for coding agents).
 
 ## 1. Purpose
 
-MenuBarStats is a free, open source (MIT) macOS app that replaces iStat Menus for one specific user and, secondarily, for anyone else who wants it. It reproduces the iStat Menus feature set (CPU, GPU, memory, disks, network, sensors, battery, weather, time) as a set of menu bar items with rich dropdown panels, and it must behave correctly with third-party menu bar managers on macOS 27, where iStat Menus currently misbehaves.
+Barometer is a free, open source (MIT) macOS app that replaces iStat Menus for one specific user and, secondarily, for anyone else who wants it. It reproduces the iStat Menus feature set (CPU, GPU, memory, disks, network, sensors, battery, weather, time) as a set of menu bar items with rich dropdown panels, and it must behave correctly with third-party menu bar managers on macOS 27, where iStat Menus currently misbehaves.
 
 Weather is a first-class module, not an add-on.
 
@@ -62,7 +62,7 @@ iStat Menus 7.30 is three bundles plus a daemon:
 | iStat Menus Menubar.app | `com.bjango.istatmenus.status` | LaunchAgent (`com.bjango.istatmenus.status`), owns every status item |
 | `com.bjango.istatmenus.daemon` | privileged helper in `/Library/PrivilegedHelperTools` | root work (fan control, some sensors) |
 
-All items come from one process, `com.bjango.istatmenus.status`, and that is the only reason they can be managed at all. The user's observation that "every item must have the same helper name" is exactly this: one owning bundle identifier for all items. MenuBarStats goes further and uses one process for everything, with no helper and no daemon.
+All items come from one process, `com.bjango.istatmenus.status`, and that is the only reason they can be managed at all. The user's observation that "every item must have the same helper name" is exactly this: one owning bundle identifier for all items. Barometer goes further and uses one process for everything, with no helper and no daemon.
 
 ### 3.4 Verified behavior of NSStatusItem on macOS 27.0
 
@@ -84,7 +84,7 @@ So: the window name is the autosave name and nothing else. The button title flow
 These rules are part of the public contract of the app. Changing any of them after the first release is a breaking change that scrambles every user's menu bar layout.
 
 1. One process. All status items are created by the main app process. No helper app, no XPC service, no login-item bundle owns a status item.
-2. One bundle identifier, forever: `net.brustein.MenuBarStats`. (David: change this before the first launch if you want a different one, never after.)
+2. One bundle identifier, forever: `com.barometer.app`. (David: change this before the first launch if you want a different one, never after.)
 3. Fixed autosave names, one per module, never renamed:
 
    | Module | `autosaveName` |
@@ -202,7 +202,7 @@ Parity target is iStat Menus 7. Each module has a menu bar representation (sever
 
 ### 5.1 Process model
 
-One `LSUIElement` application, `MenuBarStats.app`, with no Dock icon. It owns all status items, all dropdown menus, the Settings window, and all sampling. Opening Settings calls `NSApp.activate()` so the window comes to the front; closing it returns to accessory behavior. No helper, no daemon, no XPC, no privileged operations.
+One `LSUIElement` application, `Barometer.app`, with no Dock icon. It owns all status items, all dropdown menus, the Settings window, and all sampling. Opening Settings calls `NSApp.activate()` so the window comes to the front; closing it returns to accessory behavior. No helper, no daemon, no XPC, no privileged operations.
 
 ### 5.2 Swift package layout
 
@@ -214,7 +214,7 @@ MenuBarStats/
   LICENSE                            MIT
   docs/DESIGN.md  docs/PLAN.md  docs/CODEX_PROMPT.md
   Makefile                           build, app, run, test, clean, probe targets
-  Scripts/make-app.sh                assembles MenuBarStats.app from the built binary
+  Scripts/make-app.sh                assembles Barometer.app from the built binary
   Scripts/Info.plist                 bundle metadata (LSUIElement, bundle ID, usage descriptions)
   Resources/                         asset catalogs are not available without Xcode; use PNG/PDF files and SF Symbols
   Sources/
@@ -353,7 +353,7 @@ Every source below has been checked on the target machine unless marked "expecte
 
 ## 8. Dropdown menus
 
-- Each status item has an `NSMenu`. The first item is a custom view (`NSMenuItem.view = NSHostingView(rootView:)`) with a fixed width of 320 pt, matching iStat Menus. Below it come standard items: "Settings…", per-module actions, and "Quit MenuBarStats".
+- Each status item has an `NSMenu`. The first item is a custom view (`NSMenuItem.view = NSHostingView(rootView:)`) with a fixed width of 320 pt, matching iStat Menus. Below it come standard items: "Settings…", per-module actions, and "Quit Barometer".
 - The hosted SwiftUI view observes the module store. Live updates while the menu is open are driven by a `Timer` scheduled on `RunLoop.main` in `.common` modes, because menu tracking runs in `NSEventTrackingRunLoopMode`. Phase 1 includes a check that samples continue to flow while the menu is open; if they do not, the fallback is an `NSPanel` shown under the item.
 - Menu bar managers open menus by sending an AX press to the item, so `NSMenu` attached to the status item is the most compatible choice. `NSPopover` is not used for the primary dropdown.
 - Graphs in dropdowns are SwiftUI `Canvas` views drawing from `History`, with a time-range picker.
@@ -361,23 +361,23 @@ Every source below has been checked on the target machine unless marked "expecte
 
 ## 9. Settings and persistence
 
-- `AppSettings` is a versioned `Codable` struct (`schemaVersion`) stored as JSON data in `UserDefaults.standard` under one key, with a migration chain. The bundle identifier `net.brustein.MenuBarStats` fixes the preferences domain, and `NSStatusItem` position keys live in the same domain.
+- `AppSettings` is a versioned `Codable` struct (`schemaVersion`) stored as JSON data in `UserDefaults.standard` under one key, with a migration chain. The bundle identifier `com.barometer.app` fixes the preferences domain, and `NSStatusItem` position keys live in the same domain.
 - Each module has a `ModuleSettings` struct: enabled, menu bar mode, interval, colors, graph options, dropdown options, and module-specific fields (weather locations and units, sensor selection, time formats).
 - Changes are applied live. The settings window is SwiftUI (`NSWindow` hosting a `TabView` or sidebar with one pane per module plus General, Appearance, and About).
 - Export and import: JSON file via `NSSavePanel` and `NSOpenPanel`.
 
 ## 10. Build, packaging, signing, permissions
 
-- `swift build -c release` produces `.build/release/MenuBarStatsApp`. `Scripts/make-app.sh` creates `dist/MenuBarStats.app/Contents/{MacOS,Resources}`, copies the binary as `MenuBarStats`, writes `Info.plist` with version substitution, copies resources, and runs `codesign --force --sign - --identifier net.brustein.MenuBarStats dist/MenuBarStats.app`.
+- `swift build -c release` produces `.build/release/MenuBarStatsApp`. `Scripts/make-app.sh` creates `dist/Barometer.app/Contents/{MacOS,Resources}`, copies the binary as `Barometer`, writes `Info.plist` with version substitution, copies resources, and runs `codesign --force --sign - --identifier com.barometer.app dist/Barometer.app`.
 - `Info.plist` keys: `CFBundleIdentifier`, `CFBundleName`, `CFBundleDisplayName`, `CFBundleExecutable`, `CFBundlePackageType=APPL`, `CFBundleShortVersionString`, `CFBundleVersion`, `LSMinimumSystemVersion=26.0`, `LSUIElement=true`, `NSHumanReadableCopyright`, `NSLocationUsageDescription`, `NSCalendarsFullAccessUsageDescription`, `NSSupportsAutomaticTermination=false`, `NSSupportsSuddenTermination=false`.
-- `make run` kills any running instance, rebuilds, and opens the app with `open dist/MenuBarStats.app`. `make install` copies to `/Applications`.
+- `make run` kills any running instance, rebuilds, and opens the app with `open dist/Barometer.app`. `make install` copies to `/Applications`.
 - Launch at login uses `SMAppService.mainApp.register()`; it requires the app to be in a stable location, so Settings warns when running from `dist/`.
 - Permissions that may be requested, all optional: Location (Wi-Fi SSID, current-location weather), Calendars (Time module events). Accessibility and Screen Recording are never needed.
 - Later: Developer ID signing and notarization, Sparkle updates, and a Homebrew cask. Not part of v1.
 
 ## 11. Logging, diagnostics, performance
 
-- `os.Logger` with subsystem `net.brustein.MenuBarStats` and one category per module plus `identity`, `scheduler`, `render`, `weather`. Stream with `log stream --level debug --predicate 'subsystem == "net.brustein.MenuBarStats"'`.
+- `os.Logger` with subsystem `com.barometer.app` and one category per module plus `identity`, `scheduler`, `render`, `weather`. Stream with `log stream --level debug --predicate 'subsystem == "com.barometer.app"'`.
 - `mbs-probe` prints any source as text or JSON: `mbs-probe cpu`, `mbs-probe temps`, `mbs-probe smc --list`, `mbs-probe gpu`, `mbs-probe battery`, `mbs-probe disks`, `mbs-probe net`, `mbs-probe weather --lat 42.36 --lon -71.06`, `mbs-probe identity` (launches a temporary status item and prints its identity strings).
 - Budgets on the M4 Pro with all modules enabled at default intervals: under 0.7% average CPU measured over five minutes with `top -pid`, under 80 MB resident, zero energy impact rating of "High" in Activity Monitor. Sampling threads must not spin; the scheduler sleeps between samples.
 
@@ -416,7 +416,7 @@ Every source below has been checked on the target machine unless marked "expecte
 
 ## 15. Open questions for David
 
-1. Bundle identifier: `net.brustein.MenuBarStats` is the default. Confirm or change before the first launch.
+1. Bundle identifier: `com.barometer.app` is the default. Confirm or change before the first launch.
 2. Default temperature unit: °F is assumed.
 3. Should the Weather module also offer WeatherKit as an optional provider once Xcode and a developer account are available? The provider protocol allows it; it is not planned for v1.
 4. Alerts and notifications are scheduled for a late phase. Say so if they should move earlier.

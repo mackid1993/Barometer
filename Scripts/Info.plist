@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleDisplayName</key>
-    <string>MenuBarStats</string>
+    <string>Barometer</string>
     <key>CFBundleExecutable</key>
-    <string>MenuBarStats</string>
+    <string>Barometer</string>
     <key>CFBundleIdentifier</key>
-    <string>net.brustein.MenuBarStats</string>
+    <string>com.barometer.app</string>
     <key>CFBundleName</key>
-    <string>MenuBarStats</string>
+    <string>Barometer</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -21,11 +21,11 @@
     <key>LSUIElement</key>
     <true/>
     <key>NSCalendarsFullAccessUsageDescription</key>
-    <string>MenuBarStats can show upcoming calendar events in the Time menu.</string>
+    <string>Barometer can show upcoming calendar events in the Time menu.</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2026 David Brustein</string>
     <key>NSLocationUsageDescription</key>
-    <string>MenuBarStats can use your location for local weather and Wi-Fi details.</string>
+    <string>Barometer can use your location for local weather and Wi-Fi details.</string>
     <key>NSSupportsAutomaticTermination</key>
     <false/>
     <key>NSSupportsSuddenTermination</key>

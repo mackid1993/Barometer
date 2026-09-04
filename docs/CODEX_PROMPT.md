@@ -5,7 +5,7 @@ Two prompts: one to start, one to continue after each review. Paste them as-is i
 ## Kickoff prompt
 
 ```
-You are implementing MenuBarStats, a free open source macOS menu bar system monitor that replaces iStat Menus and works with menu bar managers (Thaw, Bartender) on macOS 27. The repository is /Users/david/MenuBarStats. It contains only design documents right now.
+You are implementing Barometer, a free open source macOS menu bar system monitor that replaces iStat Menus and works with menu bar managers (Thaw, Bartender) on macOS 27. The repository is /Users/david/MenuBarStats. It contains only design documents right now.
 
 Read these files completely before writing any code, in this order:
 1. AGENTS.md (standing rules; they override your defaults)
@@ -18,7 +18,7 @@ Environment facts you must respect: macOS 27.0 beta on an Apple M4 Pro; Command 
 Execute Phase 0 of docs/PLAN.md now: tasks P0-T1 through P0-T5, in order. For each task: implement it, run every command on its "Verify" line, record the output under the task ID in docs/PROGRESS.md (create the file), and commit with a message of the form "P0-T3: application shell". No attribution lines or co-author trailers in commits.
 
 Rules that matter most:
-- The bundle identifier is net.brustein.MenuBarStats and the autosave names are the ten listed in AGENTS.md. Put them in the ModuleID enum and nowhere else. Never put a live value in a status item's title, window title, accessibility label, or accessibility identifier; live values go only in accessibilityValue, and all menu bar content is an NSImage in button.image.
+- The bundle identifier is com.barometer.app and the autosave names are the ten listed in AGENTS.md. Put them in the ModuleID enum and nowhere else. Never put a live value in a status item's title, window title, accessibility label, or accessibility identifier; live values go only in accessibilityValue, and all menu bar content is an NSImage in button.image.
 - One process owns every status item. No helper app, no XPC service, no daemon.
 - Do not modify, launch, or read the preferences of iStat Menus, Stats, or Thaw except for the read-only Thaw identity check command in docs/PLAN.md, and only when David says Thaw is running.
 - If a verification step needs something you cannot do (a permission dialog, plugging in a charger, running Thaw), do everything else, then stop and tell me exactly what you need.

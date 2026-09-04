@@ -50,7 +50,7 @@ struct SettingsTests {
     @Test("settings store persists immediately")
     @MainActor
     func settingsStoreRoundTrip() throws {
-        let suiteName = "net.brustein.MenuBarStats.Tests.Settings"
+        let suiteName = "com.barometer.app.Tests.Settings"
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
         defer {

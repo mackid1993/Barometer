@@ -34,7 +34,7 @@ public final class StatusItemController<Sample: Sendable> {
     private let store: ModuleStore<Sample>
     private let settingsStore: SettingsStore
     private let renderContent: Render
-    private let logger = Logger(subsystem: "net.brustein.MenuBarStats", category: "render")
+    private let logger = Logger(subsystem: "com.barometer.app", category: "render")
 
     /// Creates and begins observing a status item controller.
     public init(

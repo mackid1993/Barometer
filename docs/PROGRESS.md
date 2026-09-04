@@ -356,3 +356,33 @@ the earlier Phase 1 build.
 `swift test --filter Settings` compiled and linked successfully after adding focused migration assertions for the new
 values (exit 0; the installed test runner remains silent). `make run` then rebuilt, signed, and launched the packaged
 app with the larger migrated presentation.
+
+## Product identity update
+
+David explicitly renamed the product to Barometer and authorized replacing the original personal-name bundle
+identifier. Updated the visible application name, settings window, login control, menu commands, export filename,
+bundle assembly paths, executable name, package name, logging subsystem, single-instance notification, tests, and
+identity documentation. The permanent per-module autosave names remain unchanged so the internal item identifiers
+continue to come from the single `ModuleID` table.
+
+`make app` produced `dist/Barometer.app`. Bundle inspection confirmed:
+
+```text
+Identifier=com.barometer.app
+Signature=adhoc
+TeamIdentifier=not set
+"CFBundleDisplayName" => "Barometer"
+"CFBundleExecutable" => "Barometer"
+"CFBundleIdentifier" => "com.barometer.app"
+"CFBundleName" => "Barometer"
+```
+
+`make run` exited 0, and the renamed bundle launched as exactly one process:
+
+```text
+21906 /Users/david/MenuBarStats/dist/Barometer.app/Contents/MacOS/Barometer
+```
+
+This requested identifier change creates a new macOS status-item namespace, so positions saved under the pre-release
+identifier do not transfer. The obsolete generated app bundle and temporary benchmark helpers were moved to `/tmp`
+rather than left beside the new product.

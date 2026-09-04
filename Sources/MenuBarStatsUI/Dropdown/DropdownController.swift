@@ -9,7 +9,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     private let tickAction: @MainActor () -> Void
     private let settingsAction: @MainActor () -> Void
     private let quitAction: @MainActor () -> Void
-    private let logger = Logger(subsystem: "net.brustein.MenuBarStats", category: "dropdown")
+    private let logger = Logger(subsystem: "com.barometer.app", category: "dropdown")
     private var trackingTimer: Timer?
 
     /// Creates and installs a 320-point-wide hosted menu for one permanent status item.
@@ -43,7 +43,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         settingsItem.target = self
         menu.addItem(settingsItem)
 
-        let quitItem = NSMenuItem(title: "Quit MenuBarStats", action: #selector(quitApplication), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit Barometer", action: #selector(quitApplication), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
         statusItem.menu = menu

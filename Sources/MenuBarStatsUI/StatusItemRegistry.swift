@@ -5,7 +5,7 @@ import OSLog
 /// Owns every status item for the lifetime of the application process.
 @MainActor
 public final class StatusItemRegistry: NSObject {
-    private static let identityLogger = Logger(subsystem: "net.brustein.MenuBarStats", category: "identity")
+    private static let identityLogger = Logger(subsystem: "com.barometer.app", category: "identity")
 
     private let settingsAction: @MainActor () -> Void
     private let quitAction: @MainActor () -> Void
@@ -74,7 +74,7 @@ public final class StatusItemRegistry: NSObject {
         menu.addItem(.separator())
 
         let quitItem = NSMenuItem(
-            title: "Quit MenuBarStats",
+            title: "Quit Barometer",
             action: #selector(quitApplication),
             keyEquivalent: "q"
         )

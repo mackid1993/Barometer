@@ -11,7 +11,7 @@ public final class SettingsWindowController: NSWindowController {
         let rootView = SettingsRootView(settingsStore: settingsStore)
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
-        window.title = "MenuBarStats Settings"
+        window.title = "Barometer Settings"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.setContentSize(NSSize(width: 720, height: 520))
         window.minSize = NSSize(width: 640, height: 440)
@@ -80,7 +80,7 @@ private struct GeneralSettingsView: View {
     var body: some View {
         Form {
             Section("Application") {
-                LabeledContent("Launch MenuBarStats at login") {
+                LabeledContent("Launch Barometer at login") {
                     Button(launchAtLogin ? "Disable" : "Enable") {
                         updateLaunchAtLogin(!launchAtLogin)
                     }
@@ -160,7 +160,7 @@ private struct GeneralSettingsView: View {
 
     private func exportSettings() {
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = "MenuBarStats Settings.json"
+        panel.nameFieldStringValue = "Barometer Settings.json"
         panel.allowedContentTypes = [.json]
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {

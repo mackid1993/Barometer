@@ -20,7 +20,7 @@ public final class SettingsStore {
     @ObservationIgnored private let encoder = JSONEncoder()
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private let logger = Logger(
-        subsystem: "net.brustein.MenuBarStats",
+        subsystem: "com.barometer.app",
         category: "settings"
     )
 

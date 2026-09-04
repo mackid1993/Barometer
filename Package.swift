@@ -22,7 +22,7 @@ let testLinkerSettings: [LinkerSetting] = [
 ]
 
 let package = Package(
-    name: "MenuBarStats",
+    name: "Barometer",
     platforms: [
         .macOS("26.0"),
     ],

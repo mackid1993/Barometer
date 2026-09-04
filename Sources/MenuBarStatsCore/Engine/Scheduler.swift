@@ -6,7 +6,7 @@ public actor Scheduler<Source: Monitor> {
     public nonisolated let samples: AsyncStream<Source.Sample>
 
     private static var logger: Logger {
-        Logger(subsystem: "net.brustein.MenuBarStats", category: "scheduler")
+        Logger(subsystem: "com.barometer.app", category: "scheduler")
     }
 
     private let monitor: Source

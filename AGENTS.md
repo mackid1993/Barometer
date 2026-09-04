@@ -4,7 +4,7 @@ Standing rules for any coding agent working in this repository. These override d
 
 ## What this is
 
-MenuBarStats: a free, open source (MIT) macOS menu bar system monitor that replaces iStat Menus and works with menu bar managers (Thaw, Bartender) on macOS 27. Design: `docs/DESIGN.md`. Plan: `docs/PLAN.md`. Progress log: `docs/PROGRESS.md` (create it on first use).
+Barometer: a free, open source (MIT) macOS menu bar system monitor that replaces iStat Menus and works with menu bar managers (Thaw, Bartender) on macOS 27. Design: `docs/DESIGN.md`. Plan: `docs/PLAN.md`. Progress log: `docs/PROGRESS.md` (create it on first use).
 
 ## Environment
 
@@ -18,7 +18,7 @@ MenuBarStats: a free, open source (MIT) macOS menu bar system monitor that repla
 Full text in `docs/DESIGN.md` section 3.5. Short form:
 
 1. One process owns every status item. No helper, no XPC, no second bundle.
-2. Bundle identifier `net.brustein.MenuBarStats`. Never change it.
+2. Bundle identifier `com.barometer.app`. Never change it.
 3. Autosave names are fixed: `MenuBarStats.CPU`, `MenuBarStats.GPU`, `MenuBarStats.Memory`, `MenuBarStats.Disks`, `MenuBarStats.Network`, `MenuBarStats.Sensors`, `MenuBarStats.Battery`, `MenuBarStats.Weather`, `MenuBarStats.Time`, `MenuBarStats.Combined`. Extra instances are `MenuBarStats.Weather.2` and so on. `ModuleID` in `MenuBarStatsCore` is the only place these strings live.
 4. `NSStatusBarButton.title` is always empty. Menu bar content is an `NSImage` in `button.image`.
 5. `setAccessibilityIdentifier(autosaveName)` and `setAccessibilityLabel(displayName)` once, never changed. Live readings go in `setAccessibilityValue` only.
@@ -30,7 +30,7 @@ Full text in `docs/DESIGN.md` section 3.5. Short form:
 - Swift 6 language mode with strict concurrency. No `@unchecked Sendable` without a comment explaining why. No `DispatchQueue.main.async` where `@MainActor` works.
 - Layering: `CSystemSources` <- `SystemSources` <- `MenuBarStatsCore` <- `MenuBarStatsUI` <- `MenuBarStatsApp`. Nothing below `MenuBarStatsUI` imports AppKit or SwiftUI.
 - Every system data source has an `isAvailable` check and degrades to "unavailable" in the UI. Private APIs (IOHID event client, IOReport, SMC) are wrapped in one type each in `SystemSources` and used nowhere else.
-- No force unwraps or `try!` outside tests. Errors are logged with `os.Logger`, subsystem `net.brustein.MenuBarStats`, one category per module.
+- No force unwraps or `try!` outside tests. Errors are logged with `os.Logger`, subsystem `com.barometer.app`, one category per module.
 - Formatting: 4-space indent, 120 columns, `// MARK:` sections, doc comments on public API.
 - American spelling everywhere: code, comments, commit messages, docs, UI strings. Examples: color, behavior, initialize, optimize, canceled, gray, center, license.
 

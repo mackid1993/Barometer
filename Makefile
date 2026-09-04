@@ -10,15 +10,15 @@ app:
 	./Scripts/make-app.sh
 
 run: stop app
-	open dist/MenuBarStats.app
+	open dist/Barometer.app
 
 stop:
-	-osascript -e 'quit app id "net.brustein.MenuBarStats"'
-	-pkill -f 'MenuBarStats.app/Contents/MacOS/MenuBarStats'
+	-osascript -e 'quit app id "com.barometer.app"'
+	-pkill -f 'Barometer.app/Contents/MacOS/Barometer'
 
 install: app stop
-	ditto dist/MenuBarStats.app /Applications/MenuBarStats.app
-	open /Applications/MenuBarStats.app
+	ditto dist/Barometer.app /Applications/Barometer.app
+	open /Applications/Barometer.app
 
 probe:
 	swift run mbs-probe $(SRC)

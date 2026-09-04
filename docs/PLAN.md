@@ -1,4 +1,4 @@
-# MenuBarStats: Execution Plan
+# Barometer: Execution Plan
 
 This is the step-by-step plan for building the app described in `docs/DESIGN.md`. It is written for a coding agent (Codex) working on David's Mac with the Command Line Tools only. Read `AGENTS.md` and `docs/DESIGN.md` first. Section 3.5 of the design (the identity contract) is normative and is repeated in short form in `AGENTS.md`.
 
@@ -17,19 +17,19 @@ This is the step-by-step plan for building the app described in `docs/DESIGN.md`
 ```sh
 swift build                                   # debug build of all targets
 swift test                                    # unit tests
-make app                                      # release build + dist/MenuBarStats.app
+make app                                      # release build + dist/Barometer.app
 make run                                      # stop any running instance, build, launch
 make stop                                     # quit the running app
 swift run mbs-probe <source>                  # print a data source
-log stream --level debug --predicate 'subsystem == "net.brustein.MenuBarStats"'
-defaults read com.stonerl.Thaw | grep -o 'net\.brustein\.MenuBarStats:[^"]*' | sort -u   # Thaw identity check (Thaw must be running)
-defaults read net.brustein.MenuBarStats | grep 'NSStatusItem'                             # system position keys
+log stream --level debug --predicate 'subsystem == "com.barometer.app"'
+defaults read com.stonerl.Thaw | grep -o 'com\.barometer\.app:[^"]*' | sort -u          # Thaw identity check (Thaw must be running)
+defaults read com.barometer.app | grep 'NSStatusItem'                             # system position keys
 screencapture -x -R0,0,1728,30 dist/menubar.png                                           # menu bar screenshot for visual checks
 ```
 
 ### Definition of done for v1.0
 
-All of Phases 0 through 7 complete, every module from `docs/DESIGN.md` section 4 present with at least two menu bar modes and a dropdown, the Thaw identity check stable across ten relaunches and one hour of running, CPU and memory budgets from design section 11 met, `swift test` green, and `make install` producing a working `/Applications/MenuBarStats.app`.
+All of Phases 0 through 7 complete, every module from `docs/DESIGN.md` section 4 present with at least two menu bar modes and a dropdown, the Thaw identity check stable across ten relaunches and one hour of running, CPU and memory budgets from design section 11 met, `swift test` green, and `make install` producing a working `/Applications/Barometer.app`.
 
 ---
 
@@ -50,10 +50,10 @@ Goal: a signed `.app` that shows one static status item with the correct identit
 ### P0-T2 Bundle assembly and Makefile
 
 - `Scripts/Info.plist` with the keys in design section 10, placeholders `__VERSION__` and `__BUILD__`.
-- `Scripts/make-app.sh`: build the `MenuBarStatsApp` product in release, create `dist/MenuBarStats.app`, copy the binary as `Contents/MacOS/MenuBarStats`, substitute the plist, copy any SwiftPM resource bundles (`.build/release/*.bundle`) into `Contents/Resources`, ad-hoc sign with identifier `net.brustein.MenuBarStats`.
-- `Makefile` targets: `build`, `test`, `app`, `run`, `stop`, `install`, `probe SRC=cpu`, `clean`. `stop` uses `osascript -e 'quit app id "net.brustein.MenuBarStats"'` with a `pkill -f MenuBarStats.app/Contents/MacOS/MenuBarStats` fallback.
-- Done when: `make app` produces a bundle that `codesign -dv` reports with the right identifier and `plutil -p dist/MenuBarStats.app/Contents/Info.plist` shows `LSUIElement => true`.
-- Verify: `make app && codesign -dv --verbose=2 dist/MenuBarStats.app 2>&1 | grep -E 'Identifier|Signature'`.
+- `Scripts/make-app.sh`: build the `MenuBarStatsApp` product in release, create `dist/Barometer.app`, copy the binary as `Contents/MacOS/Barometer`, substitute the plist, copy any SwiftPM resource bundles (`.build/release/*.bundle`) into `Contents/Resources`, ad-hoc sign with identifier `com.barometer.app`.
+- `Makefile` targets: `build`, `test`, `app`, `run`, `stop`, `install`, `probe SRC=cpu`, `clean`. `stop` uses `osascript -e 'quit app id "com.barometer.app"'` with a `pkill -f Barometer.app/Contents/MacOS/Barometer` fallback.
+- Done when: `make app` produces a bundle that `codesign -dv` reports with the right identifier and `plutil -p dist/Barometer.app/Contents/Info.plist` shows `LSUIElement => true`.
+- Verify: `make app && codesign -dv --verbose=2 dist/Barometer.app 2>&1 | grep -E 'Identifier|Signature'`.
 
 ### P0-T3 Application shell
 
@@ -62,10 +62,10 @@ Goal: a signed `.app` that shows one static status item with the correct identit
 - `StatusItemRegistry` (in `MenuBarStatsUI`): owns every `NSStatusItem`. Public API: `item(for: ModuleID) -> NSStatusItem`, `setVisible(_:for:)`. Creates all ten items at launch with the autosave names from the identity table, `button.title = ""`, `setAccessibilityIdentifier`, `setAccessibilityLabel`, no `.removalAllowed`. In P0 only the CPU item is visible and it shows a static rendered image of the text "CPU".
 - `ModuleID` enum in `MenuBarStatsCore` with `autosaveName` and `displayName` computed properties. This is the single source of truth for the identity table.
 - Identity self-test: in debug builds, one second after launch, log each item's `autosaveName`, `button.window?.title`, AX identifier, AX label, AX title under category `identity`, and `assert` that label and identifier match.
-- Menu: the CPU item gets an `NSMenu` with "Settings…" and "Quit MenuBarStats".
+- Menu: the CPU item gets an `NSMenu` with "Settings…" and "Quit Barometer".
 - Settings window: `NSWindow` hosting a SwiftUI `SettingsRootView` with a sidebar listing General plus every module (content can be placeholders). Opening it activates the app; closing it does not quit.
 - Done when: `make run` shows a "CPU" item, its menu opens, Settings opens and closes, Quit works, and relaunching keeps the item where the user dragged it.
-- Verify: `make run`; `log stream` shows the identity lines with `window.title == MenuBarStats.CPU`; `defaults read net.brustein.MenuBarStats | grep 'NSStatusItem Preferred Position MenuBarStats.CPU'` after dragging the item once; with Thaw running, the Thaw identity check prints `net.brustein.MenuBarStats:...` ending in `MenuBarStats.CPU` and nothing else.
+- Verify: `make run`; `log stream` shows the identity lines with `window.title == MenuBarStats.CPU`; `defaults read com.barometer.app | grep 'NSStatusItem Preferred Position MenuBarStats.CPU'` after dragging the item once; with Thaw running, the Thaw identity check prints `com.barometer.app:...` ending in `MenuBarStats.CPU` and nothing else.
 
 ### P0-T4 Probe executable and identity probe
 
@@ -298,7 +298,7 @@ End of Phase 6: stop for review.
 ### P7-T3 About, export and import, launch at login polish
 
 - About pane (version, build, license, Open-Meteo attribution, links); JSON export and import with validation; `SMAppService` status display and a warning when running from `dist/`.
-- Verify: export, delete preferences (`defaults delete net.brustein.MenuBarStats`), import, confirm identical layout and settings.
+- Verify: export, delete preferences (`defaults delete com.barometer.app`), import, confirm identical layout and settings.
 
 ### P7-T4 Stability and performance pass
 
