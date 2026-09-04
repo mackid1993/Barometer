@@ -392,8 +392,42 @@ allow `.combined` instances.
 
 ### P8-T5 Stacks settings pane
 
-- Reorderable metric list per stack, add and remove stacks, per-stack separators and colors.
+- Reorderable reading list per stack, add and delete stacks, per-stack layout, replacement, and colors.
 - Verify: changes apply live and survive a relaunch.
+
+### P8-T6 Battery power adapter correctness
+
+- `AppleSmartBattery` keeps publishing an `AdapterDetails` stub after the adapter is unplugged, which made the
+  dropdown report a wired adapter that was not attached. Report an adapter only when the power source says one is
+  connected and the dictionary carries a real field.
+- Verify: on battery, the dropdown shows no adapter section.
+
+### P8-T7 User-named, unlimited stacks and a stable Battery width
+
+- No cap, deletion allowed, nothing prefilled, and the person creating a stack names it.
+- Every Battery presentation shares one canvas, because a status item keeps one length for the life of the process.
+- Verify: a deleted instance number is never handed out again; all Battery presentations measure one width.
+
+### P8-T8 Center stacked readings that have no leading marker
+
+- Verify: the two rows share a horizontal center; Network's arrows still share one leading edge.
+
+### P8-T9 Gate the weather glyph at a legible size
+
+- Verify: the glyph fills its row at every automatic icon scale without changing the item's width.
+
+### P8-T10 Put stacked rows on the shared two-row grid
+
+- An empty marker string reports the default system font's line height, which pushed rows below every other item.
+- Verify: two-row items share row origins at 22, 24, and 26 pt thickness. 22 is the real thickness on this Mac, and
+  testing only at 24 hid the fault.
+
+### P8-T11 Stack dropdown detail and Settings preview
+
+- A stack's dropdown hosts each source module's own full dropdown behind a tab, rather than a summary of it.
+- The Stacks pane shows a live preview of every stack, including staged edits, so the result is visible before the
+  Apply bar is used. Reserved widths come from one catalog shared with the renderer.
+- Verify: opening a stack shows the same detail the module's own item shows; the preview matches the rendered item.
 
 ---
 
