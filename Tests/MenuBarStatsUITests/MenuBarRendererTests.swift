@@ -521,74 +521,75 @@ struct MenuBarRendererTests {
         #expect(NetworkRateStackRenderer.rowParts("↑1.2MB/s").value == "1.2MB/s")
 
         let shortOrigins = NetworkRateStackRenderer.rowOrigins(
-            containerWidth: 50.5,
+            containerWidth: 52,
             markerWidth: 8,
             valueWidth: 24,
-            gap: 0.5,
+            gap: 2,
             backingScaleFactor: 2
         )
         let longOrigins = NetworkRateStackRenderer.rowOrigins(
-            containerWidth: 50.5,
+            containerWidth: 52,
             markerWidth: 8,
             valueWidth: 34,
-            gap: 0.5,
+            gap: 2,
             backingScaleFactor: 2
         )
         #expect(shortOrigins.marker == 9)
-        #expect(shortOrigins.value == 17.5)
+        #expect(shortOrigins.value == 19)
         #expect(longOrigins.marker == 4)
-        #expect(longOrigins.value == 12.5)
-        #expect(shortOrigins.value - shortOrigins.marker == 8.5)
-        #expect(longOrigins.value - longOrigins.marker == 8.5)
-        #expect(50.5 - (shortOrigins.value + 24) == 9)
-        #expect(50.5 - (longOrigins.value + 34) == 4)
+        #expect(longOrigins.value == 14)
+        #expect(shortOrigins.value - shortOrigins.marker == 10)
+        #expect(longOrigins.value - longOrigins.marker == 10)
+        #expect(52 - (shortOrigins.value + 24) == 9)
+        #expect(52 - (longOrigins.value + 34) == 4)
 
         let fractionalMarker = NetworkRateStackRenderer.rowOrigins(
-            containerWidth: 50.5,
+            containerWidth: 52,
             markerWidth: 8.2,
             valueWidth: 24,
-            gap: 0.5,
+            gap: 2,
             backingScaleFactor: 2
         )
-        #expect(fractionalMarker.value - (fractionalMarker.marker + 8.2) >= 0.5)
+        #expect(fractionalMarker.value - (fractionalMarker.marker + 8.2) >= 2)
     }
 
     @Test
     func sensorStackKeepsStableGeometryAndExpandsByColumns() {
         #expect(MenuBarLayoutMetrics(context: context).oneDevicePixel == 0.5)
         #expect(MenuBarLayoutMetrics(context: context).sensorColumnGap == 0.5)
+        #expect(MenuBarLayoutMetrics(context: context).densePairGap == 2)
         #expect(SensorStackRenderer.displayLabel("CPU") == "CPU:")
         #expect(SensorStackRenderer.displayLabel("GPU:") == "GPU:")
         let topOrigins = SensorStackRenderer.rowOrigins(
             columnX: 3,
-            columnWidth: 68.5,
+            columnWidth: 70,
             labelWidth: 22,
             valueWidth: 34,
-            gap: 0.5,
+            gap: 2,
             backingScaleFactor: 2
         )
         let bottomOrigins = SensorStackRenderer.rowOrigins(
             columnX: 3,
-            columnWidth: 68.5,
+            columnWidth: 70,
             labelWidth: 22,
             valueWidth: 34,
-            gap: 0.5,
+            gap: 2,
             backingScaleFactor: 2
         )
         #expect(topOrigins == bottomOrigins)
         #expect(topOrigins.label == 9)
-        #expect(topOrigins.value == 31.5)
-        #expect(topOrigins.value - topOrigins.label == 22.5)
+        #expect(topOrigins.value == 33)
+        #expect(topOrigins.value - topOrigins.label == 24)
 
         let fractionalLabel = SensorStackRenderer.rowOrigins(
             columnX: 3,
-            columnWidth: 68.5,
+            columnWidth: 70,
             labelWidth: 22.2,
             valueWidth: 34,
-            gap: 0.5,
+            gap: 2,
             backingScaleFactor: 2
         )
-        #expect(fractionalLabel.value - (fractionalLabel.label + 22.2) >= 0.5)
+        #expect(fractionalLabel.value - (fractionalLabel.label + 22.2) >= 2)
 
         let cool = SensorStackRenderer(values: [
             SensorStackValue(label: "CPU", value: "39.1°C", reservedValue: "999.9°C"),

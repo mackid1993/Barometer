@@ -1953,19 +1953,18 @@ the row. It now measures an explicit stable column for each two-row pair. Each l
 temperature, and the pair's trailing edge remains fixed. It has no order-specific trailing exception. Reading changes
 cannot resize the outer canvas or distort label typography.
 
-The same internal-spacing rule now applies to Network: one device pixel separates each arrow from its live rate.
-Sensor labels and separate sensor columns use the same pixel-based gap. `RenderContext` carries the destination
-display's backing scale, so this is 0.5 logical points on a Retina display and one point on a 1× display. Unused
-stability width is balanced on both sides of each visible pair instead of collecting entirely inside the pair or
-before the widget. Prefix edges are snapped upward to the device-pixel grid before the separator is added, preventing
-fractional text advances from consuming the intended visible pixel. These internal rules do not change AppKit's
-spacing between independently movable items.
+The same internal-spacing rule now applies to Network: two logical points separate each arrow from its live rate so
+the gap remains optically visible after AppKit antialiasing. Sensor labels use the same gap. Separate sensor columns
+retain a one-device-pixel separator based on `RenderContext`'s destination display scale. Unused stability width is
+balanced on both sides of each visible pair instead of collecting entirely inside the pair or before the widget.
+Prefix edges are snapped upward to the device-pixel grid before the separator is added. These internal rules do not
+change AppKit's spacing between independently movable items.
 
 Verification:
 
 - An isolated defaults-suite test verifies both legacy Barometer application-domain values are removed.
-- `swift test`, including geometry checks for attached sensor labels, attached network arrows, balanced reservation,
-  and the one-device-pixel separator, completed successfully.
+- `swift test`, including geometry checks for the two-point dense-pair gap, pixel-snapped prefix edges, balanced
+  reservation, and the one-device-pixel sensor-column separator, completed successfully.
 - `swift build -c release` and `git diff --check` completed successfully.
 - The installed application uses AppKit's current spacing without writing a Barometer override. CPU/GPU temperature
   labels and values retain their explicit column alignment.

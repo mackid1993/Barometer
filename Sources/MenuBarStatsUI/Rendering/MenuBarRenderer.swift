@@ -162,6 +162,11 @@ struct MenuBarLayoutMetrics {
         1 / context.backingScaleFactor
     }
 
+    /// Smallest prefix/value gap that remains optically visible after AppKit antialiasing.
+    var densePairGap: CGFloat {
+        2
+    }
+
     func centeredY(for height: CGFloat) -> CGFloat {
         floor((context.thickness - height) / 2)
     }
@@ -658,7 +663,7 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
             max(topValue.size().width, bottomValue.size().width, reservedTopValue.size().width,
                 reservedBottomValue.size().width)
         )
-        let pairGap = metrics.oneDevicePixel
+        let pairGap = metrics.densePairGap
         let width =
             MenuBarLayoutMetrics.contentInset * 2
             + markerWidth
@@ -782,7 +787,7 @@ public struct SensorStackRenderer: MenuBarRenderer {
         let columns = stride(from: 0, to: fields.count, by: 2).map { start in
             Array(fields[start..<min(start + 2, fields.count)])
         }
-        let labelGap = metrics.oneDevicePixel
+        let labelGap = metrics.densePairGap
         let columnGap = metrics.sensorColumnGap
         let sidePadding = metrics.denseTextPadding
         let labelWidths = columns.map { column in
