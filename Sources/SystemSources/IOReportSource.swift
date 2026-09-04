@@ -8,6 +8,12 @@ public struct IOReportPowerReading: Equatable, Sendable {
     public let watts: Double
 }
 
+/// One current temperature gauge reported by an IOReport channel.
+public struct IOReportTemperatureReading: Equatable, Sendable {
+    public let name: String
+    public let celsius: Double
+}
+
 /// One unaggregated energy channel retained for diagnostics across hardware generations.
 public struct IOReportEnergyReading: Equatable, Sendable {
     public let group: String
@@ -48,6 +54,7 @@ public struct IOReportSnapshot: Equatable, Sendable {
     public let energy: [IOReportEnergyReading]
     public let power: [IOReportPowerReading]
     public let frequencies: [IOReportFrequencyReading]
+    public let temperatures: [IOReportTemperatureReading]
 }
 
 /// Failures exposed by the private IOReport data source.
@@ -122,6 +129,7 @@ public actor IOReportSource {
         let elapsedSeconds = Self.seconds(from: started.duration(to: ended))
         return try Self.decode(
             deltas,
+            currentSamples: second,
             energy: Self.energyChannels(from: deltas),
             elapsedSeconds: elapsedSeconds,
             frequencyTables: frequencyTables,
@@ -237,6 +245,7 @@ public actor IOReportSource {
 
     private static func decode(
         _ samples: [CFDictionary],
+        currentSamples: [CFDictionary],
         energy: [(key: EnergyChannelKey, value: Double)],
         elapsedSeconds: Double,
         frequencyTables: [[Double]],
@@ -296,8 +305,55 @@ public actor IOReportSource {
             elapsedSeconds: elapsedSeconds,
             energy: energyReadings,
             power: powerReadings(from: energy, elapsedSeconds: elapsedSeconds),
-            frequencies: frequencies.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            frequencies: frequencies.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending },
+            temperatures: temperatureReadings(from: currentSamples)
         )
+    }
+
+    private static func temperatureReadings(from samples: [CFDictionary]) -> [IOReportTemperatureReading] {
+        var readings: [IOReportTemperatureReading] = []
+        for sample in samples {
+            guard let dictionary = sample as? [String: Any],
+                  let channels = dictionary["IOReportChannels"] as? NSArray
+            else {
+                continue
+            }
+            for object in channels {
+                let item = unsafeBitCast(object as AnyObject, to: CFDictionary.self)
+                guard string(mbs_ioreport_channel_get_group(item)) == "GPU Stats",
+                      string(mbs_ioreport_channel_get_subgroup(item)) == "Temperature"
+                else {
+                    continue
+                }
+                let name = string(mbs_ioreport_channel_get_name(item))
+                guard name.hasSuffix(" Latest") else {
+                    continue
+                }
+                let raw = mbs_ioreport_simple_get_integer_value(item, 0)
+                guard let celsius = normalizedTemperature(raw), (10...125).contains(celsius) else {
+                    continue
+                }
+                readings.append(IOReportTemperatureReading(name: name, celsius: celsius))
+            }
+        }
+        return readings.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    static func normalizedTemperature(_ raw: Int64) -> Double? {
+        guard raw != Int64.min else {
+            return nil
+        }
+        let value = Double(raw)
+        if (10...125).contains(value) {
+            return value
+        }
+        for divisor in [1_000.0, 100.0] {
+            let scaled = value / divisor
+            if (10...125).contains(scaled) {
+                return scaled
+            }
+        }
+        return nil
     }
 
     private static func energyChannels(

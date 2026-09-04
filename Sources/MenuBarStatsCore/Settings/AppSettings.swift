@@ -199,6 +199,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         })
         values[.cpu] = ModuleSettings(isEnabled: true, mode: "stacked", interval: 1)
         values[.memory] = ModuleSettings(isEnabled: true, mode: "stacked", interval: 2)
+        values[.gpu] = ModuleSettings(isEnabled: false, mode: "percentage", interval: 1)
         values[.weather] = ModuleSettings(isEnabled: false, mode: "iconTemperature", interval: 900)
         values[.network] = ModuleSettings(isEnabled: false, mode: "twoLine", interval: 1)
         values[.disks] = ModuleSettings(isEnabled: false, mode: "activityGraph", interval: 1)

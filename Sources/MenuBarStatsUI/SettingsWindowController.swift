@@ -9,12 +9,14 @@ public final class SettingsWindowController: NSWindowController {
     /// Creates the settings window controller.
     public convenience init(
         settingsStore: SettingsStore,
+        gpuStore: ModuleStore<GPUSample>,
         networkStore: ModuleStore<NetworkSample>,
         diskStore: ModuleStore<DiskSample>,
         sensorStore: ModuleStore<SensorSample>
     ) {
         let rootView = SettingsRootView(
             settingsStore: settingsStore,
+            gpuStore: gpuStore,
             networkStore: networkStore,
             diskStore: diskStore,
             sensorStore: sensorStore
@@ -52,6 +54,7 @@ private enum SettingsSelection: Hashable {
 
 private struct SettingsRootView: View {
     let settingsStore: SettingsStore
+    let gpuStore: ModuleStore<GPUSample>
     let networkStore: ModuleStore<NetworkSample>
     let diskStore: ModuleStore<DiskSample>
     let sensorStore: ModuleStore<SensorSample>
@@ -78,6 +81,8 @@ private struct SettingsRootView: View {
                 GeneralSettingsView(settingsStore: settingsStore)
             case let .module(module) where module == .cpu || module == .memory:
                 ModuleSettingsView(module: module, settingsStore: settingsStore)
+            case let .module(module) where module == .gpu:
+                GPUSettingsView(store: gpuStore, settingsStore: settingsStore)
             case let .module(module) where module == .weather:
                 WeatherSettingsView(settingsStore: settingsStore)
             case let .module(module) where module == .network:

@@ -9,6 +9,7 @@ private enum ProbeCommand: String {
     case fans
     case freq
     case geocode
+    case gpu
     case identity
     case memory
     case net
@@ -49,6 +50,31 @@ private func runCPUProbe(watch: Bool) async throws {
         try await Task.sleep(for: watch ? .seconds(1) : .milliseconds(250))
         let sample = try await monitor.sample()
         printCPUSample(sample)
+    } while watch
+}
+
+private func runGPUProbe(watch: Bool) async throws {
+    let monitor = GPUMonitor()
+    repeat {
+        let sample = try await monitor.sample()
+        print(String(format: "GPU %.1f%% — %@", sample.deviceUtilizationPercent, sample.name))
+        print(
+            String(
+                format: "renderer %@; tiler %@; memory %@ / %@",
+                sample.rendererUtilizationPercent.map { String(format: "%.1f%%", $0) } ?? "unavailable",
+                sample.tilerUtilizationPercent.map { String(format: "%.1f%%", $0) } ?? "unavailable",
+                sample.memoryInUseBytes.map(formatBytes) ?? "unavailable",
+                sample.memoryAllocatedBytes.map(formatBytes) ?? "unavailable"
+            )
+        )
+        print(
+            "frequency \(sample.frequencyMHz.map { String(format: "%.0f MHz", $0) } ?? "unavailable"); "
+                + "power \(sample.powerWatts.map { String(format: "%.2f W", $0) } ?? "unavailable"); "
+                + "temperature \(sample.temperatureCelsius.map { String(format: "%.1f °C", $0) } ?? "unavailable")"
+        )
+        if watch {
+            try await Task.sleep(for: .seconds(1))
+        }
     } while watch
 }
 
@@ -424,7 +450,8 @@ private enum ProbeMain {
         let arguments = Array(CommandLine.arguments.dropFirst())
         guard let commandName = arguments.first, let command = ProbeCommand(rawValue: commandName) else {
             writeError(
-                "usage: mbs-probe <cpu [--watch]|disks [--watch]|fans|freq [--watch]|geocode QUERY|identity|"
+                "usage: mbs-probe <cpu [--watch]|disks [--watch]|fans|freq [--watch]|geocode QUERY|gpu [--watch]|"
+                    + "identity|"
                     + "memory|net [--watch]|power [--watch]|sensors [--watch]|smc --list|temps|version|"
                     + "weather --lat N --lon N|wifi>"
             )
@@ -463,6 +490,12 @@ private enum ProbeMain {
                     exit(EXIT_FAILURE)
                 }
                 try await runGeocodingProbe(query: arguments.dropFirst().joined(separator: " "))
+            case .gpu:
+                guard arguments.count == 1 || arguments == ["gpu", "--watch"] else {
+                    writeError("usage: mbs-probe gpu [--watch]")
+                    exit(EXIT_FAILURE)
+                }
+                try await runGPUProbe(watch: arguments.count == 2)
             case .identity:
                 guard arguments.count == 1 else {
                     writeError("usage: mbs-probe identity")

@@ -226,6 +226,36 @@ struct MenuBarRendererTests {
     }
 
     @Test
+    func gpuPresentationSupportsEveryMenuBarMode() {
+        let sample = GPUSample(
+            timestamp: Date(timeIntervalSince1970: 10),
+            name: "Test GPU",
+            deviceUtilizationPercent: 42,
+            rendererUtilizationPercent: 39,
+            tilerUtilizationPercent: 17,
+            memoryInUseBytes: 1_000,
+            memoryAllocatedBytes: 2_000,
+            frequencyMHz: 1_200,
+            powerWatts: 3.5,
+            temperatureCelsius: 52
+        )
+        let history = [HistoryEntry(timestamp: sample.timestamp, value: sample)]
+
+        for mode in ["percentage", "graph", "combinedCPU"] {
+            let content = GPUMenuBarPresenter.content(
+                sample: sample,
+                history: history,
+                cpuPercent: 21,
+                settings: ModuleSettings(isEnabled: true, mode: mode),
+                context: context
+            )
+            #expect(content.image.size.width > 0)
+            #expect(content.image.size.height == context.thickness)
+            #expect(content.accessibilityValue == "GPU 42.0 percent")
+        }
+    }
+
+    @Test
     func diskPresentationSupportsEveryMenuBarMode() {
         let volume = DiskVolumeSample(
             id: "startup",

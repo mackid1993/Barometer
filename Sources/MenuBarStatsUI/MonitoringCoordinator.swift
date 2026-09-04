@@ -13,6 +13,9 @@ public final class MonitoringCoordinator {
     /// Observable Memory state used by status items and dropdowns.
     public let memoryStore = ModuleStore<MemorySample>(historyCapacity: 43_200)
 
+    /// Observable GPU state used by its status item, dropdown, and settings.
+    public let gpuStore = ModuleStore<GPUSample>(historyCapacity: 86_400)
+
     /// Observable Weather state used by its status item and dropdown.
     public let weatherStore = ModuleStore<WeatherSample>(historyCapacity: 192)
 
@@ -30,6 +33,7 @@ public final class MonitoringCoordinator {
 
     private let cpuScheduler: Scheduler<CPUMonitor>
     private let memoryScheduler: Scheduler<MemoryMonitor>
+    private let gpuScheduler: Scheduler<GPUMonitor>
     private let networkMonitor: NetworkMonitor
     private let networkScheduler: Scheduler<NetworkMonitor>
     private let diskScheduler: Scheduler<DiskMonitor>
@@ -46,18 +50,21 @@ public final class MonitoringCoordinator {
     private var weatherConfiguration: WeatherConfiguration?
     private var cpuController: StatusItemController<CPUSample>?
     private var memoryController: StatusItemController<MemorySample>?
+    private var gpuController: StatusItemController<GPUSample>?
     private var weatherController: StatusItemController<WeatherSample>?
     private var networkController: StatusItemController<NetworkSample>?
     private var diskController: StatusItemController<DiskSample>?
     private var sensorControllers: [Int: StatusItemController<SensorSample>] = [:]
     private var cpuDropdown: DropdownController?
     private var memoryDropdown: DropdownController?
+    private var gpuDropdown: DropdownController?
     private var weatherDropdown: DropdownController?
     private var networkDropdown: DropdownController?
     private var diskDropdown: DropdownController?
     private var sensorDropdowns: [Int: DropdownController] = [:]
     private var cpuSampleTask: Task<Void, Never>?
     private var memorySampleTask: Task<Void, Never>?
+    private var gpuSampleTask: Task<Void, Never>?
     private var weatherSampleTask: Task<Void, Never>?
     private var networkSampleTask: Task<Void, Never>?
     private var diskSampleTask: Task<Void, Never>?
@@ -79,6 +86,7 @@ public final class MonitoringCoordinator {
         self.quitAction = quitAction
         cpuScheduler = Scheduler(monitor: CPUMonitor())
         memoryScheduler = Scheduler(monitor: MemoryMonitor())
+        gpuScheduler = Scheduler(monitor: GPUMonitor())
         let networkMonitor = NetworkMonitor()
         self.networkMonitor = networkMonitor
         networkScheduler = Scheduler(monitor: networkMonitor)
@@ -100,6 +108,22 @@ public final class MonitoringCoordinator {
             store: memoryStore,
             settingsStore: settingsStore,
             render: Self.renderMemory
+        )
+        let sharedCPUStore = cpuStore
+        gpuController = StatusItemController(
+            module: .gpu,
+            statusItem: registry.item(for: .gpu),
+            store: gpuStore,
+            settingsStore: settingsStore,
+            render: { sample, history, moduleSettings, context in
+                GPUMenuBarPresenter.content(
+                    sample: sample,
+                    history: history,
+                    cpuPercent: sharedCPUStore.latestSample?.totalPercent,
+                    settings: moduleSettings,
+                    context: context
+                )
+            }
         )
         weatherController = StatusItemController(
             module: .weather,
@@ -164,6 +188,16 @@ public final class MonitoringCoordinator {
             settingsAction: settingsAction,
             quitAction: quitAction
         )
+        gpuDropdown = DropdownController(
+            moduleName: ModuleID.gpu.displayName,
+            statusItem: registry.item(for: .gpu),
+            rootView: AnyView(GPUDropdownView(store: gpuStore, settingsStore: settingsStore)),
+            contentHeight: 500,
+            contentWidth: 380,
+            tickAction: { [weak gpuStore] in gpuStore?.tick() },
+            settingsAction: settingsAction,
+            quitAction: quitAction
+        )
         weatherDropdown = DropdownController(
             moduleName: ModuleID.weather.displayName,
             statusItem: registry.item(for: .weather),
@@ -221,6 +255,7 @@ public final class MonitoringCoordinator {
         Task {
             await cpuScheduler.start()
             await memoryScheduler.start()
+            await gpuScheduler.start()
             await networkScheduler.start()
             await diskScheduler.start()
             await sensorsScheduler.start()
@@ -231,6 +266,7 @@ public final class MonitoringCoordinator {
     public func stop() {
         cpuSampleTask?.cancel()
         memorySampleTask?.cancel()
+        gpuSampleTask?.cancel()
         weatherSampleTask?.cancel()
         networkSampleTask?.cancel()
         diskSampleTask?.cancel()
@@ -239,6 +275,7 @@ public final class MonitoringCoordinator {
         Task {
             await cpuScheduler.stop()
             await memoryScheduler.stop()
+            await gpuScheduler.stop()
             await networkScheduler.stop()
             await diskScheduler.stop()
             await sensorsScheduler.stop()
@@ -264,6 +301,14 @@ public final class MonitoringCoordinator {
                     break
                 }
                 self?.memoryStore.receive(sample, at: sample.timestamp)
+            }
+        }
+
+        let gpuSamples = gpuScheduler.samples
+        gpuSampleTask = Task { [weak self] in
+            for await sample in gpuSamples {
+                guard !Task.isCancelled else { break }
+                self?.gpuStore.receive(sample, at: sample.timestamp)
             }
         }
 
@@ -313,6 +358,7 @@ public final class MonitoringCoordinator {
             Task {
                 await self.cpuScheduler.pause()
                 await self.memoryScheduler.pause()
+                await self.gpuScheduler.pause()
                 await self.networkScheduler.pause()
                 await self.diskScheduler.pause()
                 await self.sensorsScheduler.pause()
@@ -326,6 +372,7 @@ public final class MonitoringCoordinator {
             Task {
                 await self.cpuScheduler.resume()
                 await self.memoryScheduler.resume()
+                await self.gpuScheduler.resume()
                 await self.networkScheduler.resume()
                 await self.diskScheduler.resume()
                 await self.sensorsScheduler.resume()
@@ -340,6 +387,7 @@ public final class MonitoringCoordinator {
         Task {
             await cpuScheduler.setIntervalMultiplier(multiplier)
             await memoryScheduler.setIntervalMultiplier(multiplier)
+            await gpuScheduler.setIntervalMultiplier(multiplier)
             await networkScheduler.setIntervalMultiplier(multiplier)
             await diskScheduler.setIntervalMultiplier(multiplier)
             await sensorsScheduler.setIntervalMultiplier(multiplier)
@@ -351,6 +399,7 @@ public final class MonitoringCoordinator {
             _ = settingsStore.settings.reducesSamplingOnBattery
             _ = settingsStore.settings.modules[.cpu]?.interval
             _ = settingsStore.settings.modules[.memory]?.interval
+            _ = settingsStore.settings.modules[.gpu]?.interval
             _ = settingsStore.settings.modules[.weather]?.isEnabled
             _ = settingsStore.settings.modules[.network]?.interval
             _ = settingsStore.settings.modules[.disks]?.interval
@@ -381,12 +430,14 @@ public final class MonitoringCoordinator {
     private func applySamplingIntervals() {
         let cpuSeconds = settingsStore.settings.modules[.cpu]?.interval ?? 1
         let memorySeconds = settingsStore.settings.modules[.memory]?.interval ?? 2
+        let gpuSeconds = settingsStore.settings.modules[.gpu]?.interval ?? 1
         let networkSeconds = settingsStore.settings.modules[.network]?.interval ?? 1
         let diskSeconds = settingsStore.settings.modules[.disks]?.interval ?? 1
         let sensorSeconds = settingsStore.settings.modules[.sensors]?.interval ?? 2
         Task {
             await cpuScheduler.setInterval(.milliseconds(Int64(max(0.25, cpuSeconds) * 1_000)))
             await memoryScheduler.setInterval(.milliseconds(Int64(max(0.25, memorySeconds) * 1_000)))
+            await gpuScheduler.setInterval(.milliseconds(Int64(max(0.5, gpuSeconds) * 1_000)))
             await networkScheduler.setInterval(.milliseconds(Int64(max(0.25, networkSeconds) * 1_000)))
             await diskScheduler.setInterval(.milliseconds(Int64(max(0.25, diskSeconds) * 1_000)))
             await sensorsScheduler.setInterval(.milliseconds(Int64(max(1, sensorSeconds) * 1_000)))

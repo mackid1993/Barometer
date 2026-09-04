@@ -140,6 +140,43 @@ import Testing
     #expect(!snapshot.frequencies.isEmpty)
     #expect(snapshot.power.allSatisfy { $0.watts >= 0 && $0.watts.isFinite })
     #expect(snapshot.frequencies.allSatisfy { (0...100).contains($0.activePercent) })
+    #expect(snapshot.temperatures.allSatisfy { (10...125).contains($0.celsius) })
+}
+
+@Test func ioReportNormalizesTemperatureGaugeScales() {
+    #expect(IOReportSource.normalizedTemperature(54) == 54)
+    #expect(IOReportSource.normalizedTemperature(54_250) == 54.25)
+    #expect(IOReportSource.normalizedTemperature(5_425) == 54.25)
+    #expect(IOReportSource.normalizedTemperature(Int64.min) == nil)
+}
+
+@Test func gpuAcceleratorParsesPublishedStatisticsWithoutModelAssumptions() throws {
+    let snapshot = try #require(
+        GPUAcceleratorSource.snapshot(
+            name: "Test GPU",
+            statistics: [
+                "Device Utilization %": 42,
+                "Renderer Utilization %": 39,
+                "Tiler Utilization %": 17,
+                "In use system memory": 1_000,
+                "Alloc system memory": 2_000,
+                "In use system memory (driver)": 250,
+            ]
+        )
+    )
+
+    #expect(snapshot.name == "Test GPU")
+    #expect(snapshot.deviceUtilizationPercent == 42)
+    #expect(snapshot.rendererUtilizationPercent == 39)
+    #expect(snapshot.memoryInUseBytes == 1_000)
+    #expect(snapshot.memoryAllocatedBytes == 2_000)
+}
+
+@Test func gpuAcceleratorReadsLivePerformanceStatistics() throws {
+    let snapshots = try GPUAcceleratorSource().read()
+
+    #expect(!snapshots.isEmpty)
+    #expect(snapshots.allSatisfy { (0...100).contains($0.deviceUtilizationPercent) })
 }
 
 @Test func smcDecodesIntegerFloatAndFixedPointTypes() {

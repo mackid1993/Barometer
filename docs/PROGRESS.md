@@ -1040,8 +1040,10 @@ integer, `iof`, and Apple Silicon `ioft` values. Direct inspection of runtime ke
 for real GPU and thermal readings on this Mac. Numeric decoding remains separate from sensor semantics, so a numeric
 threshold or configuration key is not automatically presented as a live temperature.
 
-Completed the Sensors dropdown with grouped sparklines, source labels, friendly or raw names, selectable Celsius or
-Fahrenheit formatting, configurable zero-to-two decimal places, duplicate hiding, and resettable session energy.
+Completed the Sensors dropdown with grouped sparklines, source labels, selectable Celsius or Fahrenheit formatting,
+configurable zero-to-two decimal places, duplicate hiding, and resettable session energy. The normal UI exposes only
+human-readable summaries and verified roles. Undocumented SMC identifiers such as `Tp…` and `PP…` stay behind the
+explicit advanced firmware-sensors toggle; old widgets selecting one fall back to useful temperature and fan data.
 Settings expose line, area, and bar graph styles without disabling the control. Every menu bar widget supports text,
 compact two-row stack, history graph, and fan modes. Users can create multiple separate widgets and arrange any
 ordered set of discovered readings in each one. Values reserve stable numeric widths, while additional pairs expand
@@ -1076,4 +1078,38 @@ Verification:
 - `make install` replaced and launched `/Applications/Barometer.app`. The runtime identity report contains
   `Barometer.Sensors`, AX label `Sensors`, empty button and AX titles, and owner bundle `com.barometer.app`. The item
   remains allocated but hidden because the user's Sensors preference is currently disabled.
+- `git diff --check` passed, and all changed Swift files stay within 120 columns.
+
+## P4-T6 GPU source and module
+
+Added `GPUAcceleratorSource`, a vendor-neutral IORegistry reader that enumerates `IOAccelerator` services and parses
+their live `PerformanceStatistics` dictionaries. It reports device, renderer, and tiler utilization plus system,
+allocated, and driver memory when each published key is valid. Names come from the live service; no model identifier
+or accelerator class is compiled into the selection logic.
+
+Extended the existing IOReport wrapper to read current GPU temperature gauges alongside power and performance-state
+residency. Temperature scaling is inferred from each runtime value and constrained to credible operating values.
+`GPUMonitor` combines accelerator utilization and memory with optional IOReport frequency, activity, power, and
+temperature. SMC GPU temperatures are a read-only fallback when IOReport does not publish a usable gauge.
+
+Completed the independent `Barometer.GPU` status item, scheduler, dropdown, and settings pane. Menu bar choices are
+a stable-width labeled percentage, line/area/bar history graph, or optional CPU/GPU rows. The GPU remains its own
+movable status item by default. The dropdown presents utilization history, device/renderer/tiler values, memory,
+frequency, power, and temperature using the global hardware Celsius/Fahrenheit preference. Sampling participates in
+display sleep and battery-aware scheduling; module and global color behavior matches the other modules.
+
+Verification:
+
+- `swift test` rebuilt and linked all targets and exited 0. New tests cover runtime statistics parsing, invalid
+  utilization rejection, temperature scaling and sentinels, live IOAccelerator discovery, IOReport temperature
+  bounds, and every GPU menu bar mode.
+- `swift run mbs-probe gpu` reported 44.0% device, 43.0% renderer, and 29.0% tiler utilization; 3.27 GiB in use of
+  8.11 GiB allocated; 338 MHz; 0.49 W; and 55.9 °C.
+- A short `swift run mbs-probe gpu --watch` observation reported 35–41% device utilization across six consecutive
+  samples, satisfying the plan's above-20% activity check without adding a benchmark or speed test.
+- `make install` completed an optimized release build, ad hoc signed and installed the single
+  `/Applications/Barometer.app` bundle, and launched it. `codesign --verify --deep --strict --verbose=2` reported the
+  installed bundle valid on disk and satisfying its designated requirement.
+- The runtime identity report contains `Barometer.GPU`, AX label `GPU`, empty button and AX titles, and owner bundle
+  `com.barometer.app`. The status item remains allocated but hidden while the saved GPU toggle is off.
 - `git diff --check` passed, and all changed Swift files stay within 120 columns.
