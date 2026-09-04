@@ -920,3 +920,24 @@ Verification:
   title, and owner bundle `com.barometer.app`. The item remains permanently allocated and hidden with `isVisible`
   when disabled.
 - `git diff --check` passed, and all changed Swift files stay within 120 columns.
+
+## P4-T1 C shim target
+
+Expanded the existing `CSystemSources` bridge into the single declaration boundary for hardware-private APIs. It now
+defines the IOHID temperature and power event types and field calculation; declares the event-system client, service
+event, and floating-value functions; declares IOReport channel discovery, merging, subscriptions, samples, deltas,
+simple values, and state residency; and defines the read-only AppleSMC external-method ABI structs and read command
+constants.
+
+The bridge imports Apple's public IOHID client/service reference types from the installed SDK and declares only the
+private entry points missing from those headers. The SMC surface intentionally exposes no write command constant or
+write wrapper. All declarations remain in `CSystemSources`; higher layers will access one wrapper type per private
+source rather than redeclaring symbols.
+
+Verification:
+
+- `swift build` recompiled `shim.c`, every Swift target, `mbs-probe`, and Barometer and completed successfully.
+- The installed SDK's IOHID headers and the current Stats Sensors bridge were compared for pointer ownership,
+  integer widths, and IOReport return types before the declarations were added.
+- P4-T1 introduces declarations but no IOReport call sites, so the plan's `nm` symbol check remains intentionally
+  pending until P4-T3 links the first IOReport source.
