@@ -163,6 +163,69 @@ struct MenuBarRendererTests {
     }
 
     @Test
+    func sensorStackKeepsStableGeometryAndExpandsByColumns() {
+        let cool = SensorStackRenderer(values: [
+            SensorStackValue(label: "CPU", value: "39.1°C", reservedValue: "999.9°C"),
+            SensorStackValue(label: "GPU", value: "41.2°C", reservedValue: "999.9°C"),
+        ]).render(in: context)
+        let hot = SensorStackRenderer(values: [
+            SensorStackValue(label: "CPU", value: "102.4°C", reservedValue: "999.9°C"),
+            SensorStackValue(label: "GPU", value: "99.9°C", reservedValue: "999.9°C"),
+        ]).render(in: context)
+        let fourReadings = SensorStackRenderer(values: [
+            SensorStackValue(label: "CPU", value: "39.1°C", reservedValue: "999.9°C"),
+            SensorStackValue(label: "GPU", value: "41.2°C", reservedValue: "999.9°C"),
+            SensorStackValue(label: "SSD", value: "37.0°C", reservedValue: "999.9°C"),
+            SensorStackValue(label: "FAN", value: "1400r", reservedValue: "9999r"),
+        ]).render(in: context)
+
+        #expect(cool.size == hot.size)
+        #expect(cool.size.height == context.thickness)
+        #expect(fourReadings.size.width > cool.size.width)
+    }
+
+    @Test
+    func sensorsPresentationSupportsEveryWidgetMode() {
+        let temperature = SensorReading(
+            id: "derived:temperature:hottest",
+            name: "Hottest",
+            shortName: "HOT",
+            rawName: "hottest",
+            kind: .temperature,
+            source: .derived,
+            value: 54.25,
+            unit: .celsius
+        )
+        let fan = SensorReading(
+            id: "smc:fan:0",
+            name: "Left Fan",
+            shortName: "FAN1",
+            rawName: "F0Ac",
+            kind: .fan,
+            source: .smc,
+            value: 1_400,
+            unit: .rpm
+        )
+        let sample = SensorSample(timestamp: .now, readings: [temperature, fan], sessionEnergy: [])
+        let history = [HistoryEntry(timestamp: sample.timestamp, value: sample)]
+
+        for mode in SensorWidgetMode.allCases {
+            let widget = SensorWidgetSettings(id: 1, mode: mode)
+            let content = SensorsMenuBarPresenter.content(
+                sample: sample,
+                history: history,
+                moduleSettings: ModuleSettings(isEnabled: true, mode: mode.rawValue),
+                sensorSettings: SensorSettings(),
+                widget: widget,
+                temperatureUnit: .celsius,
+                context: context
+            )
+            #expect(content.image.size.width > 0)
+            #expect(content.accessibilityValue.contains("Hottest"))
+        }
+    }
+
+    @Test
     func diskPresentationSupportsEveryMenuBarMode() {
         let volume = DiskVolumeSample(
             id: "startup",

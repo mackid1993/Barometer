@@ -19,5 +19,7 @@ struct IdentityContractTests {
         ]
 
         #expect(ModuleID.allCases.map(\.autosaveName) == expectedAutosaveNames)
+        #expect(ModuleID.sensors.autosaveName(instance: 2) == "Barometer.Sensors.2")
+        #expect(StatusItemIdentity(module: .sensors, instance: 3).displayName == "Sensors 3")
     }
 }

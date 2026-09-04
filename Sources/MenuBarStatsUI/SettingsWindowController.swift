@@ -10,12 +10,14 @@ public final class SettingsWindowController: NSWindowController {
     public convenience init(
         settingsStore: SettingsStore,
         networkStore: ModuleStore<NetworkSample>,
-        diskStore: ModuleStore<DiskSample>
+        diskStore: ModuleStore<DiskSample>,
+        sensorStore: ModuleStore<SensorSample>
     ) {
         let rootView = SettingsRootView(
             settingsStore: settingsStore,
             networkStore: networkStore,
-            diskStore: diskStore
+            diskStore: diskStore,
+            sensorStore: sensorStore
         )
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
@@ -52,6 +54,7 @@ private struct SettingsRootView: View {
     let settingsStore: SettingsStore
     let networkStore: ModuleStore<NetworkSample>
     let diskStore: ModuleStore<DiskSample>
+    let sensorStore: ModuleStore<SensorSample>
     @State private var selection: SettingsSelection? = .general
 
     var body: some View {
@@ -81,6 +84,8 @@ private struct SettingsRootView: View {
                 NetworkSettingsView(store: networkStore, settingsStore: settingsStore)
             case let .module(module) where module == .disks:
                 DiskSettingsView(store: diskStore, settingsStore: settingsStore)
+            case let .module(module) where module == .sensors:
+                SensorSettingsView(store: sensorStore, settingsStore: settingsStore)
             case let .module(module):
                 FutureModuleSettingsView(module: module)
             }

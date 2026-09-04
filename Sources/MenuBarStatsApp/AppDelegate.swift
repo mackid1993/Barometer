@@ -109,7 +109,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settingsWindowController = SettingsWindowController(
                 settingsStore: settingsStore,
                 networkStore: monitoringCoordinator.networkStore,
-                diskStore: monitoringCoordinator.diskStore
+                diskStore: monitoringCoordinator.diskStore,
+                sensorStore: monitoringCoordinator.sensorStore
             )
         }
         settingsWindowController?.show()

@@ -309,11 +309,13 @@ public struct DiskActivityGraphRenderer: MenuBarRenderer {
 public struct StackedLabelRenderer: MenuBarRenderer {
     private let label: String
     private let value: String
+    private let reservedValue: String?
 
     /// Creates a stacked label renderer.
-    public init(label: String, value: String) {
+    public init(label: String, value: String, reservedValue: String? = nil) {
         self.label = label
         self.value = value
+        self.reservedValue = reservedValue
     }
 
     /// Renders the stacked image.
@@ -329,8 +331,9 @@ public struct StackedLabelRenderer: MenuBarRenderer {
         ]
         let labelText = NSAttributedString(string: label, attributes: labelAttributes)
         let valueText = NSAttributedString(string: value, attributes: valueAttributes)
+        let reservedText = NSAttributedString(string: reservedValue ?? value, attributes: valueAttributes)
         let metrics = MenuBarLayoutMetrics(context: context)
-        let width = ceil(max(labelText.size().width, valueText.size().width))
+        let width = ceil(max(labelText.size().width, max(valueText.size().width, reservedText.size().width)))
             + MenuBarLayoutMetrics.contentInset * 2
         return makeImage(width: width, context: context) { rect in
             let labelSize = labelText.size()
@@ -421,6 +424,89 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
         let valueSize = value.size()
         let valueX = inset + symbolWidth + symbolGap + reservedWidth - valueSize.width
         value.draw(at: NSPoint(x: valueX, y: y + floor((rowHeight - valueSize.height) / 2)))
+    }
+}
+
+/// One labeled, stable-width field in a compact Sensors stack.
+public struct SensorStackValue {
+    public let label: String
+    public let value: String
+    public let reservedValue: String
+
+    /// Creates one menu bar sensor field.
+    public init(label: String, value: String, reservedValue: String) {
+        self.label = label
+        self.value = value
+        self.reservedValue = reservedValue
+    }
+}
+
+/// Renders arbitrary labeled readings in matched two-row columns.
+public struct SensorStackRenderer: MenuBarRenderer {
+    private let values: [SensorStackValue]
+
+    /// Creates a compact stack in user-selected order.
+    public init(values: [SensorStackValue]) {
+        self.values = values
+    }
+
+    /// Renders two readings per column and expands horizontally for additional values.
+    @MainActor
+    public func render(in context: RenderContext) -> NSImage {
+        let valuePointSize = min(max(8, context.fontSize - 3), max(8, context.thickness / 2 - 2))
+        let labelPointSize = max(7, valuePointSize - 1)
+        let labelAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: labelPointSize, weight: .medium),
+            .foregroundColor: context.foregroundColor.withAlphaComponent(0.82),
+        ]
+        let valueAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: valuePointSize, weight: .semibold),
+            .foregroundColor: context.foregroundColor,
+        ]
+        let fields = values.isEmpty
+            ? [SensorStackValue(label: "SENS", value: "—", reservedValue: "999.9°C")]
+            : values
+        let columns = stride(from: 0, to: fields.count, by: 2).map { start in
+            Array(fields[start..<min(start + 2, fields.count)])
+        }
+        let labelGap: CGFloat = 3
+        let columnGap: CGFloat = 5
+        let columnWidths = columns.map { column in
+            column.reduce(CGFloat(0)) { width, field in
+                let labelWidth = NSAttributedString(string: field.label, attributes: labelAttributes).size().width
+                let valueWidth = NSAttributedString(
+                    string: field.reservedValue,
+                    attributes: valueAttributes
+                ).size().width
+                return max(width, ceil(labelWidth + labelGap + valueWidth))
+            }
+        }
+        let contentWidth = MenuBarLayoutMetrics.contentInset * 2
+            + columnWidths.reduce(0, +)
+            + columnGap * CGFloat(max(0, columns.count - 1))
+
+        return makeImage(width: contentWidth, context: context) { rect in
+            var x = MenuBarLayoutMetrics.contentInset
+            let rowHeight = rect.height / 2
+            for (columnIndex, column) in columns.enumerated() {
+                let columnWidth = columnWidths[columnIndex]
+                for (rowIndex, field) in column.enumerated() {
+                    let label = NSAttributedString(string: field.label, attributes: labelAttributes)
+                    let value = NSAttributedString(string: field.value, attributes: valueAttributes)
+                    let combinedHeight = max(label.size().height, value.size().height)
+                    let y: CGFloat
+                    if fields.count == 1 {
+                        y = floor((rect.height - combinedHeight) / 2)
+                    } else {
+                        let rowBottom = rowIndex == 0 ? rowHeight : 0
+                        y = rowBottom + floor((rowHeight - combinedHeight) / 2)
+                    }
+                    label.draw(at: NSPoint(x: x, y: y))
+                    value.draw(at: NSPoint(x: x + columnWidth - value.size().width, y: y))
+                }
+                x += columnWidth + columnGap
+            }
+        }
     }
 }
 

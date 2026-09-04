@@ -22,6 +22,9 @@ public final class MonitoringCoordinator {
     /// Observable Disk state used by its status item, dropdown, and settings.
     public let diskStore = ModuleStore<DiskSample>(historyCapacity: 86_400)
 
+    /// Observable Sensors state shared by every independently movable Sensors widget.
+    public let sensorStore = ModuleStore<SensorSample>(historyCapacity: 28_800)
+
     /// Shared application settings.
     public let settingsStore: SettingsStore
 
@@ -30,6 +33,11 @@ public final class MonitoringCoordinator {
     private let networkMonitor: NetworkMonitor
     private let networkScheduler: Scheduler<NetworkMonitor>
     private let diskScheduler: Scheduler<DiskMonitor>
+    private let sensorsMonitor: SensorsMonitor
+    private let sensorsScheduler: Scheduler<SensorsMonitor>
+    private let registry: StatusItemRegistry
+    private let settingsAction: @MainActor () -> Void
+    private let quitAction: @MainActor () -> Void
     private let powerStateObserver = PowerStateObserver()
     private let displaySleepWatcher = DisplaySleepWatcher()
     private let networkChangeObserver = NetworkChangeObserver()
@@ -41,16 +49,19 @@ public final class MonitoringCoordinator {
     private var weatherController: StatusItemController<WeatherSample>?
     private var networkController: StatusItemController<NetworkSample>?
     private var diskController: StatusItemController<DiskSample>?
+    private var sensorControllers: [Int: StatusItemController<SensorSample>] = [:]
     private var cpuDropdown: DropdownController?
     private var memoryDropdown: DropdownController?
     private var weatherDropdown: DropdownController?
     private var networkDropdown: DropdownController?
     private var diskDropdown: DropdownController?
+    private var sensorDropdowns: [Int: DropdownController] = [:]
     private var cpuSampleTask: Task<Void, Never>?
     private var memorySampleTask: Task<Void, Never>?
     private var weatherSampleTask: Task<Void, Never>?
     private var networkSampleTask: Task<Void, Never>?
     private var diskSampleTask: Task<Void, Never>?
+    private var sensorSampleTask: Task<Void, Never>?
     private var weatherGeneration = 0
     private var isTrackingCurrentLocation = false
     private var lastPublicIPEnabled: Bool?
@@ -62,13 +73,19 @@ public final class MonitoringCoordinator {
         settingsAction: @escaping @MainActor () -> Void,
         quitAction: @escaping @MainActor () -> Void
     ) {
+        self.registry = registry
         self.settingsStore = settingsStore
+        self.settingsAction = settingsAction
+        self.quitAction = quitAction
         cpuScheduler = Scheduler(monitor: CPUMonitor())
         memoryScheduler = Scheduler(monitor: MemoryMonitor())
         let networkMonitor = NetworkMonitor()
         self.networkMonitor = networkMonitor
         networkScheduler = Scheduler(monitor: networkMonitor)
         diskScheduler = Scheduler(monitor: DiskMonitor())
+        let sensorsMonitor = SensorsMonitor()
+        self.sensorsMonitor = sensorsMonitor
+        sensorsScheduler = Scheduler(monitor: sensorsMonitor)
 
         cpuController = StatusItemController(
             module: .cpu,
@@ -190,6 +207,7 @@ public final class MonitoringCoordinator {
             settingsAction: settingsAction,
             quitAction: quitAction
         )
+        configureSensorWidgets()
 
         startSampleConsumption()
         configurePowerAwareness()
@@ -205,6 +223,7 @@ public final class MonitoringCoordinator {
             await memoryScheduler.start()
             await networkScheduler.start()
             await diskScheduler.start()
+            await sensorsScheduler.start()
         }
     }
 
@@ -215,12 +234,14 @@ public final class MonitoringCoordinator {
         weatherSampleTask?.cancel()
         networkSampleTask?.cancel()
         diskSampleTask?.cancel()
+        sensorSampleTask?.cancel()
         CurrentLocationProvider.shared.stop()
         Task {
             await cpuScheduler.stop()
             await memoryScheduler.stop()
             await networkScheduler.stop()
             await diskScheduler.stop()
+            await sensorsScheduler.stop()
             await weatherSession?.stop()
         }
     }
@@ -265,6 +286,16 @@ public final class MonitoringCoordinator {
                 self?.diskStore.receive(sample, at: sample.timestamp)
             }
         }
+
+        let sensorSamples = sensorsScheduler.samples
+        sensorSampleTask = Task { [weak self] in
+            for await sample in sensorSamples {
+                guard !Task.isCancelled else {
+                    break
+                }
+                self?.sensorStore.receive(sample, at: sample.timestamp)
+            }
+        }
     }
 
     private func configurePowerAwareness() {
@@ -284,6 +315,7 @@ public final class MonitoringCoordinator {
                 await self.memoryScheduler.pause()
                 await self.networkScheduler.pause()
                 await self.diskScheduler.pause()
+                await self.sensorsScheduler.pause()
                 await self.weatherSession?.pause()
             }
         }
@@ -296,6 +328,7 @@ public final class MonitoringCoordinator {
                 await self.memoryScheduler.resume()
                 await self.networkScheduler.resume()
                 await self.diskScheduler.resume()
+                await self.sensorsScheduler.resume()
                 await self.weatherSession?.resume()
             }
         }
@@ -309,6 +342,7 @@ public final class MonitoringCoordinator {
             await memoryScheduler.setIntervalMultiplier(multiplier)
             await networkScheduler.setIntervalMultiplier(multiplier)
             await diskScheduler.setIntervalMultiplier(multiplier)
+            await sensorsScheduler.setIntervalMultiplier(multiplier)
         }
     }
 
@@ -320,9 +354,12 @@ public final class MonitoringCoordinator {
             _ = settingsStore.settings.modules[.weather]?.isEnabled
             _ = settingsStore.settings.modules[.network]?.interval
             _ = settingsStore.settings.modules[.disks]?.interval
+            _ = settingsStore.settings.modules[.sensors]?.interval
             _ = settingsStore.settings.weather
             _ = settingsStore.settings.network
             _ = settingsStore.settings.disks
+            _ = settingsStore.settings.sensors
+            _ = settingsStore.settings.sensorTemperatureUnit
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else {
@@ -333,6 +370,7 @@ public final class MonitoringCoordinator {
                 self.configureWeatherMonitoring()
                 self.configureCurrentLocation()
                 self.applyNetworkSettings()
+                self.configureSensorWidgets()
                 self.observeSettings()
             }
         }
@@ -345,11 +383,69 @@ public final class MonitoringCoordinator {
         let memorySeconds = settingsStore.settings.modules[.memory]?.interval ?? 2
         let networkSeconds = settingsStore.settings.modules[.network]?.interval ?? 1
         let diskSeconds = settingsStore.settings.modules[.disks]?.interval ?? 1
+        let sensorSeconds = settingsStore.settings.modules[.sensors]?.interval ?? 2
         Task {
             await cpuScheduler.setInterval(.milliseconds(Int64(max(0.25, cpuSeconds) * 1_000)))
             await memoryScheduler.setInterval(.milliseconds(Int64(max(0.25, memorySeconds) * 1_000)))
             await networkScheduler.setInterval(.milliseconds(Int64(max(0.25, networkSeconds) * 1_000)))
             await diskScheduler.setInterval(.milliseconds(Int64(max(0.25, diskSeconds) * 1_000)))
+            await sensorsScheduler.setInterval(.milliseconds(Int64(max(1, sensorSeconds) * 1_000)))
+        }
+    }
+
+    private func configureSensorWidgets() {
+        let sharedSettingsStore = settingsStore
+        for widget in settingsStore.settings.sensors.widgets where sensorControllers[widget.id] == nil {
+            let instance = widget.id
+            let statusItem = registry.item(for: .sensors, instance: instance)
+            sensorControllers[instance] = StatusItemController(
+                module: .sensors,
+                statusItem: statusItem,
+                store: sensorStore,
+                settingsStore: settingsStore,
+                isEnabled: { appSettings, moduleSettings in
+                    moduleSettings.isEnabled && appSettings.sensors.widget(id: instance)?.isEnabled == true
+                },
+                render: { sample, history, moduleSettings, context in
+                    guard let currentWidget = sharedSettingsStore.settings.sensors.widget(id: instance) else {
+                        return StatusItemContent(
+                            image: TextRenderer(text: "—").render(in: context),
+                            accessibilityValue: "Sensors widget unavailable"
+                        )
+                    }
+                    return SensorsMenuBarPresenter.content(
+                        sample: sample,
+                        history: history,
+                        moduleSettings: moduleSettings,
+                        sensorSettings: sharedSettingsStore.settings.sensors,
+                        widget: currentWidget,
+                        temperatureUnit: sharedSettingsStore.settings.sensorTemperatureUnit,
+                        context: context
+                    )
+                }
+            )
+            sensorDropdowns[instance] = DropdownController(
+                moduleName: ModuleID.sensors.displayName(instance: instance),
+                statusItem: statusItem,
+                rootView: AnyView(
+                    SensorsDropdownView(
+                        store: sensorStore,
+                        settingsStore: settingsStore,
+                        resetEnergyAction: { [weak self] in
+                            guard let self else { return }
+                            Task {
+                                await self.sensorsMonitor.resetSessionEnergy()
+                                await self.sensorsScheduler.refresh()
+                            }
+                        }
+                    )
+                ),
+                contentHeight: 600,
+                contentWidth: 420,
+                tickAction: { [weak sensorStore] in sensorStore?.tick() },
+                settingsAction: settingsAction,
+                quitAction: quitAction
+            )
         }
     }
 

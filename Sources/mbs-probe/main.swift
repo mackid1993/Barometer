@@ -13,6 +13,7 @@ private enum ProbeCommand: String {
     case memory
     case net
     case power
+    case sensors
     case smc
     case temps
     case version
@@ -259,6 +260,36 @@ private func runSMCListProbe() async throws {
     }
 }
 
+private func runSensorsProbe(watch: Bool) async throws {
+    let monitor = SensorsMonitor()
+    repeat {
+        let sample = try await monitor.sample()
+        print("Sensors at \(sample.timestamp.formatted())")
+        for kind in SensorKind.allCases {
+            let readings = sample.readings.filter { $0.kind == kind }
+            guard !readings.isEmpty else { continue }
+            print("  \(kind.rawValue):")
+            for reading in readings {
+                let value = SensorValueFormatter.string(
+                    reading,
+                    temperatureUnit: .celsius,
+                    decimalPlaces: 2
+                )
+                print("    \(reading.name) [\(reading.source.rawValue):\(reading.rawName)]: \(value)")
+            }
+        }
+        if !sample.sessionEnergy.isEmpty {
+            print("  session energy:")
+            for energy in sample.sessionEnergy {
+                print(String(format: "    %@: %.3f J", energy.name, energy.joules))
+            }
+        }
+        if watch {
+            try await Task.sleep(for: .seconds(2))
+        }
+    } while watch
+}
+
 private func runFanProbe() async throws {
     let fans = try await SMCClient().fans()
     guard !fans.isEmpty else {
@@ -394,7 +425,8 @@ private enum ProbeMain {
         guard let commandName = arguments.first, let command = ProbeCommand(rawValue: commandName) else {
             writeError(
                 "usage: mbs-probe <cpu [--watch]|disks [--watch]|fans|freq [--watch]|geocode QUERY|identity|"
-                    + "memory|net [--watch]|power [--watch]|smc --list|temps|version|weather --lat N --lon N|wifi>"
+                    + "memory|net [--watch]|power [--watch]|sensors [--watch]|smc --list|temps|version|"
+                    + "weather --lat N --lon N|wifi>"
             )
             exit(EXIT_FAILURE)
         }
@@ -455,6 +487,12 @@ private enum ProbeMain {
                     exit(EXIT_FAILURE)
                 }
                 try await runIOReportProbe(command: command, watch: arguments.count == 2)
+            case .sensors:
+                guard arguments.count == 1 || arguments == ["sensors", "--watch"] else {
+                    writeError("usage: mbs-probe sensors [--watch]")
+                    exit(EXIT_FAILURE)
+                }
+                try await runSensorsProbe(watch: arguments.count == 2)
             case .smc:
                 guard arguments == ["smc", "--list"] else {
                     writeError("usage: mbs-probe smc --list")

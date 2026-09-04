@@ -27,6 +27,13 @@ public enum ModuleID: String, CaseIterable, Codable, Hashable, Sendable {
         }
     }
 
+    /// The permanent autosave name for a one-based module instance.
+    public func autosaveName(instance: Int) -> String {
+        precondition(instance > 0)
+        precondition(instance == 1 || self == .sensors || self == .weather)
+        return instance == 1 ? autosaveName : "\(autosaveName).\(instance)"
+    }
+
     /// The permanent human-readable accessibility label.
     public var displayName: String {
         switch self {
@@ -42,4 +49,29 @@ public enum ModuleID: String, CaseIterable, Codable, Hashable, Sendable {
         case .combined: "Combined"
         }
     }
+
+    /// The permanent accessibility label for a one-based module instance.
+    public func displayName(instance: Int) -> String {
+        instance == 1 ? displayName : "\(displayName) \(instance)"
+    }
+}
+
+/// Stable identity of one permanent status item, including numbered module instances.
+public struct StatusItemIdentity: Hashable, Sendable {
+    public let module: ModuleID
+    public let instance: Int
+
+    /// Creates a status-item identity. Only Sensors and Weather support extra instances.
+    public init(module: ModuleID, instance: Int = 1) {
+        precondition(instance > 0)
+        precondition(instance == 1 || module == .sensors || module == .weather)
+        self.module = module
+        self.instance = instance
+    }
+
+    /// Permanent AppKit autosave name.
+    public var autosaveName: String { module.autosaveName(instance: instance) }
+
+    /// Permanent human-readable accessibility label.
+    public var displayName: String { module.displayName(instance: instance) }
 }

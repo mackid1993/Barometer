@@ -130,4 +130,6 @@ typedef struct {
     uint8_t bytes[32];
 } MBSSMCKeyData;
 
+_Static_assert(sizeof(MBSSMCKeyData) == 80, "AppleSMC request ABI must remain 80 bytes");
+
 #endif

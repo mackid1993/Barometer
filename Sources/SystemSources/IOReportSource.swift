@@ -67,7 +67,9 @@ public actor IOReportSource {
         let unit: String
     }
 
-    private struct Subscription {
+    // The actor exclusively owns these immutable Core Foundation and C handles.
+    // They are only sampled while actor-isolated and released once during deinit.
+    private struct Subscription: @unchecked Sendable {
         let channels: CFMutableDictionary
         let reference: MBSIOReportSubscriptionRef
     }
@@ -92,7 +94,7 @@ public actor IOReportSource {
         frequencyTables = Self.readFrequencyTables()
     }
 
-    isolated deinit {
+    deinit {
         for subscription in subscriptions {
             mbs_ioreport_subscription_release(subscription.reference)
         }

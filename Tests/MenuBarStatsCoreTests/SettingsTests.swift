@@ -24,7 +24,7 @@ struct SettingsTests {
         )
         let migrated = try JSONDecoder().decode(AppSettings.self, from: versionZero)
 
-        #expect(migrated.schemaVersion == 7)
+        #expect(migrated.schemaVersion == 8)
         #expect(!migrated.reducesSamplingOnBattery)
         #expect(!migrated.isMonochrome)
         #expect(migrated.fontSize == 12)
@@ -49,7 +49,7 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.schemaVersion == 7)
+        #expect(migrated.schemaVersion == 8)
         #expect(migrated.weather.refreshIntervalMinutes == 15)
         #expect(migrated.weather.units.temperature == .fahrenheit)
         #expect(migrated.sensorTemperatureUnit == .celsius)
@@ -74,7 +74,7 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.schemaVersion == 7)
+        #expect(migrated.schemaVersion == 8)
         #expect(migrated.network == NetworkSettings())
         #expect(migrated.modules[.network]?.mode == "twoLine")
         #expect(migrated.disks == DiskSettings())
@@ -115,9 +115,32 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.schemaVersion == 7)
+        #expect(migrated.schemaVersion == 8)
         #expect(migrated.disks == DiskSettings())
         #expect(migrated.modules[.disks]?.mode == "activityGraph")
+    }
+
+    @Test("schema seven settings gain Sensors defaults")
+    func migrateSchemaSevenSensorDefaults() throws {
+        let encoded = try JSONEncoder().encode(AppSettings())
+        var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        object["schemaVersion"] = 7
+        object.removeValue(forKey: "sensors")
+        var modules = try #require(object["modules"] as? [Any])
+        if let index = modules.firstIndex(where: { ($0 as? String) == ModuleID.sensors.rawValue }),
+           modules.indices.contains(index + 1),
+           var sensorModule = modules[index + 1] as? [String: Any] {
+            sensorModule["mode"] = "percentage"
+            modules[index + 1] = sensorModule
+            object["modules"] = modules
+        }
+
+        let oldData = try JSONSerialization.data(withJSONObject: object)
+        let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
+
+        #expect(migrated.schemaVersion == 8)
+        #expect(migrated.sensors == SensorSettings())
+        #expect(migrated.modules[.sensors]?.mode == "compactStack")
     }
 
     @Test("global palette overrides module colors without erasing them")

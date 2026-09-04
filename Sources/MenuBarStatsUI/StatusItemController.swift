@@ -29,11 +29,15 @@ public final class StatusItemController<Sample: Sendable> {
         RenderContext
     ) -> StatusItemContent
 
+    /// Visibility policy evaluated from the current application and module settings.
+    public typealias IsEnabled = @MainActor (AppSettings, ModuleSettings) -> Bool
+
     private let module: ModuleID
     private let statusItem: NSStatusItem
     private let store: ModuleStore<Sample>
     private let settingsStore: SettingsStore
     private let renderContent: Render
+    private let isEnabled: IsEnabled
     private let logger = Logger(subsystem: "com.barometer.app", category: "render")
 
     /// Creates and begins observing a status item controller.
@@ -42,12 +46,14 @@ public final class StatusItemController<Sample: Sendable> {
         statusItem: NSStatusItem,
         store: ModuleStore<Sample>,
         settingsStore: SettingsStore,
+        isEnabled: @escaping IsEnabled = { _, moduleSettings in moduleSettings.isEnabled },
         render: @escaping Render
     ) {
         self.module = module
         self.statusItem = statusItem
         self.store = store
         self.settingsStore = settingsStore
+        self.isEnabled = isEnabled
         renderContent = render
         observeChanges()
         update()
@@ -57,7 +63,7 @@ public final class StatusItemController<Sample: Sendable> {
     public func update() {
         let appSettings = settingsStore.settings
         let moduleSettings = appSettings.modules[module] ?? ModuleSettings()
-        guard moduleSettings.isEnabled else {
+        guard isEnabled(appSettings, moduleSettings) else {
             if statusItem.isVisible {
                 statusItem.isVisible = false
             }

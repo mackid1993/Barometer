@@ -1021,3 +1021,59 @@ Verification:
   at 8.25 W during the sample. These remain raw runtime-discovered sensors; no Mac model or count selects them.
 - `rg` confirmed no SMC write command or write method exists in the bridge or source. `swift build`,
   `git diff --check`, and the 120-column check passed.
+
+## P4-T5 Sensors module
+
+Added `SensorsMonitor`, which independently samples IOHID, AppleSMC, and IOReport and merges every available source
+into normalized temperature, fan, power, voltage, and current groups. The monitor derives hottest overall, CPU, and
+GPU temperatures at runtime, rejects SMC calibration and threshold values that are not credible live operating
+temperatures, and continues reporting remaining sources when one private interface is unavailable. It contains no
+model identifier, core-count table, or hardware-specific branch.
+
+IOReport power deltas now accumulate GPU, ANE, CPU, and DRAM energy whenever those rails are populated. The known
+`PSTR` whole-system SMC rail uses trapezoidal integration between fresh samples. Both paths reject non-finite,
+negative, and stale intervals and expose resettable session totals in joules or watt-hours. Missing or unpopulated
+rails remain unavailable rather than becoming invented zero readings.
+
+The AppleSMC audit added a compile-time 80-byte ABI assertion, rejects short transport responses, and decodes signed
+integer, `iof`, and Apple Silicon `ioft` values. Direct inspection of runtime keys confirmed that `ioft` is required
+for real GPU and thermal readings on this Mac. Numeric decoding remains separate from sensor semantics, so a numeric
+threshold or configuration key is not automatically presented as a live temperature.
+
+Completed the Sensors dropdown with grouped sparklines, source labels, friendly or raw names, selectable Celsius or
+Fahrenheit formatting, configurable zero-to-two decimal places, duplicate hiding, and resettable session energy.
+Settings expose line, area, and bar graph styles without disabling the control. Every menu bar widget supports text,
+compact two-row stack, history graph, and fan modes. Users can create multiple separate widgets and arrange any
+ordered set of discovered readings in each one. Values reserve stable numeric widths, while additional pairs expand
+into new two-row columns.
+
+Each widget is a permanent status item owned by the packaged app process. Instance one remains
+`Barometer.Sensors`; later instances are `Barometer.Sensors.2`, `.3`, and so on. Removed widgets become disabled
+tombstones, so an identity is never reused. The title remains empty and live readings only update AXValue.
+
+Read-only inspection of the installed iStat Menus archive's English localization confirmed its public sensor
+categories and presentation vocabulary: temperature, fan RPM, amperage, frequency, power, voltage, simple/detailed
+views, raw sensor labels, and dual-value menu bar presentation. It did not contain a readable cross-model raw-key
+table. Barometer therefore retains its original runtime enumeration and conservative generic labeling rather than
+copying proprietary mappings. VirtualSMC, SMCKit, iSMC, macpow, and power-monitor source were consulted only to
+cross-check the public AppleSMC transport convention and byte formats; no source was copied.
+
+Verification:
+
+- `swift test` rebuilt and linked all source, core, UI, and test targets and exited 0. New coverage verifies signed,
+  floating, and `ioft` SMC decoding; settings schema 7 migration; widget identity normalization and non-reuse;
+  Celsius/Fahrenheit precision; duplicate preference; stale-sample rejection; trapezoidal energy integration; all
+  four widget modes; stable stack geometry; and horizontal expansion for four selected readings.
+- `swift run mbs-probe sensors` reported a hottest temperature of 76.98 °C, GPU temperature of 55.22 °C, both fans
+  at 1,357 and 1,433 RPM, system power at 20.29 W, adapter power at 30.42 W, battery power at 0.69 W, GPU power at
+  0.65 W, and live session energy. Values vary with workload and cooling state.
+- `swift build -c release` completed successfully. Swift 6.2.3 initially diagnosed an optimizer cycle while importing
+  actor-isolated destructors. Immutable IOReport subscription handles now have a documented Sendable boundary and
+  are released by a nonisolated destructor; the optimized build retains strict concurrency and completes normally.
+- `make app` produced `dist/Barometer.app`. `codesign --verify --deep --strict --verbose=2` reported it valid on disk
+  and satisfying its designated requirement. Its identifier is `com.barometer.app`, and its only executable is
+  `Contents/MacOS/Barometer`.
+- `make install` replaced and launched `/Applications/Barometer.app`. The runtime identity report contains
+  `Barometer.Sensors`, AX label `Sensors`, empty button and AX titles, and owner bundle `com.barometer.app`. The item
+  remains allocated but hidden because the user's Sensors preference is currently disabled.
+- `git diff --check` passed, and all changed Swift files stay within 120 columns.

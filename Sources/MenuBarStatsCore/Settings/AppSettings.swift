@@ -106,7 +106,7 @@ public struct ModuleSettings: Codable, Equatable, Sendable {
 /// Versioned application settings persisted as JSON in the app defaults domain.
 public struct AppSettings: Codable, Equatable, Sendable {
     /// Current settings schema version.
-    public static let currentSchemaVersion = 7
+    public static let currentSchemaVersion = 8
 
     /// Schema version encoded in this value.
     public var schemaVersion: Int
@@ -144,6 +144,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Temperature unit used by hardware sensor readouts.
     public var sensorTemperatureUnit: TemperatureUnit
 
+    /// Precision, raw-name, duplicate, and multi-widget choices for Sensors.
+    public var sensors: SensorSettings
+
     /// Interface, unit, privacy, and graph choices for Network.
     public var network: NetworkSettings
 
@@ -167,6 +170,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         modules: [ModuleID: ModuleSettings] = AppSettings.defaultModules,
         weather: WeatherSettings = WeatherSettings(),
         sensorTemperatureUnit: TemperatureUnit = .celsius,
+        sensors: SensorSettings = SensorSettings(),
         network: NetworkSettings = NetworkSettings(),
         disks: DiskSettings = DiskSettings()
     ) {
@@ -182,6 +186,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.modules = modules
         self.weather = weather
         self.sensorTemperatureUnit = sensorTemperatureUnit
+        self.sensors = sensors
         self.network = network
         self.disks = disks
         presentationDefaultsVersion = 3
@@ -197,6 +202,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         values[.weather] = ModuleSettings(isEnabled: false, mode: "iconTemperature", interval: 900)
         values[.network] = ModuleSettings(isEnabled: false, mode: "twoLine", interval: 1)
         values[.disks] = ModuleSettings(isEnabled: false, mode: "activityGraph", interval: 1)
+        values[.sensors] = ModuleSettings(isEnabled: false, mode: "compactStack", interval: 2)
         return values
     }
 
@@ -213,6 +219,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case modules
         case weather
         case sensorTemperatureUnit
+        case sensors
         case network
         case disks
         case presentationDefaultsVersion
@@ -240,6 +247,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
             modules = Self.defaultModules
             weather = WeatherSettings()
             sensorTemperatureUnit = .celsius
+            sensors = SensorSettings()
             network = NetworkSettings()
             disks = DiskSettings()
             presentationDefaultsVersion = 3
@@ -259,6 +267,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
                 TemperatureUnit.self,
                 forKey: .sensorTemperatureUnit
             ) ?? .celsius
+            sensors = try container.decodeIfPresent(SensorSettings.self, forKey: .sensors) ?? SensorSettings()
             network = try container.decodeIfPresent(NetworkSettings.self, forKey: .network) ?? NetworkSettings()
             disks = try container.decodeIfPresent(DiskSettings.self, forKey: .disks) ?? DiskSettings()
             presentationDefaultsVersion = try container.decodeIfPresent(
@@ -296,6 +305,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
             }
             if version < 7, modules[.disks]?.mode == "percentage" {
                 modules[.disks]?.mode = "activityGraph"
+            }
+            if version < 8, modules[.sensors]?.mode == "percentage" {
+                modules[.sensors]?.mode = "compactStack"
             }
         default:
             throw DecodingError.dataCorruptedError(

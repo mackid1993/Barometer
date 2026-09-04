@@ -7,7 +7,7 @@ import OSLog
 public final class StatusItemRegistry: NSObject {
     private static let identityLogger = Logger(subsystem: "com.barometer.app", category: "identity")
 
-    private var items: [ModuleID: NSStatusItem] = [:]
+    private var items: [StatusItemIdentity: NSStatusItem] = [:]
 
     /// Creates an empty registry. Module items are created when first requested.
     public override init() {
@@ -17,12 +17,22 @@ public final class StatusItemRegistry: NSObject {
 
     /// Returns the stable status item for a module, creating it on first use.
     public func item(for module: ModuleID) -> NSStatusItem {
-        if let statusItem = items[module] {
+        item(for: StatusItemIdentity(module: module))
+    }
+
+    /// Returns the stable status item for a numbered module instance.
+    public func item(for module: ModuleID, instance: Int) -> NSStatusItem {
+        item(for: StatusItemIdentity(module: module, instance: instance))
+    }
+
+    /// Returns a stable status item, creating it once for the process lifetime.
+    public func item(for identity: StatusItemIdentity) -> NSStatusItem {
+        if let statusItem = items[identity] {
             return statusItem
         }
 
-        let statusItem = makeItem(for: module)
-        items[module] = statusItem
+        let statusItem = makeItem(for: identity)
+        items[identity] = statusItem
         return statusItem
     }
 
@@ -34,30 +44,27 @@ public final class StatusItemRegistry: NSObject {
         }
     }
 
-    private func makeItem(for module: ModuleID) -> NSStatusItem {
+    private func makeItem(for identity: StatusItemIdentity) -> NSStatusItem {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.autosaveName = module.autosaveName
+        statusItem.autosaveName = identity.autosaveName
         statusItem.behavior = []
 
         guard let button = statusItem.button else {
-            preconditionFailure("AppKit did not create a status item button for \(module.displayName)")
+            preconditionFailure("AppKit did not create a status item button for \(identity.displayName)")
         }
         button.title = ""
         button.imagePosition = .imageOnly
         button.imageScaling = .scaleNone
-        button.setAccessibilityIdentifier(module.autosaveName)
-        button.setAccessibilityLabel(module.displayName)
+        button.setAccessibilityIdentifier(identity.autosaveName)
+        button.setAccessibilityLabel(identity.displayName)
         return statusItem
     }
 
     @objc private func runIdentitySelfTest() {
         var records: [StatusItemDiagnosticRecord] = []
-        for module in ModuleID.allCases {
-            guard let statusItem = items[module] else {
-                continue
-            }
+        for (identity, statusItem) in items.sorted(by: { $0.key.autosaveName < $1.key.autosaveName }) {
             guard let button = statusItem.button else {
-                assertionFailure("Missing status item button for \(module.displayName)")
+                assertionFailure("Missing status item button for \(identity.displayName)")
                 continue
             }
 
@@ -65,14 +72,14 @@ public final class StatusItemRegistry: NSObject {
             let identifier = button.accessibilityIdentifier()
             let label = button.accessibilityLabel() ?? ""
             let title = button.accessibilityTitle() ?? ""
-            let message = "autosaveName=\(module.autosaveName) window.title=\(windowTitle) "
+            let message = "autosaveName=\(identity.autosaveName) window.title=\(windowTitle) "
                 + "AXIdentifier=\(identifier) AXLabel=\(label) AXTitle=\(title)"
             Self.identityLogger.notice("\(message, privacy: .public)")
 
             records.append(
                 StatusItemDiagnosticRecord(
-                    module: module.displayName,
-                    autosaveName: module.autosaveName,
+                    module: identity.displayName,
+                    autosaveName: identity.autosaveName,
                     isVisible: statusItem.isVisible,
                     statusItemLength: statusItem.length,
                     windowNumber: button.window?.windowNumber,
@@ -94,9 +101,9 @@ public final class StatusItemRegistry: NSObject {
                 )
             )
 
-            assert(windowTitle == module.autosaveName)
-            assert(identifier == module.autosaveName)
-            assert(label == module.displayName)
+            assert(windowTitle == identity.autosaveName)
+            assert(identifier == identity.autosaveName)
+            assert(label == identity.displayName)
             assert(title.isEmpty)
             assert(button.title.isEmpty)
         }

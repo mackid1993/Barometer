@@ -42,6 +42,7 @@ public enum SMCClientError: Error, Sendable {
     case openFailed(kern_return_t)
     case invalidKey(String)
     case callFailed(key: String, command: UInt8, result: kern_return_t)
+    case invalidResponseSize(key: String, command: UInt8, size: Int)
     case firmwareRejected(key: String, command: UInt8, result: UInt8)
     case invalidDataSize(key: String, size: Int)
     case keyCountUnavailable
@@ -76,7 +77,7 @@ public actor SMCClient {
         self.connection = connection
     }
 
-    isolated deinit {
+    deinit {
         IOServiceClose(connection)
     }
 
@@ -184,14 +185,29 @@ public actor SMCClient {
     }
 
     static func decodeNumeric(bytes: [UInt8], dataType: String) -> Double? {
-        switch dataType {
-        case "ui8 ":
+        let normalizedType = dataType.trimmingCharacters(in: CharacterSet(charactersIn: " \0"))
+        switch normalizedType {
+        case "ui8":
             return bytes.first.map { Double($0) }
         case "ui16":
             return unsignedInteger(bytes: bytes, count: 2).map { Double($0) }
         case "ui32":
             return unsignedInteger(bytes: bytes, count: 4).map { Double($0) }
-        case "flt ":
+        case "si8":
+            return bytes.first.map { Double(Int8(bitPattern: $0)) }
+        case "si16":
+            guard let raw = unsignedInteger(bytes: bytes, count: 2) else {
+                return nil
+            }
+            return Double(Int16(bitPattern: UInt16(raw)))
+        case "si32":
+            guard let raw = unsignedInteger(bytes: bytes, count: 4) else {
+                return nil
+            }
+            return Double(Int32(bitPattern: UInt32(raw)))
+        case "hex_":
+            return unsignedInteger(bytes: bytes, count: min(4, bytes.count)).map { Double($0) }
+        case "flt", "iof":
             guard bytes.count >= 4 else {
                 return nil
             }
@@ -200,6 +216,14 @@ public actor SMCClient {
                 | UInt32(bytes[2]) << 16
                 | UInt32(bytes[3]) << 24
             return Double(Float(bitPattern: bits))
+        case "ioft":
+            guard bytes.count >= 8 else {
+                return nil
+            }
+            let bits = bytes.prefix(8).enumerated().reduce(UInt64(0)) { partialResult, element in
+                partialResult | UInt64(element.element) << UInt64(element.offset * 8)
+            }
+            return Double(Int64(bitPattern: bits)) / 65_536
         case "fpe2":
             guard let raw = unsignedInteger(bytes: bytes, count: 2) else {
                 return nil
@@ -208,18 +232,18 @@ public actor SMCClient {
         default:
             break
         }
-        guard dataType.count == 4,
-              let fractionCharacter = dataType.last,
+        guard normalizedType.count == 4,
+              let fractionCharacter = normalizedType.last,
               let fractionBits = Int(String(fractionCharacter), radix: 16),
               bytes.count >= 2
         else {
             return nil
         }
         let raw = UInt16(bytes[0]) << 8 | UInt16(bytes[1])
-        if dataType.hasPrefix("sp") {
+        if normalizedType.hasPrefix("sp") {
             return Double(Int16(bitPattern: raw)) / pow(2, Double(fractionBits))
         }
-        if dataType.hasPrefix("fp") {
+        if normalizedType.hasPrefix("fp") {
             return Double(raw) / pow(2, Double(fractionBits))
         }
         return nil
@@ -291,6 +315,9 @@ public actor SMCClient {
         )
         guard result == KERN_SUCCESS else {
             throw SMCClientError.callFailed(key: key, command: command, result: result)
+        }
+        guard outputSize >= MemoryLayout<MBSSMCKeyData>.stride else {
+            throw SMCClientError.invalidResponseSize(key: key, command: command, size: outputSize)
         }
         guard output.result == 0 else {
             throw SMCClientError.firmwareRejected(key: key, command: command, result: output.result)
