@@ -14,6 +14,12 @@ blank area rather than alter the real distance between items. Barometer therefor
 with zero app-added horizontal padding. This applies uniformly to plain text, label/value stacks, sensor stacks,
 icon-and-text rows, symbols, and vertical icon stacks. Do not reintroduce either control.
 
+AppKit also reads `NSStatusItemSpacing` and `NSStatusItemSelectionPadding` from the defaults search list and wraps
+each explicit canvas in that spacing. Barometer sets both keys to two only in its own `com.barometer.app` defaults
+domain before constructing `StatusItemRegistry`. Zero makes adjacent text collide; the host default of four is too
+loose for dense monitoring. Never write or delete the by-host global values: Barometer's compact spacing must not
+change spacing for the rest of the user's menu bar.
+
 Barometer also applies deterministic density tiers. Up to eight enabled independent items may use 12-point text,
 nine through eleven use at most 11, twelve through fourteen use at most 10, and fifteen or more use 9. Graphic scale
 is 115 percent for one through three items, 100 for four through six, 90 for seven or eight, 85 for nine through
@@ -120,8 +126,10 @@ Before accepting a change to menu bar geometry or status-item lifecycle:
 2. Run the repository search above and verify exactly one production assignment remains.
 3. Run `swift build -c release` and `git diff --check`.
 4. Install with `make install`; repository-path launches are not valid compatibility tests.
-5. Confirm each active item has its fixed autosave name, empty title, static AX label, nonzero image, and one bundle
-   owner in `~/Library/Logs/Barometer/identity.json`.
+5. With a different by-host global spacing, confirm each active Barometer window is exactly two points wider than its
+   button, image, and fixed item length, which must match one another. Confirm each item also has its fixed autosave
+   name, empty title, static AX label, nonzero image, and one bundle owner in
+   `~/Library/Logs/Barometer/identity.json`.
 6. Change enabled widgets and confirm the live set does not change before selecting **Apply Changes**.
 7. Apply the pending changes. Confirm Barometer reopens and calculates fresh widths from the complete saved set before
    visibility. Change font weight separately and confirm it redraws live without changing item length.

@@ -1935,3 +1935,24 @@ Verification:
   points. Every autosave name matches its AX identifier and every item belongs to `com.barometer.app`.
 - Strict code-signature verification passed. A Retina menu bar capture confirmed the Barometer readings are packed
   together without renderer-added edge gaps. No notarization or stapling command ran.
+
+### P7-T4 isolate compact spacing from the host default
+
+The widgets widened again even though their rendered images had no edge padding. Live diagnostics showed the by-host
+global `NSStatusItemSpacing` and `NSStatusItemSelectionPadding` values had returned to four. AppKit consequently made
+every Barometer window four points wider than its explicit item length and centered the image inside that shell.
+
+An application-domain experiment established that AppKit honors the same keys in `com.barometer.app` before
+status-item creation. Zero removed the shell completely but made neighboring labels and readings collide. Two points
+provides a clear visual boundary at half the host-default gap. Barometer now applies that value only to its own
+defaults domain after validating and claiming the single app instance, but before constructing `StatusItemRegistry`.
+Other menu bar applications and the by-host global preference remain untouched.
+
+Verification:
+
+- An isolated defaults-suite test verifies both Barometer application-domain values are two.
+- `swift test`, `swift build -c release`, and `git diff --check` completed successfully.
+- With the by-host global values still at four, every installed Barometer window was exactly two points wider than
+  its matching button, image, and immutable item length. The live capture showed compact separation without
+  collisions.
+- Strict code-signature verification passed. No notarization or stapling command ran.

@@ -27,6 +27,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        // AppKit otherwise wraps every explicit canvas in the host-wide spacing value.
+        // Keep Barometer compact without changing spacing for any other application.
+        StatusItemSpacingPolicy.apply()
+
         DistributedNotificationCenter.default().addObserver(
             self,
             selector: #selector(openSettingsFromNotification),

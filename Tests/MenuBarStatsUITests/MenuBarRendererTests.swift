@@ -208,6 +208,23 @@ struct MenuBarRendererTests {
     }
 
     @Test
+    func statusItemSpacingOverrideUsesCompactApplicationValues() {
+        let suiteName = "com.barometer.tests.status-item-spacing.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            Issue.record("Unable to create isolated defaults suite")
+            return
+        }
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(4, forKey: StatusItemSpacingPolicy.spacingKey)
+        defaults.set(4, forKey: StatusItemSpacingPolicy.selectionPaddingKey)
+
+        StatusItemSpacingPolicy.apply(to: defaults)
+
+        #expect(defaults.integer(forKey: StatusItemSpacingPolicy.spacingKey) == 2)
+        #expect(defaults.integer(forKey: StatusItemSpacingPolicy.selectionPaddingKey) == 2)
+    }
+
+    @Test
     func iconMatchesFontSizeAndUsesCanonicalGap() {
         let metrics = MenuBarLayoutMetrics(context: context)
         let size = metrics.symbolSize(nativeSize: NSSize(width: 18, height: 12), font: NSFont.systemFont(ofSize: 12.65))
