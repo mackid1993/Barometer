@@ -154,7 +154,7 @@ struct MenuBarLayoutMetrics {
     /// renderer positions the icon by its measured ink, which has no bearing to contribute, so the
     /// constant has to be the visible gap itself for the spacing to match the rest of the bar.
     var inlineIconTextGap: CGFloat {
-        densePairGap + 2
+        densePairGap + 3
     }
 
     /// Dense blocks use the same edge contract as every other status-item renderer.
@@ -287,11 +287,12 @@ struct MenuBarLayoutMetrics {
     }
 
     func symbolSize(nativeSize: NSSize, font: NSFont) -> NSSize {
-        // A glyph beside text has the whole bar to work with, so it is never shrunk below the size
-        // it has at the reference icon scale. Letting the automatic scale pull it down made the
-        // weather symbol read as an afterthought next to its temperature.
+        // A glyph beside text has the whole bar to work with, so it is sized against the bar rather
+        // than against the font. Sizing it from the point size left it noticeably smaller than the
+        // icons other menu bar apps draw, which reads as padding around the glyph rather than as a
+        // smaller glyph. Two points of breathing room top and bottom matches them.
         let height = min(
-            max(font.pointSize * context.scale, font.pointSize * RenderContext.referenceScale),
+            max(font.pointSize * context.scale, context.thickness - 6),
             context.thickness - 4
         )
         let aspectRatio = max(0.5, nativeSize.width / max(1, nativeSize.height))

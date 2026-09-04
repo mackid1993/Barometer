@@ -2371,3 +2371,25 @@ Verification:
   A test now pins the weather item to whatever the reference items measure, comparing rendered ink rather than
   layout constants, since the constants legitimately differ.
 - `make install` replaced and relaunched `/Applications/Barometer.app`.
+
+### P8-T15 size the inline weather glyph against the bar
+
+David said there was more padding around the weather icon than around other icons. Measuring the item showed no
+horizontal margin to remove: the leading edge was already flush and the gap to the value already matched the rest of
+the bar. The padding was vertical. `IconTextRenderer` sized a glyph from the font point size, giving 13.8 pt of ink
+in a 22 pt bar, while the icons other menu bar apps draw fill closer to 16, so ours looked like a small glyph
+floating in space rather than an icon.
+
+A glyph beside text has the whole bar to work with, so it is now sized against the thickness, leaving three points
+of ink margin top and bottom, capped two points short of the bar. Enlarging the ink narrowed the measured gap to the
+value, so the inline gap constant was raised a point to keep all three items at the same five points.
+
+Verification:
+
+- `swift build`, `swift build -c release`, and `git diff --check` completed successfully; `swift test` built every
+  target, and the runner remains unavailable on this machine.
+- Ink measurement: the glyph draws 16 pt in a 22 pt bar, up from 13.8, and the weather, network, and sensor items
+  all still measure 5.00 pt between their parts. The item is 58 pt wide, up from 54.
+- The weather glyph test was rewritten for the inline layout; it previously asserted the glyph fit inside half the
+  bar, which was the rule for the stacked presentation that no longer exists.
+- `make install` replaced and relaunched `/Applications/Barometer.app`.

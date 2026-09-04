@@ -983,20 +983,27 @@ struct MenuBarRendererTests {
                 isMonochrome: true,
                 scale: AppSettings.menuBarScale(forItemCount: count)
             )
-            let image = IconStackRenderer(
-                symbolName: "cloud.sun", text: "72°F", reservedText: "-99°F"
+            let image = IconTextRenderer(
+                symbolName: "cloud.sun",
+                text: "81°",
+                reservedText: "-99°",
+                reservedSymbolNames: ["cloud.sun", "sun.max", "cloud.bolt.rain"]
             ).render(in: scaled)
             widths.insert(image.size.width)
             let glyphHeight = Self.topBandHeight(image)
-            #expect(glyphHeight >= 10, "glyph was \(glyphHeight) pt at \(count) items")
-            // It must still clear the value row rather than growing into it.
-            #expect(glyphHeight <= scaled.thickness / 2)
+            // Sized against the bar, not the font, so it matches the icons other menu bar apps
+            // draw. Sizing it from the point size left visible padding around it.
+            #expect(
+                glyphHeight >= scaled.thickness - 7,
+                "glyph was \(glyphHeight) pt in a \(scaled.thickness) pt bar at \(count) items"
+            )
+            #expect(glyphHeight <= scaled.thickness - 3)
         }
         // The canvas is sized by the reserved text, so a larger glyph must not move the item.
         #expect(widths.count == 1, "weather widths varied: \(widths.sorted())")
     }
 
-    /// Height of the first contiguous band of ink, top-down.
+    /// Height of the tallest contiguous band of ink, top-down.
     private static func topBandHeight(_ image: NSImage) -> CGFloat {
         guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff) else {
             return 0
