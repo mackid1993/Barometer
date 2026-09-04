@@ -147,9 +147,9 @@ struct MenuBarLayoutMetrics {
         0
     }
 
-    /// Gap between reading columns in a dense text block.
-    var columnGap: CGFloat {
-        max(2, round(compactPointSize * 0.2))
+    /// Minimal separator between independently configured sensor columns.
+    var sensorColumnGap: CGFloat {
+        1
     }
 
     func centeredY(for height: CGFloat) -> CGFloat {
@@ -597,6 +597,7 @@ public struct StackedLabelRenderer: MenuBarRenderer {
 
 /// Renders download and upload as two visually equal, stable-width rows.
 public struct NetworkRateStackRenderer: MenuBarRenderer {
+    private static let pairGap: CGFloat = 1
     private let top: String
     private let bottom: String
     private let reservedTop: String
@@ -651,32 +652,43 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
         let width =
             MenuBarLayoutMetrics.contentInset * 2
             + markerWidth
+            + Self.pairGap
             + valueWidth
 
         return makeImage(width: width, context: context) { _ in
+            let topOrigins = Self.rowOrigins(
+                containerWidth: markerWidth + Self.pairGap + valueWidth,
+                markerWidth: topMarker.size().width,
+                valueWidth: topValue.size().width,
+                gap: Self.pairGap
+            )
+            let bottomOrigins = Self.rowOrigins(
+                containerWidth: markerWidth + Self.pairGap + valueWidth,
+                markerWidth: bottomMarker.size().width,
+                valueWidth: bottomValue.size().width,
+                gap: Self.pairGap
+            )
             topMarker.draw(
                 at: NSPoint(
-                    x: MenuBarLayoutMetrics.contentInset,
+                    x: MenuBarLayoutMetrics.contentInset + topOrigins.marker,
                     y: metrics.compactRowY(0, textHeight: max(topMarker.size().height, topValue.size().height))
                 )
             )
             topValue.draw(
                 at: NSPoint(
-                    x: MenuBarLayoutMetrics.contentInset + markerWidth
-                        + Self.trailingOffset(valueWidth: topValue.size().width, reservedWidth: valueWidth),
+                    x: MenuBarLayoutMetrics.contentInset + topOrigins.value,
                     y: metrics.compactRowY(0, textHeight: max(topMarker.size().height, topValue.size().height))
                 )
             )
             bottomMarker.draw(
                 at: NSPoint(
-                    x: MenuBarLayoutMetrics.contentInset,
+                    x: MenuBarLayoutMetrics.contentInset + bottomOrigins.marker,
                     y: metrics.compactRowY(1, textHeight: max(bottomMarker.size().height, bottomValue.size().height))
                 )
             )
             bottomValue.draw(
                 at: NSPoint(
-                    x: MenuBarLayoutMetrics.contentInset + markerWidth
-                        + Self.trailingOffset(valueWidth: bottomValue.size().width, reservedWidth: valueWidth),
+                    x: MenuBarLayoutMetrics.contentInset + bottomOrigins.value,
                     y: metrics.compactRowY(1, textHeight: max(bottomMarker.size().height, bottomValue.size().height))
                 )
             )
@@ -690,8 +702,15 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
         return (String(first), String(text.dropFirst()))
     }
 
-    static func trailingOffset(valueWidth: CGFloat, reservedWidth: CGFloat) -> CGFloat {
-        max(0, reservedWidth - valueWidth)
+    /// Keeps the arrow attached to its live value while the pair's trailing edge stays fixed.
+    static func rowOrigins(
+        containerWidth: CGFloat,
+        markerWidth: CGFloat,
+        valueWidth: CGFloat,
+        gap: CGFloat
+    ) -> (marker: CGFloat, value: CGFloat) {
+        let marker = max(0, containerWidth - markerWidth - gap - valueWidth)
+        return (marker, marker + markerWidth + gap)
     }
 }
 
@@ -715,6 +734,7 @@ public struct SensorStackValue {
 /// Renders arbitrary labeled readings in matched two-row columns.
 public struct SensorStackRenderer: MenuBarRenderer {
     private let values: [SensorStackValue]
+    private static let pairGap: CGFloat = 1
 
     /// Creates a compact stack in user-selected order.
     public init(values: [SensorStackValue]) {
@@ -747,8 +767,8 @@ public struct SensorStackRenderer: MenuBarRenderer {
         let columns = stride(from: 0, to: fields.count, by: 2).map { start in
             Array(fields[start..<min(start + 2, fields.count)])
         }
-        let labelGap: CGFloat = 0
-        let columnGap = metrics.columnGap
+        let labelGap = Self.pairGap
+        let columnGap = metrics.sensorColumnGap
         let sidePadding = metrics.denseTextPadding
         let labelWidths = columns.map { column in
             column.reduce(CGFloat(0)) { width, field in
@@ -794,7 +814,9 @@ public struct SensorStackRenderer: MenuBarRenderer {
                     let origins = Self.rowOrigins(
                         columnX: x,
                         columnWidth: columnWidth,
-                        valueWidth: value.size().width
+                        labelWidth: label.size().width,
+                        valueWidth: value.size().width,
+                        gap: labelGap
                     )
                     let combinedHeight = max(label.size().height, value.size().height)
                     let y =
@@ -809,13 +831,16 @@ public struct SensorStackRenderer: MenuBarRenderer {
         }
     }
 
-    /// Keeps labels on one leading edge and readings on one trailing edge without synthetic kerning.
+    /// Keeps each label attached to its reading while the pair's trailing edge stays fixed.
     static func rowOrigins(
         columnX: CGFloat,
         columnWidth: CGFloat,
-        valueWidth: CGFloat
+        labelWidth: CGFloat,
+        valueWidth: CGFloat,
+        gap: CGFloat
     ) -> (label: CGFloat, value: CGFloat) {
-        (columnX, columnX + max(0, columnWidth - valueWidth))
+        let label = columnX + max(0, columnWidth - labelWidth - gap - valueWidth)
+        return (label, label + labelWidth + gap)
     }
 }
 

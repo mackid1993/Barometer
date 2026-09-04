@@ -159,14 +159,14 @@ rendered widths, or status-item lifecycle code.
 Barometer adds zero horizontal padding around item canvases, including generic text, label/value stacks, sensor
 stacks, icon-and-text rows, symbols, and vertical icon stacks. Do not expose item-spacing controls: changing
 transparent padding inside an immutable frame only redistributes the same blank area and cannot change the actual item
-spacing. Standalone numeric readings remain trailing-aligned inside their reserved fields, but stacked label/value
-rows must share one leading edge; never move the value independently from its label. Do not add generic width
-allowances, half-point insets, or renderer-specific side padding.
+spacing. Standalone numeric readings remain trailing-aligned inside their reserved fields. Ordinary stacked
+label/value widgets share one leading edge; dense Sensors and Network pairs follow the compact rule below. Do not add
+generic width allowances, half-point insets, or renderer-specific side padding.
 
-Sensor stacks use explicit columns: labels share a leading edge and readings share a trailing edge. Never add a
-trailing exception based on which widget follows Sensors. Never synthesize the space between `CPU:` or `GPU:` and
-its temperature by applying flexible kerning to the label. That changes the label's typography and makes the rows
-look misaligned even when their outer canvas is stable.
+Sensor stacks use explicit stable-width columns. A single internal point separates each label from its live reading,
+and each label/reading pair remains trailing-aligned inside the reserved column. Network arrows follow the same rule. Never
+leave unused reservation width between a prefix and its value, add a trailing exception based on the following
+widget, or synthesize spacing with flexible kerning.
 
 Do not set `NSStatusItemSpacing` or `NSStatusItemSelectionPadding` in Barometer or in the by-host global defaults.
 Before constructing `StatusItemRegistry`, remove application-domain values left by older Barometer builds so AppKit

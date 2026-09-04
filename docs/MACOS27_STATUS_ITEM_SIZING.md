@@ -114,11 +114,10 @@ insets, or renderer-specific side padding. Center a symbol only inside a symbol 
 Trailing-align a standalone changing value inside its stable numeric field, but never offset one row of a stacked
 label/value pair from the other. This preserves the one-time outer length without breaking row alignment.
 
-Multi-reading sensor stacks use explicit label and value columns. Labels in a column share one leading edge and values
-share one trailing edge. Never add a trailing exception based on which widget happens to follow Sensors; AppKit owns
-the boundary between every pair of independent status items. Never create alignment by adding live-value-dependent
-kerning to the last label character; that distorts the `CPU:` and `GPU:` label-to-temperature spacing as readings
-change.
+Multi-reading sensor stacks use explicit stable-width columns. One internal point separates each label from its live
+reading while the pair's trailing edge stays fixed inside the reserved column. Network arrows use the same rule so
+unused stable-width reservation appears before the arrow/value pair rather than between them. Never add a trailing
+exception based on the following widget or create spacing with kerning.
 
 Do not replace the separate items with one combined status item as a sizing workaround. Combined is an optional
 module, not the implementation of density.

@@ -1949,14 +1949,21 @@ sets no replacement. AppKit therefore owns one consistent boundary between every
 by-host global preference and every other application's preferences remain untouched.
 
 The Sensors renderer also stopped using a calculated `.kern` value on the colon to push each live temperature across
-the row. It now measures an explicit label field and value field per two-row column, draws `CPU:` and `GPU:` from the
-same leading coordinate, and trailing-aligns both temperatures. It has no order-specific trailing exception. Reading
-changes cannot distort label typography or change the relationship between the two rows.
+the row. It now measures an explicit stable column for each two-row pair. Each label remains attached to its live
+temperature, and the pair's trailing edge remains fixed. It has no order-specific trailing exception. Reading changes
+cannot resize the outer canvas or distort label typography.
+
+The same internal-spacing rule now applies to Network: one point separates each arrow from its live rate while the
+pair is trailing-aligned inside the reserved canvas. Sensor labels use the same one-point gap, and separate sensor
+columns use a one-point separator. Unused stability width no longer appears between a prefix and its value. These are
+internal composition rules and do not change AppKit's spacing between independently movable items.
 
 Verification:
 
 - An isolated defaults-suite test verifies both legacy Barometer application-domain values are removed.
-- `swift test`, `swift build -c release`, and `git diff --check` completed successfully.
+- `swift test`, including geometry checks for attached sensor labels, attached network arrows, fixed trailing edges,
+  and the one-point sensor-column separator, completed successfully.
+- `swift build -c release` and `git diff --check` completed successfully.
 - The installed application uses AppKit's current spacing without writing a Barometer override. CPU/GPU temperature
   labels and values retain their explicit column alignment.
 - Strict code-signature verification passed. No notarization or stapling command ran.

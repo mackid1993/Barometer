@@ -516,35 +516,54 @@ struct MenuBarRendererTests {
     }
 
     @Test
-    func networkRowsKeepMarkersFixedAndValuesTrailingAligned() {
+    func networkRowsKeepMarkersAttachedAndPairsTrailingAligned() {
         #expect(NetworkRateStackRenderer.rowParts("↑1.2MB/s").marker == "↑")
         #expect(NetworkRateStackRenderer.rowParts("↑1.2MB/s").value == "1.2MB/s")
 
-        let font = context.font(ofSize: 9, weight: .medium, monospacedDigits: true)
-        let attributes: [NSAttributedString.Key: Any] = [.font: font]
-        let shortWidth = NSAttributedString(string: "0.0KB/s", attributes: attributes).size().width
-        let longWidth = NSAttributedString(string: "99.9MB/s", attributes: attributes).size().width
-        let shortOrigin = NetworkRateStackRenderer.trailingOffset(
-            valueWidth: shortWidth,
-            reservedWidth: longWidth
+        let shortOrigins = NetworkRateStackRenderer.rowOrigins(
+            containerWidth: 51,
+            markerWidth: 8,
+            valueWidth: 24,
+            gap: 1
         )
-        let longOrigin = NetworkRateStackRenderer.trailingOffset(
-            valueWidth: longWidth,
-            reservedWidth: longWidth
+        let longOrigins = NetworkRateStackRenderer.rowOrigins(
+            containerWidth: 51,
+            markerWidth: 8,
+            valueWidth: 34,
+            gap: 1
         )
-
-        #expect(abs((shortOrigin + shortWidth) - (longOrigin + longWidth)) < 0.01)
+        #expect(shortOrigins.marker == 18)
+        #expect(shortOrigins.value == 27)
+        #expect(longOrigins.marker == 8)
+        #expect(longOrigins.value == 17)
+        #expect(shortOrigins.value - shortOrigins.marker == 9)
+        #expect(longOrigins.value - longOrigins.marker == 9)
+        #expect(shortOrigins.value + 24 == longOrigins.value + 34)
     }
 
     @Test
     func sensorStackKeepsStableGeometryAndExpandsByColumns() {
+        #expect(MenuBarLayoutMetrics(context: context).sensorColumnGap == 1)
         #expect(SensorStackRenderer.displayLabel("CPU") == "CPU:")
         #expect(SensorStackRenderer.displayLabel("GPU:") == "GPU:")
-        let topOrigins = SensorStackRenderer.rowOrigins(columnX: 3, columnWidth: 68, valueWidth: 34)
-        let bottomOrigins = SensorStackRenderer.rowOrigins(columnX: 3, columnWidth: 68, valueWidth: 34)
-        #expect(topOrigins.label == bottomOrigins.label)
-        #expect(topOrigins.value == bottomOrigins.value)
-        #expect(topOrigins.value == 37)
+        let topOrigins = SensorStackRenderer.rowOrigins(
+            columnX: 3,
+            columnWidth: 69,
+            labelWidth: 22,
+            valueWidth: 34,
+            gap: 1
+        )
+        let bottomOrigins = SensorStackRenderer.rowOrigins(
+            columnX: 3,
+            columnWidth: 69,
+            labelWidth: 22,
+            valueWidth: 34,
+            gap: 1
+        )
+        #expect(topOrigins == bottomOrigins)
+        #expect(topOrigins.label == 15)
+        #expect(topOrigins.value == 38)
+        #expect(topOrigins.value - topOrigins.label == 23)
 
         let cool = SensorStackRenderer(values: [
             SensorStackValue(label: "CPU", value: "39.1°C", reservedValue: "999.9°C"),
