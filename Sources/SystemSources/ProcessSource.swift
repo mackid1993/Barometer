@@ -86,8 +86,14 @@ public final class ProcessSource {
             let cpuTime = usage.ri_user_time &+ usage.ri_system_time
             let cached = cache[processIdentifier]
             let metadataMatches = cached?.startTime == startTime
-            let name = metadataMatches ? cached?.name ?? "" : processName(for: processIdentifier)
             let path = metadataMatches ? cached?.path : processPath(for: processIdentifier)
+            let name: String
+            if metadataMatches {
+                name = cached?.name ?? ""
+            } else {
+                name = path.flatMap(Self.applicationDisplayName(forExecutablePath:))
+                    ?? processName(for: processIdentifier)
+            }
 
             let cpuPercent: Double
             if let cached, cached.startTime == startTime, cpuTime >= cached.cpuTime {
@@ -207,6 +213,30 @@ public final class ProcessSource {
     private static func string(from buffer: [CChar], byteCount: Int) -> String {
         let bytes = buffer.prefix(byteCount).map { UInt8(bitPattern: $0) }
         return String(decoding: bytes, as: UTF8.self)
+    }
+
+    static func applicationBundleURL(forExecutablePath path: String) -> URL? {
+        var candidate = URL(fileURLWithPath: path).deletingLastPathComponent()
+        while candidate.path != "/" {
+            if candidate.pathExtension.caseInsensitiveCompare("app") == .orderedSame {
+                return candidate
+            }
+            candidate.deleteLastPathComponent()
+        }
+        return nil
+    }
+
+    static func applicationDisplayName(forExecutablePath path: String) -> String? {
+        guard let applicationURL = applicationBundleURL(forExecutablePath: path),
+              let bundle = Bundle(url: applicationURL)
+        else {
+            return nil
+        }
+        let displayName = bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+        let bundleName = bundle.object(forInfoDictionaryKey: "CFBundleName") as? String
+        return [displayName, bundleName, applicationURL.deletingPathExtension().lastPathComponent]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
     }
 }
 

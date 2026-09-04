@@ -598,3 +598,21 @@ Verification:
 - A disruptive live Wi-Fi off/on test was not performed autonomously. The production observer uses the same
   `NWPathMonitor` transition covered by the deterministic test and will be wired to the app's saved locations in
   P2-T3.
+
+## P1-F1 Dropdown process presentation corrections
+
+Corrected two issues found during live Phase 1 review. The CPU history range picker now occupies its own full-width
+row, so all five choices through `24h` fit inside the menu instead of clipping the last segment. Process metadata now
+walks from an executable to its containing application bundle and prefers `CFBundleDisplayName` or `CFBundleName`.
+Process rows use the live `NSRunningApplication` icon first, then the containing `.app` icon, then a file or
+command-line fallback. The icon lookup is cached to avoid repeating workspace queries during live menu updates.
+
+Verification:
+
+- `swift test --disable-sandbox --filter 'processMetadata|Scheduler|WeatherMonitor'` rebuilt the affected source,
+  UI, and test targets and exited 0.
+- A synthetic `Parallels Desktop.app/Contents/MacOS/prl_vm_app` fixture verified containing-bundle discovery and
+  display-name resolution.
+- `swift run --disable-sandbox mbs-probe memory` reported PID 1102 as `Parallels Desktop` instead of `prl_vm_app`.
+- `make app` completed a release build and strict ad hoc signature verification.
+- `make run` installed and launched the corrected single-bundle app from `/Applications/Barometer.app`.

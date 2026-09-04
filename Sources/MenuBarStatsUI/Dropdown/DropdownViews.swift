@@ -53,9 +53,8 @@ public struct CPUDropdownView: View {
                         .font(.system(.headline, design: .rounded).monospacedDigit())
                 }
 
-                HStack {
-                    Text("History").font(.caption).foregroundStyle(.secondary)
-                    Spacer()
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("HISTORY").sectionLabel()
                     Picker("Range", selection: $range) {
                         ForEach(HistoryRange.allCases) { value in
                             Text(value.rawValue).tag(value)
@@ -63,7 +62,8 @@ public struct CPUDropdownView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.segmented)
-                    .frame(width: 190)
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity)
                 }
                 HistoryGraph(values: values, color: .cyan)
                     .frame(height: 72)
@@ -219,7 +219,7 @@ private struct CPUProcessRow: View {
 
     var body: some View {
         HStack(spacing: 7) {
-            ProcessIcon(path: process.path)
+            ProcessIcon(processIdentifier: process.processIdentifier, path: process.path)
             Text(process.name).lineLimit(1)
             Spacer()
             Text(String(format: "%.1f%%", process.cpuPercent)).monospacedDigit().foregroundStyle(.secondary)
@@ -251,7 +251,7 @@ private struct MemoryProcessRow: View {
 
     var body: some View {
         HStack(spacing: 7) {
-            ProcessIcon(path: process.path)
+            ProcessIcon(processIdentifier: process.processIdentifier, path: process.path)
             Text(process.name).lineLimit(1)
             Spacer()
             Text(MemoryDropdownView.bytes(process.physicalFootprint))
@@ -263,12 +263,48 @@ private struct MemoryProcessRow: View {
 }
 
 private struct ProcessIcon: View {
+    let processIdentifier: pid_t
     let path: String?
 
     var body: some View {
-        Image(nsImage: path.map { NSWorkspace.shared.icon(forFile: $0) } ?? NSImage())
+        Image(nsImage: ProcessIconResolver.image(processIdentifier: processIdentifier, path: path))
             .resizable()
+            .interpolation(.high)
             .frame(width: 16, height: 16)
+    }
+}
+
+@MainActor
+private enum ProcessIconResolver {
+    private static let cache = NSCache<NSString, NSImage>()
+
+    static func image(processIdentifier: pid_t, path: String?) -> NSImage {
+        let cacheKey = "\(processIdentifier):\(path ?? "")" as NSString
+        if let cached = cache.object(forKey: cacheKey) {
+            return cached
+        }
+
+        let image = NSRunningApplication(processIdentifier: processIdentifier)?.icon
+            ?? applicationURL(for: path).map { NSWorkspace.shared.icon(forFile: $0.path) }
+            ?? path.map { NSWorkspace.shared.icon(forFile: $0) }
+            ?? NSImage(systemSymbolName: "terminal.fill", accessibilityDescription: "Command-line process")
+            ?? NSImage()
+        cache.setObject(image, forKey: cacheKey)
+        return image
+    }
+
+    private static func applicationURL(for path: String?) -> URL? {
+        guard let path else {
+            return nil
+        }
+        var candidate = URL(fileURLWithPath: path).deletingLastPathComponent()
+        while candidate.path != "/" {
+            if candidate.pathExtension.caseInsensitiveCompare("app") == .orderedSame {
+                return candidate
+            }
+            candidate.deleteLastPathComponent()
+        }
+        return nil
     }
 }
 
