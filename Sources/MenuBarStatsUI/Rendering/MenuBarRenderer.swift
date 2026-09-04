@@ -232,12 +232,13 @@ public struct IconTextRenderer: MenuBarRenderer {
         let symbolAspectRatio = symbol.map { max(0.5, $0.size.width / max(1, $0.size.height)) } ?? 0
         let symbolWidth = symbolHeight * symbolAspectRatio
         let spaceWidth = symbol == nil ? 0 : NSAttributedString(string: " ", attributes: attributes).size().width
+        let symbolOpticalOffset = max(1, context.fontSize * 0.12)
         let width = symbolWidth + spaceWidth + ceil(textValue.size().width) + 4
         return makeImage(width: width, context: context) { rect in
             symbol?.draw(
                 in: NSRect(
                     x: 2,
-                    y: floor((rect.height - symbolHeight) / 2),
+                    y: floor((rect.height - symbolHeight) / 2 + symbolOpticalOffset),
                     width: symbolWidth,
                     height: symbolHeight
                 )

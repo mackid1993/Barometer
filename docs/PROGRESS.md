@@ -714,3 +714,16 @@ Verification:
 - `swift build --disable-sandbox` compiled the aspect-ratio and font-metric layout under Swift 6 strict concurrency.
 - The implementation remains image-only: `NSStatusBarButton.title` stays empty, and the fixed Weather identity is
   unchanged.
+
+## P1-F3 Weather symbol vertical alignment correction
+
+Follow-up visual review showed that the Weather symbol's remaining mismatch was vertical rather than horizontal.
+Added a font-relative upward optical offset to the native-aspect SF Symbol while leaving the temperature text on its
+existing centered baseline. The adjustment applies consistently across symbol-and-text modes without changing item
+width, title, label, or autosave identity.
+
+Verification:
+
+- `swift build --disable-sandbox` completed with zero warnings from Barometer sources.
+- `make run` release-built, signed, installed, and launched the adjusted app from `/Applications/Barometer.app` for
+  David's live visual check.
