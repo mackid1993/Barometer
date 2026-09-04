@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import SystemSources
 
@@ -8,6 +9,17 @@ struct BatterySourceTests {
         #expect(BatterySource.signedMilliamps(raw: 0) == 0)
         #expect(BatterySource.signedMilliamps(raw: UInt64(UInt32.max) - 557) == -558)
         #expect(BatterySource.signedMilliamps(raw: 1_250) == 1_250)
+    }
+
+    @Test
+    func rejectsCalculatingTimeEstimateSentinels() {
+        #expect(BatterySource.minutes(NSNumber(value: 495)) == 495)
+        // IOPS publishes -1 and AppleSmartBattery publishes 65535 while no estimate exists.
+        #expect(BatterySource.minutes(NSNumber(value: -1)) == nil)
+        #expect(BatterySource.minutes(NSNumber(value: 65_535)) == nil)
+        #expect(BatterySource.minutes(NSNumber(value: 0)) == nil)
+        #expect(BatterySource.minutes(nil) == nil)
+        #expect(BatterySource.minutes("495") == nil)
     }
 
     @Test

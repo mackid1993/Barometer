@@ -88,6 +88,16 @@ public struct BatteryDropdownView: View {
                         StatTile(
                             symbol: "bolt.fill", label: "Power",
                             value: measurement(sample?.wattageWatts, format: "%+.2f W"), tint: .yellow)
+                        StatTile(
+                            symbol: "hourglass",
+                            label: sample?.isCharging == true ? "Until full" : "Remaining",
+                            value: sample.map {
+                                BatteryTimeFormatter.detail(
+                                    minutes: $0.remainingMinutes,
+                                    isEstimating: $0.isEstimatingTime
+                                )
+                            } ?? "—",
+                            tint: accent.primary)
                     }
                 }
             }
@@ -160,11 +170,16 @@ public struct BatteryDropdownView: View {
     }
 
     private static func state(_ sample: BatterySample) -> String {
+        let name: String
         switch sample.state {
-        case .charging: "Charging"
-        case .discharging: "Using Battery"
-        case .full: "Fully Charged"
-        case .onAC: "Connected to Power"
+        case .charging: name = "Charging"
+        case .discharging: name = "Using Battery"
+        case .full: name = "Fully Charged"
+        case .onAC: name = "Connected to Power"
         }
+        guard let remaining = BatteryTimeFormatter.long(minutes: sample.remainingMinutes) else {
+            return sample.isEstimatingTime ? "\(name) · Calculating…" : name
+        }
+        return sample.isCharging ? "\(name) · \(remaining) to full" : "\(name) · \(remaining) remaining"
     }
 }

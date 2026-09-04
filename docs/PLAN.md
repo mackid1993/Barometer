@@ -349,7 +349,55 @@ End of Phase 7: v1.0 tag candidate. Stop for review.
 
 ---
 
-## Phase 8: After v1
+## Phase 8: Battery time remaining and Stacks
+
+Requested by David after v1.0 in response to user feedback. Stacks generalizes the Sensors widget model to every
+module: each stack is one independently movable status item holding an ordered set of readings chosen from any
+module, rendered in the same matched two-row columns the Sensors compact stack already uses.
+
+David signed off on the new autosave names on 2026-09-04: stack 1 keeps `Barometer.Combined` so existing users lose
+no menu bar position, and stacks 2 through 4 are `Barometer.Combined.2`, `.3`, `.4`. This is the same numbered
+instance scheme Sensors and Weather already use, and `ModuleID.autosaveName(instance:)` relaxes its precondition to
+allow `.combined` instances.
+
+### P8-T1 Battery time remaining
+
+- Read `kIOPSTimeToEmptyKey` and `kIOPSTimeToFullChargeKey`, falling back to `AppleSmartBattery`'s `AvgTimeToEmpty`
+  and `AvgTimeToFull`. Reject the calculating sentinels: `-1` from IOPS and `65535` from the registry.
+- Report an estimate only in the direction the battery is moving; expose `remainingMinutes` and `isEstimatingTime`
+  on `BatterySample`.
+- Three new menu bar presentations, all reserving a stable width: `percentageTime` (two equal live rows),
+  `labeledTime` (`BAT` over the time), and `glyphTime` (battery glyph beside the time).
+- Dropdown shows the estimate and distinguishes `Calculating…` from nothing to estimate.
+- Verify: formatter output matches `pmset -g batt` on live hardware; the menu bar item does not change width as the
+  estimate moves.
+
+### P8-T2 Metric catalog
+
+- A `MetricID` catalog naming every reading a stack can show, spanning all modules, with a stable label, a formatted
+  value, and a reserved-width placeholder per metric.
+- Verify: every metric resolves to a value or a dash from live stores.
+
+### P8-T3 Stack settings model
+
+- `StackSettings` following the Sensors widget discipline: never-reused ids, disabled entries kept as tombstones,
+  normalization guaranteeing at least one stack. Migrate the existing `CombinedSettings` members into stack 1.
+- Verify: settings written by the previous schema decode with their Combined membership intact.
+
+### P8-T4 Stack status items
+
+- Up to four independently movable stack items, counted by `AppSettings.enabledMenuBarItemCount` so automatic font
+  size and scale stay correct.
+- Verify: Thaw identity check shows each enabled stack as a separate item that keeps its position across a relaunch.
+
+### P8-T5 Stacks settings pane
+
+- Reorderable metric list per stack, add and remove stacks, per-stack separators and colors.
+- Verify: changes apply live and survive a relaunch.
+
+---
+
+## Phase 9: After v1
 
 Only after David asks:
 

@@ -44,6 +44,12 @@ public struct BatterySnapshot: Equatable, Sendable {
     public let adapter: PowerAdapterSnapshot?
     public let isLowPowerModeEnabled: Bool
 
+    /// Estimated minutes until the battery is empty, or `nil` while discharging is not being estimated.
+    public let timeToEmptyMinutes: Int?
+
+    /// Estimated minutes until the battery is full, or `nil` while charging is not being estimated.
+    public let timeToFullMinutes: Int?
+
     /// Creates one normalized battery observation.
     public init(
         name: String,
@@ -60,7 +66,9 @@ public struct BatterySnapshot: Equatable, Sendable {
         wattageWatts: Double?,
         condition: String?,
         adapter: PowerAdapterSnapshot?,
-        isLowPowerModeEnabled: Bool
+        isLowPowerModeEnabled: Bool,
+        timeToEmptyMinutes: Int? = nil,
+        timeToFullMinutes: Int? = nil
     ) {
         self.name = name
         self.chargePercent = chargePercent
@@ -77,6 +85,8 @@ public struct BatterySnapshot: Equatable, Sendable {
         self.condition = condition
         self.adapter = adapter
         self.isLowPowerModeEnabled = isLowPowerModeEnabled
+        self.timeToEmptyMinutes = timeToEmptyMinutes
+        self.timeToFullMinutes = timeToFullMinutes
     }
 }
 
@@ -147,6 +157,18 @@ public struct BatterySource: Sendable {
         let voltageVolts = voltageMillivolts.map { $0 / 1_000 }
         let adapter = Self.adapter(from: Self.dictionary(detail["AdapterDetails"]))
 
+        // The public summary is authoritative when it has an estimate. AppleSmartBattery's running
+        // averages are the fallback, and both publish sentinels rather than omitting the key while
+        // macOS is still computing: -1 from IOPS, 65535 from the registry.
+        let timeToEmpty = Self.minutes(summary[Self.timeToEmptyKey])
+            ?? Self.minutes(detail["AvgTimeToEmpty"])
+            ?? Self.minutes(batteryData["AvgTimeToEmpty"])
+            ?? Self.minutes(packData["AvgTimeToEmpty"])
+        let timeToFull = Self.minutes(summary[Self.timeToFullKey])
+            ?? Self.minutes(detail["AvgTimeToFull"])
+            ?? Self.minutes(batteryData["AvgTimeToFull"])
+            ?? Self.minutes(packData["AvgTimeToFull"])
+
         return BatterySnapshot(
             name: Self.string(summary[Self.nameKey]) ?? "Internal Battery",
             chargePercent: chargePercent,
@@ -171,8 +193,22 @@ public struct BatterySource: Sendable {
                 healthPercent: healthPercent
             ),
             adapter: adapter,
-            isLowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled
+            isLowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
+            // An estimate only means something in the direction the battery is actually moving.
+            timeToEmptyMinutes: isExternalConnected ? nil : timeToEmpty,
+            timeToFullMinutes: isCharging ? timeToFull : nil
         )
+    }
+
+    /// Normalizes a published minutes estimate, rejecting the "still calculating" sentinels.
+    ///
+    /// IOPS reports `-1` and AppleSmartBattery reports `65535` while no estimate exists. Values
+    /// beyond a week are treated as garbage rather than shown as a plausible-looking time.
+    static func minutes(_ value: Any?) -> Int? {
+        guard let raw = (value as? NSNumber)?.intValue, raw > 0, raw < 10_080 else {
+            return nil
+        }
+        return raw
     }
 
     static func signedMilliamps(raw: UInt64) -> Int64 {
@@ -299,6 +335,8 @@ public struct BatterySource: Sendable {
     private static let currentCapacityKey = kIOPSCurrentCapacityKey as String
     private static let maximumCapacityKey = kIOPSMaxCapacityKey as String
     private static let isChargingKey = kIOPSIsChargingKey as String
+    private static let timeToEmptyKey = kIOPSTimeToEmptyKey as String
+    private static let timeToFullKey = kIOPSTimeToFullChargeKey as String
     private static let isChargedKey = kIOPSIsChargedKey as String
     private static let powerSourceStateKey = kIOPSPowerSourceStateKey as String
     private static let healthKey = kIOPSBatteryHealthKey as String

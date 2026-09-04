@@ -150,7 +150,7 @@ public struct ModuleSettings: Codable, Equatable, Sendable {
 /// Versioned application settings persisted as JSON in the app defaults domain.
 public struct AppSettings: Codable, Equatable, Sendable {
     /// Current settings schema version.
-    public static let currentSchemaVersion = 13
+    public static let currentSchemaVersion = 14
 
     /// Supported menu bar font-size range in points.
     public static let menuBarFontSizeRange = 9.0...12.0
@@ -484,7 +484,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
             }
             if let batteryMode = modules[.battery]?.mode {
                 switch batteryMode {
-                case "glyphPercentage", "labeledPercentage": break
+                case "glyphPercentage", "labeledPercentage", "labeledTime", "percentageTime", "glyphTime": break
                 case "percentage": modules[.battery]?.mode = "labeledPercentage"
                 default: modules[.battery]?.mode = "glyphPercentage"
                 }

@@ -2066,3 +2066,38 @@ replaces the DMG and refreshes its title and notes.
 The weather card displays its absolute refresh time only to the minute, but its relative age previously floored raw
 elapsed seconds. A refresh displayed as 8:13 could therefore still say `1 min ago` after the clock reached 8:15.
 Relative age now advances on wall-clock minute boundaries, keeping both parts of the same label consistent.
+
+### P8-T1 battery time remaining
+
+User feedback asked for battery time remaining as a two-line menu bar item like CPU and Memory. Nothing in the
+battery pipeline carried an estimate.
+
+`BatterySource` now reads `kIOPSTimeToEmptyKey` and `kIOPSTimeToFullChargeKey` from the public power source summary
+and falls back to `AppleSmartBattery`'s `AvgTimeToEmpty` and `AvgTimeToFull`. Both publishers use sentinels rather
+than omitting the key while macOS is still computing an estimate, and this Mac reports both: IOPS uses `-1` and the
+registry uses `65535`. `BatterySource.minutes` rejects those, zero, and anything beyond a week. An estimate is only
+reported in the direction the battery is actually moving, so `timeToEmptyMinutes` is nil on external power and
+`timeToFullMinutes` is nil unless charging.
+
+`BatteryTimeFormatter` in `MenuBarStatsCore` produces the compact `H:MM` menu bar string, the long
+`8 hr 15 min` dropdown string, and a `Calculating…` detail that a fully charged battery does not show, because it
+has nothing to estimate rather than an estimate pending. The reserved menu bar width is `99:99`; Apple silicon
+routinely reports more than ten hours, so a four-character reservation would resize the item.
+
+Three presentations were added, keeping the two existing ones: `percentageTime` puts the percentage over the time
+as two equal live rows using `NetworkRateStackRenderer` rather than the dimmed label-over-value stack,
+`labeledTime` puts `BAT` over the time, and `glyphTime` puts the time beside the battery glyph with every glyph it
+can swap to reserved. `AppSettings` schema moved to 14 and its battery presentation migration allow-list accepts
+all five modes; without that the decoder would have silently reset every new mode to `glyphPercentage` on load.
+
+Verification:
+
+- `swift build` and `swift build -c release` completed successfully.
+- `swift test` built every target. The test runner itself cannot execute here: SwiftPM needs Xcode's `xctest`, and
+  this machine has Command Line Tools only, so `swift test` compiles the suites and exits without running them.
+- The formatter and the live source were therefore exercised directly by compiling `BatterySource`,
+  `BatteryMonitor`, and `BatteryTimeFormatter` into a standalone checker. All formatter cases passed, and the live
+  read returned 541 minutes discharging, rendering `9:01` in the menu bar and `9 hr 1 min` in the dropdown while
+  `pmset -g batt` reported `9:01 remaining` for the same battery. `timeToFullMinutes` was correctly nil, confirming
+  the `65535` sentinel is filtered.
+- No new permission category, helper, bundle, or dependency was added.

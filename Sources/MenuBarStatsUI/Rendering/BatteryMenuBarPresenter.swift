@@ -14,7 +14,7 @@ public enum BatteryMenuBarPresenter {
     ) -> StatusItemContent {
         guard let sample else {
             return StatusItemContent(
-                image: renderer(percent: nil, mode: moduleSettings.mode).render(in: context),
+                image: renderer(sample: nil, mode: moduleSettings.mode).render(in: context),
                 accessibilityValue: "Battery unavailable"
             )
         }
@@ -25,17 +25,68 @@ public enum BatteryMenuBarPresenter {
         )
         let state = stateDescription(sample.state)
         return StatusItemContent(
-            image: renderer(percent: sample.chargePercent, mode: moduleSettings.mode).render(in: renderContext),
-            accessibilityValue: String(format: "Battery %.1f percent, %@", sample.chargePercent, state)
+            image: renderer(sample: sample, mode: moduleSettings.mode).render(in: renderContext),
+            accessibilityValue: accessibilityValue(sample: sample, state: state, mode: moduleSettings.mode)
         )
     }
 
-    private static func renderer(percent: Double?, mode: String) -> any MenuBarRenderer {
-        guard mode == "labeledPercentage" else {
-            return BatteryPercentRenderer(percent: percent)
+    /// Menu bar text for the estimate that matches the battery's current direction.
+    static func timeText(sample: BatterySample?) -> String {
+        BatteryTimeFormatter.compact(minutes: sample?.remainingMinutes)
+    }
+
+    private static func percentText(_ sample: BatterySample?) -> String {
+        sample.map { String(format: "%.0f%%", $0.chargePercent) } ?? "—"
+    }
+
+    private static func renderer(sample: BatterySample?, mode: String) -> any MenuBarRenderer {
+        switch mode {
+        case "labeledPercentage":
+            return StackedLabelRenderer(label: "BAT", value: percentText(sample), reservedValue: "100%")
+        case "labeledTime":
+            return StackedLabelRenderer(
+                label: "BAT",
+                value: timeText(sample: sample),
+                reservedValue: BatteryTimeFormatter.reservedCompact
+            )
+        case "percentageTime":
+            // Both rows carry live values, so this uses the equal-weight two-row renderer rather
+            // than the dimmed label-over-value stack.
+            return NetworkRateStackRenderer(
+                top: percentText(sample),
+                bottom: timeText(sample: sample),
+                reservedTop: "100%",
+                reservedBottom: BatteryTimeFormatter.reservedCompact
+            )
+        case "glyphTime":
+            return IconTextRenderer(
+                symbolName: sample.map(symbolName) ?? "battery.0percent",
+                text: timeText(sample: sample),
+                reservedText: BatteryTimeFormatter.reservedCompact,
+                reservedSymbolNames: reservedSymbolNames
+            )
+        default:
+            return BatteryPercentRenderer(percent: sample?.chargePercent)
         }
-        let value = percent.map { String(format: "%.0f%%", $0) } ?? "—"
-        return StackedLabelRenderer(label: "BAT", value: value, reservedValue: "100%")
+    }
+
+    /// Every glyph the icon modes can swap to, so the reserved width never changes.
+    private static let reservedSymbolNames = [
+        "battery.0percent", "battery.25percent", "battery.50percent",
+        "battery.75percent", "battery.100percent", "battery.100percent.bolt",
+    ]
+
+    private static func accessibilityValue(sample: BatterySample, state: String, mode: String) -> String {
+        let charge = String(format: "Battery %.1f percent, %@", sample.chargePercent, state)
+        guard mode == "labeledTime" || mode == "percentageTime" || mode == "glyphTime" else {
+            return charge
+        }
+        guard let remaining = BatteryTimeFormatter.long(minutes: sample.remainingMinutes) else {
+            return sample.isEstimatingTime ? "\(charge), time remaining calculating" : charge
+        }
+        return sample.isCharging
+            ? "\(charge), \(remaining) until full"
+            : "\(charge), \(remaining) remaining"
     }
 
     static func symbolName(for sample: BatterySample) -> String {

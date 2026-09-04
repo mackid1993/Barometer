@@ -21,6 +21,12 @@ public struct BatterySample: Equatable, Sendable {
     public let isLowPowerModeEnabled: Bool
     public let bluetoothDevices: [BluetoothBatterySnapshot]
 
+    /// Estimated minutes until empty, present only while running on battery.
+    public let timeToEmptyMinutes: Int?
+
+    /// Estimated minutes until full, present only while charging.
+    public let timeToFullMinutes: Int?
+
     /// Creates a timestamped sample from the normalized system source.
     public init(timestamp: Date = Date(), snapshot: BatterySnapshot) {
         self.init(timestamp: timestamp, snapshot: snapshot, bluetoothDevices: [])
@@ -49,6 +55,20 @@ public struct BatterySample: Equatable, Sendable {
         adapter = snapshot.adapter
         isLowPowerModeEnabled = snapshot.isLowPowerModeEnabled
         self.bluetoothDevices = bluetoothDevices
+        timeToEmptyMinutes = snapshot.timeToEmptyMinutes
+        timeToFullMinutes = snapshot.timeToFullMinutes
+    }
+
+    /// The estimate that matches the direction the battery is currently moving.
+    public var remainingMinutes: Int? {
+        isCharging ? timeToFullMinutes : timeToEmptyMinutes
+    }
+
+    /// Whether the battery is moving in a direction that can produce an estimate.
+    ///
+    /// A full or idle-on-AC battery is not "calculating"; it simply has nothing to estimate.
+    public var isEstimatingTime: Bool {
+        isCharging || !isExternalConnected
     }
 }
 
