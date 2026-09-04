@@ -64,18 +64,22 @@ jobs:
             printf 'Barometer %s\n' "$VERSION" > notes.md
           fi
 
-      - name: Create draft release
+      - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v${VERSION}"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" \
-              --draft \
               --target "$GITHUB_SHA" \
+              --latest \
               --title "Barometer ${VERSION}" \
               --notes-file notes.md
           else
-            gh release edit "$TAG" --notes-file notes.md
+            gh release edit "$TAG" \
+              --draft=false \
+              --latest \
+              --title "Barometer ${VERSION}" \
+              --notes-file notes.md
           fi
           gh release upload "$TAG" "staging/Barometer-${VERSION}.dmg" --clobber

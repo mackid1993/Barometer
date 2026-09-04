@@ -34,11 +34,12 @@ certificate.
 The workflow imports the certificate into an ephemeral keychain, signs the single `Barometer.app` executable with
 the hardened runtime, builds `Barometer-VERSION.dmg`, verifies both artifacts, and deletes the temporary certificate.
 
-## Create a draft release
+## Publish a release
 
-Open **Actions → Release → Run workflow**, enter the version and optional release notes, and leave notarization off.
-The workflow creates or updates a draft GitHub release and attaches only the DMG. Review the draft before publishing
-it.
+Open **Actions → Release → Run workflow**, enter the version and optional release notes, and choose whether to
+notarize. After every build, signing, and requested notarization check passes, the workflow creates or updates the
+published GitHub release, marks it as latest, and attaches only the versioned DMG. Pushing a commit never publishes a
+release; this workflow remains manual-dispatch only.
 
 ## Optional future notarization
 

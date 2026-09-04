@@ -2050,3 +2050,13 @@ Verification:
 - `make install` replaced and relaunched `/Applications/Barometer.app`; strict signature verification passed under
   the stable Developer ID identity.
 - No new permission category, helper, bundle, or dependency was added.
+
+### P7-T6 publish manual GitHub releases
+
+The reusable macOS build correctly produced a signed, notarized, stapled DMG, but its manual Build macOS entry point
+only uploaded a temporary Actions artifact. The separate Release workflow also stopped at a draft, so the README's
+latest-release link had nothing public to resolve.
+
+Release remains manual-dispatch only. After its reusable macOS job succeeds, it now creates or updates a published
+GitHub release, marks that version as latest, and uploads only `Barometer-VERSION.dmg`. Re-running a version safely
+replaces the DMG and refreshes its title and notes.
