@@ -109,6 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settingsWindowController = SettingsWindowController(
                 settingsStore: settingsStore,
                 gpuStore: monitoringCoordinator.gpuStore,
+                batteryStore: monitoringCoordinator.batteryStore,
                 networkStore: monitoringCoordinator.networkStore,
                 diskStore: monitoringCoordinator.diskStore,
                 sensorStore: monitoringCoordinator.sensorStore

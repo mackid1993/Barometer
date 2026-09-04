@@ -1204,3 +1204,27 @@ Verification:
   12.570 V, 0.000 A, and 0.00 W. It identified the connected 140W USB-C Power Adapter and correctly reported time
   remaining as unavailable in the on-AC state.
 - `swift build` and `git diff --check` completed successfully.
+
+## P5-T2 Battery module
+
+Implemented the permanent `Barometer.Battery` item, ten-second scheduler, immediate power-source refresh path,
+bounded charge history, and four compact presentations: labeled percentage, a charge-level glyph, remaining time,
+and signed-direction-neutral wattage. The item can remain hidden while AC is connected without being removed, so its
+identity and saved menu bar position remain stable. Percentage, time, and wattage canvases reserve their maximum
+normal widths to prevent neighboring items from shifting.
+
+The dropdown now shows charge history, state, remaining time, Low Power Mode, condition, maximum capacity, cycle
+count, Celsius or Fahrenheit temperature, voltage, signed current, signed power, and connected adapter details.
+Settings expose visibility on AC, display mode, sampling interval, normal module colors, and the low-battery warning
+threshold. Missing source fields remain explicitly unavailable.
+
+Verification:
+
+- `swift test --filter BatteryTests` exited 0. Coverage verifies production settings defaults, consistent time and
+  wattage formatting, injected source mapping, all four renderer modes, accessibility text, and stable 42-to-100%
+  image geometry.
+- `swift run mbs-probe battery` reported 90.0% on AC, 99.9% health, 45 cycles, 31.09 °C, 12.571 V, and the 140W
+  USB-C Power Adapter. Time remaining correctly stayed unavailable while connected but not charging.
+- The power observer now refreshes Battery immediately on AC/battery transitions in addition to changing sampling
+  multipliers. Physical unplug/replug confirmation remains a live installation check.
+- `git diff --check` passed, and the changed Swift files contain no lines longer than 120 columns.

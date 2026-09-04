@@ -106,7 +106,7 @@ public struct ModuleSettings: Codable, Equatable, Sendable {
 /// Versioned application settings persisted as JSON in the app defaults domain.
 public struct AppSettings: Codable, Equatable, Sendable {
     /// Current settings schema version.
-    public static let currentSchemaVersion = 8
+    public static let currentSchemaVersion = 9
 
     /// Schema version encoded in this value.
     public var schemaVersion: Int
@@ -153,6 +153,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Volume selection, filtering, and unit choices for Disks.
     public var disks: DiskSettings
 
+    /// Visibility and warning choices for Battery.
+    public var battery: BatterySettings
+
     /// Version of one-time default presentation migrations already applied.
     public private(set) var presentationDefaultsVersion: Int
 
@@ -172,7 +175,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         sensorTemperatureUnit: TemperatureUnit = .celsius,
         sensors: SensorSettings = SensorSettings(),
         network: NetworkSettings = NetworkSettings(),
-        disks: DiskSettings = DiskSettings()
+        disks: DiskSettings = DiskSettings(),
+        battery: BatterySettings = BatterySettings()
     ) {
         self.schemaVersion = schemaVersion
         self.reducesSamplingOnBattery = reducesSamplingOnBattery
@@ -189,6 +193,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.sensors = sensors
         self.network = network
         self.disks = disks
+        self.battery = battery
         presentationDefaultsVersion = 3
     }
 
@@ -204,6 +209,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         values[.network] = ModuleSettings(isEnabled: false, mode: "twoLine", interval: 1)
         values[.disks] = ModuleSettings(isEnabled: false, mode: "activityGraph", interval: 1)
         values[.sensors] = ModuleSettings(isEnabled: false, mode: "compactStack", interval: 2)
+        values[.battery] = ModuleSettings(isEnabled: false, mode: "percentage", interval: 10)
         return values
     }
 
@@ -223,6 +229,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case sensors
         case network
         case disks
+        case battery
         case presentationDefaultsVersion
     }
 
@@ -251,6 +258,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
             sensors = SensorSettings()
             network = NetworkSettings()
             disks = DiskSettings()
+            battery = BatterySettings()
             presentationDefaultsVersion = 3
         case 1...Self.currentSchemaVersion:
             schemaVersion = Self.currentSchemaVersion
@@ -271,6 +279,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
             sensors = try container.decodeIfPresent(SensorSettings.self, forKey: .sensors) ?? SensorSettings()
             network = try container.decodeIfPresent(NetworkSettings.self, forKey: .network) ?? NetworkSettings()
             disks = try container.decodeIfPresent(DiskSettings.self, forKey: .disks) ?? DiskSettings()
+            battery = try container.decodeIfPresent(BatterySettings.self, forKey: .battery) ?? BatterySettings()
             presentationDefaultsVersion = try container.decodeIfPresent(
                 Int.self,
                 forKey: .presentationDefaultsVersion

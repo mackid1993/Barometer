@@ -1,5 +1,6 @@
 import AppKit
 import MenuBarStatsCore
+import SystemSources
 @testable import MenuBarStatsUI
 import Testing
 
@@ -13,6 +14,71 @@ struct MenuBarRendererTests {
         isMonochrome: true,
         scale: 1.15
     )
+
+    @Test
+    func batteryPresentationSupportsEveryMenuBarModeWithStablePercentageWidth() {
+        let snapshot = BatterySnapshot(
+            name: "Internal Battery",
+            chargePercent: 42,
+            state: .discharging,
+            isExternalConnected: false,
+            isCharging: false,
+            isFullyCharged: false,
+            timeRemainingMinutes: 125,
+            healthPercent: 98,
+            cycleCount: 45,
+            temperatureCelsius: 31,
+            voltageVolts: 12.4,
+            amperageAmps: -1.2,
+            wattageWatts: -14.9,
+            condition: "Good",
+            adapter: nil,
+            isLowPowerModeEnabled: false
+        )
+        let sample = BatterySample(snapshot: snapshot)
+
+        for mode in ["percentage", "icon", "time", "wattage"] {
+            let content = BatteryMenuBarPresenter.content(
+                sample: sample,
+                moduleSettings: ModuleSettings(isEnabled: true, mode: mode),
+                batterySettings: BatterySettings(),
+                context: context
+            )
+            #expect(content.image.size.width > 0)
+            #expect(content.accessibilityValue.contains("Battery 42.0 percent"))
+        }
+        let low = BatteryMenuBarPresenter.content(
+            sample: sample,
+            moduleSettings: ModuleSettings(isEnabled: true, mode: "percentage"),
+            batterySettings: BatterySettings(),
+            context: context
+        )
+        let fullSnapshot = BatterySnapshot(
+            name: snapshot.name,
+            chargePercent: 100,
+            state: .full,
+            isExternalConnected: true,
+            isCharging: false,
+            isFullyCharged: true,
+            timeRemainingMinutes: nil,
+            healthPercent: snapshot.healthPercent,
+            cycleCount: snapshot.cycleCount,
+            temperatureCelsius: snapshot.temperatureCelsius,
+            voltageVolts: snapshot.voltageVolts,
+            amperageAmps: 0,
+            wattageWatts: 0,
+            condition: snapshot.condition,
+            adapter: nil,
+            isLowPowerModeEnabled: false
+        )
+        let full = BatteryMenuBarPresenter.content(
+            sample: BatterySample(snapshot: fullSnapshot),
+            moduleSettings: ModuleSettings(isEnabled: true, mode: "percentage"),
+            batterySettings: BatterySettings(),
+            context: context
+        )
+        #expect(low.image.size == full.image.size)
+    }
 
     @Test
     func stackedRowsShareOneLeadingEdge() {

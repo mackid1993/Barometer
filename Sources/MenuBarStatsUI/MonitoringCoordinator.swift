@@ -28,6 +28,9 @@ public final class MonitoringCoordinator {
     /// Observable Sensors state shared by every independently movable Sensors widget.
     public let sensorStore = ModuleStore<SensorSample>(historyCapacity: 28_800)
 
+    /// Observable Battery state used by its status item, dropdown, and settings.
+    public let batteryStore = ModuleStore<BatterySample>(historyCapacity: 8_640)
+
     /// Shared application settings.
     public let settingsStore: SettingsStore
 
@@ -39,6 +42,7 @@ public final class MonitoringCoordinator {
     private let diskScheduler: Scheduler<DiskMonitor>
     private let sensorsMonitor: SensorsMonitor
     private let sensorsScheduler: Scheduler<SensorsMonitor>
+    private let batteryScheduler: Scheduler<BatteryMonitor>
     private let registry: StatusItemRegistry
     private let settingsAction: @MainActor () -> Void
     private let quitAction: @MainActor () -> Void
@@ -55,6 +59,7 @@ public final class MonitoringCoordinator {
     private var networkController: StatusItemController<NetworkSample>?
     private var diskController: StatusItemController<DiskSample>?
     private var sensorControllers: [Int: StatusItemController<SensorSample>] = [:]
+    private var batteryController: StatusItemController<BatterySample>?
     private var cpuDropdown: DropdownController?
     private var memoryDropdown: DropdownController?
     private var gpuDropdown: DropdownController?
@@ -62,6 +67,7 @@ public final class MonitoringCoordinator {
     private var networkDropdown: DropdownController?
     private var diskDropdown: DropdownController?
     private var sensorDropdowns: [Int: DropdownController] = [:]
+    private var batteryDropdown: DropdownController?
     private var cpuSampleTask: Task<Void, Never>?
     private var memorySampleTask: Task<Void, Never>?
     private var gpuSampleTask: Task<Void, Never>?
@@ -69,6 +75,7 @@ public final class MonitoringCoordinator {
     private var networkSampleTask: Task<Void, Never>?
     private var diskSampleTask: Task<Void, Never>?
     private var sensorSampleTask: Task<Void, Never>?
+    private var batterySampleTask: Task<Void, Never>?
     private var weatherGeneration = 0
     private var isTrackingCurrentLocation = false
     private var lastPublicIPEnabled: Bool?
@@ -94,6 +101,7 @@ public final class MonitoringCoordinator {
         let sensorsMonitor = SensorsMonitor()
         self.sensorsMonitor = sensorsMonitor
         sensorsScheduler = Scheduler(monitor: sensorsMonitor)
+        batteryScheduler = Scheduler(monitor: BatteryMonitor())
 
         cpuController = StatusItemController(
             module: .cpu,
@@ -170,6 +178,26 @@ public final class MonitoringCoordinator {
                 )
             }
         )
+        let sharedBatteryStore = batteryStore
+        batteryController = StatusItemController(
+            module: .battery,
+            statusItem: registry.item(for: .battery),
+            store: batteryStore,
+            settingsStore: settingsStore,
+            isEnabled: { appSettings, moduleSettings in
+                guard moduleSettings.isEnabled else { return false }
+                return appSettings.battery.showsWhenConnectedToPower
+                    || sharedBatteryStore.latestSample?.isExternalConnected != true
+            },
+            render: { sample, _, moduleSettings, context in
+                BatteryMenuBarPresenter.content(
+                    sample: sample,
+                    moduleSettings: moduleSettings,
+                    batterySettings: settingsStore.settings.battery,
+                    context: context
+                )
+            }
+        )
         cpuDropdown = DropdownController(
             moduleName: ModuleID.cpu.displayName,
             statusItem: registry.item(for: .cpu),
@@ -241,6 +269,16 @@ public final class MonitoringCoordinator {
             settingsAction: settingsAction,
             quitAction: quitAction
         )
+        batteryDropdown = DropdownController(
+            moduleName: ModuleID.battery.displayName,
+            statusItem: registry.item(for: .battery),
+            rootView: AnyView(BatteryDropdownView(store: batteryStore, settingsStore: settingsStore)),
+            contentHeight: 520,
+            contentWidth: 360,
+            tickAction: { [weak batteryStore] in batteryStore?.tick() },
+            settingsAction: settingsAction,
+            quitAction: quitAction
+        )
         configureSensorWidgets()
 
         startSampleConsumption()
@@ -259,6 +297,7 @@ public final class MonitoringCoordinator {
             await networkScheduler.start()
             await diskScheduler.start()
             await sensorsScheduler.start()
+            await batteryScheduler.start()
         }
     }
 
@@ -271,6 +310,7 @@ public final class MonitoringCoordinator {
         networkSampleTask?.cancel()
         diskSampleTask?.cancel()
         sensorSampleTask?.cancel()
+        batterySampleTask?.cancel()
         CurrentLocationProvider.shared.stop()
         Task {
             await cpuScheduler.stop()
@@ -279,6 +319,7 @@ public final class MonitoringCoordinator {
             await networkScheduler.stop()
             await diskScheduler.stop()
             await sensorsScheduler.stop()
+            await batteryScheduler.stop()
             await weatherSession?.stop()
         }
     }
@@ -341,6 +382,14 @@ public final class MonitoringCoordinator {
                 self?.sensorStore.receive(sample, at: sample.timestamp)
             }
         }
+
+        let batterySamples = batteryScheduler.samples
+        batterySampleTask = Task { [weak self] in
+            for await sample in batterySamples {
+                guard !Task.isCancelled else { break }
+                self?.batteryStore.receive(sample, at: sample.timestamp)
+            }
+        }
     }
 
     private func configurePowerAwareness() {
@@ -362,6 +411,7 @@ public final class MonitoringCoordinator {
                 await self.networkScheduler.pause()
                 await self.diskScheduler.pause()
                 await self.sensorsScheduler.pause()
+                await self.batteryScheduler.pause()
                 await self.weatherSession?.pause()
             }
         }
@@ -376,6 +426,7 @@ public final class MonitoringCoordinator {
                 await self.networkScheduler.resume()
                 await self.diskScheduler.resume()
                 await self.sensorsScheduler.resume()
+                await self.batteryScheduler.resume()
                 await self.weatherSession?.resume()
             }
         }
@@ -391,6 +442,8 @@ public final class MonitoringCoordinator {
             await networkScheduler.setIntervalMultiplier(multiplier)
             await diskScheduler.setIntervalMultiplier(multiplier)
             await sensorsScheduler.setIntervalMultiplier(multiplier)
+            await batteryScheduler.setIntervalMultiplier(multiplier)
+            await batteryScheduler.refresh()
         }
     }
 
@@ -404,11 +457,13 @@ public final class MonitoringCoordinator {
             _ = settingsStore.settings.modules[.network]?.interval
             _ = settingsStore.settings.modules[.disks]?.interval
             _ = settingsStore.settings.modules[.sensors]?.interval
+            _ = settingsStore.settings.modules[.battery]?.interval
             _ = settingsStore.settings.weather
             _ = settingsStore.settings.network
             _ = settingsStore.settings.disks
             _ = settingsStore.settings.sensors
             _ = settingsStore.settings.sensorTemperatureUnit
+            _ = settingsStore.settings.battery
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else {
@@ -434,6 +489,7 @@ public final class MonitoringCoordinator {
         let networkSeconds = settingsStore.settings.modules[.network]?.interval ?? 1
         let diskSeconds = settingsStore.settings.modules[.disks]?.interval ?? 1
         let sensorSeconds = settingsStore.settings.modules[.sensors]?.interval ?? 2
+        let batterySeconds = settingsStore.settings.modules[.battery]?.interval ?? 10
         Task {
             await cpuScheduler.setInterval(.milliseconds(Int64(max(0.25, cpuSeconds) * 1_000)))
             await memoryScheduler.setInterval(.milliseconds(Int64(max(0.25, memorySeconds) * 1_000)))
@@ -441,6 +497,7 @@ public final class MonitoringCoordinator {
             await networkScheduler.setInterval(.milliseconds(Int64(max(0.25, networkSeconds) * 1_000)))
             await diskScheduler.setInterval(.milliseconds(Int64(max(0.25, diskSeconds) * 1_000)))
             await sensorsScheduler.setInterval(.milliseconds(Int64(max(1, sensorSeconds) * 1_000)))
+            await batteryScheduler.setInterval(.milliseconds(Int64(max(2, batterySeconds) * 1_000)))
         }
     }
 

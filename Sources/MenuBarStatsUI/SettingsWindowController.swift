@@ -10,6 +10,7 @@ public final class SettingsWindowController: NSWindowController {
     public convenience init(
         settingsStore: SettingsStore,
         gpuStore: ModuleStore<GPUSample>,
+        batteryStore: ModuleStore<BatterySample>,
         networkStore: ModuleStore<NetworkSample>,
         diskStore: ModuleStore<DiskSample>,
         sensorStore: ModuleStore<SensorSample>
@@ -17,6 +18,7 @@ public final class SettingsWindowController: NSWindowController {
         let rootView = SettingsRootView(
             settingsStore: settingsStore,
             gpuStore: gpuStore,
+            batteryStore: batteryStore,
             networkStore: networkStore,
             diskStore: diskStore,
             sensorStore: sensorStore
@@ -55,6 +57,7 @@ private enum SettingsSelection: Hashable {
 private struct SettingsRootView: View {
     let settingsStore: SettingsStore
     let gpuStore: ModuleStore<GPUSample>
+    let batteryStore: ModuleStore<BatterySample>
     let networkStore: ModuleStore<NetworkSample>
     let diskStore: ModuleStore<DiskSample>
     let sensorStore: ModuleStore<SensorSample>
@@ -83,6 +86,8 @@ private struct SettingsRootView: View {
                 ModuleSettingsView(module: module, settingsStore: settingsStore)
             case let .module(module) where module == .gpu:
                 GPUSettingsView(store: gpuStore, settingsStore: settingsStore)
+            case let .module(module) where module == .battery:
+                BatterySettingsView(store: batteryStore, settingsStore: settingsStore)
             case let .module(module) where module == .weather:
                 WeatherSettingsView(settingsStore: settingsStore)
             case let .module(module) where module == .network:

@@ -16,6 +16,14 @@ public struct PowerAdapterSnapshot: Equatable, Sendable {
     public let description: String?
     public let watts: Double?
     public let isWireless: Bool?
+
+    /// Creates adapter details.
+    public init(name: String?, description: String?, watts: Double?, isWireless: Bool?) {
+        self.name = name
+        self.description = description
+        self.watts = watts
+        self.isWireless = isWireless
+    }
 }
 
 /// One normalized internal-battery observation.
@@ -36,6 +44,43 @@ public struct BatterySnapshot: Equatable, Sendable {
     public let condition: String?
     public let adapter: PowerAdapterSnapshot?
     public let isLowPowerModeEnabled: Bool
+
+    /// Creates one normalized battery observation.
+    public init(
+        name: String,
+        chargePercent: Double,
+        state: BatteryChargeState,
+        isExternalConnected: Bool,
+        isCharging: Bool,
+        isFullyCharged: Bool,
+        timeRemainingMinutes: Int?,
+        healthPercent: Double?,
+        cycleCount: Int?,
+        temperatureCelsius: Double?,
+        voltageVolts: Double?,
+        amperageAmps: Double?,
+        wattageWatts: Double?,
+        condition: String?,
+        adapter: PowerAdapterSnapshot?,
+        isLowPowerModeEnabled: Bool
+    ) {
+        self.name = name
+        self.chargePercent = chargePercent
+        self.state = state
+        self.isExternalConnected = isExternalConnected
+        self.isCharging = isCharging
+        self.isFullyCharged = isFullyCharged
+        self.timeRemainingMinutes = timeRemainingMinutes
+        self.healthPercent = healthPercent
+        self.cycleCount = cycleCount
+        self.temperatureCelsius = temperatureCelsius
+        self.voltageVolts = voltageVolts
+        self.amperageAmps = amperageAmps
+        self.wattageWatts = wattageWatts
+        self.condition = condition
+        self.adapter = adapter
+        self.isLowPowerModeEnabled = isLowPowerModeEnabled
+    }
 }
 
 /// Failures surfaced while reading the internal battery.

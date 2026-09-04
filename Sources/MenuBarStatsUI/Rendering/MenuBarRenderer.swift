@@ -574,6 +574,47 @@ public struct IconTextRenderer: MenuBarRenderer {
     }
 }
 
+/// Renders one SF Symbol without adding an empty text gap.
+public struct SymbolRenderer: MenuBarRenderer {
+    private let symbolName: String
+    private let reservedSymbolName: String
+
+    /// Creates a symbol renderer with an optional stable-width reference symbol.
+    public init(symbolName: String, reservedSymbolName: String? = nil) {
+        self.symbolName = symbolName
+        self.reservedSymbolName = reservedSymbolName ?? symbolName
+    }
+
+    /// Renders the symbol centered on the canonical menu bar canvas.
+    @MainActor
+    public func render(in context: RenderContext) -> NSImage {
+        let font = NSFont.systemFont(ofSize: context.fontSize, weight: .medium)
+        let pointSize = min(context.fontSize * context.scale, context.thickness - 4)
+        let baseConfiguration = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .medium)
+        let colorConfiguration = NSImage.SymbolConfiguration(paletteColors: [context.foregroundColor])
+        let configuration = baseConfiguration.applying(colorConfiguration)
+        let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(configuration)
+        let reserved = NSImage(systemSymbolName: reservedSymbolName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(configuration)
+        let metrics = MenuBarLayoutMetrics(context: context)
+        let size = symbol.map { metrics.symbolSize(nativeSize: $0.size, font: font) } ?? .zero
+        let reservedSize = reserved.map { metrics.symbolSize(nativeSize: $0.size, font: font) } ?? size
+        let width = MenuBarLayoutMetrics.contentInset * 2 + ceil(max(size.width, reservedSize.width))
+        return makeImage(width: width, context: context) { rect in
+            guard let symbol else { return }
+            symbol.draw(
+                in: NSRect(
+                    x: floor((rect.width - size.width) / 2),
+                    y: metrics.symbolY(for: size, nativeSize: symbol.size, alignmentRect: symbol.alignmentRect),
+                    width: size.width,
+                    height: size.height
+                )
+            )
+        }
+    }
+}
+
 /// Renders an SF Symbol directly above compact text.
 public struct IconStackRenderer: MenuBarRenderer {
     private let symbolName: String
