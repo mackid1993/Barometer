@@ -457,6 +457,11 @@ public struct SensorStackRenderer: MenuBarRenderer {
         self.values = values
     }
 
+    static func displayLabel(_ label: String) -> String {
+        guard !label.isEmpty, !label.hasSuffix(":") else { return label }
+        return "\(label):"
+    }
+
     /// Renders two readings per column and expands horizontally for additional values.
     @MainActor
     public func render(in context: RenderContext) -> NSImage {
@@ -477,11 +482,14 @@ public struct SensorStackRenderer: MenuBarRenderer {
         let columns = stride(from: 0, to: fields.count, by: 2).map { start in
             Array(fields[start..<min(start + 2, fields.count)])
         }
-        let labelGap: CGFloat = 1
+        let labelGap: CGFloat = 0
         let columnGap: CGFloat = 2
         let columnWidths = columns.map { column in
             column.reduce(CGFloat(0)) { width, field in
-                let labelWidth = NSAttributedString(string: field.label, attributes: labelAttributes).size().width
+                let labelWidth = NSAttributedString(
+                    string: Self.displayLabel(field.label),
+                    attributes: labelAttributes
+                ).size().width
                 let reservedWidth = NSAttributedString(
                     string: field.reservedValue,
                     attributes: valueAttributes
@@ -499,7 +507,10 @@ public struct SensorStackRenderer: MenuBarRenderer {
             for (columnIndex, column) in columns.enumerated() {
                 let columnWidth = columnWidths[columnIndex]
                 for (rowIndex, field) in column.enumerated() {
-                    let label = NSMutableAttributedString(string: field.label, attributes: labelAttributes)
+                    let label = NSMutableAttributedString(
+                        string: Self.displayLabel(field.label),
+                        attributes: labelAttributes
+                    )
                     let value = NSAttributedString(string: field.value, attributes: valueAttributes)
                     let flexibleGap = max(labelGap, columnWidth - label.size().width - value.size().width)
                     if label.length > 0 {

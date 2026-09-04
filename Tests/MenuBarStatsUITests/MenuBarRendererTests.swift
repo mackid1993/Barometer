@@ -268,6 +268,9 @@ struct MenuBarRendererTests {
 
     @Test
     func sensorStackKeepsStableGeometryAndExpandsByColumns() {
+        #expect(SensorStackRenderer.displayLabel("CPU") == "CPU:")
+        #expect(SensorStackRenderer.displayLabel("GPU:") == "GPU:")
+
         let cool = SensorStackRenderer(values: [
             SensorStackValue(label: "CPU", value: "39.1°C", reservedValue: "999.9°C"),
             SensorStackValue(label: "GPU", value: "41.2°C", reservedValue: "999.9°C"),

@@ -825,6 +825,17 @@ Verification:
   correct graceful result with no supported connected-device keys present during verification.
 - `swift build`, `git diff --check`, and the 120-column check passed.
 
+### Compact sensor punctuation follow-up
+
+Compact Sensors widgets now display plain-language labels as `CPU:`, `GPU:`, and so on. The previous one-point
+label/value gap was removed, allowing the colon to provide the separation without adding redundant padding.
+
+Verification:
+
+- `swift test --filter sensorStackKeepsStableGeometryAndExpandsByColumns` exited 0 and verifies colon insertion,
+  idempotence for already punctuated labels, stable value geometry, and multi-column expansion.
+- `swift build`, `git diff --check`, and the 120-column check passed.
+
 ## P3-T2 Network module
 
 Completed the Network status item, live monitor, dropdown, and settings pane. The monitor calculates rates from
