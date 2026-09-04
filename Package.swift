@@ -1,23 +1,27 @@
 // swift-tools-version: 6.2
 
+import Foundation
 import PackageDescription
 
 let strictConcurrency: [SwiftSetting] = [
     .unsafeFlags(["-strict-concurrency=complete"]),
 ]
 
-let commandLineToolsFrameworks = "/Library/Developer/CommandLineTools/Library/Developer/Frameworks"
+let developerDirectory =
+    ProcessInfo.processInfo.environment["DEVELOPER_DIR"]
+    ?? "/Library/Developer/CommandLineTools"
+let selectedToolchainFrameworks = "\(developerDirectory)/Library/Developer/Frameworks"
 let testSwiftSettings = strictConcurrency + [
     .unsafeFlags([
-        "-F", commandLineToolsFrameworks,
+        "-F", selectedToolchainFrameworks,
         "-Xfrontend", "-disable-cross-import-overlays",
     ]),
 ]
 let testLinkerSettings: [LinkerSetting] = [
     .unsafeFlags([
-        "-F", commandLineToolsFrameworks,
+        "-F", selectedToolchainFrameworks,
         "-Xlinker", "-rpath",
-        "-Xlinker", commandLineToolsFrameworks,
+        "-Xlinker", selectedToolchainFrameworks,
     ]),
 ]
 

@@ -1988,3 +1988,18 @@ Verification:
 - `swift test` exited 0 with deterministic coverage for both the absolute-time prefix and relative refresh age.
 - `swift build -c release`, `git diff --check`, and strict installed signature verification completed successfully.
 - `make install` replaced and relaunched `/Applications/Barometer.app`. No notarization or stapling command ran.
+
+### CI-T1 use the selected Swift toolchain's test framework
+
+The first manual GitHub macOS build selected Xcode 26.2 and Swift 6.2.3, but `Package.swift` still hard-coded the
+local Command Line Tools framework directory. The runner then tried to compile against a `Testing.framework` built
+with Swift 6.3.3 and rejected its newer module interface. Test framework search and runtime paths now derive from
+`DEVELOPER_DIR`, with the existing Command Line Tools location as the fallback when that environment variable is
+absent. Local builds and GitHub Actions therefore use `Testing.framework` from the same toolchain as the compiler.
+
+Verification:
+
+- `swift test`, `swift build -c release`, and `git diff --check` completed successfully with the local Command Line
+  Tools fallback.
+- The manual `Build macOS` workflow was dispatched with version 1.0.0 and notarization disabled after the fix was
+  pushed.
