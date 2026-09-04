@@ -53,13 +53,9 @@ public struct RenderContext {
     /// Scale applied to renderer widths and symbol sizes.
     public let scale: CGFloat
 
-    /// Blank horizontal space added to each side of an item.
-    public let horizontalSpacing: CGFloat
-
-    /// Shared graph opacity, type weight, and compact-layout choice.
+    /// Shared graph opacity and type weight.
     public let graphOpacity: CGFloat
     public let fontWeight: MenuBarFontWeight
-    public let usesCompactLayout: Bool
 
     /// Creates a render context.
     public init(
@@ -73,10 +69,8 @@ public struct RenderContext {
         fontSize: CGFloat,
         isMonochrome: Bool,
         scale: CGFloat = 1,
-        horizontalSpacing: CGFloat = 0,
         graphOpacity: CGFloat = 0.85,
-        fontWeight: MenuBarFontWeight = .medium,
-        usesCompactLayout: Bool = false
+        fontWeight: MenuBarFontWeight = .medium
     ) {
         self.thickness = thickness
         self.appearance = appearance
@@ -88,36 +82,17 @@ public struct RenderContext {
         self.fontSize = fontSize
         self.isMonochrome = isMonochrome
         self.scale = scale
-        self.horizontalSpacing = horizontalSpacing
         self.graphOpacity = min(1, max(0.1, graphOpacity))
         self.fontWeight = fontWeight
-        self.usesCompactLayout = usesCompactLayout
     }
 
     /// Text font for menu bar renderers.
     ///
-    /// The compact layout switches every text renderer to the condensed system face, which
-    /// narrows each item by the same proportion instead of nudging letter spacing. Digits stay
-    /// tabular in both layouts so live values never shift their neighbors.
+    /// Digits remain tabular so live values never shift their neighbors.
     public func font(ofSize pointSize: CGFloat, weight: NSFont.Weight, monospacedDigits: Bool) -> NSFont {
-        guard usesCompactLayout else {
-            return monospacedDigits
-                ? NSFont.monospacedDigitSystemFont(ofSize: pointSize, weight: weight)
-                : NSFont.systemFont(ofSize: pointSize, weight: weight)
-        }
-        let condensed = NSFont.systemFont(ofSize: pointSize, weight: weight, width: .condensed)
-        guard monospacedDigits else {
-            return condensed
-        }
-        let descriptor = condensed.fontDescriptor.addingAttributes([
-            .featureSettings: [
-                [
-                    NSFontDescriptor.FeatureKey.typeIdentifier: kNumberSpacingType,
-                    NSFontDescriptor.FeatureKey.selectorIdentifier: kMonospacedNumbersSelector,
-                ]
-            ]
-        ])
-        return NSFont(descriptor: descriptor, size: pointSize) ?? condensed
+        monospacedDigits
+            ? NSFont.monospacedDigitSystemFont(ofSize: pointSize, weight: weight)
+            : NSFont.systemFont(ofSize: pointSize, weight: weight)
     }
 
     /// The font size setting that reproduces the original two-row grid exactly.
@@ -161,18 +136,18 @@ struct MenuBarLayoutMetrics {
     let context: RenderContext
 
     var iconTextGap: CGFloat {
-        context.usesCompactLayout ? 1 : max(3, round(3.5 * context.scale))
+        max(3, round(3.5 * context.scale))
     }
 
     /// Horizontal padding on each side of a dense multi-column text block such as the
     /// Sensors stack, so it breathes like the stacked items whose reserved widths leave slack.
     var denseTextPadding: CGFloat {
-        context.usesCompactLayout ? 1 : max(2, round(compactPointSize * 0.35))
+        max(2, round(compactPointSize * 0.35))
     }
 
     /// Gap between reading columns in a dense text block.
     var columnGap: CGFloat {
-        context.usesCompactLayout ? 1 : max(2, round(compactPointSize * 0.2))
+        max(2, round(compactPointSize * 0.2))
     }
 
     func centeredY(for height: CGFloat) -> CGFloat {
@@ -400,9 +375,8 @@ public struct GraphRenderer: MenuBarRenderer {
     /// Renders the graph image.
     @MainActor
     public func render(in context: RenderContext) -> NSImage {
-        let compactScale = context.usesCompactLayout ? 0.85 : 1
         let metrics = MenuBarLayoutMetrics(context: context)
-        return makeImage(width: width * context.scale * compactScale, context: context) { rect in
+        return makeImage(width: width * context.scale, context: context) { rect in
             let drawingRect = rect.insetBy(dx: 2, dy: metrics.graphVerticalInset(default: 3))
             let normalized = values.isEmpty ? [0] : values.map { min(1, max(0, $0)) }
             context.fillColor.withAlphaComponent(context.graphOpacity).setFill()
@@ -997,7 +971,7 @@ public struct CombinedRenderer: MenuBarRenderer {
     @MainActor
     public func render(in context: RenderContext) -> NSImage {
         let images = renderers.map { $0.render(in: context) }
-        let gap: CGFloat = (context.usesCompactLayout ? 3 : 6) * context.scale
+        let gap: CGFloat = 6 * context.scale
         let width = images.reduce(0) { $0 + $1.size.width } + gap * CGFloat(max(0, images.count - 1))
         return makeImage(width: width, context: context) { rect in
             var x: CGFloat = 0
@@ -1171,12 +1145,11 @@ private func makeImage(
     drawing: @escaping (NSRect) -> Void
 ) -> NSImage {
     let contentWidth = max(1, ceil(width))
-    let spacing = max(0, context.horizontalSpacing)
     let image = NSImage(
-        size: NSSize(width: contentWidth + spacing * 2, height: context.thickness),
+        size: NSSize(width: contentWidth, height: context.thickness),
         flipped: false
     ) { rect in
-        drawing(NSRect(x: spacing, y: 0, width: contentWidth, height: rect.height))
+        drawing(NSRect(x: 0, y: 0, width: contentWidth, height: rect.height))
         return true
     }
     image.isTemplate = context.isMonochrome

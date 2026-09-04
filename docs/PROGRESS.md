@@ -1611,6 +1611,21 @@ Verification:
 - Bartender restart persistence requires David's external verification; Barometer did not launch, automate, or modify
   Bartender or its preferences.
 
+### P7-T4 remove misleading density controls
+
+Removed Compact internal layout from settings, persistence, render contexts, graph sizing, typography selection,
+sensor padding, icon gaps, Combined separators, and tests. The mode narrowed rendered ink inside an immutable live
+canvas, which made text unreadable and caused the unused remainder of the canvas to appear as excessive spacing.
+The Regular/Compact item-spacing control was also removed after live verification showed it could not alter the real
+gap while the AppKit frames remained immutable. In a fixed frame, changing transparent padding only moved the ink and
+left the total blank width unchanged. Barometer now has one legible internal layout with zero app-added horizontal
+padding; density comes only from each module's purpose-built display choices.
+
+The committed-width schema advanced to `v5` so a user who had enabled the removed mode cannot inherit its narrow
+20–56 point cached canvases. Existing settings JSON may still contain the former high-density or spacing keys, but
+decoding safely ignores them and new exports do not encode them. No migration prompt or warning was added because
+this is pre-release cleanup.
+
 Verification:
 
 - `swift test` exited 0 and built and linked every test target. Command Line Tools did not print a test-execution
@@ -1621,6 +1636,10 @@ Verification:
   `StatusItemController`'s guarded initial-layout branch.
 - `git diff --check` passed, and the new sizing documentation has no line longer than 120 columns.
 - `make install` built, signed, installed, and launched `/Applications/Barometer.app`. The bundle identifier remained
-  `com.barometer.app`, and strict code-signature verification passed. With six active items at the saved 12-point
-  selection, the `v4` canvases totaled 252 points: CPU, GPU, and Memory at 32 each, Network at 56, Sensors at 76, and
-  Weather at 24. Every active image width exactly matched its latched status-item length.
+  `com.barometer.app`, and strict code-signature verification passed. The new `v5` canvases replaced the stale narrow
+  high-density widths: CPU, GPU, and Memory are 36 points each, Network is 60, Sensors is 80, and Weather is 32.
+- The live identity report at `~/Library/Logs/Barometer/identity.json` matched the installed process and recorded all
+  eleven status items under `com.barometer.app`. Every actual autosave name matched its fixed AX identifier, every
+  item retained its static display label, and every button title remained empty.
+- Source scans found no production references to either removed setting. A migration test verifies that legacy
+  `usesCompactLayout` and `menuBarSpacing` keys decode harmlessly and are not emitted by a new settings export.

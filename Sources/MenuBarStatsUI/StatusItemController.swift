@@ -174,7 +174,7 @@ enum StatusItemRendering {
     /// Item lengths are rounded up to this grid so small typography changes cannot move them.
     static let widthStep: CGFloat = 4
 
-    private static let committedLengthPrefix = "Barometer.CommittedWidth.v4."
+    private static let committedLengthPrefix = "Barometer.CommittedWidth.v5."
 
     static func committedLengthKey(autosaveName: String) -> String {
         committedLengthPrefix + autosaveName
@@ -265,10 +265,8 @@ enum StatusItemRendering {
             fontSize: appSettings.effectiveMenuBarFontSize,
             isMonochrome: appSettings.isMonochrome,
             scale: scale,
-            horizontalSpacing: AppSettings.normalizedMenuBarSpacing(appSettings.menuBarSpacing),
             graphOpacity: appSettings.graphOpacity,
-            fontWeight: appSettings.fontWeight,
-            usesCompactLayout: appSettings.usesCompactLayout
+            fontWeight: appSettings.fontWeight
         )
     }
 }

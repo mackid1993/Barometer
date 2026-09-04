@@ -128,8 +128,7 @@ struct NetworkSettingsView: View {
             palette: MenuBarPalette(light: color, dark: color),
             fontSize: appSettings.effectiveMenuBarFontSize,
             isMonochrome: appSettings.isMonochrome,
-            scale: appSettings.menuBarScale,
-            horizontalSpacing: appSettings.menuBarSpacing
+            scale: appSettings.menuBarScale
         )
         let renderer: any MenuBarRenderer
         let download = NetworkRateFormatter.compactString(

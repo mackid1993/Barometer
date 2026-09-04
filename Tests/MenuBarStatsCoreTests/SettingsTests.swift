@@ -15,7 +15,6 @@ struct SettingsTests {
         settings.applyTheme(.neon)
         settings.graphOpacity = 0.62
         settings.fontWeight = .semibold
-        settings.usesCompactLayout = true
         settings.modules[.cpu]?.warningLightColor = "#ABCDEF"
 
         let data = try JSONEncoder().encode(settings)
@@ -73,7 +72,6 @@ struct SettingsTests {
         #expect(!migrated.isMonochrome)
         #expect(migrated.fontSize == 12)
         #expect(migrated.menuBarScale == 1)
-        #expect(migrated.menuBarSpacing == 3)
         #expect(migrated.modules[.cpu]?.isEnabled == true)
         #expect(migrated.modules[.memory]?.isEnabled == true)
         #expect(migrated.weather.locations.isEmpty)
@@ -266,19 +264,17 @@ struct SettingsTests {
         #expect(weather.locations == [first, second])
     }
 
-    @Test("existing schema one settings gain size and spacing defaults")
+    @Test("existing schema one settings gain size defaults")
     func migratePresentationDefaults() throws {
         let encoded = try JSONEncoder().encode(AppSettings())
         var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
         object.removeValue(forKey: "menuBarScale")
-        object.removeValue(forKey: "menuBarSpacing")
         object["presentationDefaultsVersion"] = 1
 
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
         #expect(migrated.menuBarScale == 1)
-        #expect(migrated.menuBarSpacing == 3)
         #expect(migrated.fontSize == 12)
     }
 
@@ -322,14 +318,16 @@ struct SettingsTests {
         #expect(settings.menuBarScale == 0.75)
     }
 
-    @Test("item spacing uses only regular and compact presets")
-    func normalizesMenuBarSpacing() {
-        var settings = AppSettings(menuBarSpacing: 12)
-        #expect(settings.menuBarSpacing == AppSettings.regularMenuBarSpacing)
-        settings.menuBarSpacing = 1
-        #expect(settings.menuBarSpacing == AppSettings.compactMenuBarSpacing)
-        settings.menuBarSpacing = 2
-        #expect(settings.menuBarSpacing == AppSettings.regularMenuBarSpacing)
+    @Test("removed density settings are ignored and no longer exported")
+    func ignoresRemovedDensitySettings() throws {
+        let data = Data(#"{"menuBarSpacing":3,"usesCompactLayout":true}"#.utf8)
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: data)
+        let encoded = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(decoded)) as? [String: Any]
+        )
+
+        #expect(encoded["menuBarSpacing"] == nil)
+        #expect(encoded["usesCompactLayout"] == nil)
     }
 
     @Test("active widget count automatically limits effective font size")

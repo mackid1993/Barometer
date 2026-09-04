@@ -1088,10 +1088,8 @@ public final class MonitoringCoordinator {
             fontSize: parent.fontSize,
             isMonochrome: parent.isMonochrome,
             scale: parent.scale,
-            horizontalSpacing: 0,
             graphOpacity: parent.graphOpacity,
-            fontWeight: parent.fontWeight,
-            usesCompactLayout: parent.usesCompactLayout
+            fontWeight: parent.fontWeight
         )
     }
 

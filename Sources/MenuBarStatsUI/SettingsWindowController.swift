@@ -157,25 +157,6 @@ private struct SettingsRootView: View {
     }
 }
 
-private enum ItemSpacingPreset: Hashable {
-    case regular
-    case compact
-
-    init(points: Double) {
-        self =
-            AppSettings.normalizedMenuBarSpacing(points) == AppSettings.compactMenuBarSpacing
-            ? .compact
-            : .regular
-    }
-
-    var points: Double {
-        switch self {
-        case .regular: AppSettings.regularMenuBarSpacing
-        case .compact: AppSettings.compactMenuBarSpacing
-        }
-    }
-}
-
 private struct GeneralSettingsView: View {
     let settingsStore: SettingsStore
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -221,13 +202,6 @@ private struct GeneralSettingsView: View {
                     Text("Medium").tag(MenuBarFontWeight.medium)
                     Text("Semibold").tag(MenuBarFontWeight.semibold)
                 }
-                Toggle("Compact internal layout", isOn: appBinding(\.usesCompactLayout))
-                Text(
-                    "Uses the condensed system typeface and tighter icon gaps, sensor padding, graph width, "
-                        + "and Combined separators, so every item narrows by the same proportion."
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
                 HStack {
                     Text("Font size")
                     Slider(value: appBinding(\.fontSize), in: AppSettings.menuBarFontSizeRange, step: 0.5)
@@ -251,14 +225,6 @@ private struct GeneralSettingsView: View {
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                Picker("Item spacing", selection: spacingPresetBinding) {
-                    Text("Regular").tag(ItemSpacingPreset.regular)
-                    Text("Compact").tag(ItemSpacingPreset.compact)
-                }
-                .pickerStyle(.segmented)
-                Text("Regular uses 3 pt around each item; Compact removes app-added spacing.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                 HStack {
                     Text("Graph opacity")
                     Slider(value: appBinding(\.graphOpacity), in: 0.1...1, step: 0.05)
@@ -405,17 +371,6 @@ private struct GeneralSettingsView: View {
         )
     }
 
-    private var spacingPresetBinding: Binding<ItemSpacingPreset> {
-        Binding(
-            get: { ItemSpacingPreset(points: settingsStore.settings.menuBarSpacing) },
-            set: { preset in
-                var settings = settingsStore.settings
-                settings.menuBarSpacing = preset.points
-                settingsStore.settings = settings
-            }
-        )
-    }
-
     private func globalColorBinding(_ keyPath: WritableKeyPath<AppSettings, String>) -> Binding<Color> {
         Binding(
             get: {
@@ -470,10 +425,8 @@ private struct GeneralSettingsView: View {
             fontSize: settings.effectiveMenuBarFontSize,
             isMonochrome: settings.isMonochrome,
             scale: settings.menuBarScale,
-            horizontalSpacing: 1,
             graphOpacity: settings.graphOpacity,
-            fontWeight: settings.fontWeight,
-            usesCompactLayout: settings.usesCompactLayout
+            fontWeight: settings.fontWeight
         )
         return CombinedRenderer(renderers: [
             StackedLabelRenderer(label: "CPU", value: "42%"),
@@ -755,8 +708,7 @@ private struct ModuleSettingsView: View {
             palette: MenuBarPalette(light: color, dark: color),
             fontSize: appSettings.effectiveMenuBarFontSize,
             isMonochrome: appSettings.isMonochrome,
-            scale: scale,
-            horizontalSpacing: appSettings.menuBarSpacing
+            scale: scale
         )
         let value = module == .cpu ? "42%" : "68%"
         let renderer: any MenuBarRenderer

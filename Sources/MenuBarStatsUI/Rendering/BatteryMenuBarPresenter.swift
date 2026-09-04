@@ -57,7 +57,7 @@ public enum BatteryMenuBarPresenter {
         context: RenderContext
     ) -> RenderContext {
         guard !sample.isExternalConnected,
-              sample.chargePercent <= Double(settings.lowBatteryThresholdPercent)
+            sample.chargePercent <= Double(settings.lowBatteryThresholdPercent)
         else {
             return context
         }
@@ -72,10 +72,8 @@ public enum BatteryMenuBarPresenter {
             fontSize: context.fontSize,
             isMonochrome: context.isMonochrome,
             scale: context.scale,
-            horizontalSpacing: context.horizontalSpacing,
             graphOpacity: context.graphOpacity,
-            fontWeight: context.fontWeight,
-            usesCompactLayout: context.usesCompactLayout
+            fontWeight: context.fontWeight
         )
     }
 

@@ -133,8 +133,7 @@ struct MenuBarRendererTests {
             palette: context.palette,
             fontSize: context.fontSize,
             isMonochrome: context.isMonochrome,
-            scale: context.scale,
-            horizontalSpacing: 0
+            scale: context.scale
         )
         let images = [
             StackedLabelRenderer(label: "CPU", value: "42%").render(in: childContext),
@@ -339,23 +338,6 @@ struct MenuBarRendererTests {
     }
 
     @Test
-    func horizontalSpacingChangesImageWidthByExactlyTwoInsets() {
-        let compact = TextRenderer(text: "42%").render(in: context)
-        let spacedContext = RenderContext(
-            thickness: context.thickness,
-            appearance: context.appearance,
-            palette: context.palette,
-            fontSize: context.fontSize,
-            isMonochrome: context.isMonochrome,
-            scale: context.scale,
-            horizontalSpacing: 3
-        )
-        let spaced = TextRenderer(text: "42%").render(in: spacedContext)
-
-        #expect(spaced.size.width == compact.size.width + 6)
-    }
-
-    @Test
     func graphicScaleDoesNotChangeTextSize() {
         let smallGraphics = RenderContext(
             thickness: context.thickness,
@@ -381,35 +363,6 @@ struct MenuBarRendererTests {
 
         #expect(smallText.size == largeText.size)
         #expect(smallGraph.size.width < largeGraph.size.width)
-    }
-
-    @Test
-    func compactLayoutReducesEligibleInternalGeometry() {
-        let regular = RenderContext(
-            thickness: context.thickness,
-            appearance: context.appearance,
-            palette: context.palette,
-            fontSize: context.fontSize,
-            isMonochrome: context.isMonochrome,
-            scale: context.scale,
-            usesCompactLayout: false
-        )
-        let compact = RenderContext(
-            thickness: context.thickness,
-            appearance: context.appearance,
-            palette: context.palette,
-            fontSize: context.fontSize,
-            isMonochrome: context.isMonochrome,
-            scale: context.scale,
-            usesCompactLayout: true
-        )
-
-        #expect(
-            IconTextRenderer(symbolName: "cloud", text: "77°F").render(in: compact).size.width
-                < IconTextRenderer(symbolName: "cloud", text: "77°F").render(in: regular).size.width)
-        #expect(
-            GraphRenderer(values: [0.2, 0.8], style: .line).render(in: compact).size.width
-                < GraphRenderer(values: [0.2, 0.8], style: .line).render(in: regular).size.width)
     }
 
     @Test
@@ -766,58 +719,6 @@ struct MenuBarSizingTests {
             .render(in: context(thickness: 22, fontSize: 12, scale: 1.15))
         #expect(wide.size.width > narrow.size.width)
         #expect(wide.size.height == 22)
-    }
-}
-
-@MainActor
-struct CompactLayoutTests {
-    private func context(compact: Bool, fontSize: CGFloat = 12) -> RenderContext {
-        RenderContext(
-            thickness: 22,
-            appearance: .dark,
-            palette: MenuBarPalette(light: .black, dark: .white),
-            fontSize: fontSize,
-            isMonochrome: true,
-            scale: 1.15,
-            usesCompactLayout: compact
-        )
-    }
-
-    @Test
-    func sensorsStackGetsScaledSidePaddingAndCompactTightensIt() {
-        let values = [
-            SensorStackValue(label: "CPU", value: "66.7°C", reservedValue: "99.9°C"),
-            SensorStackValue(label: "GPU", value: "52.8°C", reservedValue: "99.9°C"),
-        ]
-        let regular = SensorStackRenderer(values: values).render(in: context(compact: false))
-        let compact = SensorStackRenderer(values: values).render(in: context(compact: true))
-        #expect(MenuBarLayoutMetrics(context: context(compact: false)).denseTextPadding == 3)
-        #expect(MenuBarLayoutMetrics(context: context(compact: false, fontSize: 12)).denseTextPadding == 3)
-        #expect(MenuBarLayoutMetrics(context: context(compact: true)).denseTextPadding == 1)
-        #expect(compact.size.width < regular.size.width)
-        #expect(regular.size.height == 22)
-    }
-
-    @Test
-    func compactLayoutTightensEveryTextRenderer() {
-        let regular = context(compact: false)
-        let compact = context(compact: true)
-        #expect(compact.font(ofSize: 10, weight: .regular, monospacedDigits: true).pointSize == 10)
-        #expect(
-            StackedLabelRenderer(label: "MEM", value: "61%", reservedValue: "100%").render(in: compact).size.width
-                < StackedLabelRenderer(label: "MEM", value: "61%", reservedValue: "100%").render(in: regular).size.width
-        )
-        #expect(
-            TextRenderer(text: "42.0%", reservedText: "100.0%").render(in: compact).size.width
-                < TextRenderer(text: "42.0%", reservedText: "100.0%").render(in: regular).size.width
-        )
-        let combinedRegular = CombinedRenderer(renderers: [
-            TextRenderer(text: "42%"), TextRenderer(text: "61%"),
-        ]).render(in: regular)
-        let combinedCompact = CombinedRenderer(renderers: [
-            TextRenderer(text: "42%"), TextRenderer(text: "61%"),
-        ]).render(in: compact)
-        #expect(combinedCompact.size.width < combinedRegular.size.width)
     }
 }
 

@@ -159,9 +159,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public static let menuBarScaleRange = 0.75...1.15
 
     /// Horizontal padding used by the two supported spacing presets.
-    public static let compactMenuBarSpacing = 0.0
-    public static let regularMenuBarSpacing = 3.0
-
     /// Schema version encoded in this value.
     public var schemaVersion: Int
 
@@ -199,9 +196,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Shared menu bar type weight.
     public var fontWeight: MenuBarFontWeight
 
-    /// Whether eligible renderers use their densest internal geometry.
-    public var usesCompactLayout: Bool
-
     /// Global menu bar font size.
     public var fontSize: Double {
         didSet {
@@ -213,13 +207,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var menuBarScale: Double {
         didSet {
             menuBarScale = Self.clampedMenuBarScale(menuBarScale)
-        }
-    }
-
-    /// Horizontal padding on each side of every menu bar item, in points.
-    public var menuBarSpacing: Double {
-        didSet {
-            menuBarSpacing = Self.normalizedMenuBarSpacing(menuBarSpacing)
         }
     }
 
@@ -272,10 +259,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         globalCriticalDarkColor: String = "#F87171",
         graphOpacity: Double = 0.85,
         fontWeight: MenuBarFontWeight = .medium,
-        usesCompactLayout: Bool = false,
         fontSize: Double = 12,
         menuBarScale: Double = 1,
-        menuBarSpacing: Double = 3,
         modules: [ModuleID: ModuleSettings] = AppSettings.defaultModules,
         weather: WeatherSettings = WeatherSettings(),
         sensorTemperatureUnit: TemperatureUnit = .celsius,
@@ -303,10 +288,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.globalCriticalDarkColor = globalCriticalDarkColor
         self.graphOpacity = graphOpacity
         self.fontWeight = fontWeight
-        self.usesCompactLayout = usesCompactLayout
         self.fontSize = Self.clampedMenuBarFontSize(fontSize)
         self.menuBarScale = Self.clampedMenuBarScale(menuBarScale)
-        self.menuBarSpacing = Self.normalizedMenuBarSpacing(menuBarSpacing)
         self.modules = modules
         self.weather = weather
         self.sensorTemperatureUnit = sensorTemperatureUnit
@@ -356,10 +339,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case globalCriticalDarkColor
         case graphOpacity
         case fontWeight
-        case usesCompactLayout
         case fontSize
         case menuBarScale
-        case menuBarSpacing
         case modules
         case weather
         case sensorTemperatureUnit
@@ -400,10 +381,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
             globalCriticalDarkColor = "#F87171"
             graphOpacity = 0.85
             fontWeight = .medium
-            usesCompactLayout = false
             fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? 12
             menuBarScale = 1
-            menuBarSpacing = 3
             modules = Self.defaultModules
             weather = WeatherSettings()
             sensorTemperatureUnit = .celsius
@@ -468,10 +447,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
                 ) ?? "#F87171"
             graphOpacity = try container.decodeIfPresent(Double.self, forKey: .graphOpacity) ?? 0.85
             fontWeight = try container.decodeIfPresent(MenuBarFontWeight.self, forKey: .fontWeight) ?? .medium
-            usesCompactLayout = try container.decodeIfPresent(Bool.self, forKey: .usesCompactLayout) ?? false
             fontSize = try container.decode(Double.self, forKey: .fontSize)
             menuBarScale = try container.decodeIfPresent(Double.self, forKey: .menuBarScale) ?? 1.15
-            menuBarSpacing = try container.decodeIfPresent(Double.self, forKey: .menuBarSpacing) ?? 3
             modules = try container.decode([ModuleID: ModuleSettings].self, forKey: .modules)
             weather = try container.decodeIfPresent(WeatherSettings.self, forKey: .weather) ?? WeatherSettings()
             sensorTemperatureUnit =
@@ -501,7 +478,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
             }
             if presentationDefaultsVersion < 2 {
                 menuBarScale = 1.15
-                menuBarSpacing = 3
                 presentationDefaultsVersion = 2
             }
             if presentationDefaultsVersion < 3 {
@@ -548,7 +524,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
         }
         fontSize = Self.clampedMenuBarFontSize(fontSize)
         menuBarScale = Self.clampedMenuBarScale(menuBarScale)
-        menuBarSpacing = Self.normalizedMenuBarSpacing(menuBarSpacing)
     }
 
     /// Clamps a font size to the range that fits Barometer's fixed-height menu bar canvases.
@@ -559,11 +534,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Clamps icon and graph scaling to the range that fits the menu bar canvas.
     public static func clampedMenuBarScale(_ value: Double) -> Double {
         min(menuBarScaleRange.upperBound, max(menuBarScaleRange.lowerBound, value))
-    }
-
-    /// Maps legacy arbitrary spacing values onto Compact or Regular.
-    public static func normalizedMenuBarSpacing(_ value: Double) -> Double {
-        value < regularMenuBarSpacing / 2 ? compactMenuBarSpacing : regularMenuBarSpacing
     }
 
     /// Number of independently movable Barometer items requested by the current settings.

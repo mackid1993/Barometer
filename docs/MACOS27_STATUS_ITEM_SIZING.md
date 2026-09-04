@@ -2,15 +2,16 @@
 
 This document records the sizing contract that prevents Barometer items from moving with any menu bar manager. It is
 a design constraint, not an implementation suggestion. Read it before changing menu bar
-font size, font weight, condensed typography, glyph scale, graph size, spacing, display mode, or status-item code.
+font size, font weight, condensed typography, glyph scale, graph size, display mode, or status-item code.
 
 The supported menu bar font-size range is 9–12 points. Twelve points is the largest user-selectable size that fits
 the fixed-height canvases consistently. The icon and graph scale is 75–115 percent. Keep both ranges centralized in
 `AppSettings`; settings, previews, and production rendering must not define separate limits.
 
-Spacing is intentionally a two-state choice, not a continuous slider: Regular adds 3 points on each side and Compact
-adds zero app-controlled points. Legacy values normalize to the nearest preset. The live frame must not resize when
-the picker changes; the staged outer width is used on the next ordinary application launch.
+The former Compact internal layout/high-density and Regular/Compact spacing controls were removed. Condensing text
+made it unreadable, while changing transparent padding inside immutable outer frames could only redistribute the same
+blank area rather than alter the real distance between items. Barometer therefore uses one legible internal layout
+with zero app-added horizontal padding. Do not reintroduce either control.
 
 Barometer also applies a deterministic density ceiling to the effective font size: up to eight enabled independent
 items may use 12 points, nine through eleven use at most 11, twelve through fourteen use at most 10, and fifteen or
@@ -25,7 +26,7 @@ user changes typography is also unsafe.
 
 Barometer first triggered this by writing the rendered width on every sample. A later UI refactor brought the bug
 back with a narrower exception: it allowed a live length write when `AppSettings` changed. Font size, font weight,
-compact layout, glyph scale, and spacing therefore appeared to work immediately, but the items no longer reliably
+the former density controls and glyph scale therefore appeared to work immediately, but the items no longer reliably
 retained the positions chosen by the user.
 
 The user's manual reorder of two items is not evidence of this bug. The failure signature is an application-initiated
@@ -62,7 +63,7 @@ There are no live-resize exceptions. In particular, do not add an exception for:
    A controller records geometry settings while hidden; when the user enables it later, its first render uses current
    geometry instead of a stale committed width.
 4. If settings propose new geometry while the process remains live, Barometer records its rounded width under
-   `Barometer.CommittedWidth.v4.<autosaveName>`. The rendering retains its true font and glyph sizes and clips at the
+   `Barometer.CommittedWidth.v5.<autosaveName>`. The rendering retains its true font and glyph sizes and clips at the
    trailing edge of the applied frame. It is never recentered or proportionally miniaturized.
 5. After the user ordinarily quits and reopens Barometer, the controller applies the staged width before the item
    appears. Settings never force a relaunch.
@@ -84,11 +85,11 @@ slot and produce a mismatched manager catalog, such as a Combined autosave recor
 ## Why the width is explicit
 
 `NSStatusItem.variableLength` adds AppKit's standard image padding. Barometer uses an explicit length equal to its
-rendered canvas so zero user spacing is attainable while CPU, Memory, Weather, Sensors, and the other modules remain
+rendered canvas so zero app-added spacing is attainable while CPU, Memory, Weather, Sensors, and the other modules remain
 separate items that the user can move independently.
 
 Do not replace the separate items with one combined status item as a sizing workaround. Combined is an optional
-module, not the implementation of compact spacing.
+module, not the implementation of density.
 
 ## Required regression checks
 
@@ -100,7 +101,7 @@ Before accepting a change to menu bar geometry or status-item lifecycle:
 4. Install with `make install`; repository-path launches are not valid compatibility tests.
 5. Confirm each active item has its fixed autosave name, empty title, static AX label, nonzero image, and one bundle
    owner in `~/Library/Logs/Barometer/identity.json`.
-6. Change font size, font weight, compact layout, glyph scale, and spacing. Confirm the app stages new widths without
+6. Change font size, font weight, and glyph scale. Confirm the app stages new widths without
    changing any live status-item length.
 7. Quit and reopen Barometer. Confirm the staged widths are applied before visibility.
 8. When a manager compatibility check is needed, ask David to restart or operate the manager. Barometer must never
@@ -109,6 +110,6 @@ Before accepting a change to menu bar geometry or status-item lifecycle:
 If an operating-system update appears to permit safe live resizing, treat that as a new investigation. Preserve this
 contract until the alternative is reproduced, documented, and explicitly approved.
 
-The `v4` component is an intentional cache-schema version. Increment it when a future rendering constraint makes old
+The `v5` component is an intentional cache-schema version. Increment it when a future rendering constraint makes old
 committed widths structurally invalid. Do not increment it merely to force arbitrary movement or bypass the staged
 width lifecycle.
