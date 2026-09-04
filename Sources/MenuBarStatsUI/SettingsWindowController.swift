@@ -503,13 +503,8 @@ private struct AboutSettingsView: View {
                 .foregroundStyle(.secondary)
             Text("A detailed, customizable system monitor for the macOS menu bar.")
                 .multilineTextAlignment(.center)
-            HStack(spacing: 18) {
-                if let sourceURL = URL(string: "https://github.com/mackid1993/Barometer") {
-                    Link("Source Code", destination: sourceURL)
-                }
-                if let issuesURL = URL(string: "https://github.com/mackid1993/Barometer/issues") {
-                    Link("Report an Issue", destination: issuesURL)
-                }
+            if let sourceURL = URL(string: "https://github.com/mackid1993/Barometer") {
+                Link("Source Code", destination: sourceURL)
             }
             Text("MIT License")
                 .font(.headline)

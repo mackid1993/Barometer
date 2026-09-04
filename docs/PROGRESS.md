@@ -1422,3 +1422,8 @@ Verification:
 - David explicitly declined the planned one-hour soak, so it was stopped after the bounded measurements rather than
   represented as completed. No Thaw preferences or processes were touched.
 - `git diff --check` and the 120-column check passed.
+
+### About pane follow-up
+
+Removed the Report an Issue link at David's request. The About pane retains only the project source link, version,
+license, and weather attribution.
