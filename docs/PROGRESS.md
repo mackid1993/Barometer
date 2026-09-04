@@ -1523,3 +1523,24 @@ Verification:
 - `make install` built, signed, copied, and launched `/Applications/Barometer.app`; the live cache and screenshot
   confirmed the corrected weather reading.
 - `git diff --check`, the changed-Swift-file 120-column check, and the American-spelling scan passed.
+
+## macOS 27 operational memory
+
+Added `docs/AGENTS.md` as the consolidated field guide for future agents working on Barometer's macOS 27 behavior.
+It distinguishes tested build-specific observations from the permanent compatibility contract and records the menu
+bar architecture, NSStatusItem and Accessibility behavior, single-bundle ownership rule, fixed identities, installed
+path requirement, hidden-item visibility collision, live-length mutation regression, stable-canvas requirements,
+identity diagnostics, private hardware-source behavior, performance boundaries, TCC and signing constraints,
+Command Line Tools caveats, and the required regression checklist after OS updates. It also explicitly separates the
+Open-Meteo current-conditions correction from macOS and MenuBarAgent behavior.
+
+The root `AGENTS.md` now directs code agents to read the field guide before changing macOS 27 integration behavior.
+No runtime code, external application, preference domain, permission, or installed bundle was changed.
+
+Verification:
+
+- Cross-checked the field guide against `docs/DESIGN.md`, the full chronological evidence in this progress log, the
+  current status-item implementation, and the repository's standing instructions.
+- `git diff --check` passed.
+- The new field guide contains no line longer than 120 columns and passed the American-spelling scan.
+- All repository-relative files named by the guide exist.

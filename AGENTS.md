@@ -4,7 +4,9 @@ Standing rules for any coding agent working in this repository. These override d
 
 ## What this is
 
-Barometer: a free, open source (MIT) macOS menu bar system monitor that replaces iStat Menus and works with menu bar managers (Thaw, Bartender) on macOS 27. Design: `docs/DESIGN.md`. Plan: `docs/PLAN.md`. Progress log: `docs/PROGRESS.md` (create it on first use).
+Barometer: a free, open source (MIT) macOS menu bar system monitor that replaces iStat Menus and works with menu bar
+managers (Thaw, Bartender) on macOS 27. Design: `docs/DESIGN.md`. Plan: `docs/PLAN.md`. Progress log:
+`docs/PROGRESS.md` (create it on first use). Read `docs/AGENTS.md` before changing macOS 27 integration behavior.
 
 ## Environment
 
