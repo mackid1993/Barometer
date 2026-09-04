@@ -340,6 +340,10 @@ universal performance guarantee.
 
 - Ad hoc development signatures can reset TCC grants. Location and Calendar paths must tolerate missing permission
   and saved-data fallback.
+- CoreWLAN returning a nil SSID does not prove Location access is denied. Retain Barometer's shared
+  `CLLocationManager` whenever Network is active, inspect its authorization state, and invalidate the cached Wi-Fi
+  sample after authorization changes. Never display a permission-required message when Core Location already reports
+  authorized; offer a retry and report the network name as unavailable instead.
 - Never request a new TCC category during launch or background sampling. Permission requests must follow a direct
   user action and require project approval before implementation.
 - `LSUIElement` keeps Barometer out of the Dock; it does not replace correct bundle identity or signing.

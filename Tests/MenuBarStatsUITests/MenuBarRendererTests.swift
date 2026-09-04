@@ -480,6 +480,15 @@ struct MenuBarRendererTests {
     }
 
     @Test
+    func networkNameDistinguishesPermissionFromAnUnavailableSSID() {
+        #expect(NetworkDropdownView.networkName(ssid: "Office", access: .authorized) == "Office")
+        #expect(NetworkDropdownView.networkName(ssid: nil, access: .notDetermined) == "Location access required")
+        #expect(NetworkDropdownView.networkName(ssid: nil, access: .authorized) == "Name unavailable")
+        #expect(NetworkDropdownView.networkName(ssid: nil, access: .denied) == "Location access is off")
+        #expect(NetworkDropdownView.locationActionTitle(for: .authorized) == "Retry")
+    }
+
+    @Test
     func peerRowsKeepTheSameGeometryWhenSwapped() {
         let first = NetworkRateStackRenderer(
             download: "1.2MB/s",

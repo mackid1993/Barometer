@@ -9,11 +9,20 @@ public struct NetworkDropdownView: View {
 
     private let store: ModuleStore<NetworkSample>
     private let settingsStore: SettingsStore
+    private let locationAccess: @MainActor () -> LocationAccessState
+    private let locationAction: @MainActor () -> Void
 
     /// Creates a Network dropdown backed by the supplied observable store.
-    public init(store: ModuleStore<NetworkSample>, settingsStore: SettingsStore) {
+    public init(
+        store: ModuleStore<NetworkSample>,
+        settingsStore: SettingsStore,
+        locationAccess: @escaping @MainActor () -> LocationAccessState,
+        locationAction: @escaping @MainActor () -> Void
+    ) {
         self.store = store
         self.settingsStore = settingsStore
+        self.locationAccess = locationAccess
+        self.locationAction = locationAction
     }
 
     public var body: some View {
@@ -160,13 +169,20 @@ public struct NetworkDropdownView: View {
                 GlassCard {
                     VStack(alignment: .leading, spacing: 8) {
                         SectionLabel("Wi-Fi") {
+                            if wifi.ssid == nil {
+                                Button(Self.locationActionTitle(for: locationAccess())) {
+                                    locationAction()
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
                             if let rssi = wifi.rssi {
                                 Chip(text: "\(rssi) dBm", color: signalColor(rssi), symbol: "wifi")
                             }
                         }
                         MetricRow(
                             label: "Network",
-                            value: wifi.ssid ?? "Name requires Location access",
+                            value: Self.networkName(ssid: wifi.ssid, access: locationAccess()),
                             symbol: "wifi",
                             tint: accent.primary
                         )
@@ -193,6 +209,35 @@ public struct NetworkDropdownView: View {
                     }
                 }
             }
+        }
+    }
+
+    static func networkName(ssid: String?, access: LocationAccessState) -> String {
+        if let ssid, !ssid.isEmpty {
+            return ssid
+        }
+        return switch access {
+        case .notDetermined:
+            "Location access required"
+        case .authorized:
+            "Name unavailable"
+        case .denied:
+            "Location access is off"
+        case .restricted:
+            "Location access is restricted"
+        case .unavailable:
+            "Name unavailable"
+        }
+    }
+
+    static func locationActionTitle(for access: LocationAccessState) -> String {
+        switch access {
+        case .notDetermined:
+            "Allow Location"
+        case .authorized, .unavailable:
+            "Retry"
+        case .denied, .restricted:
+            "Review Access"
         }
     }
 

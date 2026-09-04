@@ -2024,3 +2024,24 @@ Verification:
 - `swift build -c release` and `git diff --check` completed successfully.
 - GitHub Actions run 33870340413 stamped version 1.0.0 and exposed the portability failures before signing; its
   signing and notarization steps were therefore correctly skipped.
+
+### P7-T5 refresh Wi-Fi identity after Location authorization
+
+The Network dropdown previously converted every nil CoreWLAN SSID into `Name requires Location access`. That was
+incorrect when Location access was already granted, and Network did not retain or observe the shared Core Location
+authorizer unless automatic Weather location happened to be active.
+
+Network now retains the shared authorizer without prompting, observes later authorization changes, invalidates the
+cached Wi-Fi sample after a grant, and refreshes the Network scheduler. Its explicit action requests authorization
+only from the undetermined state, retries an authorized read, or opens the Location Services pane after denial or
+restriction. The dropdown distinguishes those states and no longer tells an authorized user that access is required.
+Automatic Weather tracking continues to share the same manager without having its callbacks overwritten.
+
+Verification:
+
+- `swift test` built every target, including coverage for authorized-but-unavailable SSIDs and the remaining
+  authorization labels.
+- `swift build -c release` and `git diff --check` completed successfully.
+- `make install` replaced and relaunched `/Applications/Barometer.app`; strict signature verification passed under
+  the stable Developer ID identity.
+- No new permission category, helper, bundle, or dependency was added.

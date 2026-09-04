@@ -298,7 +298,14 @@ public final class MonitoringCoordinator {
         networkDropdown = DropdownController(
             moduleName: ModuleID.network.displayName,
             statusItem: registry.item(for: .network),
-            rootView: AnyView(NetworkDropdownView(store: networkStore, settingsStore: settingsStore)),
+            rootView: AnyView(
+                NetworkDropdownView(
+                    store: networkStore,
+                    settingsStore: settingsStore,
+                    locationAccess: { CurrentLocationProvider.shared.accessState },
+                    locationAction: { [weak self] in self?.handleNetworkLocationAction() }
+                )
+            ),
             contentHeight: NetworkDropdownView.contentSize.height,
             contentWidth: NetworkDropdownView.contentSize.width,
             tickAction: { [weak networkStore] in networkStore?.tick() },
@@ -372,6 +379,7 @@ public final class MonitoringCoordinator {
         configurePowerAwareness()
         configureDisplaySleepAwareness()
         configureNetworkChangeAwareness()
+        configureNetworkLocationAccess()
         configureVolumeMountAwareness()
         configureTimeZoneAwareness()
         observeSettings()
@@ -393,6 +401,7 @@ public final class MonitoringCoordinator {
         batterySampleTask?.cancel()
         timeSampleTask?.cancel()
         CurrentLocationProvider.shared.stop()
+        CurrentLocationProvider.shared.authorizationDidChange = nil
         timeZoneChangeWatcher.stop()
         Task {
             await cpuScheduler.stop()
@@ -812,6 +821,46 @@ public final class MonitoringCoordinator {
                 await self.networkMonitor.refreshPublicIP()
                 await self.networkScheduler.refresh()
             }
+        }
+    }
+
+    private func configureNetworkLocationAccess() {
+        let provider = CurrentLocationProvider.shared
+        provider.authorizationDidChange = { [weak self] state in
+            guard let self else {
+                return
+            }
+            networkStore.tick()
+            if state == .authorized {
+                refreshNetworkIdentity()
+            }
+        }
+        if provider.accessState == .authorized {
+            refreshNetworkIdentity()
+        }
+    }
+
+    private func handleNetworkLocationAction() {
+        let provider = CurrentLocationProvider.shared
+        switch provider.accessState {
+        case .notDetermined:
+            provider.requestAuthorizationIfNeeded()
+        case .authorized, .unavailable:
+            refreshNetworkIdentity()
+        case .denied, .restricted:
+            guard let url = URL(
+                string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices"
+            ) else {
+                return
+            }
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func refreshNetworkIdentity() {
+        Task {
+            await networkMonitor.refreshConnectionDetails()
+            await networkScheduler.refresh()
         }
     }
 

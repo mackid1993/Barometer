@@ -1,6 +1,15 @@
 @preconcurrency import CoreLocation
 import Foundation
 
+/// Location authorization states used by features that do not need coordinates themselves.
+public enum LocationAccessState: Equatable, Sendable {
+    case notDetermined
+    case authorized
+    case denied
+    case restricted
+    case unavailable
+}
+
 /// Tracks the current location and reports authorization failures without making location mandatory.
 @MainActor
 final class CurrentLocationProvider: NSObject, @preconcurrency CLLocationManagerDelegate {
@@ -12,12 +21,24 @@ final class CurrentLocationProvider: NSObject, @preconcurrency CLLocationManager
     private let manager = CLLocationManager()
     private var update: Update?
     private var failure: Failure?
+    var authorizationDidChange: (@MainActor (LocationAccessState) -> Void)?
 
     override init() {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyThreeKilometers
         manager.distanceFilter = 5_000
+    }
+
+    var accessState: LocationAccessState {
+        Self.accessState(for: manager.authorizationStatus)
+    }
+
+    func requestAuthorizationIfNeeded() {
+        guard manager.authorizationStatus == .notDetermined else {
+            return
+        }
+        manager.requestWhenInUseAuthorization()
     }
 
     func start(update: @escaping Update, failure: @escaping Failure) {
@@ -42,6 +63,7 @@ final class CurrentLocationProvider: NSObject, @preconcurrency CLLocationManager
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        authorizationDidChange?(Self.accessState(for: manager.authorizationStatus))
         guard update != nil else {
             return
         }
@@ -65,6 +87,21 @@ final class CurrentLocationProvider: NSObject, @preconcurrency CLLocationManager
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: any Error) {
         failure?(error)
+    }
+
+    private static func accessState(for status: CLAuthorizationStatus) -> LocationAccessState {
+        switch status {
+        case .notDetermined:
+            .notDetermined
+        case .authorized, .authorizedAlways:
+            .authorized
+        case .denied:
+            .denied
+        case .restricted:
+            .restricted
+        @unknown default:
+            .unavailable
+        }
     }
 }
 
