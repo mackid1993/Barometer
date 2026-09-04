@@ -112,9 +112,8 @@ public final class StatusItemController<Sample: Sendable> {
         // once per controller lifetime, before the item is made visible. See
         // docs/MACOS27_STATUS_ITEM_SIZING.md before changing this branch.
         // NSStatusItem.variableLength adds AppKit's standard 8-point image inset
-        // on both sides. An explicit length makes the rendered canvas authoritative,
-        // so the user-controlled spacing can reach zero while each module remains
-        // a separate, movable status item.
+        // on both sides. An explicit length makes the zero-padding rendered canvas
+        // authoritative while each module remains a separate, movable status item.
         if lengthDecision.shouldAssign {
             statusItem.length = lengthDecision.length
         }
@@ -171,10 +170,10 @@ enum StatusItemRendering {
         max(1, ceil(image.size.width))
     }
 
-    /// Item lengths are rounded up to this grid so small typography changes cannot move them.
-    static let widthStep: CGFloat = 4
+    /// Item lengths use a narrow grid that absorbs fractional pixels without wasting notch space.
+    static let widthStep: CGFloat = 2
 
-    private static let committedLengthPrefix = "Barometer.CommittedWidth.v5."
+    private static let committedLengthPrefix = "Barometer.CommittedWidth.v6."
 
     static func committedLengthKey(autosaveName: String) -> String {
         committedLengthPrefix + autosaveName
@@ -238,7 +237,7 @@ enum StatusItemRendering {
         let resolvedAppearance =
             appearance
             ?? (button.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light)
-        let scale = AppSettings.clampedMenuBarScale(appSettings.menuBarScale)
+        let scale = appSettings.effectiveMenuBarScale
         return RenderContext(
             thickness: NSStatusBar.system.thickness,
             appearance: resolvedAppearance,

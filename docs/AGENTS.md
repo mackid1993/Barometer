@@ -147,7 +147,7 @@ command, or assigning the same numeric value. `StatusItemController` must remain
 Width-affecting controls may redraw content, but the one-way length latch prevents them from resizing a live AppKit
 item. Content retains its true point size and clips at the trailing edge of the applied frame when necessary.
 Barometer records the new natural width under
-`Barometer.CommittedWidth.v5.<autosaveName>`, but must not apply it to the live AppKit item. On the next app launch,
+`Barometer.CommittedWidth.v6.<autosaveName>`, but must not apply it to the live AppKit item. On the next app launch,
 the controller reads that committed width and assigns it before the item becomes visible.
 
 The complete decision, algorithm, prohibited alternatives, and regression checks are in
@@ -160,6 +160,10 @@ Never bring back a live-width slider or an Apply action that forces an applicati
 
 Do not add a condensed/high-density rendering mode. It narrows ink inside immutable live frames, producing larger
 apparent inter-item gaps and unreadable text. Density comes only from purpose-built renderers.
+
+Icon and graph scale is automatic and follows the enabled-item count. Do not expose a manual scale control. The
+automatic tiers are 115 percent for 1–3 items, 100 for 4–6, 90 for 7–8, 85 for 9–11, 80 for 12–14, and 75 for
+15 or more. Each enabled Sensors instance counts; Combined counts once and its hidden members do not count.
 
 Every item has the common app owner `com.barometer.app`, while its autosave name and AX identifier remain unique child
 keys. Set `autosaveName` and AX identity synchronously before the item's first `isVisible` transition. Never delete or

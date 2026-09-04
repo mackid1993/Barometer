@@ -1643,3 +1643,30 @@ Verification:
   item retained its static display label, and every button title remained empty.
 - Source scans found no production references to either removed setting. A migration test verifies that legacy
   `usesCompactLayout` and `menuBarSpacing` keys decode harmlessly and are not emitted by a new settings export.
+
+### P7-T4 automate graphic density
+
+Removed the manual Icon and graph size control and its persisted setting. Graphic scale now follows the same enabled
+item count used by the font density ceiling: 115 percent for one through three items, 100 for four through six, 90 for
+seven or eight, 85 for nine through eleven, 80 for twelve through fourteen, and 75 for fifteen or more. Enabled
+Sensors instances count independently; Combined counts once and excludes members it hides.
+
+The installed zero-padding build had still widened the active canvases because it inherited the previous 115-percent
+graphic selection and rounded every natural width to a four-point grid. Automatic scaling now starts tightening at
+four widgets, and width rounding uses a two-point grid. The committed-width schema advanced to `v6` so the corrected
+canvases replace those oversized `v5` widths exactly once on the next launch.
+
+Claude's user-facing README conventions were preserved. Its menu bar options now explain the automatic text and
+graphic tiers, zero app-added spacing, and the normal-launch width lifecycle without exposing implementation details.
+
+Verification:
+
+- `swift test` exited 0 and built and linked every test target. Command Line Tools did not print a test-execution
+  summary, matching the documented environment limitation.
+- `swift build -c release` and `git diff --check` completed successfully. The production source contains no manual
+  graphic-scale, spacing, or condensed-layout control, and the sole `statusItem.length` assignment remains guarded.
+- `make install` built, signed, installed, and launched `/Applications/Barometer.app`; strict signature verification
+  passed and the live identity report matched the new process under `com.barometer.app`.
+- With six active widgets, the installed `v6` canvases total 242 points instead of the prior `v5` total of 280. CPU,
+  GPU, and Memory each fell from 36 to 30 points, Network from 60 to 54, Sensors from 80 to 74, and Weather from 32
+  to 24. Every rendered image width exactly matched its fixed status-item length, leaving no hidden trailing padding.

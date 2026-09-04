@@ -102,9 +102,6 @@ public final class SettingsStore {
         guard AppSettings.menuBarFontSizeRange.contains(settings.fontSize) else {
             throw SettingsImportError.valueOutOfRange("font size")
         }
-        guard AppSettings.menuBarScaleRange.contains(settings.menuBarScale) else {
-            throw SettingsImportError.valueOutOfRange("icon and graph size")
-        }
         guard (0.1...1).contains(settings.graphOpacity) else {
             throw SettingsImportError.valueOutOfRange("graph opacity")
         }

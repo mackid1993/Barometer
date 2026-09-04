@@ -71,7 +71,7 @@ struct SettingsTests {
         #expect(!migrated.reducesSamplingOnBattery)
         #expect(!migrated.isMonochrome)
         #expect(migrated.fontSize == 12)
-        #expect(migrated.menuBarScale == 1)
+        #expect(migrated.effectiveMenuBarScale == 1.15)
         #expect(migrated.modules[.cpu]?.isEnabled == true)
         #expect(migrated.modules[.memory]?.isEnabled == true)
         #expect(migrated.weather.locations.isEmpty)
@@ -264,17 +264,17 @@ struct SettingsTests {
         #expect(weather.locations == [first, second])
     }
 
-    @Test("existing schema one settings gain size defaults")
+    @Test("legacy presentation scale is ignored")
     func migratePresentationDefaults() throws {
         let encoded = try JSONEncoder().encode(AppSettings())
         var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
-        object.removeValue(forKey: "menuBarScale")
+        object["menuBarScale"] = 0.75
         object["presentationDefaultsVersion"] = 1
 
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.menuBarScale == 1)
+        #expect(migrated.effectiveMenuBarScale == 1.15)
         #expect(migrated.fontSize == 12)
     }
 
@@ -308,24 +308,25 @@ struct SettingsTests {
         #expect(settings.fontSize == 9)
     }
 
-    @Test("icon and graph scale is capped at the fixed canvas maximum")
-    func capsMenuBarScale() {
-        var settings = AppSettings(menuBarScale: 1.35)
-        #expect(settings.menuBarScale == 1.15)
-        settings.menuBarScale = 1.3
-        #expect(settings.menuBarScale == 1.15)
-        settings.menuBarScale = 0.5
-        #expect(settings.menuBarScale == 0.75)
+    @Test("icon and graph scale follows widget density")
+    func automaticallyScalesMenuBarGraphics() {
+        #expect(AppSettings.menuBarScale(forItemCount: 3) == 1.15)
+        #expect(AppSettings.menuBarScale(forItemCount: 4) == 1)
+        #expect(AppSettings.menuBarScale(forItemCount: 7) == 0.9)
+        #expect(AppSettings.menuBarScale(forItemCount: 9) == 0.85)
+        #expect(AppSettings.menuBarScale(forItemCount: 12) == 0.8)
+        #expect(AppSettings.menuBarScale(forItemCount: 15) == 0.75)
     }
 
     @Test("removed density settings are ignored and no longer exported")
     func ignoresRemovedDensitySettings() throws {
-        let data = Data(#"{"menuBarSpacing":3,"usesCompactLayout":true}"#.utf8)
+        let data = Data(#"{"menuBarScale":0.75,"menuBarSpacing":3,"usesCompactLayout":true}"#.utf8)
         let decoded = try JSONDecoder().decode(AppSettings.self, from: data)
         let encoded = try #require(
             JSONSerialization.jsonObject(with: JSONEncoder().encode(decoded)) as? [String: Any]
         )
 
+        #expect(encoded["menuBarScale"] == nil)
         #expect(encoded["menuBarSpacing"] == nil)
         #expect(encoded["usesCompactLayout"] == nil)
     }
@@ -335,38 +336,49 @@ struct SettingsTests {
         var settings = AppSettings(fontSize: 12)
         #expect(settings.enabledMenuBarItemCount == 2)
         #expect(settings.effectiveMenuBarFontSize == 12)
+        #expect(settings.effectiveMenuBarScale == 1.15)
 
         for module in [ModuleID.gpu, .network, .sensors, .weather] {
             settings.modules[module]?.isEnabled = true
         }
         #expect(settings.enabledMenuBarItemCount == 6)
         #expect(settings.effectiveMenuBarFontSize == 12)
+        #expect(settings.effectiveMenuBarScale == 1)
 
         settings.modules[.battery]?.isEnabled = true
         settings.modules[.time]?.isEnabled = true
         settings.modules[.disks]?.isEnabled = true
         #expect(settings.enabledMenuBarItemCount == 9)
         #expect(settings.effectiveMenuBarFontSize == 11)
+        #expect(settings.effectiveMenuBarScale == 0.85)
 
         settings.sensors.widgets.append(SensorWidgetSettings(id: 2))
-        #expect(settings.enabledMenuBarItemCount == 7)
+        #expect(settings.enabledMenuBarItemCount == 10)
+        #expect(settings.effectiveMenuBarFontSize == 11)
+
+        settings.sensors.widgets.append(SensorWidgetSettings(id: 3))
+        settings.sensors.widgets.append(SensorWidgetSettings(id: 4))
+        #expect(settings.enabledMenuBarItemCount == 12)
         #expect(settings.effectiveMenuBarFontSize == 10)
+        #expect(settings.effectiveMenuBarScale == 0.8)
 
         settings.modules[.combined]?.isEnabled = true
         settings.combined.members = [.cpu, .memory, .sensors]
         settings.combined.hidesIndividualMembers = true
-        #expect(settings.enabledMenuBarItemCount == 4)
+        #expect(settings.enabledMenuBarItemCount == 7)
         #expect(settings.effectiveMenuBarFontSize == 12)
+        #expect(settings.effectiveMenuBarScale == 0.9)
 
         settings.modules[.combined]?.isEnabled = false
-
-        settings.modules[.disks]?.isEnabled = true
-        #expect(settings.enabledMenuBarItemCount == 8)
+        #expect(settings.enabledMenuBarItemCount == 12)
         #expect(settings.effectiveMenuBarFontSize == 10)
+        #expect(settings.effectiveMenuBarScale == 0.8)
 
-        settings.modules[.battery]?.isEnabled = true
-        settings.modules[.time]?.isEnabled = true
-        #expect(settings.enabledMenuBarItemCount == 10)
+        settings.sensors.widgets.append(SensorWidgetSettings(id: 5))
+        settings.sensors.widgets.append(SensorWidgetSettings(id: 6))
+        settings.sensors.widgets.append(SensorWidgetSettings(id: 7))
+        #expect(settings.enabledMenuBarItemCount == 15)
         #expect(settings.effectiveMenuBarFontSize == 9)
+        #expect(settings.effectiveMenuBarScale == 0.75)
     }
 }

@@ -155,10 +155,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Supported menu bar font-size range in points.
     public static let menuBarFontSizeRange = 9.0...12.0
 
-    /// Supported scale range for menu bar icons and graphs.
-    public static let menuBarScaleRange = 0.75...1.15
-
-    /// Horizontal padding used by the two supported spacing presets.
     /// Schema version encoded in this value.
     public var schemaVersion: Int
 
@@ -200,13 +196,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var fontSize: Double {
         didSet {
             fontSize = Self.clampedMenuBarFontSize(fontSize)
-        }
-    }
-
-    /// Scale applied to menu bar graphs and icons without changing type size.
-    public var menuBarScale: Double {
-        didSet {
-            menuBarScale = Self.clampedMenuBarScale(menuBarScale)
         }
     }
 
@@ -260,7 +249,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
         graphOpacity: Double = 0.85,
         fontWeight: MenuBarFontWeight = .medium,
         fontSize: Double = 12,
-        menuBarScale: Double = 1,
         modules: [ModuleID: ModuleSettings] = AppSettings.defaultModules,
         weather: WeatherSettings = WeatherSettings(),
         sensorTemperatureUnit: TemperatureUnit = .celsius,
@@ -289,7 +277,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.graphOpacity = graphOpacity
         self.fontWeight = fontWeight
         self.fontSize = Self.clampedMenuBarFontSize(fontSize)
-        self.menuBarScale = Self.clampedMenuBarScale(menuBarScale)
         self.modules = modules
         self.weather = weather
         self.sensorTemperatureUnit = sensorTemperatureUnit
@@ -340,7 +327,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case graphOpacity
         case fontWeight
         case fontSize
-        case menuBarScale
         case modules
         case weather
         case sensorTemperatureUnit
@@ -382,7 +368,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
             graphOpacity = 0.85
             fontWeight = .medium
             fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? 12
-            menuBarScale = 1
             modules = Self.defaultModules
             weather = WeatherSettings()
             sensorTemperatureUnit = .celsius
@@ -448,7 +433,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
             graphOpacity = try container.decodeIfPresent(Double.self, forKey: .graphOpacity) ?? 0.85
             fontWeight = try container.decodeIfPresent(MenuBarFontWeight.self, forKey: .fontWeight) ?? .medium
             fontSize = try container.decode(Double.self, forKey: .fontSize)
-            menuBarScale = try container.decodeIfPresent(Double.self, forKey: .menuBarScale) ?? 1.15
             modules = try container.decode([ModuleID: ModuleSettings].self, forKey: .modules)
             weather = try container.decodeIfPresent(WeatherSettings.self, forKey: .weather) ?? WeatherSettings()
             sensorTemperatureUnit =
@@ -476,17 +460,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
                 }
                 presentationDefaultsVersion = 1
             }
-            if presentationDefaultsVersion < 2 {
-                menuBarScale = 1.15
-                presentationDefaultsVersion = 2
-            }
             if presentationDefaultsVersion < 3 {
-                // Older builds multiplied both controls together. Fold that
-                // effective size into the font once so upgrading does not
-                // visually shrink existing menu bar text, then let the scale
-                // control affect only icons and graphs.
-                fontSize = Self.clampedMenuBarFontSize(fontSize * menuBarScale)
-                menuBarScale = 1
                 presentationDefaultsVersion = 3
             }
             if modules[.weather]?.mode == "percentage" {
@@ -523,17 +497,11 @@ public struct AppSettings: Codable, Equatable, Sendable {
             )
         }
         fontSize = Self.clampedMenuBarFontSize(fontSize)
-        menuBarScale = Self.clampedMenuBarScale(menuBarScale)
     }
 
     /// Clamps a font size to the range that fits Barometer's fixed-height menu bar canvases.
     public static func clampedMenuBarFontSize(_ value: Double) -> Double {
         min(menuBarFontSizeRange.upperBound, max(menuBarFontSizeRange.lowerBound, value))
-    }
-
-    /// Clamps icon and graph scaling to the range that fits the menu bar canvas.
-    public static func clampedMenuBarScale(_ value: Double) -> Double {
-        min(menuBarScaleRange.upperBound, max(menuBarScaleRange.lowerBound, value))
     }
 
     /// Number of independently movable Barometer items requested by the current settings.
@@ -559,6 +527,23 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Selected font size reduced when many independent widgets would crowd the menu bar.
     public var effectiveMenuBarFontSize: Double {
         min(fontSize, Self.maximumMenuBarFontSize(forItemCount: enabledMenuBarItemCount))
+    }
+
+    /// Icon and graph scale reduced automatically as independently movable widgets are added.
+    public var effectiveMenuBarScale: Double {
+        Self.menuBarScale(forItemCount: enabledMenuBarItemCount)
+    }
+
+    /// Automatic graphic scale used for a given number of independently movable items.
+    public static func menuBarScale(forItemCount count: Int) -> Double {
+        switch count {
+        case ...3: 1.15
+        case 4...6: 1
+        case 7...8: 0.9
+        case 9...11: 0.85
+        case 12...14: 0.8
+        default: 0.75
+        }
     }
 
     /// Density ceiling used for a given number of independently movable items.

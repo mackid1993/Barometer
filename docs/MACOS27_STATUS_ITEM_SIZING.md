@@ -5,18 +5,20 @@ a design constraint, not an implementation suggestion. Read it before changing m
 font size, font weight, condensed typography, glyph scale, graph size, display mode, or status-item code.
 
 The supported menu bar font-size range is 9–12 points. Twelve points is the largest user-selectable size that fits
-the fixed-height canvases consistently. The icon and graph scale is 75–115 percent. Keep both ranges centralized in
-`AppSettings`; settings, previews, and production rendering must not define separate limits.
+the fixed-height canvases consistently. Icon and graph scale is automatic, ranging from 75–115 percent according to
+the enabled-item count. Keep both policies centralized in `AppSettings`; previews and production rendering must not
+define separate limits.
 
 The former Compact internal layout/high-density and Regular/Compact spacing controls were removed. Condensing text
 made it unreadable, while changing transparent padding inside immutable outer frames could only redistribute the same
 blank area rather than alter the real distance between items. Barometer therefore uses one legible internal layout
 with zero app-added horizontal padding. Do not reintroduce either control.
 
-Barometer also applies a deterministic density ceiling to the effective font size: up to eight enabled independent
-items may use 12 points, nine through eleven use at most 11, twelve through fourteen use at most 10, and fifteen or
-more use 9. The user's selection is retained, so disabling items can restore the larger effective size. Count
-sensor-widget instances and respect Combined's hide-members behavior when calculating the enabled item count.
+Barometer also applies deterministic density tiers. Up to eight enabled independent items may use 12-point text,
+nine through eleven use at most 11, twelve through fourteen use at most 10, and fifteen or more use 9. Graphic scale
+is 115 percent for one through three items, 100 for four through six, 90 for seven or eight, 85 for nine through
+eleven, 80 for twelve through fourteen, and 75 for fifteen or more. The selected font size is retained, so disabling
+items can restore it. Count sensor-widget instances and respect Combined's hide-members behavior.
 
 ## Problem
 
@@ -57,13 +59,13 @@ There are no live-resize exceptions. In particular, do not add an exception for:
 ## Width lifecycle
 
 1. A renderer produces its natural image for the current settings.
-2. Barometer rounds the natural width up to a four-point grid.
+2. Barometer rounds the natural width up to a two-point grid, absorbing fractional pixels without wasting notch space.
 3. On the first enabled render, Barometer prefers the previously committed width when one exists. It fits the image
    into that canvas, assigns the AppKit length once, and only then makes the item visible.
    A controller records geometry settings while hidden; when the user enables it later, its first render uses current
    geometry instead of a stale committed width.
 4. If settings propose new geometry while the process remains live, Barometer records its rounded width under
-   `Barometer.CommittedWidth.v5.<autosaveName>`. The rendering retains its true font and glyph sizes and clips at the
+   `Barometer.CommittedWidth.v6.<autosaveName>`. The rendering retains its true font and glyph sizes and clips at the
    trailing edge of the applied frame. It is never recentered or proportionally miniaturized.
 5. After the user ordinarily quits and reopens Barometer, the controller applies the staged width before the item
    appears. Settings never force a relaunch.
@@ -85,8 +87,8 @@ slot and produce a mismatched manager catalog, such as a Combined autosave recor
 ## Why the width is explicit
 
 `NSStatusItem.variableLength` adds AppKit's standard image padding. Barometer uses an explicit length equal to its
-rendered canvas so zero app-added spacing is attainable while CPU, Memory, Weather, Sensors, and the other modules remain
-separate items that the user can move independently.
+rendered canvas so zero app-added spacing is attainable while CPU, Memory, Weather, Sensors, and the other modules
+remain separate items that the user can move independently.
 
 Do not replace the separate items with one combined status item as a sizing workaround. Combined is an optional
 module, not the implementation of density.
@@ -110,6 +112,6 @@ Before accepting a change to menu bar geometry or status-item lifecycle:
 If an operating-system update appears to permit safe live resizing, treat that as a new investigation. Preserve this
 contract until the alternative is reproduced, documented, and explicitly approved.
 
-The `v5` component is an intentional cache-schema version. Increment it when a future rendering constraint makes old
+The `v6` component is an intentional cache-schema version. Increment it when a future rendering constraint makes old
 committed widths structurally invalid. Do not increment it merely to force arbitrary movement or bypass the staged
 width lifecycle.

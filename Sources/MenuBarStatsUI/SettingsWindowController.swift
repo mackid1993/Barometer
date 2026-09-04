@@ -213,19 +213,6 @@ private struct GeneralSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 HStack {
-                    Text("Icon and graph size")
-                    Slider(value: appBinding(\.menuBarScale), in: AppSettings.menuBarScaleRange, step: 0.05)
-                    Text(settingsStore.settings.menuBarScale, format: .percent.precision(.fractionLength(0)))
-                        .monospacedDigit()
-                        .frame(width: 42, alignment: .trailing)
-                }
-                Text(
-                    "Scales symbols, graph width and height, and the battery glyph. Icons stacked over a value "
-                        + "stay inside the top row."
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                HStack {
                     Text("Graph opacity")
                     Slider(value: appBinding(\.graphOpacity), in: 0.1...1, step: 0.05)
                     Text(settingsStore.settings.graphOpacity, format: .percent.precision(.fractionLength(0)))
@@ -424,7 +411,7 @@ private struct GeneralSettingsView: View {
             fillPalette: MenuBarPalette(light: fill, dark: fill),
             fontSize: settings.effectiveMenuBarFontSize,
             isMonochrome: settings.isMonochrome,
-            scale: settings.menuBarScale,
+            scale: settings.effectiveMenuBarScale,
             graphOpacity: settings.graphOpacity,
             fontWeight: settings.fontWeight
         )
@@ -459,7 +446,7 @@ private struct GeneralSettingsView: View {
             palette: MenuBarPalette(light: .black, dark: .white),
             fontSize: settings.effectiveMenuBarFontSize,
             isMonochrome: true,
-            scale: settings.menuBarScale
+            scale: settings.effectiveMenuBarScale
         )
         let compact = MenuBarLayoutMetrics(context: context).compactPointSize
         let maximum = MenuBarLayoutMetrics.maximumCompactPointSize(thickness: thickness)
@@ -701,7 +688,7 @@ private struct ModuleSettingsView: View {
     private var previewImage: NSImage {
         let appSettings = settingsStore.settings
         let color = NSColor(hexString: appSettings.darkColor(for: settings)) ?? .controlAccentColor
-        let scale = appSettings.menuBarScale
+        let scale = appSettings.effectiveMenuBarScale
         let context = RenderContext(
             thickness: NSStatusBar.system.thickness,
             appearance: .dark,
