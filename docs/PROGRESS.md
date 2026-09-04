@@ -1427,3 +1427,18 @@ Verification:
 
 Removed the Report an Issue link at David's request. The About pane retains only the project source link, version,
 license, and weather attribution.
+
+### P5-T2 Battery simplification follow-up
+
+Removed battery duration estimates completely at David's request. `BatterySource` no longer reads or stores them,
+the dropdown no longer shows them, and saved legacy Battery display modes migrate to one compact presentation: a
+fixed-width battery outline with its rounded percentage centered inside. The unavailable state uses the same glyph
+geometry so it cannot move neighboring menu bar items. Detailed state, health, power, adapter, and Bluetooth battery
+information remains in the dropdown.
+
+Verification:
+
+- `swift test` exited 0, including Battery source, monitor, settings migration, stable glyph width, and unavailable
+  glyph coverage.
+- `swift build -c release` completed successfully.
+- `git diff --check` and the 120-column check for changed Swift files passed.

@@ -309,7 +309,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         values[.network] = ModuleSettings(isEnabled: false, mode: "twoLine", interval: 1)
         values[.disks] = ModuleSettings(isEnabled: false, mode: "activityGraph", interval: 1)
         values[.sensors] = ModuleSettings(isEnabled: false, mode: "compactStack", interval: 2)
-        values[.battery] = ModuleSettings(isEnabled: false, mode: "percentage", interval: 10)
+        values[.battery] = ModuleSettings(isEnabled: false, mode: "glyphPercentage", interval: 10)
         values[.time] = ModuleSettings(isEnabled: false, mode: "custom", interval: 60)
         values[.combined] = ModuleSettings(isEnabled: false, mode: "members", interval: 1)
         return values
@@ -493,6 +493,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
             if version < 8, modules[.sensors]?.mode == "percentage" {
                 modules[.sensors]?.mode = "compactStack"
             }
+            modules[.battery]?.mode = "glyphPercentage"
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .schemaVersion,

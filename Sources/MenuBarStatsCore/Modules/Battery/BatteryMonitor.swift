@@ -10,7 +10,6 @@ public struct BatterySample: Equatable, Sendable {
     public let isExternalConnected: Bool
     public let isCharging: Bool
     public let isFullyCharged: Bool
-    public let timeRemainingMinutes: Int?
     public let healthPercent: Double?
     public let cycleCount: Int?
     public let temperatureCelsius: Double?
@@ -40,7 +39,6 @@ public struct BatterySample: Equatable, Sendable {
         isExternalConnected = snapshot.isExternalConnected
         isCharging = snapshot.isCharging
         isFullyCharged = snapshot.isFullyCharged
-        timeRemainingMinutes = snapshot.timeRemainingMinutes
         healthPercent = snapshot.healthPercent
         cycleCount = snapshot.cycleCount
         temperatureCelsius = snapshot.temperatureCelsius
@@ -51,21 +49,6 @@ public struct BatterySample: Equatable, Sendable {
         adapter = snapshot.adapter
         isLowPowerModeEnabled = snapshot.isLowPowerModeEnabled
         self.bluetoothDevices = bluetoothDevices
-    }
-}
-
-/// Compact, stable battery formatting shared by menu bar presentations.
-public enum BatteryPresentation {
-    /// Formats a remaining-time estimate as hours and zero-padded minutes.
-    public static func time(minutes: Int?) -> String {
-        guard let minutes, minutes >= 0 else { return "—" }
-        return String(format: "%d:%02d", minutes / 60, minutes % 60)
-    }
-
-    /// Formats charging or discharging magnitude without allowing a sign to move the item.
-    public static func power(watts: Double?) -> String {
-        guard let watts, watts.isFinite else { return "—" }
-        return String(format: "%.1fW", abs(watts))
     }
 }
 

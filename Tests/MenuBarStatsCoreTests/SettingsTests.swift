@@ -38,6 +38,16 @@ struct SettingsTests {
         #expect(store.settings == original)
     }
 
+    @Test("legacy battery presentations migrate to the percentage glyph")
+    func migratesLegacyBatteryPresentation() throws {
+        var settings = AppSettings()
+        settings.modules[.battery]?.mode = "time"
+
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
+
+        #expect(decoded.modules[.battery]?.mode == "glyphPercentage")
+    }
+
     @Test("version zero settings migrate to the current schema")
     func migrateVersionZero() throws {
         let versionZero = Data(

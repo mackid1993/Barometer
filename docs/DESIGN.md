@@ -172,8 +172,8 @@ Parity target is iStat Menus 7. Each module has a menu bar representation (sever
 
 ### 4.7 Battery and power
 
-- Metrics: charge percentage, state (charging, discharging, full, on AC), time remaining or time to full, health (full charge capacity over design capacity), cycle count, temperature, voltage, amperage, wattage in or out, adapter name and wattage, battery condition, low power mode; Bluetooth device batteries (AirPods, keyboard, mouse, trackpad) when available.
-- Menu bar modes: percentage, icon with fill, time remaining, wattage.
+- Metrics: charge percentage inside a compact battery glyph, state (charging, discharging, full, on AC), health (full charge capacity over design capacity), cycle count, temperature, voltage, amperage, wattage in or out, adapter name and wattage, battery condition, low power mode; Bluetooth device batteries (AirPods, keyboard, mouse, trackpad) when available. Duration estimates are intentionally omitted because macOS frequently withholds or destabilizes them.
+- Menu bar presentation: one compact battery glyph with the charge percentage centered inside it.
 - Dropdown: details, health, adapter, Bluetooth devices, charge history graph.
 
 ### 4.8 Weather

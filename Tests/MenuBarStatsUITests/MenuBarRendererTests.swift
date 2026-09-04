@@ -16,7 +16,7 @@ struct MenuBarRendererTests {
     )
 
     @Test
-    func batteryPresentationSupportsEveryMenuBarModeWithStablePercentageWidth() {
+    func batteryPresentationUsesStablePercentageGlyphWidth() {
         let snapshot = BatterySnapshot(
             name: "Internal Battery",
             chargePercent: 42,
@@ -24,7 +24,6 @@ struct MenuBarRendererTests {
             isExternalConnected: false,
             isCharging: false,
             isFullyCharged: false,
-            timeRemainingMinutes: 125,
             healthPercent: 98,
             cycleCount: 45,
             temperatureCelsius: 31,
@@ -37,19 +36,8 @@ struct MenuBarRendererTests {
         )
         let sample = BatterySample(snapshot: snapshot)
 
-        for mode in ["percentage", "icon", "time", "wattage"] {
-            let content = BatteryMenuBarPresenter.content(
-                sample: sample,
-                moduleSettings: ModuleSettings(isEnabled: true, mode: mode),
-                batterySettings: BatterySettings(),
-                context: context
-            )
-            #expect(content.image.size.width > 0)
-            #expect(content.accessibilityValue.contains("Battery 42.0 percent"))
-        }
         let low = BatteryMenuBarPresenter.content(
             sample: sample,
-            moduleSettings: ModuleSettings(isEnabled: true, mode: "percentage"),
             batterySettings: BatterySettings(),
             context: context
         )
@@ -60,7 +48,6 @@ struct MenuBarRendererTests {
             isExternalConnected: true,
             isCharging: false,
             isFullyCharged: true,
-            timeRemainingMinutes: nil,
             healthPercent: snapshot.healthPercent,
             cycleCount: snapshot.cycleCount,
             temperatureCelsius: snapshot.temperatureCelsius,
@@ -73,11 +60,20 @@ struct MenuBarRendererTests {
         )
         let full = BatteryMenuBarPresenter.content(
             sample: BatterySample(snapshot: fullSnapshot),
-            moduleSettings: ModuleSettings(isEnabled: true, mode: "percentage"),
             batterySettings: BatterySettings(),
             context: context
         )
+        #expect(low.image.size.width > 0)
+        #expect(low.accessibilityValue.contains("Battery 42.0 percent"))
         #expect(low.image.size == full.image.size)
+
+        let unavailable = BatteryMenuBarPresenter.content(
+            sample: nil,
+            batterySettings: BatterySettings(),
+            context: context
+        )
+        #expect(unavailable.image.size == full.image.size)
+        #expect(unavailable.accessibilityValue == "Battery unavailable")
     }
 
     @Test

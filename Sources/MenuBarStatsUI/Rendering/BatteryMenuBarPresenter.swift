@@ -5,16 +5,15 @@ import SystemSources
 /// Converts Battery samples into compact, stable menu bar content.
 @MainActor
 public enum BatteryMenuBarPresenter {
-    /// Renders the selected Battery presentation mode.
+    /// Renders the Battery percentage inside a compact battery glyph.
     public static func content(
         sample: BatterySample?,
-        moduleSettings: ModuleSettings,
         batterySettings: BatterySettings,
         context: RenderContext
     ) -> StatusItemContent {
         guard let sample else {
             return StatusItemContent(
-                image: StackedLabelRenderer(label: "BAT", value: "—", reservedValue: "100%").render(in: context),
+                image: BatteryPercentRenderer(percent: nil).render(in: context),
                 accessibilityValue: "Battery unavailable"
             )
         }
@@ -23,32 +22,9 @@ public enum BatteryMenuBarPresenter {
             settings: batterySettings,
             context: context
         )
-        let percent = String(format: "%.0f%%", sample.chargePercent)
-        let renderer: any MenuBarRenderer
-        switch moduleSettings.mode {
-        case "icon":
-            renderer = SymbolRenderer(
-                symbolName: symbolName(for: sample),
-                reservedSymbolName: "battery.100percent"
-            )
-        case "time":
-            renderer = StackedLabelRenderer(
-                label: sample.isCharging ? "FULL" : "LEFT",
-                value: BatteryPresentation.time(minutes: sample.timeRemainingMinutes),
-                reservedValue: "99:59"
-            )
-        case "wattage":
-            renderer = StackedLabelRenderer(
-                label: sample.isExternalConnected ? "IN" : "USE",
-                value: BatteryPresentation.power(watts: sample.wattageWatts),
-                reservedValue: "99.9W"
-            )
-        default:
-            renderer = StackedLabelRenderer(label: "BAT", value: percent, reservedValue: "100%")
-        }
         let state = stateDescription(sample.state)
         return StatusItemContent(
-            image: renderer.render(in: renderContext),
+            image: BatteryPercentRenderer(percent: sample.chargePercent).render(in: renderContext),
             accessibilityValue: String(format: "Battery %.1f percent, %@", sample.chargePercent, state)
         )
     }

@@ -40,7 +40,6 @@ public struct BatteryDropdownView: View {
                     .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 7))
 
                 Text("STATUS").batterySectionLabel()
-                BatteryMetricRow(label: "Time remaining", value: time(sample?.timeRemainingMinutes))
                 BatteryMetricRow(
                     label: "Low Power Mode",
                     value: sample.map { $0.isLowPowerModeEnabled ? "On" : "Off" } ?? "Unavailable"
@@ -97,11 +96,6 @@ public struct BatteryDropdownView: View {
 
     private func percent(_ value: Double?) -> String {
         value.map { String(format: "%.1f%%", $0) } ?? "Unavailable"
-    }
-
-    private func time(_ minutes: Int?) -> String {
-        guard let minutes else { return "Unavailable" }
-        return "\(minutes / 60) hr \(minutes % 60) min"
     }
 
     private func measurement(_ value: Double?, format: String) -> String {

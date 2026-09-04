@@ -34,7 +34,6 @@ public struct BatterySnapshot: Equatable, Sendable {
     public let isExternalConnected: Bool
     public let isCharging: Bool
     public let isFullyCharged: Bool
-    public let timeRemainingMinutes: Int?
     public let healthPercent: Double?
     public let cycleCount: Int?
     public let temperatureCelsius: Double?
@@ -53,7 +52,6 @@ public struct BatterySnapshot: Equatable, Sendable {
         isExternalConnected: Bool,
         isCharging: Bool,
         isFullyCharged: Bool,
-        timeRemainingMinutes: Int?,
         healthPercent: Double?,
         cycleCount: Int?,
         temperatureCelsius: Double?,
@@ -70,7 +68,6 @@ public struct BatterySnapshot: Equatable, Sendable {
         self.isExternalConnected = isExternalConnected
         self.isCharging = isCharging
         self.isFullyCharged = isFullyCharged
-        self.timeRemainingMinutes = timeRemainingMinutes
         self.healthPercent = healthPercent
         self.cycleCount = cycleCount
         self.temperatureCelsius = temperatureCelsius
@@ -131,16 +128,6 @@ public struct BatterySource: Sendable {
             .discharging
         }
 
-        let timeRemainingMinutes: Int? = switch state {
-        case .charging:
-            Self.validMinutes(Self.double(summary[Self.timeToFullKey]))
-                ?? Self.validMinutes(Self.double(batteryData["AvgTimeToFull"]))
-        case .discharging:
-            Self.validMinutes(Self.double(summary[Self.timeToEmptyKey]))
-                ?? Self.validMinutes(Self.double(batteryData["AvgTimeToEmpty"]))
-        case .full, .onAC:
-            nil
-        }
         let fullChargeCapacity = Self.double(batteryData["FullChargeCapacity"])
             ?? Self.double(packData["AppleRawMaxCapacity"])
             ?? Self.double(packData["FccComp1"])
@@ -163,7 +150,6 @@ public struct BatterySource: Sendable {
             isExternalConnected: isExternalConnected,
             isCharging: isCharging,
             isFullyCharged: isFullyCharged,
-            timeRemainingMinutes: timeRemainingMinutes,
             healthPercent: Self.healthPercent(
                 fullChargeCapacity: fullChargeCapacity,
                 designCapacity: designCapacity
@@ -255,13 +241,6 @@ public struct BatterySource: Sendable {
         )
     }
 
-    private static func validMinutes(_ value: Double?) -> Int? {
-        guard let value, value.isFinite, value >= 0, value < 65_535 else {
-            return nil
-        }
-        return Int(value.rounded())
-    }
-
     private static func dictionary(_ value: Any?) -> [String: Any]? {
         value as? [String: Any]
     }
@@ -291,8 +270,6 @@ public struct BatterySource: Sendable {
     private static let isChargingKey = kIOPSIsChargingKey as String
     private static let isChargedKey = kIOPSIsChargedKey as String
     private static let powerSourceStateKey = kIOPSPowerSourceStateKey as String
-    private static let timeToEmptyKey = kIOPSTimeToEmptyKey as String
-    private static let timeToFullKey = kIOPSTimeToFullChargeKey as String
     private static let healthKey = kIOPSBatteryHealthKey as String
     private static let nameKey = kIOPSNameKey as String
     private static let transportTypeKey = kIOPSTransportTypeKey as String

@@ -8,7 +8,7 @@ struct BatterySettingsView: View {
     let settingsStore: SettingsStore
 
     private var moduleSettings: ModuleSettings {
-        settingsStore.settings.modules[.battery] ?? ModuleSettings(mode: "percentage", interval: 10)
+        settingsStore.settings.modules[.battery] ?? ModuleSettings(mode: "glyphPercentage", interval: 10)
     }
 
     var body: some View {
@@ -22,12 +22,7 @@ struct BatterySettingsView: View {
                 )
             }
             Section("Menu Bar") {
-                Picker("Display", selection: moduleBinding(\.mode)) {
-                    Text("BAT label and percentage").tag("percentage")
-                    Text("Battery glyph").tag("icon")
-                    Text("Time remaining").tag("time")
-                    Text("Power usage").tag("wattage")
-                }
+                LabeledContent("Display", value: "Percentage inside battery")
                 Toggle("Show while connected to power", isOn: batteryBinding(\.showsWhenConnectedToPower))
                 MenuBarColorPickerRows(
                     lightColor: colorBinding(\.lightColor),
@@ -68,7 +63,7 @@ struct BatterySettingsView: View {
             get: { moduleSettings[keyPath: keyPath] },
             set: { value in
                 var appSettings = settingsStore.settings
-                var settings = appSettings.modules[.battery] ?? ModuleSettings(mode: "percentage", interval: 10)
+                var settings = appSettings.modules[.battery] ?? ModuleSettings(mode: "glyphPercentage", interval: 10)
                 settings[keyPath: keyPath] = value
                 appSettings.modules[.battery] = settings
                 settingsStore.settings = appSettings
@@ -93,7 +88,7 @@ struct BatterySettingsView: View {
             set: { color in
                 guard let components = NSColor(color).usingColorSpace(.sRGB) else { return }
                 var appSettings = settingsStore.settings
-                var settings = appSettings.modules[.battery] ?? ModuleSettings(mode: "percentage", interval: 10)
+                var settings = appSettings.modules[.battery] ?? ModuleSettings(mode: "glyphPercentage", interval: 10)
                 settings[keyPath: keyPath] = String(
                     format: "#%02X%02X%02X",
                     Int(components.redComponent * 255),

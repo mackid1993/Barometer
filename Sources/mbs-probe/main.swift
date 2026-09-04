@@ -28,8 +28,7 @@ private func runBatteryProbe() throws {
     let sample = try BatterySource().read()
     print(String(format: "Battery %.1f%% — %@", sample.chargePercent, sample.state.rawValue))
     print(
-        "time \(sample.timeRemainingMinutes.map { "\($0) min" } ?? "unavailable"); "
-            + "health \(sample.healthPercent.map { String(format: "%.1f%%", $0) } ?? "unavailable"); "
+        "health \(sample.healthPercent.map { String(format: "%.1f%%", $0) } ?? "unavailable"); "
             + "cycles \(sample.cycleCount.map(String.init) ?? "unavailable")"
     )
     print(
