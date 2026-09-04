@@ -128,7 +128,10 @@ public struct RenderContext {
 /// Keeping these calculations in one place prevents modules from acquiring subtly
 /// different baselines, insets, and gaps as their renderers evolve.
 struct MenuBarLayoutMetrics {
-    static let contentInset: CGFloat = 0.5
+    /// Status-item canvases are already separated by the system-wide menu bar spacing.
+    /// Adding another inset here makes every independently movable Barometer item look
+    /// farther apart, even when their AppKit frames are contiguous.
+    static let contentInset: CGFloat = 0
 
     /// Alpha applied to descriptive labels (CPU, MEM, sensor names) so values stand out.
     static let labelEmphasis: CGFloat = 0.82
@@ -139,10 +142,9 @@ struct MenuBarLayoutMetrics {
         max(3, round(3.5 * context.scale))
     }
 
-    /// Horizontal padding on each side of a dense multi-column text block such as the
-    /// Sensors stack, so it breathes like the stacked items whose reserved widths leave slack.
+    /// Dense blocks use the same edge contract as every other status-item renderer.
     var denseTextPadding: CGFloat {
-        max(2, round(compactPointSize * 0.35))
+        0
     }
 
     /// Gap between reading columns in a dense text block.
@@ -289,11 +291,21 @@ public struct TextRenderer: MenuBarRenderer {
         ]
         let value = NSAttributedString(string: text, attributes: attributes)
         let reserved = NSAttributedString(string: reservedText ?? text, attributes: attributes)
-        let width = ceil(max(value.size().width, reserved.size().width)) + 4
+        let width = ceil(max(value.size().width, reserved.size().width))
         return makeImage(width: width, context: context) { rect in
             let size = value.size()
-            value.draw(at: NSPoint(x: floor((rect.width - size.width) / 2), y: floor((rect.height - size.height) / 2)))
+            value.draw(
+                at: NSPoint(
+                    x: Self.trailingOffset(valueWidth: size.width, reservedWidth: rect.width),
+                    y: floor((rect.height - size.height) / 2)
+                )
+            )
         }
+    }
+
+    /// Keeps a changing reading adjacent to the following status-item frame.
+    static func trailingOffset(valueWidth: CGFloat, reservedWidth: CGFloat) -> CGFloat {
+        max(0, reservedWidth - valueWidth)
     }
 }
 
@@ -550,15 +562,16 @@ public struct StackedLabelRenderer: MenuBarRenderer {
         let reservedLabelText = NSAttributedString(string: reservedLabel, attributes: labelAttributes)
         let valueText = NSAttributedString(string: value, attributes: valueAttributes)
         let reservedText = NSAttributedString(string: reservedValue ?? value, attributes: valueAttributes)
+        let contentWidth = ceil(
+            max(
+                labelText.size().width,
+                reservedLabelText.size().width,
+                valueText.size().width,
+                reservedText.size().width
+            )
+        )
         let width =
-            ceil(
-                max(
-                    labelText.size().width,
-                    reservedLabelText.size().width,
-                    valueText.size().width,
-                    reservedText.size().width
-                )
-            ) + MenuBarLayoutMetrics.contentInset * 2
+            contentWidth + MenuBarLayoutMetrics.contentInset * 2
         return makeImage(width: width, context: context) { _ in
             labelText.draw(
                 at: NSPoint(
@@ -568,11 +581,17 @@ public struct StackedLabelRenderer: MenuBarRenderer {
             )
             valueText.draw(
                 at: NSPoint(
-                    x: MenuBarLayoutMetrics.contentInset,
+                    x: MenuBarLayoutMetrics.contentInset
+                        + Self.trailingOffset(valueWidth: valueText.size().width, reservedWidth: contentWidth),
                     y: metrics.compactRowY(1, textHeight: valueText.size().height)
                 )
             )
         }
+    }
+
+    /// Keeps the reading's trailing edge fixed while its digit count changes.
+    static func trailingOffset(valueWidth: CGFloat, reservedWidth: CGFloat) -> CGFloat {
+        max(0, reservedWidth - valueWidth)
     }
 }
 
@@ -835,16 +854,18 @@ public struct IconTextRenderer: MenuBarRenderer {
                     .withSymbolConfiguration(configuration)
             }.map { metrics.symbolSize(nativeSize: $0.size, font: font).width }.max() ?? 0
         let gap = symbol == nil ? 0 : metrics.iconTextGap
+        let symbolFieldWidth = max(symbolSize.width, reservedSymbolWidth)
+        let textFieldWidth = ceil(max(textSize.width, reservedTextSize.width))
         let width =
             MenuBarLayoutMetrics.contentInset * 2
-            + max(symbolSize.width, reservedSymbolWidth)
+            + symbolFieldWidth
             + gap
-            + ceil(max(textSize.width, reservedTextSize.width))
+            + textFieldWidth
         return makeImage(width: width, context: context) { rect in
             var x = MenuBarLayoutMetrics.contentInset
             if let symbol {
                 let symbolRect = NSRect(
-                    x: x,
+                    x: x + floor((symbolFieldWidth - symbolSize.width) / 2),
                     y: metrics.symbolY(
                         for: symbolSize,
                         nativeSize: symbol.size,
@@ -854,9 +875,14 @@ public struct IconTextRenderer: MenuBarRenderer {
                     height: symbolSize.height
                 )
                 symbol.draw(in: symbolRect)
-                x = symbolRect.maxX + gap
+                x += symbolFieldWidth + gap
             }
-            textValue.draw(at: NSPoint(x: x, y: metrics.centeredY(for: textSize.height)))
+            textValue.draw(
+                at: NSPoint(
+                    x: x + max(0, textFieldWidth - textSize.width),
+                    y: metrics.centeredY(for: textSize.height)
+                )
+            )
         }
     }
 }

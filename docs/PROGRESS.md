@@ -1906,3 +1906,31 @@ Verification:
 - `make install` replaced `/Applications/Barometer.app` and launched it as the single `com.barometer.app` process.
   Strict code-signature verification passed. The installed identity report contains matching autosave and AX
   identifiers for every visible item. No notarization or stapling command ran.
+
+### P7-T4 tighten status-item canvases
+
+After the menu bar manager's system spacing and selection padding were both set to zero, the AppKit status-item
+windows were contiguous but Barometer still looked loosely spaced. The remaining gap was inside the rendered images:
+generic text added an unexplained four points, canonical layout metrics added half-point edge insets, and the Sensors
+stack added its own side padding. Short live values were also centered or leading-aligned within wider stability
+fields, concentrating unused reserve at the edge next to the following item.
+
+All shared renderers now follow one zero-edge-inset contract. Generic text no longer adds width beyond its measured
+reserved field, and dense sensor stacks no longer add side padding. Stacked readings and icon-and-text values keep a
+fixed trailing edge inside their reserved numeric fields, while changing symbols remain centered only within their
+stable symbol field. The outer status-item lengths remain immutable; this change removes internal blank canvas rather
+than resizing live AppKit items. The rule is recorded in both the macOS 27 sizing guide and the repository agent
+guidance so later UI changes do not reintroduce invisible spacing.
+
+Verification:
+
+- `swift test` exited 0, including new coverage for zero shared insets, exact generic-text width, and trailing-edge
+  stability inside reserved fields.
+- `swift build -c release` completed successfully, and `git diff --check` reported no whitespace errors.
+- A source scan found exactly one guarded production assignment to `statusItem.length` in
+  `StatusItemController.swift`.
+- `make install` replaced and relaunched `/Applications/Barometer.app`. The installed identity report contains six
+  visible items with exact image/length pairs: CPU 28, GPU 28, Memory 28, Network 54, Sensors 68, and Weather 24
+  points. Every autosave name matches its AX identifier and every item belongs to `com.barometer.app`.
+- Strict code-signature verification passed. A Retina menu bar capture confirmed the Barometer readings are packed
+  together without renderer-added edge gaps. No notarization or stapling command ran.

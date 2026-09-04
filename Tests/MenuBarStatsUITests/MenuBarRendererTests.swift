@@ -185,8 +185,40 @@ struct MenuBarRendererTests {
 
         #expect(origins.label.x == origins.value.x)
         #expect(origins.label.x == MenuBarLayoutMetrics.contentInset)
+        #expect(MenuBarLayoutMetrics.contentInset == 0)
+        #expect(metrics.denseTextPadding == 0)
         #expect(origins.value.y == 1)
         #expect(origins.label.y == 13)
+    }
+
+    @Test
+    func fixedWidthTextUsesNoAppAddedEdgePadding() {
+        let text = "100%"
+        let image = TextRenderer(text: "7%", reservedText: text).render(in: context)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: context.font(ofSize: context.fontSize, weight: .medium, monospacedDigits: true)
+        ]
+        let reservedWidth = NSAttributedString(string: text, attributes: attributes).size().width
+
+        #expect(image.size.width == ceil(reservedWidth))
+        #expect(TextRenderer.trailingOffset(valueWidth: 12, reservedWidth: 20) == 8)
+    }
+
+    @Test
+    func stackedReadingsKeepTheirTrailingEdgeFixed() {
+        let shortWidth: CGFloat = 14
+        let reservedWidth: CGFloat = 22
+        let shortOffset = StackedLabelRenderer.trailingOffset(
+            valueWidth: shortWidth,
+            reservedWidth: reservedWidth
+        )
+        let fullOffset = StackedLabelRenderer.trailingOffset(
+            valueWidth: reservedWidth,
+            reservedWidth: reservedWidth
+        )
+
+        #expect(shortOffset + shortWidth == reservedWidth)
+        #expect(fullOffset == 0)
     }
 
     @Test
