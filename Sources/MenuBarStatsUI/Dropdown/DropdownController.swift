@@ -12,12 +12,13 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     private let logger = Logger(subsystem: "com.barometer.app", category: "dropdown")
     private var trackingTimer: Timer?
 
-    /// Creates and installs a 320-point-wide hosted menu for one permanent status item.
+    /// Creates and installs a hosted menu for one permanent status item.
     public init(
         moduleName: String,
         statusItem: NSStatusItem,
         rootView: AnyView,
         contentHeight: CGFloat,
+        contentWidth: CGFloat = 320,
         tickAction: @escaping @MainActor () -> Void,
         settingsAction: @escaping @MainActor () -> Void,
         quitAction: @escaping @MainActor () -> Void
@@ -30,11 +31,11 @@ public final class DropdownController: NSObject, NSMenuDelegate {
 
         let menu = NSMenu()
         menu.delegate = self
-        menu.minimumWidth = 320
+        menu.minimumWidth = contentWidth
 
         let contentItem = NSMenuItem()
         let hostingView = NSHostingView(rootView: rootView)
-        hostingView.frame = NSRect(x: 0, y: 0, width: 320, height: contentHeight)
+        hostingView.frame = NSRect(x: 0, y: 0, width: contentWidth, height: contentHeight)
         contentItem.view = hostingView
         menu.addItem(contentItem)
         menu.addItem(.separator())

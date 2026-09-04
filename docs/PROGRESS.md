@@ -672,3 +672,28 @@ Verification:
   Swift 6 strict concurrency.
 - System appearance was not toggled automatically because David previously reported an unwanted machine-wide
   appearance change. Light and dark visual review remains appropriate for the later Fable UI pass.
+
+## P2-T5 Weather dropdown
+
+Added a 420-point-wide, scrollable Weather dropdown designed for dense iStat-style detail without clipping. It
+contains a multicolor current-conditions header with apparent temperature and stale warning; a horizontally
+scrollable 48-hour temperature curve with precipitation bars, condition symbols, temperatures, and probabilities;
+ten daily rows with normalized low-to-high range bars; sunrise, sunset, and calculated moon phase; U.S. AQI, PM2.5,
+and PM10; and a details grid for humidity, wind direction and speed, pressure, cloud cover, current precipitation,
+and gusts.
+
+The footer switches among saved locations, refreshes immediately, opens Apple's Weather app, and provides the
+required linked Open-Meteo attribution. Pressure presentation converts Open-Meteo hPa data to the independently
+selected hPa, inHg, or mmHg unit. All forecast dates and times use the forecast location's time zone. The generic
+dropdown controller now accepts a content width while keeping the existing CPU and Memory menus at 320 points.
+
+Verification:
+
+- `swift build --disable-sandbox` compiled the complete dropdown and app integration under Swift 6 strict
+  concurrency.
+- `swift test --disable-sandbox` rebuilt and linked every application and test target and exited 0.
+- `git diff --check` reported no whitespace errors, and the new UI sources contain no lines longer than 120 columns.
+- The menu continues to use the common-mode tracking timer, so live samples and the stale indicator update while it
+  remains open.
+- A populated visual review requires a saved Weather location and remains for David's/Fable's UI pass; automated
+  verification did not alter David's Barometer preferences to inject a test city.

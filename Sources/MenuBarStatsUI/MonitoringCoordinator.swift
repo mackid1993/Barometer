@@ -30,6 +30,7 @@ public final class MonitoringCoordinator {
     private var weatherController: StatusItemController<WeatherSample>?
     private var cpuDropdown: DropdownController?
     private var memoryDropdown: DropdownController?
+    private var weatherDropdown: DropdownController?
     private var cpuSampleTask: Task<Void, Never>?
     private var memorySampleTask: Task<Void, Never>?
     private var weatherSampleTask: Task<Void, Never>?
@@ -91,6 +92,29 @@ public final class MonitoringCoordinator {
             rootView: AnyView(MemoryDropdownView(store: memoryStore, settingsStore: settingsStore)),
             contentHeight: 386,
             tickAction: { [weak memoryStore] in memoryStore?.tick() },
+            settingsAction: settingsAction,
+            quitAction: quitAction
+        )
+        weatherDropdown = DropdownController(
+            moduleName: ModuleID.weather.displayName,
+            statusItem: registry.item(for: .weather),
+            rootView: AnyView(
+                WeatherDropdownView(
+                    store: weatherStore,
+                    settingsStore: settingsStore,
+                    refreshAction: { [weak self] in
+                        guard let self else {
+                            return
+                        }
+                        Task {
+                            await self.weatherSession?.refresh()
+                        }
+                    }
+                )
+            ),
+            contentHeight: 700,
+            contentWidth: 420,
+            tickAction: { [weak weatherStore] in weatherStore?.tick() },
             settingsAction: settingsAction,
             quitAction: quitAction
         )
