@@ -582,6 +582,7 @@ public final class MonitoringCoordinator {
                 guard let self else {
                     return
                 }
+                self.prepareNewlyEnabledItems()
                 self.applyPowerState(self.powerStateObserver.currentState)
                 self.applySamplingIntervals()
                 self.updateSchedulerActivity()
@@ -663,14 +664,14 @@ public final class MonitoringCoordinator {
 
     private func configureSensorWidgets() {
         let sharedSettingsStore = settingsStore
-        for widget in settingsStore.settings.sensors.widgets where sensorControllers[widget.id] == nil {
-            let instance = widget.id
-            // A newly added Sensors widget joins the complete identity set on the next
-            // normal launch. Creating it beside live items can make a manager pair its
-            // autosave slot with a different Barometer child.
-            guard let statusItem = registry.preparedItem(for: .sensors, instance: instance) else {
+        let enabledIdentities = StatusItemRegistry.launchIdentities(settings: settingsStore.settings)
+            .filter { $0.module == .sensors }
+        for identity in enabledIdentities where sensorControllers[identity.instance] == nil {
+            guard let widget = settingsStore.settings.sensors.widget(id: identity.instance) else {
                 continue
             }
+            let instance = widget.id
+            let statusItem = registry.prepareItem(for: identity)
             sensorControllers[instance] = StatusItemController(
                 module: .sensors,
                 statusItem: statusItem,
@@ -720,6 +721,46 @@ public final class MonitoringCoordinator {
                 quitAction: quitAction
             )
         }
+    }
+
+    private func prepareNewlyEnabledItems() {
+        for identity in StatusItemRegistry.launchIdentities(settings: settingsStore.settings)
+            where identity.module != .sensors
+        {
+            let statusItem = registry.prepareItem(for: identity)
+            switch identity.module {
+            case .cpu:
+                attach(statusItem, controller: cpuController, dropdown: cpuDropdown)
+            case .gpu:
+                attach(statusItem, controller: gpuController, dropdown: gpuDropdown)
+            case .memory:
+                attach(statusItem, controller: memoryController, dropdown: memoryDropdown)
+            case .disks:
+                attach(statusItem, controller: diskController, dropdown: diskDropdown)
+            case .network:
+                attach(statusItem, controller: networkController, dropdown: networkDropdown)
+            case .battery:
+                attach(statusItem, controller: batteryController, dropdown: batteryDropdown)
+            case .weather:
+                attach(statusItem, controller: weatherController, dropdown: weatherDropdown)
+            case .time:
+                attach(statusItem, controller: timeController, dropdown: timeDropdown)
+            case .combined:
+                attach(statusItem, controller: combinedController, dropdown: combinedDropdown)
+            case .sensors:
+                break
+            }
+        }
+        configureSensorWidgets()
+    }
+
+    private func attach<Sample: Sendable>(
+        _ statusItem: NSStatusItem,
+        controller: StatusItemController<Sample>?,
+        dropdown: DropdownController?
+    ) {
+        dropdown?.attach(statusItem: statusItem)
+        controller?.attach(statusItem: statusItem)
     }
 
     private func configureNetworkChangeAwareness() {

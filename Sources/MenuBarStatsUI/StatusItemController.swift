@@ -34,12 +34,12 @@ public final class StatusItemController<Sample: Sendable> {
     public typealias IsEnabled = @MainActor (AppSettings, ModuleSettings) -> Bool
 
     private let module: ModuleID
-    private let statusItem: NSStatusItem?
+    private var statusItem: NSStatusItem?
     private let store: ModuleStore<Sample>
     private let settingsStore: SettingsStore
     private let renderContent: Render
     private let isEnabled: IsEnabled
-    private let accessibilityLabel: String
+    private var accessibilityLabel: String
     private let logger = Logger(subsystem: "com.barometer.app", category: "render")
     private var lengthLatch = StatusItemLengthLatch()
     private var geometryLatch = StatusItemGeometryLatch()
@@ -61,6 +61,16 @@ public final class StatusItemController<Sample: Sendable> {
         accessibilityLabel = statusItem?.button?.accessibilityLabel() ?? module.displayName
         renderContent = render
         observeChanges()
+        update()
+    }
+
+    /// Attaches a newly enabled permanent item without replacing an existing item.
+    public func attach(statusItem: NSStatusItem) {
+        guard self.statusItem == nil else {
+            return
+        }
+        self.statusItem = statusItem
+        accessibilityLabel = statusItem.button?.accessibilityLabel() ?? module.displayName
         update()
     }
 

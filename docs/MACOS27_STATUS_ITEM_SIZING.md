@@ -83,9 +83,9 @@ common owner.
 Prepare exactly the enabled, non-Combined-hidden identities before allowing any item to become visible. Assign each
 autosave name and AX identity synchronously before its first `isVisible` transition. Do not create disabled hidden
 items: their persistence slots have no visible AX counterparts, so macOS 27 managers can pair the slots and children
-by conflicting ordinals. Newly enabled widgets join on the next normal launch. Do not manually delete AppKit's
-position defaults. An incomplete first snapshot can also pair one child's autosave slot with another child's AX
-identity.
+by conflicting ordinals. Create a newly enabled identity once, assign its full identity, attach its controller and
+menu, and only then make it visible. Do not manually delete AppKit's position defaults. An incomplete first snapshot
+can also pair one child's autosave slot with another child's AX identity.
 
 ## Why the width is explicit
 

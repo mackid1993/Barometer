@@ -609,35 +609,70 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
             .font: font,
             .foregroundColor: context.foregroundColor,
         ]
-        let topText = NSAttributedString(string: top, attributes: attributes)
-        let bottomText = NSAttributedString(string: bottom, attributes: attributes)
-        let reservedTopText = NSAttributedString(string: reservedTop, attributes: attributes)
-        let reservedBottomText = NSAttributedString(string: reservedBottom, attributes: attributes)
+        let topParts = Self.rowParts(top)
+        let bottomParts = Self.rowParts(bottom)
+        let reservedTopParts = Self.rowParts(reservedTop)
+        let reservedBottomParts = Self.rowParts(reservedBottom)
+        let topMarker = NSAttributedString(string: topParts.marker, attributes: attributes)
+        let bottomMarker = NSAttributedString(string: bottomParts.marker, attributes: attributes)
+        let reservedTopMarker = NSAttributedString(string: reservedTopParts.marker, attributes: attributes)
+        let reservedBottomMarker = NSAttributedString(string: reservedBottomParts.marker, attributes: attributes)
+        let topValue = NSAttributedString(string: topParts.value, attributes: attributes)
+        let bottomValue = NSAttributedString(string: bottomParts.value, attributes: attributes)
+        let reservedTopValue = NSAttributedString(string: reservedTopParts.value, attributes: attributes)
+        let reservedBottomValue = NSAttributedString(string: reservedBottomParts.value, attributes: attributes)
+        let markerWidth = ceil(
+            max(topMarker.size().width, bottomMarker.size().width, reservedTopMarker.size().width,
+                reservedBottomMarker.size().width)
+        )
+        let valueWidth = ceil(
+            max(topValue.size().width, bottomValue.size().width, reservedTopValue.size().width,
+                reservedBottomValue.size().width)
+        )
         let width =
             MenuBarLayoutMetrics.contentInset * 2
-            + ceil(
-                max(
-                    topText.size().width,
-                    bottomText.size().width,
-                    reservedTopText.size().width,
-                    reservedBottomText.size().width
-                )
-            )
+            + markerWidth
+            + valueWidth
 
         return makeImage(width: width, context: context) { _ in
-            topText.draw(
+            topMarker.draw(
                 at: NSPoint(
                     x: MenuBarLayoutMetrics.contentInset,
-                    y: metrics.compactRowY(0, textHeight: topText.size().height)
+                    y: metrics.compactRowY(0, textHeight: max(topMarker.size().height, topValue.size().height))
                 )
             )
-            bottomText.draw(
+            topValue.draw(
+                at: NSPoint(
+                    x: MenuBarLayoutMetrics.contentInset + markerWidth
+                        + Self.trailingOffset(valueWidth: topValue.size().width, reservedWidth: valueWidth),
+                    y: metrics.compactRowY(0, textHeight: max(topMarker.size().height, topValue.size().height))
+                )
+            )
+            bottomMarker.draw(
                 at: NSPoint(
                     x: MenuBarLayoutMetrics.contentInset,
-                    y: metrics.compactRowY(1, textHeight: bottomText.size().height)
+                    y: metrics.compactRowY(1, textHeight: max(bottomMarker.size().height, bottomValue.size().height))
+                )
+            )
+            bottomValue.draw(
+                at: NSPoint(
+                    x: MenuBarLayoutMetrics.contentInset + markerWidth
+                        + Self.trailingOffset(valueWidth: bottomValue.size().width, reservedWidth: valueWidth),
+                    y: metrics.compactRowY(1, textHeight: max(bottomMarker.size().height, bottomValue.size().height))
                 )
             )
         }
+    }
+
+    static func rowParts(_ text: String) -> (marker: String, value: String) {
+        guard let first = text.first, first == "↑" || first == "↓" else {
+            return ("", text)
+        }
+        return (String(first), String(text.dropFirst()))
+    }
+
+    static func trailingOffset(valueWidth: CGFloat, reservedWidth: CGFloat) -> CGFloat {
+        max(0, reservedWidth - valueWidth)
     }
 }
 

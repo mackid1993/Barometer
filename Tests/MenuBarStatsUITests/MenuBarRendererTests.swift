@@ -470,6 +470,27 @@ struct MenuBarRendererTests {
     }
 
     @Test
+    func networkRowsKeepMarkersFixedAndValuesTrailingAligned() {
+        #expect(NetworkRateStackRenderer.rowParts("↑1.2MB/s").marker == "↑")
+        #expect(NetworkRateStackRenderer.rowParts("↑1.2MB/s").value == "1.2MB/s")
+
+        let font = context.font(ofSize: 9, weight: .medium, monospacedDigits: true)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        let shortWidth = NSAttributedString(string: "0.0KB/s", attributes: attributes).size().width
+        let longWidth = NSAttributedString(string: "99.9MB/s", attributes: attributes).size().width
+        let shortOrigin = NetworkRateStackRenderer.trailingOffset(
+            valueWidth: shortWidth,
+            reservedWidth: longWidth
+        )
+        let longOrigin = NetworkRateStackRenderer.trailingOffset(
+            valueWidth: longWidth,
+            reservedWidth: longWidth
+        )
+
+        #expect(abs((shortOrigin + shortWidth) - (longOrigin + longWidth)) < 0.01)
+    }
+
+    @Test
     func sensorStackKeepsStableGeometryAndExpandsByColumns() {
         #expect(SensorStackRenderer.displayLabel("CPU") == "CPU:")
         #expect(SensorStackRenderer.displayLabel("GPU:") == "GPU:")

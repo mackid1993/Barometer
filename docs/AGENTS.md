@@ -170,7 +170,8 @@ accessibility label remain unique child keys. The bundle is the common source-ap
 item independently movable. Prepare exactly the enabled, non-Combined-hidden identities before any item becomes
 visible, then set each `autosaveName` and AX identity synchronously before its first `isVisible` transition. Creating
 disabled hidden AppKit items gives managers persistence slots with no AX children and corrupts their ordinal pairing.
-Newly enabled identities join on the next normal launch. Never delete or rewrite AppKit's preferred-position or
+Create a newly enabled identity once, attach its controller and menu, then make it visible in that order. Never delete
+or rewrite AppKit's preferred-position or
 restore-position defaults. Doing so recycles persistence slots and can make managers pair one Barometer child's
 identity with another.
 

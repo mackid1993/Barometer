@@ -53,6 +53,17 @@ public final class StatusItemRegistry: NSObject {
         items[StatusItemIdentity(module: module, instance: instance)]
     }
 
+    /// Creates one newly enabled child with its complete identity before it can become visible.
+    public func prepareItem(for identity: StatusItemIdentity) -> NSStatusItem {
+        if let statusItem = items[identity] {
+            return statusItem
+        }
+        let statusItem = makeItem(for: identity)
+        items[identity] = statusItem
+        perform(#selector(runIdentitySelfTest), with: nil, afterDelay: 1)
+        return statusItem
+    }
+
     /// Changes a status item's visibility without changing its identity or lifetime.
     public func setVisible(_ isVisible: Bool, for module: ModuleID) {
         guard let statusItem = item(for: module) else {

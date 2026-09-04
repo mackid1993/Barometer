@@ -1797,3 +1797,48 @@ Verification:
 - Bartender's read-only fresh catalog records now pair all six current persistence and AX identities exactly:
   CPU→CPU, GPU→GPU, Memory→Memory, Network→Network, Sensors→Sensors, and Weather→Weather. The manager and its
   preferences were not modified or automated.
+
+### P7-T4 stabilize live Network typography
+
+After the persistence-slot correction, David confirmed every item except Network was stable. Network's saved manager
+position and outer AppKit frame were already fixed; the remaining motion came from transfer strings with changing
+digit counts and units being drawn as complete left-aligned rows.
+
+`NetworkRateStackRenderer` now separates each direction marker from its value. Both arrows use one fixed leading
+coordinate, while both rate strings use one reserved field and share a fixed trailing coordinate. Tabular digits and
+the selected decimal precision remain unchanged. Changing from KB/s to MB/s or from one to two integer digits now
+updates ink inside the field without shifting either anchor or changing the status-item frame.
+
+Verification:
+
+- `swift test` exited 0 and built and linked every test target. New renderer coverage verifies fixed direction-marker
+  parsing and identical trailing coordinates for short and long rate strings.
+- `swift build -c release`, `git diff --check`, and `make install` completed successfully.
+- The installed Network item has matching `Barometer.Network` persistence and AX identities in Bartender's read-only
+  current catalog. Its rendered image and status-item length remain fixed at 50 points while live rates update.
+- Strict code-signature verification passed for `/Applications/Barometer.app`. No notarization ran.
+
+### P7-T4 create newly enabled items live
+
+Restricting launch construction to visible widgets removed phantom persistence slots, but a module that was disabled
+at launch had no status item to show when the user enabled it. The setting took effect only after a relaunch.
+
+The registry now supports one-way, on-demand preparation. When settings enable a new standard module, the coordinator
+creates its status item once, assigns the autosave name and AX identity while hidden, attaches the already-constructed
+dropdown and renderer controller, and then lets the controller render and show it. New Sensors instances use the same
+sequence. Disabling and reenabling an item created in the current process only toggles visibility; no existing item is
+removed or replaced.
+
+David also enabled the Disk activity graph while testing. Barometer's live report identifies the item correctly as
+`Disks`/`Barometer.Disks`, but Bartender's catalog from the earlier broken builds currently joins that AX child to its
+stale `Barometer.Combined` persistence record. This explains why Bartender does not list the graph as Disk; the graph
+renderer itself has fixed geometry. Barometer does not rewrite a manager's private catalog. Live on-demand creation
+prevents new enable operations from introducing another unmatched cold-start slot.
+
+Verification:
+
+- `swift test` exited 0 after the on-demand controller, menu, and registry changes.
+- `swift build -c release` and `make install` completed successfully; nine enabled modules appeared in the installed
+  app's identity report with nonzero immutable lengths.
+- The current Disk item reports the static `Disks` label and `Barometer.Disks` AX identifier. The current Network item
+  reports `Network` and `Barometer.Network` with a 50-point image and status-item length.

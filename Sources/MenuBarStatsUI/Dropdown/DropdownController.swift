@@ -16,6 +16,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     private let logger = Logger(subsystem: "com.barometer.app", category: "dropdown")
     private let hostingView: NSHostingView<AnyView>
     private let contentWidth: CGFloat
+    private let menu: NSMenu
     private var trackingTimer: Timer?
 
     /// Creates and installs a hosted menu for one permanent status item.
@@ -34,12 +35,12 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         self.settingsAction = settingsAction
         self.quitAction = quitAction
         self.contentWidth = contentWidth
+        menu = NSMenu()
         hostingView = NSHostingView(rootView: rootView)
         hostingView.sizingOptions = [.intrinsicContentSize]
         hostingView.frame = NSRect(x: 0, y: 0, width: contentWidth, height: contentHeight)
         super.init()
 
-        let menu = NSMenu()
         menu.delegate = self
         menu.minimumWidth = contentWidth
 
@@ -56,6 +57,11 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         quitItem.target = self
         menu.addItem(quitItem)
         statusItem?.menu = menu
+    }
+
+    /// Attaches this controller's permanent menu to a newly enabled status item.
+    public func attach(statusItem: NSStatusItem) {
+        statusItem.menu = menu
     }
 
     public func menuNeedsUpdate(_ menu: NSMenu) {
