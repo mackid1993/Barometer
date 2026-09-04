@@ -6,12 +6,14 @@ import SystemSources
 private enum ProbeCommand: String {
     case cpu
     case disks
+    case fans
     case freq
     case geocode
     case identity
     case memory
     case net
     case power
+    case smc
     case temps
     case version
     case weather
@@ -238,6 +240,47 @@ private func runIOReportProbe(command: ProbeCommand, watch: Bool) async throws {
     } while watch
 }
 
+private func runSMCListProbe() async throws {
+    let client = try SMCClient()
+    for key in try await client.allKeys() {
+        guard let value = try? await client.read(key) else {
+            print("\(key) unavailable")
+            continue
+        }
+        let decoded: String
+        if let number = value.numericValue {
+            decoded = String(format: "%.4f", number)
+        } else if let string = value.stringValue {
+            decoded = string
+        } else {
+            decoded = value.bytes.map { String(format: "%02x", $0) }.joined()
+        }
+        print("\(key) \(value.metadata.dataType) \(value.metadata.dataSize) \(decoded)")
+    }
+}
+
+private func runFanProbe() async throws {
+    let fans = try await SMCClient().fans()
+    guard !fans.isEmpty else {
+        print("Fans unavailable")
+        return
+    }
+    for fan in fans {
+        let minimum = fan.minimumRPM.map { String(format: "%.0f", $0) } ?? "unavailable"
+        let maximum = fan.maximumRPM.map { String(format: "%.0f", $0) } ?? "unavailable"
+        print(
+            String(
+                format: "%@ (F%d): %.0f RPM, min %@, max %@",
+                fan.name,
+                fan.id,
+                fan.currentRPM,
+                minimum,
+                maximum
+            )
+        )
+    }
+}
+
 private func runGeocodingProbe(query: String) async throws {
     let results = try await OpenMeteoClient().geocode(query)
     for result in results {
@@ -350,8 +393,8 @@ private enum ProbeMain {
         let arguments = Array(CommandLine.arguments.dropFirst())
         guard let commandName = arguments.first, let command = ProbeCommand(rawValue: commandName) else {
             writeError(
-                "usage: mbs-probe <cpu [--watch]|disks [--watch]|freq [--watch]|geocode QUERY|identity|memory|"
-                    + "net [--watch]|power [--watch]|temps|version|weather --lat N --lon N|wifi>"
+                "usage: mbs-probe <cpu [--watch]|disks [--watch]|fans|freq [--watch]|geocode QUERY|identity|"
+                    + "memory|net [--watch]|power [--watch]|smc --list|temps|version|weather --lat N --lon N|wifi>"
             )
             exit(EXIT_FAILURE)
         }
@@ -370,6 +413,12 @@ private enum ProbeMain {
                     exit(EXIT_FAILURE)
                 }
                 try await runDiskProbe(watch: arguments.count == 2)
+            case .fans:
+                guard arguments.count == 1 else {
+                    writeError("usage: mbs-probe fans")
+                    exit(EXIT_FAILURE)
+                }
+                try await runFanProbe()
             case .freq:
                 guard arguments.count == 1 || arguments == ["freq", "--watch"] else {
                     writeError("usage: mbs-probe freq [--watch]")
@@ -406,6 +455,12 @@ private enum ProbeMain {
                     exit(EXIT_FAILURE)
                 }
                 try await runIOReportProbe(command: command, watch: arguments.count == 2)
+            case .smc:
+                guard arguments == ["smc", "--list"] else {
+                    writeError("usage: mbs-probe smc --list")
+                    exit(EXIT_FAILURE)
+                }
+                try await runSMCListProbe()
             case .temps:
                 guard arguments.count == 1 else {
                     writeError("usage: mbs-probe temps")

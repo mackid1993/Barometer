@@ -141,3 +141,32 @@ import Testing
     #expect(snapshot.power.allSatisfy { $0.watts >= 0 && $0.watts.isFinite })
     #expect(snapshot.frequencies.allSatisfy { (0...100).contains($0.activePercent) })
 }
+
+@Test func smcDecodesIntegerFloatAndFixedPointTypes() {
+    #expect(SMCClient.decodeNumeric(bytes: [0x2a], dataType: "ui8 ") == 42)
+    #expect(SMCClient.decodeNumeric(bytes: [0x12, 0x34], dataType: "ui16") == 4_660)
+    #expect(SMCClient.decodeNumeric(bytes: [0, 0, 0x0d, 0x86], dataType: "ui32") == 3_462)
+    #expect(SMCClient.decodeNumeric(bytes: [0, 0, 0x18, 0x41], dataType: "flt ") == 9.5)
+    #expect(SMCClient.decodeNumeric(bytes: [0x13, 0x88], dataType: "fpe2") == 1_250)
+    #expect(SMCClient.decodeNumeric(bytes: [0x19, 0x80], dataType: "sp78") == 25.5)
+    #expect(SMCClient.decodeNumeric(bytes: [0xfe, 0x80], dataType: "sp78") == -1.5)
+    #expect(SMCClient.decodeNumeric(bytes: [0x06, 0x00], dataType: "fp2e") == 0.09375)
+}
+
+@Test func smcDecodesFourCharacterKeysAndDescriptions() {
+    let code = SMCClient.code(for: "F0Ac")
+
+    #expect(code.map(SMCClient.key(from:)) == "F0Ac")
+    #expect(SMCClient.code(for: "bad") == nil)
+    #expect(SMCClient.decodeString(bytes: [0, 0, 0, 0] + Array("Left fan\0".utf8), dataType: "{fds") == "Left fan")
+}
+
+@Test func smcEnumeratesKeysAndReadsFans() async throws {
+    let client = try SMCClient()
+    let keys = try await client.allKeys()
+    let fans = try await client.fans()
+
+    #expect(keys.count > 100)
+    #expect(keys.contains("#KEY"))
+    #expect(fans.allSatisfy { $0.currentRPM >= 0 })
+}

@@ -998,3 +998,26 @@ Verification:
 - `nm .build/debug/mbs-probe | grep -c IOReport` returned 465, confirming the bridge and source are present in the
   linked probe despite runtime resolution. `git diff --check` passed, and all changed Swift files stay within 120
   columns.
+
+## P4-T4 SMC source
+
+Added an original actor-isolated AppleSMC client that opens the standard user client without privileges and exposes
+only metadata, index enumeration, and byte-read commands. The C ABI intentionally contains no write command. Key
+metadata is cached by four-character code; full key enumeration and the runtime-curated list of numeric temperature,
+power, current, and voltage sensors are each cached for the connection lifetime.
+
+The value model preserves raw bytes and type metadata while decoding big-endian unsigned integers, little-endian
+floats, unsigned fan fixed point, generic signed and unsigned 16-bit fixed point, fan descriptions, and character
+arrays. Fan discovery uses the reported `FNum` count and reads current/minimum/maximum speeds without changing modes
+or targets. `mbs-probe smc --list` and `mbs-probe fans` expose the source for testing and future hardware reports.
+
+Verification:
+
+- `swift test --filter SMC` rebuilt and linked the decoder and live-hardware tests and exited 0. Coverage includes
+  integer, float, signed/unsigned fixed-point, string, four-character-code, key enumeration, and fan paths.
+- `swift run mbs-probe smc --list | wc -l` returned 3,462 keys, well above the plan's 100-key threshold.
+- The live SMC probe reported two fans around 1,350 and 1,460 RPM, with 1,350 RPM minima and 5,777 RPM maxima.
+- Read-only power keys included `PSTR` at 28.67 W, `PZC0` at 9.32 W, `PZC1` at 12.49 W, and charger power `PHPC`
+  at 8.25 W during the sample. These remain raw runtime-discovered sensors; no Mac model or count selects them.
+- `rg` confirmed no SMC write command or write method exists in the bridge or source. `swift build`,
+  `git diff --check`, and the 120-column check passed.
