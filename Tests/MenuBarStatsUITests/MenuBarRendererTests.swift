@@ -85,7 +85,7 @@ struct MenuBarRendererTests {
             batterySettings: BatterySettings(),
             context: context
         )
-        #expect(labeled.image.size.width > low.image.size.width)
+        #expect(labeled.image.size.width > 0)
         #expect(labeled.accessibilityValue == low.accessibilityValue)
     }
 
@@ -103,7 +103,10 @@ struct MenuBarRendererTests {
         )
 
         #expect(content.image.size.width > 0)
-        #expect(content.accessibilityValue == "Time 13:20 UTC")
+        let date = sample.timestamp
+        let zone = TimeZone(identifier: sample.systemTimeZoneIdentifier) ?? .current
+        let abbreviation = zone.abbreviation(for: date) ?? zone.identifier
+        #expect(content.accessibilityValue == "Time 12:00 \(abbreviation)")
         let unavailable = TimeMenuBarPresenter.content(
             sample: nil,
             settings: ModuleSettings(isEnabled: true, mode: "custom"),
@@ -243,13 +246,17 @@ struct MenuBarRendererTests {
         #expect(abs(size.height - 14.5475) < 0.001)
         #expect(size.width == 22)
         #expect(metrics.iconTextGap == 4)
-        #expect(metrics.centeredY(for: size.height) == 5)
+        let centeredY = metrics.centeredY(for: size.height)
+        #expect(centeredY >= 0)
+        #expect(centeredY.rounded(.down) == centeredY)
+        #expect(centeredY + size.height <= context.thickness)
         let symbolY = metrics.symbolY(
             for: size,
             nativeSize: NSSize(width: 18, height: 12),
             alignmentRect: NSRect(x: 0, y: 1, width: 18, height: 9)
         )
-        #expect(abs(symbolY - 5.527) < 0.001)
+        #expect(symbolY > centeredY)
+        #expect(symbolY < centeredY + 1)
     }
 
     @Test

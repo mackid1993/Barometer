@@ -16,7 +16,8 @@ struct TimeTests {
             locale: Locale(identifier: "en_US_POSIX")
         )
 
-        #expect(rendered == "Mon Jan 1 13:20 W01 D001 UTC")
+        let abbreviation = zone.abbreviation(for: date) ?? zone.identifier
+        #expect(rendered == "Mon Jan 1 12:00 W01 D001 \(abbreviation)")
     }
 
     @Test("seconds preference controls the default clock token")
@@ -24,20 +25,20 @@ struct TimeTests {
         let date = Date(timeIntervalSince1970: 1_704_110_400)
         let zone = try #require(TimeZone(identifier: "America/New_York"))
 
-        #expect(TimeFormatEngine.render(
+        #expect(normalizedWhitespace(TimeFormatEngine.render(
             date: date,
             timeZone: zone,
             template: "{time}",
             showsSeconds: false,
             locale: Locale(identifier: "en_US_POSIX")
-        ) == "8:20 AM")
-        #expect(TimeFormatEngine.render(
+        )) == "7:00 AM")
+        #expect(normalizedWhitespace(TimeFormatEngine.render(
             date: date,
             timeZone: zone,
             template: "{time}",
             showsSeconds: true,
             locale: Locale(identifier: "en_US_POSIX")
-        ) == "8:20:00 AM")
+        )) == "7:00:00 AM")
     }
 
     @Test("time settings normalize world clock identifiers")
@@ -52,5 +53,11 @@ struct TimeTests {
     func minuteAlignment() {
         let date = Date(timeIntervalSinceReferenceDate: 3_612.25)
         #expect(abs(TimeMonitor.secondsUntilNextMinute(date: date) - 47.75) < 0.001)
+    }
+
+    private func normalizedWhitespace(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\u{00A0}", with: " ")
+            .replacingOccurrences(of: "\u{202F}", with: " ")
     }
 }

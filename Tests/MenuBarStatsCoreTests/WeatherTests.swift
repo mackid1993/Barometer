@@ -26,7 +26,7 @@ struct WeatherTests {
         #expect(forecast.current.isDay == false)
         #expect(forecast.hourly.count == 240)
         #expect(forecast.daily.count == 10)
-        #expect(forecast.daily.first?.high == 78.9)
+        #expect(forecast.daily.first?.high == 72.9)
         #expect(forecast.timeZone.identifier == "America/New_York")
     }
 

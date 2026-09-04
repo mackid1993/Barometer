@@ -2003,3 +2003,24 @@ Verification:
   Tools fallback.
 - The manual `Build macOS` workflow was dispatched with version 1.0.0 and notarization disabled after the fix was
   pushed.
+
+### CI-T2 make the test suite portable across macOS runners
+
+GitHub's Apple Silicon runner executes Swift Testing tests that the local Command Line Tools installation currently
+only builds. That exposed several assumptions tied to one physical Mac and SDK: live SMC, HID, IOReport, and GPU
+interfaces were treated as universally available; time assertions used stale epoch expectations; one weather fixture
+expected a value that was no longer in its JSON; one decimal tie depended on platform rounding; and AppKit tests
+required exact SF Symbol geometry from a different SDK.
+
+Live hardware smoke tests now retain their validation on supported Macs and exit cleanly when the source's public
+availability check says the interface is absent. Time and fixture assertions use their actual deterministic inputs.
+Network rate rounding is explicitly nearest with ties away from zero. Scheduler coverage waits until its actor has
+recorded the final sleep, and UI coverage verifies stable layout invariants without freezing one SDK's private font
+and symbol measurements into the test suite.
+
+Verification:
+
+- `swift test` built every test target successfully with the local Command Line Tools installation.
+- `swift build -c release` and `git diff --check` completed successfully.
+- GitHub Actions run 33870340413 stamped version 1.0.0 and exposed the portability failures before signing; its
+  signing and notarization steps were therefore correctly skipped.

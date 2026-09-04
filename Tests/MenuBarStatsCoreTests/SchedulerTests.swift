@@ -14,6 +14,7 @@ struct SchedulerTests {
 
         await scheduler.start()
         let sample = await iterator.next()
+        await waitForSleeps(3, from: clock)
         await scheduler.stop()
 
         #expect(sample == 3)
@@ -38,6 +39,15 @@ struct SchedulerTests {
     private func waitForSamples(_ count: Int, from monitor: CountingMonitor) async {
         for _ in 0..<10_000 {
             if await monitor.sampleCount() >= count {
+                return
+            }
+            await Task.yield()
+        }
+    }
+
+    private func waitForSleeps(_ count: Int, from clock: RecordingClock) async {
+        for _ in 0..<10_000 {
+            if await clock.recordedDurations().count >= count {
                 return
             }
             await Task.yield()

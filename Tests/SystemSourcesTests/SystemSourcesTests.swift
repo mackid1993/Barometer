@@ -103,7 +103,11 @@ import Testing
 }
 
 @Test func hidTemperatureSourceReadsValidHardwareSensors() async throws {
-    let readings = try await HIDTemperatureSource().read()
+    let source = HIDTemperatureSource()
+    guard await source.isAvailable else {
+        return
+    }
+    let readings = try await source.read()
 
     #expect(!readings.isEmpty)
     #expect(readings.allSatisfy { $0.celsius > 0 && $0.celsius <= 125 })
@@ -151,6 +155,9 @@ import Testing
 }
 
 @Test func ioReportReadsRuntimeDiscoveredChannels() async throws {
+    guard IOReportSource.isAvailable else {
+        return
+    }
     let source = try IOReportSource()
     let snapshot = try await source.sample(over: .milliseconds(50))
 
@@ -192,7 +199,11 @@ import Testing
 }
 
 @Test func gpuAcceleratorReadsLivePerformanceStatistics() throws {
-    let snapshots = try GPUAcceleratorSource().read()
+    let source = GPUAcceleratorSource()
+    guard source.isAvailable else {
+        return
+    }
+    let snapshots = try source.read()
 
     #expect(!snapshots.isEmpty)
     #expect(snapshots.allSatisfy { (0...100).contains($0.deviceUtilizationPercent) })
@@ -224,6 +235,9 @@ import Testing
 }
 
 @Test func smcEnumeratesKeysAndReadsFans() async throws {
+    guard SMCClient.isAvailable else {
+        return
+    }
     let client = try SMCClient()
     let keys = try await client.allKeys()
     let fans = try await client.fans()
