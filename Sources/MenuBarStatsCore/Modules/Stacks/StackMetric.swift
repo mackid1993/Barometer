@@ -1,0 +1,146 @@
+import Foundation
+
+/// One reading a stack can show in the menu bar.
+///
+/// A stack composes readings rather than whole module presentations, so a single independently
+/// movable item can mix CPU, memory, network, and power the way the Sensors compact stack already
+/// mixes temperatures and fans. Raw values are persisted and must never change.
+public enum StackMetric: String, CaseIterable, Codable, Hashable, Sendable {
+    case cpuTotal = "cpu.total"
+    case cpuUser = "cpu.user"
+    case cpuSystem = "cpu.system"
+    case cpuIdle = "cpu.idle"
+    case cpuLoad = "cpu.load"
+
+    case gpuUtilization = "gpu.utilization"
+    case gpuPower = "gpu.power"
+    case gpuTemperature = "gpu.temperature"
+
+    case memoryUsedPercent = "memory.usedPercent"
+    case memoryUsedBytes = "memory.usedBytes"
+    case memoryFreeBytes = "memory.freeBytes"
+    case memoryPressure = "memory.pressure"
+    case memorySwap = "memory.swap"
+
+    case diskRead = "disks.read"
+    case diskWrite = "disks.write"
+    case diskUsedPercent = "disks.usedPercent"
+    case diskFreeBytes = "disks.freeBytes"
+
+    case networkDownload = "network.download"
+    case networkUpload = "network.upload"
+
+    case sensorsHottest = "sensors.hottest"
+    case sensorsFan = "sensors.fan"
+
+    case batteryCharge = "battery.charge"
+    case batteryTime = "battery.time"
+
+    case weatherTemperature = "weather.temperature"
+
+    case timeClock = "time.clock"
+
+    /// The module that samples this reading.
+    ///
+    /// A stack keeps its source module's scheduler running and takes its color from the module,
+    /// so every metric must name exactly one owner.
+    public var module: ModuleID {
+        switch self {
+        case .cpuTotal, .cpuUser, .cpuSystem, .cpuIdle, .cpuLoad: .cpu
+        case .gpuUtilization, .gpuPower, .gpuTemperature: .gpu
+        case .memoryUsedPercent, .memoryUsedBytes, .memoryFreeBytes, .memoryPressure, .memorySwap: .memory
+        case .diskRead, .diskWrite, .diskUsedPercent, .diskFreeBytes: .disks
+        case .networkDownload, .networkUpload: .network
+        case .sensorsHottest, .sensorsFan: .sensors
+        case .batteryCharge, .batteryTime: .battery
+        case .weatherTemperature: .weather
+        case .timeClock: .time
+        }
+    }
+
+    /// Short menu bar label drawn above or beside the value.
+    public var label: String {
+        switch self {
+        case .cpuTotal: "CPU"
+        case .cpuUser: "USR"
+        case .cpuSystem: "SYS"
+        case .cpuIdle: "IDLE"
+        case .cpuLoad: "LOAD"
+        case .gpuUtilization: "GPU"
+        case .gpuPower: "GPUW"
+        case .gpuTemperature: "GPU°"
+        case .memoryUsedPercent: "MEM"
+        case .memoryUsedBytes: "USED"
+        case .memoryFreeBytes: "FREE"
+        case .memoryPressure: "PRES"
+        case .memorySwap: "SWAP"
+        case .diskRead: "READ"
+        case .diskWrite: "WRIT"
+        case .diskUsedPercent: "DISK"
+        case .diskFreeBytes: "DFRE"
+        case .networkDownload: "DOWN"
+        case .networkUpload: "UP"
+        case .sensorsHottest: "TEMP"
+        case .sensorsFan: "FAN"
+        case .batteryCharge: "BAT"
+        case .batteryTime: "TIME"
+        case .weatherTemperature: "OUT"
+        case .timeClock: "CLOCK"
+        }
+    }
+
+    /// Full name shown when choosing metrics in Settings.
+    public var displayName: String {
+        switch self {
+        case .cpuTotal: "CPU usage"
+        case .cpuUser: "CPU user"
+        case .cpuSystem: "CPU system"
+        case .cpuIdle: "CPU idle"
+        case .cpuLoad: "Load average"
+        case .gpuUtilization: "GPU usage"
+        case .gpuPower: "GPU power"
+        case .gpuTemperature: "GPU temperature"
+        case .memoryUsedPercent: "Memory used"
+        case .memoryUsedBytes: "Memory used bytes"
+        case .memoryFreeBytes: "Memory free bytes"
+        case .memoryPressure: "Memory pressure"
+        case .memorySwap: "Swap used"
+        case .diskRead: "Disk read rate"
+        case .diskWrite: "Disk write rate"
+        case .diskUsedPercent: "Disk used"
+        case .diskFreeBytes: "Disk free"
+        case .networkDownload: "Network download"
+        case .networkUpload: "Network upload"
+        case .sensorsHottest: "Hottest temperature"
+        case .sensorsFan: "Fan speed"
+        case .batteryCharge: "Battery charge"
+        case .batteryTime: "Battery time remaining"
+        case .weatherTemperature: "Outside temperature"
+        case .timeClock: "Clock"
+        }
+    }
+
+    /// Metrics grouped by owning module in a stable order for the Settings picker.
+    public static var byModule: [(module: ModuleID, metrics: [StackMetric])] {
+        ModuleID.allCases.compactMap { module in
+            let metrics = StackMetric.allCases.filter { $0.module == module }
+            return metrics.isEmpty ? nil : (module, metrics)
+        }
+    }
+
+    /// The metric a module contributes when an older Combined membership is migrated.
+    public static func primary(for module: ModuleID) -> StackMetric? {
+        switch module {
+        case .cpu: .cpuTotal
+        case .gpu: .gpuUtilization
+        case .memory: .memoryUsedPercent
+        case .disks: .diskRead
+        case .network: .networkDownload
+        case .sensors: .sensorsHottest
+        case .battery: .batteryCharge
+        case .weather: .weatherTemperature
+        case .time: .timeClock
+        case .combined: nil
+        }
+    }
+}

@@ -1,11 +1,12 @@
 import MenuBarStatsCore
 import SwiftUI
 
-/// Tabbed current-value dashboard for modules included in Combined.
+/// Tabbed current-value dashboard for the modules one stack draws from.
 public struct CombinedDropdownView: View {
     /// Fixed hosted content width; height follows the content.
     public static let contentSize = CGSize(width: 380, height: 440)
 
+    private let stackID: Int
     private let cpuStore: ModuleStore<CPUSample>
     private let memoryStore: ModuleStore<MemorySample>
     private let gpuStore: ModuleStore<GPUSample>
@@ -18,8 +19,9 @@ public struct CombinedDropdownView: View {
     private let settingsStore: SettingsStore
     @State private var selection: ModuleID = .cpu
 
-    /// Creates a Combined dropdown over existing module stores.
+    /// Creates a stack dropdown over existing module stores.
     public init(
+        stackID: Int,
         cpuStore: ModuleStore<CPUSample>,
         memoryStore: ModuleStore<MemorySample>,
         gpuStore: ModuleStore<GPUSample>,
@@ -31,6 +33,7 @@ public struct CombinedDropdownView: View {
         timeStore: ModuleStore<TimeSample>,
         settingsStore: SettingsStore
     ) {
+        self.stackID = stackID
         self.cpuStore = cpuStore
         self.memoryStore = memoryStore
         self.gpuStore = gpuStore
@@ -43,8 +46,18 @@ public struct CombinedDropdownView: View {
         self.settingsStore = settingsStore
     }
 
+    /// Source modules of the stack's metrics, in metric order and without repeats.
+    private var members: [ModuleID] {
+        guard let stack = settingsStore.settings.stacks.stack(id: stackID) else {
+            return []
+        }
+        var seen: Set<ModuleID> = []
+        return stack.metrics.map(\.module).filter { seen.insert($0).inserted }
+    }
+
     public var body: some View {
-        let members = settingsStore.settings.combined.members
+        let members = members
+        let stack = settingsStore.settings.stacks.stack(id: stackID)
         let selected = members.contains(selection) ? selection : members.first
         let accent = ModuleAccent.resolve(settingsStore.settings, module: .combined)
         let selectedAccent = selected.map { ModuleAccent.resolve(settingsStore.settings, module: $0) } ?? accent
@@ -53,8 +66,8 @@ public struct CombinedDropdownView: View {
             HStack(spacing: 12) {
                 IconTile(symbolName: "rectangle.3.group.fill", accent: accent)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Combined").font(BarometerDesign.titleFont)
-                    Text("\(members.count) modules")
+                    Text(stack?.settingsName ?? "Stack").font(BarometerDesign.titleFont)
+                    Text("\(stack?.metrics.count ?? 0) readings")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -88,9 +101,9 @@ public struct CombinedDropdownView: View {
             } else {
                 GlassCard {
                     ContentUnavailableView(
-                        "No included modules",
+                        "No readings",
                         systemImage: "rectangle.3.group",
-                        description: Text("Add modules in Combined settings.")
+                        description: Text("Add readings in Stacks settings.")
                     )
                 }
             }
@@ -105,7 +118,7 @@ public struct CombinedDropdownView: View {
 
     private func selectionBinding(fallback: ModuleID) -> Binding<ModuleID> {
         Binding(
-            get: { settingsStore.settings.combined.members.contains(selection) ? selection : fallback },
+            get: { members.contains(selection) ? selection : fallback },
             set: { selection = $0 })
     }
 

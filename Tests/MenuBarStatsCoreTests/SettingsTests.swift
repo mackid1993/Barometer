@@ -50,7 +50,7 @@ struct SettingsTests {
 
     @Test("supported battery presentations survive settings decoding")
     func preservesSupportedBatteryPresentations() throws {
-        for mode in ["glyphPercentage", "labeledPercentage", "percentageTime", "labeledTime", "glyphTime"] {
+        for mode in ["glyphPercentage", "labeledPercentage", "percentageTime", "labeledTime"] {
             var settings = AppSettings()
             settings.modules[.battery]?.mode = mode
 
@@ -475,10 +475,10 @@ struct SettingsTests {
         #expect(!store.hasPendingMenuBarChanges)
     }
 
-    @Test("Combined topology remains pending until applied")
+    @Test("stack topology remains pending until applied")
     @MainActor
-    func stagesCombinedTopology() {
-        let suiteName = "com.barometer.app.Tests.PendingCombinedTopology"
+    func stagesStackTopology() {
+        let suiteName = "com.barometer.app.Tests.PendingStackTopology"
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
         defer {
@@ -486,17 +486,67 @@ struct SettingsTests {
         }
 
         let store = SettingsStore(defaults: defaults)
-        let savedMembers = store.settings.combined.members
-        store.stageCombinedMembers([.cpu, .weather])
-        store.stageCombinedHidesIndividualMembers(false)
+        let savedMetrics = store.settings.stacks.stack(id: 1)?.metrics
+        store.stageStackMetrics([.cpuTotal, .batteryTime], for: 1)
+        store.stageStackHidesSourceItems(true, for: 1)
+        store.stageStackVisibility(false, for: 1)
 
-        #expect(store.settings.combined.members == savedMembers)
-        #expect(store.settingsIncludingPendingMenuBarChanges.combined.members == [.cpu, .weather])
-        #expect(store.settingsIncludingPendingMenuBarChanges.combined.hidesIndividualMembers == false)
+        #expect(store.hasPendingMenuBarChanges)
+        #expect(store.settings.stacks.stack(id: 1)?.metrics == savedMetrics)
+        let staged = store.settingsIncludingPendingMenuBarChanges.stacks.stack(id: 1)
+        #expect(staged?.metrics == [.cpuTotal, .batteryTime])
+        #expect(staged?.hidesSourceItems == true)
+        #expect(staged?.isEnabled == false)
 
         store.applyPendingMenuBarChanges()
 
-        #expect(store.settings.combined.members == [.cpu, .weather])
-        #expect(store.settings.combined.hidesIndividualMembers == false)
+        #expect(!store.hasPendingMenuBarChanges)
+        #expect(store.settings.stacks.stack(id: 1)?.metrics == [.cpuTotal, .batteryTime])
+        #expect(store.settings.stacks.stack(id: 1)?.hidesSourceItems == true)
+        #expect(store.settings.stacks.stack(id: 1)?.isEnabled == false)
+    }
+
+    @Test("settings written before stacks shipped migrate Combined into stack 1")
+    func migratesCombinedSettingsIntoStacks() throws {
+        var settings = AppSettings()
+        settings.combined = CombinedSettings(members: [.cpu, .gpu], hidesIndividualMembers: true)
+        var object = try JSONSerialization.jsonObject(
+            with: try JSONEncoder().encode(settings)
+        ) as! [String: Any]
+        object.removeValue(forKey: "stacks")
+
+        let decoded = try JSONDecoder().decode(
+            AppSettings.self,
+            from: try JSONSerialization.data(withJSONObject: object)
+        )
+
+        #expect(decoded.stacks.stacks.count == 1)
+        #expect(decoded.stacks.stack(id: 1)?.metrics == [.cpuTotal, .gpuUtilization])
+        #expect(decoded.stacks.stack(id: 1)?.hidesSourceItems == true)
+    }
+
+    @Test("every enabled stack counts toward the automatic menu bar sizing budget")
+    func stacksCountTowardItemBudget() {
+        var settings = AppSettings()
+        settings.modules[.cpu]?.isEnabled = true
+        settings.modules[.memory]?.isEnabled = true
+        settings.modules[.combined]?.isEnabled = false
+        let withoutStacks = settings.enabledMenuBarItemCount
+
+        settings.modules[.combined]?.isEnabled = true
+        settings.stacks = StacksSettings(stacks: [
+            StackSettings(id: 1, metrics: [.cpuTotal]),
+            StackSettings(id: 2, metrics: [.memoryUsedPercent]),
+            StackSettings(id: 3, isEnabled: false, metrics: [.gpuUtilization]),
+        ])
+        // No cap: the count follows whatever the user created.
+        #expect(settings.stacks.stacks.count == 3)
+
+        // Two enabled stacks add two items; the disabled tombstone adds none.
+        #expect(settings.enabledMenuBarItemCount == withoutStacks + 2)
+
+        // A stack that replaces its source items removes them from the budget again.
+        settings.stacks.stacks[0].hidesSourceItems = true
+        #expect(settings.enabledMenuBarItemCount == withoutStacks + 1)
     }
 }

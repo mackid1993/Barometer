@@ -30,7 +30,10 @@ public enum ModuleID: String, CaseIterable, Codable, Hashable, Sendable {
     /// The permanent autosave name for a one-based module instance.
     public func autosaveName(instance: Int) -> String {
         precondition(instance > 0)
-        precondition(instance == 1 || self == .sensors || self == .weather)
+        // Sensors widgets, extra Weather locations, and stacks are the only multi-instance modules.
+        // Stack 1 keeps the original `Barometer.Combined` name so an upgrading user's item keeps
+        // its saved menu bar position.
+        precondition(instance == 1 || self == .sensors || self == .weather || self == .combined)
         return instance == 1 ? autosaveName : "\(autosaveName).\(instance)"
     }
 
@@ -61,10 +64,10 @@ public struct StatusItemIdentity: Hashable, Sendable {
     public let module: ModuleID
     public let instance: Int
 
-    /// Creates a status-item identity. Only Sensors and Weather support extra instances.
+    /// Creates a status-item identity. Only Sensors, Weather, and stacks support extra instances.
     public init(module: ModuleID, instance: Int = 1) {
         precondition(instance > 0)
-        precondition(instance == 1 || module == .sensors || module == .weather)
+        precondition(instance == 1 || module == .sensors || module == .weather || module == .combined)
         self.module = module
         self.instance = instance
     }

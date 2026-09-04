@@ -29,6 +29,9 @@ public final class StatusItemRegistry: NSObject {
                     .filter(\.isEnabled)
                     .map { StatusItemIdentity(module: .sensors, instance: $0.id) }
             }
+            if module == .combined {
+                return settings.enabledStacks.map { StatusItemIdentity(module: .combined, instance: $0.id) }
+            }
             return [StatusItemIdentity(module: module)]
         }
     }
@@ -78,11 +81,7 @@ public final class StatusItemRegistry: NSObject {
         guard settings.modules[module]?.isEnabled == true else {
             return false
         }
-        let combinedEnabled = settings.modules[.combined]?.isEnabled == true
-        return module == .combined
-            || !combinedEnabled
-            || !settings.combined.hidesIndividualMembers
-            || !settings.combined.members.contains(module)
+        return module == .combined || !settings.hiddenBySourceStacks.contains(module)
     }
 
     private func makeItem(for identity: StatusItemIdentity) -> NSStatusItem {

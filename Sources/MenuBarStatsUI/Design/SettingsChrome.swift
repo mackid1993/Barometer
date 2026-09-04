@@ -154,7 +154,7 @@ extension View {
     func settingsPane(module: ModuleID, settings: AppSettings, preview: NSImage? = nil) -> some View {
         settingsPane(
             symbolName: module.symbolName,
-            title: module.displayName,
+            title: module.settingsTitle,
             subtitle: module.settingsSubtitle,
             accent: ModuleAccent.resolve(settings, module: module),
             preview: preview
@@ -191,7 +191,7 @@ extension ModuleID {
         case .battery: "Charge, health, adapter, and Bluetooth batteries."
         case .weather: "Conditions and forecasts from Open-Meteo."
         case .time: "Clock format, world clocks, and calendar events."
-        case .combined: "Several modules inside one movable menu bar item."
+        case .combined: "Readings from any module inside independently movable items."
         }
     }
 }

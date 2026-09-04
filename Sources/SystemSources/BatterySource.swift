@@ -155,7 +155,10 @@ public struct BatterySource: Sendable {
             ?? Self.unsignedInteger(packData["Amperage"])
         let amperageAmps = rawAmperage.map { Double(Self.signedMilliamps(raw: $0)) / 1_000 }
         let voltageVolts = voltageMillivolts.map { $0 / 1_000 }
-        let adapter = Self.adapter(from: Self.dictionary(detail["AdapterDetails"]))
+        // Nothing is plugged in unless the power source says so, whatever the registry still holds.
+        let adapter = isExternalConnected
+            ? Self.adapter(from: Self.dictionary(detail["AdapterDetails"]))
+            : nil
 
         // The public summary is authoritative when it has an estimate. AppleSmartBattery's running
         // averages are the fallback, and both publish sentinels rather than omitting the key while
@@ -300,11 +303,21 @@ public struct BatterySource: Sendable {
         guard let values else {
             return nil
         }
+        // AppleSmartBattery keeps publishing an AdapterDetails dictionary with nothing in it but a
+        // zero FamilyCode after the adapter is unplugged. Reporting that as an adapter made the
+        // dropdown claim a wired connection that does not exist.
+        let name = string(values["Name"])
+        let description = string(values["Description"])
+        let watts = double(values["Watts"])
+        let isWireless = bool(values["IsWireless"])
+        guard name != nil || description != nil || watts != nil || isWireless != nil else {
+            return nil
+        }
         return PowerAdapterSnapshot(
-            name: string(values["Name"]),
-            description: string(values["Description"]),
-            watts: double(values["Watts"]),
-            isWireless: bool(values["IsWireless"])
+            name: name,
+            description: description,
+            watts: watts,
+            isWireless: isWireless
         )
     }
 

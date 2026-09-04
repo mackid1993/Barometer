@@ -224,7 +224,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var time: TimeSettings
 
     /// Ordered composition and individual-item visibility for Combined.
+    ///
+    /// Superseded by `stacks`. Retained so settings written before stacks shipped still decode and
+    /// can be migrated; nothing renders from it.
     public var combined: CombinedSettings
+
+    /// Independently movable metric stacks, including disabled tombstones.
+    public var stacks: StacksSettings
 
     /// Version of one-time default presentation migrations already applied.
     public private(set) var presentationDefaultsVersion: Int
@@ -257,7 +263,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         disks: DiskSettings = DiskSettings(),
         battery: BatterySettings = BatterySettings(),
         time: TimeSettings = TimeSettings(),
-        combined: CombinedSettings = CombinedSettings()
+        combined: CombinedSettings = CombinedSettings(),
+        stacks: StacksSettings = StacksSettings()
     ) {
         self.schemaVersion = schemaVersion
         self.reducesSamplingOnBattery = reducesSamplingOnBattery
@@ -286,6 +293,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.battery = battery
         self.time = time
         self.combined = combined
+        self.stacks = stacks
         presentationDefaultsVersion = 3
     }
 
@@ -336,6 +344,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case battery
         case time
         case combined
+        case stacks
         case presentationDefaultsVersion
     }
 
@@ -377,6 +386,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
             battery = BatterySettings()
             time = TimeSettings()
             combined = CombinedSettings()
+            stacks = StacksSettings()
             presentationDefaultsVersion = 3
         case 1...Self.currentSchemaVersion:
             schemaVersion = Self.currentSchemaVersion
@@ -446,6 +456,14 @@ public struct AppSettings: Codable, Equatable, Sendable {
             battery = try container.decodeIfPresent(BatterySettings.self, forKey: .battery) ?? BatterySettings()
             time = try container.decodeIfPresent(TimeSettings.self, forKey: .time) ?? TimeSettings()
             combined = try container.decodeIfPresent(CombinedSettings.self, forKey: .combined) ?? CombinedSettings()
+            // Settings written before stacks shipped carry only Combined. Its membership becomes
+            // stack 1 so the existing Barometer.Combined item keeps its position and contents.
+            stacks =
+                try container.decodeIfPresent(StacksSettings.self, forKey: .stacks)
+                ?? StacksSettings.migrating(
+                    from: combined,
+                    isCombinedEnabled: modules[.combined]?.isEnabled == true
+                )
             presentationDefaultsVersion =
                 try container.decodeIfPresent(
                     Int.self,
@@ -484,7 +502,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
             }
             if let batteryMode = modules[.battery]?.mode {
                 switch batteryMode {
-                case "glyphPercentage", "labeledPercentage", "labeledTime", "percentageTime", "glyphTime": break
+                case "glyphPercentage", "labeledPercentage", "labeledTime", "percentageTime": break
+                // The icon-and-time line was too cramped to read; its users keep the time as a
+                // second row instead.
+                case "glyphTime": modules[.battery]?.mode = "percentageTime"
                 case "percentage": modules[.battery]?.mode = "labeledPercentage"
                 default: modules[.battery]?.mode = "glyphPercentage"
                 }
@@ -506,22 +527,34 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
     /// Number of independently movable Barometer items requested by the current settings.
     public var enabledMenuBarItemCount: Int {
-        let combinedEnabled = modules[.combined]?.isEnabled == true
-        let hidesCombinedMembers = combinedEnabled && combined.hidesIndividualMembers
-        var count = combinedEnabled ? 1 : 0
+        var count = enabledStacks.count
+        let hidden = hiddenBySourceStacks
 
         for module in ModuleID.allCases where module != .combined && module != .sensors {
-            let hiddenByCombined = hidesCombinedMembers && combined.members.contains(module)
-            if modules[module]?.isEnabled == true && !hiddenByCombined {
+            if modules[module]?.isEnabled == true && !hidden.contains(module) {
                 count += 1
             }
         }
 
-        let sensorsHiddenByCombined = hidesCombinedMembers && combined.members.contains(.sensors)
-        if modules[.sensors]?.isEnabled == true && !sensorsHiddenByCombined {
+        if modules[.sensors]?.isEnabled == true && !hidden.contains(.sensors) {
             count += sensors.widgets.count(where: \.isEnabled)
         }
         return count
+    }
+
+    /// Whether the stacks master switch is on.
+    public var areStacksEnabled: Bool {
+        modules[.combined]?.isEnabled == true
+    }
+
+    /// Stacks that currently own an independently movable status item.
+    public var enabledStacks: [StackSettings] {
+        areStacksEnabled ? stacks.stacks.filter(\.isEnabled) : []
+    }
+
+    /// Modules whose individual status items an enabled stack replaces.
+    public var hiddenBySourceStacks: Set<ModuleID> {
+        areStacksEnabled ? stacks.hiddenSourceModules : []
     }
 
     /// Automatic font size selected from the number of independently movable widgets.

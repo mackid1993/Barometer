@@ -66,7 +66,7 @@ enum SettingsSelection: Hashable {
     var title: String {
         switch self {
         case .general: "General"
-        case .module(let module): module.displayName
+        case .module(let module): module.settingsTitle
         case .about: "About"
         }
     }
@@ -108,7 +108,7 @@ private struct SettingsRootView: View {
                     ForEach(ModuleID.allCases, id: \.self) { module in
                         SettingsSidebarRow(
                             symbolName: module.symbolName,
-                            title: module.displayName,
+                            title: module.settingsTitle,
                             accent: ModuleAccent.resolve(settingsStore.settings, module: module)
                         )
                         .tag(SettingsSelection.module(module))
@@ -740,6 +740,14 @@ private struct ModuleSettingsView: View {
 }
 
 extension ModuleID {
+    /// Sidebar and pane title.
+    ///
+    /// Separate from `displayName`, which is the permanent accessibility label a menu bar manager
+    /// pairs with an autosave name and can never change.
+    var settingsTitle: String {
+        self == .combined ? "Stacks" : displayName
+    }
+
     var symbolName: String {
         switch self {
         case .cpu: "cpu"

@@ -40,11 +40,17 @@ public final class SettingsStore {
     /// Per-widget Sensors visibility choices waiting for the user to apply them.
     public private(set) var pendingSensorWidgetVisibility: [Int: Bool] = [:]
 
-    /// Combined membership waiting for the user to apply it.
-    public private(set) var pendingCombinedMembers: [ModuleID]?
+    /// Per-stack visibility choices waiting for the user to apply them.
+    public private(set) var pendingStackVisibility: [Int: Bool] = [:]
 
-    /// Whether Combined should hide its members after the user applies the change.
-    public private(set) var pendingCombinedHidesIndividualMembers: Bool?
+    /// Stack readings waiting for the user to apply them.
+    ///
+    /// Staged because a stack's readings decide which modules it replaces, and that changes the set
+    /// of independently visible items.
+    public private(set) var pendingStackMetrics: [Int: [StackMetric]] = [:]
+
+    /// Whether a stack should replace the individual items it draws from.
+    public private(set) var pendingStackHidesSourceItems: [Int: Bool] = [:]
 
     /// Menu bar font size captured from the complete saved widget set at launch.
     @ObservationIgnored public let launchMenuBarFontSize: Double
@@ -120,8 +126,9 @@ public final class SettingsStore {
     public var hasPendingMenuBarChanges: Bool {
         !pendingModuleVisibility.isEmpty
             || !pendingSensorWidgetVisibility.isEmpty
-            || pendingCombinedMembers != nil
-            || pendingCombinedHidesIndividualMembers != nil
+            || !pendingStackVisibility.isEmpty
+            || !pendingStackMetrics.isEmpty
+            || !pendingStackHidesSourceItems.isEmpty
     }
 
     /// Returns the staged module visibility, falling back to the saved value.
@@ -154,19 +161,53 @@ public final class SettingsStore {
         }
     }
 
-    /// Stages the modules rendered by Combined because membership changes the independently visible item set.
-    public func stageCombinedMembers(_ members: [ModuleID]) {
-        var normalized = settings.combined
-        normalized.members = members
-        normalized.normalize()
-        pendingCombinedMembers = normalized.members == settings.combined.members ? nil : normalized.members
+    /// Returns the staged visibility of one stack, falling back to the saved value.
+    public func stackVisibility(for id: Int) -> Bool {
+        pendingStackVisibility[id] ?? settings.stacks.stack(id: id)?.isEnabled ?? false
     }
 
-    /// Stages whether Combined replaces its included individual items.
-    public func stageCombinedHidesIndividualMembers(_ hidesMembers: Bool) {
-        pendingCombinedHidesIndividualMembers = hidesMembers == settings.combined.hidesIndividualMembers
-            ? nil
-            : hidesMembers
+    /// Stages visibility for one independently movable stack.
+    public func stageStackVisibility(_ isVisible: Bool, for id: Int) {
+        if isVisible == settings.stacks.stack(id: id)?.isEnabled {
+            pendingStackVisibility.removeValue(forKey: id)
+        } else {
+            pendingStackVisibility[id] = isVisible
+        }
+    }
+
+    /// Returns the staged readings of one stack, falling back to the saved value.
+    public func stackMetrics(for id: Int) -> [StackMetric] {
+        pendingStackMetrics[id] ?? settings.stacks.stack(id: id)?.metrics ?? []
+    }
+
+    /// Stages the readings shown by one stack.
+    public func stageStackMetrics(_ metrics: [StackMetric], for id: Int) {
+        if metrics == settings.stacks.stack(id: id)?.metrics {
+            pendingStackMetrics.removeValue(forKey: id)
+        } else {
+            pendingStackMetrics[id] = metrics
+        }
+    }
+
+    /// Returns whether one stack is staged to replace the items it draws from.
+    public func stackHidesSourceItems(for id: Int) -> Bool {
+        pendingStackHidesSourceItems[id] ?? settings.stacks.stack(id: id)?.hidesSourceItems ?? false
+    }
+
+    /// Stages whether one stack replaces the individual items it draws from.
+    public func stageStackHidesSourceItems(_ hidesSourceItems: Bool, for id: Int) {
+        if hidesSourceItems == settings.stacks.stack(id: id)?.hidesSourceItems {
+            pendingStackHidesSourceItems.removeValue(forKey: id)
+        } else {
+            pendingStackHidesSourceItems[id] = hidesSourceItems
+        }
+    }
+
+    /// Drops every staged choice for a stack the user deleted.
+    public func forgetStack(_ id: Int) {
+        pendingStackVisibility.removeValue(forKey: id)
+        pendingStackMetrics.removeValue(forKey: id)
+        pendingStackHidesSourceItems.removeValue(forKey: id)
     }
 
     /// Commits all staged visibility choices and persists them immediately.
@@ -174,20 +215,22 @@ public final class SettingsStore {
         guard hasPendingMenuBarChanges else { return }
         var updated = settings
         applyPendingVisibility(to: &updated)
-        pendingModuleVisibility.removeAll()
-        pendingSensorWidgetVisibility.removeAll()
-        pendingCombinedMembers = nil
-        pendingCombinedHidesIndividualMembers = nil
+        clearPendingMenuBarChanges()
         settings = updated
         saveNow()
     }
 
     /// Removes all uncommitted visibility choices.
     public func discardPendingMenuBarChanges() {
+        clearPendingMenuBarChanges()
+    }
+
+    private func clearPendingMenuBarChanges() {
         pendingModuleVisibility.removeAll()
         pendingSensorWidgetVisibility.removeAll()
-        pendingCombinedMembers = nil
-        pendingCombinedHidesIndividualMembers = nil
+        pendingStackVisibility.removeAll()
+        pendingStackMetrics.removeAll()
+        pendingStackHidesSourceItems.removeAll()
     }
 
     private func applyPendingVisibility(to result: inout AppSettings) {
@@ -200,12 +243,17 @@ public final class SettingsStore {
             guard let index = result.sensors.widgets.firstIndex(where: { $0.id == id }) else { continue }
             result.sensors.widgets[index].isEnabled = isVisible
         }
-        if let pendingCombinedMembers {
-            result.combined.members = pendingCombinedMembers
-            result.combined.normalize()
+        for (id, isVisible) in pendingStackVisibility {
+            guard let index = result.stacks.stacks.firstIndex(where: { $0.id == id }) else { continue }
+            result.stacks.stacks[index].isEnabled = isVisible
         }
-        if let pendingCombinedHidesIndividualMembers {
-            result.combined.hidesIndividualMembers = pendingCombinedHidesIndividualMembers
+        for (id, metrics) in pendingStackMetrics {
+            guard let index = result.stacks.stacks.firstIndex(where: { $0.id == id }) else { continue }
+            result.stacks.stacks[index].metrics = metrics
+        }
+        for (id, hidesSourceItems) in pendingStackHidesSourceItems {
+            guard let index = result.stacks.stacks.firstIndex(where: { $0.id == id }) else { continue }
+            result.stacks.stacks[index].hidesSourceItems = hidesSourceItems
         }
     }
 

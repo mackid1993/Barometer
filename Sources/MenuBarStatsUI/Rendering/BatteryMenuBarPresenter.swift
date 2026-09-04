@@ -14,7 +14,7 @@ public enum BatteryMenuBarPresenter {
     ) -> StatusItemContent {
         guard let sample else {
             return StatusItemContent(
-                image: renderer(sample: nil, mode: moduleSettings.mode).render(in: context),
+                image: image(sample: nil, mode: moduleSettings.mode, context: context),
                 accessibilityValue: "Battery unavailable"
             )
         }
@@ -25,10 +25,56 @@ public enum BatteryMenuBarPresenter {
         )
         let state = stateDescription(sample.state)
         return StatusItemContent(
-            image: renderer(sample: sample, mode: moduleSettings.mode).render(in: renderContext),
+            image: image(sample: sample, mode: moduleSettings.mode, context: renderContext),
             accessibilityValue: accessibilityValue(sample: sample, state: state, mode: moduleSettings.mode)
         )
     }
+
+    /// Every Battery presentation shares one canvas.
+    ///
+    /// A status item keeps a single length for the life of the process, so a presentation that drew
+    /// a different width would squeeze its image until the next launch and then move the item. Each
+    /// mode is instead drawn centered on the widest canvas any mode can need, and switching styles
+    /// changes only what the item shows.
+    private static func image(sample: BatterySample?, mode: String, context: RenderContext) -> NSImage {
+        let drawn = renderer(sample: sample, mode: mode).render(in: context)
+        let width = sharedWidth(context: context)
+        guard width > drawn.size.width else {
+            return drawn
+        }
+        return StatusItemRendering.image(drawn, framedTo: width)
+    }
+
+    /// Widest canvas any presentation needs, measured from the reserved placeholders alone.
+    private static func sharedWidth(context: RenderContext) -> CGFloat {
+        let placeholder = BatterySample(
+            snapshot: BatterySnapshot(
+                name: "Internal Battery",
+                chargePercent: 100,
+                state: .discharging,
+                isExternalConnected: false,
+                isCharging: false,
+                isFullyCharged: false,
+                healthPercent: nil,
+                cycleCount: nil,
+                temperatureCelsius: nil,
+                voltageVolts: nil,
+                amperageAmps: nil,
+                wattageWatts: nil,
+                condition: nil,
+                adapter: nil,
+                isLowPowerModeEnabled: false,
+                timeToEmptyMinutes: nil,
+                timeToFullMinutes: nil
+            )
+        )
+        return modes.reduce(CGFloat(0)) { widest, mode in
+            max(widest, renderer(sample: placeholder, mode: mode).render(in: context).size.width)
+        }
+    }
+
+    /// Every supported presentation identifier.
+    static let modes = ["glyphPercentage", "labeledPercentage", "percentageTime", "labeledTime"]
 
     /// Menu bar text for the estimate that matches the battery's current direction.
     static func timeText(sample: BatterySample?) -> String {
@@ -58,13 +104,6 @@ public enum BatteryMenuBarPresenter {
                 reservedTop: "100%",
                 reservedBottom: BatteryTimeFormatter.reservedCompact
             )
-        case "glyphTime":
-            return IconTextRenderer(
-                symbolName: sample.map(symbolName) ?? "battery.0percent",
-                text: timeText(sample: sample),
-                reservedText: BatteryTimeFormatter.reservedCompact,
-                reservedSymbolNames: reservedSymbolNames
-            )
         default:
             return BatteryPercentRenderer(percent: sample?.chargePercent)
         }
@@ -76,9 +115,16 @@ public enum BatteryMenuBarPresenter {
         "battery.75percent", "battery.100percent", "battery.100percent.bolt",
     ]
 
+    /// Whether every glyph the Battery modes can show resolves on this system.
+    ///
+    /// A missing symbol renders nothing and collapses the icon gap, so the item would change width.
+    static var everyReservedSymbolResolves: Bool {
+        reservedSymbolNames.allSatisfy { NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil }
+    }
+
     private static func accessibilityValue(sample: BatterySample, state: String, mode: String) -> String {
         let charge = String(format: "Battery %.1f percent, %@", sample.chargePercent, state)
-        guard mode == "labeledTime" || mode == "percentageTime" || mode == "glyphTime" else {
+        guard mode == "labeledTime" || mode == "percentageTime" else {
             return charge
         }
         guard let remaining = BatteryTimeFormatter.long(minutes: sample.remainingMinutes) else {
@@ -98,8 +144,9 @@ public enum BatteryMenuBarPresenter {
         case 13...: level = "25"
         default: level = "0"
         }
-        let base = "battery.\(level)percent"
-        return sample.isCharging ? "\(base).bolt" : base
+        // SF Symbols publishes a bolt overlay only for the full glyph; `battery.25percent.bolt` and
+        // friends do not exist, and asking for one yields no image at all.
+        return sample.isCharging ? "battery.100percent.bolt" : "battery.\(level)percent"
     }
 
     private static func warningContextIfNeeded(

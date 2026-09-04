@@ -21,9 +21,12 @@ struct BatterySettingsView: View {
                     Text("BAT label and percentage").tag("labeledPercentage")
                     Text("Percentage and time remaining").tag("percentageTime")
                     Text("BAT label and time remaining").tag("labeledTime")
-                    Text("Battery icon and time remaining").tag("glyphTime")
                 }
-                Text("Time remaining counts down to empty on battery and up to full while charging.")
+                Text(
+                    "Time remaining counts down to empty on battery and up to full while charging, and always "
+                        + "appears in the dropdown. Changing this takes effect after Barometer relaunches, "
+                        + "because a status item keeps one width for the life of the process."
+                )
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Toggle("Show while connected to power", isOn: batteryBinding(\.showsWhenConnectedToPower))

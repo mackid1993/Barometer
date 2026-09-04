@@ -232,11 +232,9 @@ struct StatusItemVisibilityLatch {
 
 @MainActor
 enum StatusItemRendering {
+    /// Whether an enabled stack replaces this module's individual item.
     static func isHiddenByCombined(module: ModuleID, settings: AppSettings) -> Bool {
-        module != .combined
-            && settings.modules[.combined]?.isEnabled == true
-            && settings.combined.hidesIndividualMembers
-            && settings.combined.members.contains(module)
+        module != .combined && settings.hiddenBySourceStacks.contains(module)
     }
 
     static func itemLength(for image: NSImage) -> CGFloat {

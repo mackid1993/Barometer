@@ -2101,3 +2101,59 @@ Verification:
   `pmset -g batt` reported `9:01 remaining` for the same battery. `timeToFullMinutes` was correctly nil, confirming
   the `65535` sentinel is filtered.
 - No new permission category, helper, bundle, or dependency was added.
+
+### P8-T2 through P8-T6 stacks, and battery presentation and adapter fixes
+
+Stacks generalize the Sensors widget model to every module. A stack is one independently movable status item holding
+an ordered list of readings chosen from any module, drawn with the same matched two-row columns the Sensors compact
+stack uses. `StackMetric` is the catalog of readings; `MonitoringCoordinator` resolves each one against the live
+stores and gives every branch the same reserved width whether or not a sample has arrived.
+
+David signed off on the autosave names: stack 1 keeps `Barometer.Combined`, later stacks are `Barometer.Combined.2`
+and up. Two preconditions had to be relaxed, in `ModuleID.autosaveName(instance:)` and in `StatusItemIdentity.init`.
+The second was found only by exercising the model directly; the app would have trapped the moment a second stack was
+enabled.
+
+Stacks are fully user-defined at David's request: no cap, deletable, and nothing prefilled. Deletion is safe because
+instance numbers come from a persisted high-water mark rather than the largest id in use, so a deleted stack's
+autosave name is never handed out again and a new stack cannot inherit its saved menu bar position. An enabled
+Combined item migrates into stack 1 with its members mapped to their primary readings; a user who never enabled
+Combined starts with no stacks at all.
+
+Two Battery problems surfaced while David used the build:
+
+The icon-and-time presentation was too cramped to read and was removed; settings carrying it migrate to the
+percentage-over-time rows. More importantly, each presentation drew its own natural width, so changing style resized
+the item and shifted it in the menu bar. A status item keeps one length for the life of the process
+(`docs/MACOS27_STATUS_ITEM_SIZING.md`), so the new image was squeezed into the old length until the next launch and
+the item then moved. Every Battery presentation now draws centered on the widest canvas any presentation needs, so
+changing style changes what the item shows and never its footprint.
+
+`AppleSmartBattery` also keeps publishing an `AdapterDetails` dictionary containing nothing but a zero `FamilyCode`
+after the adapter is unplugged. The dropdown read that as an attached adapter and reported "Connected" and "Wired"
+with no adapter present. An adapter is now reported only when the power source says one is connected and the
+dictionary carries a real field.
+
+Separately, `BatteryMenuBarPresenter.symbolName` asked for `battery.25percent.bolt` and similar names while charging.
+SF Symbols publishes a bolt overlay only for the full glyph, so those names resolved to no image at all, silently
+blanking the dropdown's header icon in the shipped build. Charging now uses `battery.100percent.bolt`, and
+`IconTextRenderer` keeps its icon gap when a symbol fails to resolve so one missing glyph cannot change a width.
+
+Verification:
+
+- `swift build`, `swift build -c release`, and `git diff --check` completed successfully.
+- `swift test` built every target. The runner cannot execute here: SwiftPM needs Xcode's `xctest` and this machine
+  has Command Line Tools only, so `swift test` compiles the suites and exits without running them. The suites were
+  extended anyway so they run in CI.
+- Because of that, the model and the renderers were exercised directly from a throwaway package depending on this
+  one. All 34 checks passed, covering autosave names and the relaxed preconditions, id allocation across create and
+  delete including a settings round trip, the Combined migration in both the enabled and never-enabled cases, the
+  menu bar item budget, catalog integrity, forward-compatible decoding of unknown metric ids, and width stability.
+- Width stability specifically: every Battery presentation holds one width across charge 0 to 100, estimates from
+  one minute to 24 hours, charging and discharging, and the unavailable state, and all four presentations measure
+  the same width. A three-reading stack column holds one width as its readings change.
+- `make install` replaced and relaunched `/Applications/Barometer.app`. `~/Library/Logs/Barometer/identity.json`
+  showed each enabled stack as a separate item with the expected autosave name and permanent accessibility label,
+  and live readings only in the accessibility value.
+- No notarization was run; `make app` signs locally only, and notarization remains a manual CI release step.
+- No new permission category, helper, bundle, or dependency was added.

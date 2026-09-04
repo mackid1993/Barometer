@@ -21,6 +21,11 @@ struct IdentityContractTests {
         #expect(ModuleID.allCases.map(\.autosaveName) == expectedAutosaveNames)
         #expect(ModuleID.sensors.autosaveName(instance: 2) == "Barometer.Sensors.2")
         #expect(StatusItemIdentity(module: .sensors, instance: 3).displayName == "Sensors 3")
+        // Stack 1 keeps the original Combined name so an upgrading user's item keeps its position.
+        #expect(ModuleID.combined.autosaveName(instance: 1) == "Barometer.Combined")
+        #expect(ModuleID.combined.autosaveName(instance: 2) == "Barometer.Combined.2")
+        #expect(ModuleID.combined.autosaveName(instance: 4) == "Barometer.Combined.4")
+        #expect(StatusItemIdentity(module: .combined, instance: 3).displayName == "Combined 3")
     }
 
     @Test("movable children retain distinct static labels")

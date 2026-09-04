@@ -113,7 +113,8 @@ public struct BatteryDropdownView: View {
                             label: "Rating", value: measurement(adapter.watts, format: "%.0f W"), symbol: "bolt.fill",
                             tint: .yellow)
                         MetricRow(
-                            label: "Connection", value: adapter.isWireless == true ? "Wireless" : "Wired",
+                            label: "Connection",
+                            value: adapter.isWireless.map { $0 ? "Wireless" : "Wired" } ?? "—",
                             symbol: adapter.isWireless == true ? "wave.3.right" : "cable.connector",
                             tint: accent.secondary)
                     }

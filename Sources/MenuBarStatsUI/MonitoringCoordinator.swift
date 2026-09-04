@@ -70,7 +70,7 @@ public final class MonitoringCoordinator {
     private var sensorControllers: [Int: StatusItemController<SensorSample>] = [:]
     private var batteryController: StatusItemController<BatterySample>?
     private var timeController: StatusItemController<TimeSample>?
-    private var combinedController: StatusItemController<CombinedSample>?
+    private var stackControllers: [Int: StatusItemController<CombinedSample>] = [:]
     private var cpuDropdown: DropdownController?
     private var memoryDropdown: DropdownController?
     private var gpuDropdown: DropdownController?
@@ -80,7 +80,7 @@ public final class MonitoringCoordinator {
     private var sensorDropdowns: [Int: DropdownController] = [:]
     private var batteryDropdown: DropdownController?
     private var timeDropdown: DropdownController?
-    private var combinedDropdown: DropdownController?
+    private var stackDropdowns: [Int: DropdownController] = [:]
     private var cpuSampleTask: Task<Void, Never>?
     private var memorySampleTask: Task<Void, Never>?
     private var gpuSampleTask: Task<Void, Never>?
@@ -229,19 +229,6 @@ public final class MonitoringCoordinator {
                 )
             }
         )
-        combinedController = StatusItemController(
-            module: .combined,
-            statusItem: registry.item(for: .combined),
-            store: combinedStore,
-            settingsStore: settingsStore,
-            render: { [weak self] _, _, _, context in
-                self?.renderCombined(context: context)
-                    ?? StatusItemContent(
-                        image: TextRenderer(text: "—").render(in: context),
-                        accessibilityValue: "Combined unavailable"
-                    )
-            }
-        )
         cpuDropdown = DropdownController(
             moduleName: ModuleID.cpu.displayName,
             statusItem: registry.item(for: .cpu),
@@ -349,30 +336,8 @@ public final class MonitoringCoordinator {
             settingsAction: { settingsAction(.time) },
             quitAction: quitAction
         )
-        combinedDropdown = DropdownController(
-            moduleName: ModuleID.combined.displayName,
-            statusItem: registry.item(for: .combined),
-            rootView: AnyView(
-                CombinedDropdownView(
-                    cpuStore: cpuStore,
-                    memoryStore: memoryStore,
-                    gpuStore: gpuStore,
-                    networkStore: networkStore,
-                    diskStore: diskStore,
-                    sensorStore: sensorStore,
-                    batteryStore: batteryStore,
-                    weatherStore: weatherStore,
-                    timeStore: timeStore,
-                    settingsStore: settingsStore
-                )
-            ),
-            contentHeight: CombinedDropdownView.contentSize.height,
-            contentWidth: CombinedDropdownView.contentSize.width,
-            tickAction: { [weak combinedStore] in combinedStore?.tick() },
-            settingsAction: { settingsAction(.combined) },
-            quitAction: quitAction
-        )
         configureSensorWidgets()
+        configureStacks()
         activateLaunchStatusItems()
 
         startSampleConsumption()
@@ -572,6 +537,7 @@ public final class MonitoringCoordinator {
             _ = settingsStore.settings.reducesSamplingOnBattery
             _ = settingsStore.settings.modules
             _ = settingsStore.settings.combined
+            _ = settingsStore.settings.stacks
             _ = settingsStore.settings.modules[.cpu]?.interval
             _ = settingsStore.settings.modules[.memory]?.interval
             _ = settingsStore.settings.modules[.gpu]?.interval
@@ -601,6 +567,7 @@ public final class MonitoringCoordinator {
                 self.configureCurrentLocation()
                 self.applyNetworkSettings()
                 self.configureSensorWidgets()
+                self.configureStacks()
                 self.observeSettings()
             }
         }
@@ -635,8 +602,9 @@ public final class MonitoringCoordinator {
             ModuleID.allCases.filter { module in
                 module != .weather && module != .combined && settings.modules[module]?.isEnabled == true
             })
-        if settings.modules[.combined]?.isEnabled == true {
-            active.formUnion(settings.combined.members.filter { $0 != .weather && $0 != .combined })
+        // A stack keeps its source modules sampling even when their individual items are hidden.
+        for stack in settings.enabledStacks {
+            active.formUnion(stack.sourceModules.filter { $0 != .weather && $0 != .combined })
         }
         if settings.modules[.gpu]?.mode == "combinedCPU", active.contains(.gpu) {
             active.insert(.cpu)
@@ -738,6 +706,63 @@ public final class MonitoringCoordinator {
         }
     }
 
+    /// Creates a status item, controller, and dropdown for every enabled stack.
+    ///
+    /// Mirrors `configureSensorWidgets`: identities are permanent and ids are never reused, so a
+    /// stack added later can never inherit a removed stack's saved menu bar position.
+    private func configureStacks() {
+        let enabledIdentities = StatusItemRegistry.launchIdentities(settings: settingsStore.settings)
+            .filter { $0.module == .combined }
+        for identity in enabledIdentities where stackControllers[identity.instance] == nil {
+            let instance = identity.instance
+            let statusItem = registry.prepareItem(for: identity)
+            let controller = StatusItemController(
+                module: .combined,
+                statusItem: statusItem,
+                store: combinedStore,
+                settingsStore: settingsStore,
+                isEnabled: { appSettings, moduleSettings in
+                    moduleSettings.isEnabled && appSettings.stacks.stack(id: instance)?.isEnabled == true
+                },
+                render: { [weak self] _, _, _, context in
+                    self?.renderStack(id: instance, context: context)
+                        ?? StatusItemContent(
+                            image: TextRenderer(text: "—").render(in: context),
+                            accessibilityValue: "Stack unavailable"
+                        )
+                }
+            )
+            stackControllers[instance] = controller
+            stackDropdowns[instance] = DropdownController(
+                moduleName: ModuleID.combined.displayName(instance: instance),
+                statusItem: statusItem,
+                rootView: AnyView(
+                    CombinedDropdownView(
+                        stackID: instance,
+                        cpuStore: cpuStore,
+                        memoryStore: memoryStore,
+                        gpuStore: gpuStore,
+                        networkStore: networkStore,
+                        diskStore: diskStore,
+                        sensorStore: sensorStore,
+                        batteryStore: batteryStore,
+                        weatherStore: weatherStore,
+                        timeStore: timeStore,
+                        settingsStore: settingsStore
+                    )
+                ),
+                contentHeight: CombinedDropdownView.contentSize.height,
+                contentWidth: CombinedDropdownView.contentSize.width,
+                tickAction: { [weak combinedStore] in combinedStore?.tick() },
+                settingsAction: { self.settingsAction(.combined) },
+                quitAction: quitAction
+            )
+            if hasActivatedStatusItems {
+                controller.activateVisibility()
+            }
+        }
+    }
+
     /// Reveals the complete launch set only after every item has its final image, length, menu, and identity.
     /// The order must match registry construction so external managers never observe conflicting ordinals.
     private func activateLaunchStatusItems() {
@@ -762,7 +787,7 @@ public final class MonitoringCoordinator {
             case .time:
                 timeController?.activateVisibility()
             case .combined:
-                combinedController?.activateVisibility()
+                stackControllers[identity.instance]?.activateVisibility()
             }
         }
         hasActivatedStatusItems = true
@@ -770,7 +795,7 @@ public final class MonitoringCoordinator {
 
     private func prepareNewlyEnabledItems() {
         for identity in StatusItemRegistry.launchIdentities(settings: settingsStore.settings)
-            where identity.module != .sensors
+            where identity.module != .sensors && identity.module != .combined
         {
             let statusItem = registry.prepareItem(for: identity)
             switch identity.module {
@@ -790,13 +815,12 @@ public final class MonitoringCoordinator {
                 attach(statusItem, controller: weatherController, dropdown: weatherDropdown)
             case .time:
                 attach(statusItem, controller: timeController, dropdown: timeDropdown)
-            case .combined:
-                attach(statusItem, controller: combinedController, dropdown: combinedDropdown)
-            case .sensors:
+            case .combined, .sensors:
                 break
             }
         }
         configureSensorWidgets()
+        configureStacks()
     }
 
     private func attach<Sample: Sendable>(
@@ -1067,166 +1091,232 @@ public final class MonitoringCoordinator {
         )
     }
 
-    private func renderCombined(context: RenderContext) -> StatusItemContent {
+    /// Builds one stack's status item content from its chosen metrics.
+    private func renderStack(id: Int, context: RenderContext) -> StatusItemContent {
         let appSettings = settingsStore.settings
-        var images: [NSImage] = []
-        var spokenValues: [String] = []
-        for module in appSettings.combined.members where module != .combined {
-            let moduleSettings = appSettings.modules[module] ?? ModuleSettings()
-            let childContext = combinedChildContext(
-                parent: context,
-                appSettings: appSettings,
-                moduleSettings: moduleSettings
-            )
-            let content: StatusItemContent
-            switch module {
-            case .cpu:
-                content = Self.renderCPU(
-                    sample: cpuStore.latestSample,
-                    history: cpuStore.history.entries,
-                    settings: moduleSettings,
-                    context: childContext
-                )
-            case .gpu:
-                content = GPUMenuBarPresenter.content(
-                    sample: gpuStore.latestSample,
-                    history: gpuStore.history.entries,
-                    cpuPercent: cpuStore.latestSample?.totalPercent,
-                    settings: moduleSettings,
-                    context: childContext
-                )
-            case .memory:
-                content = Self.renderMemory(
-                    sample: memoryStore.latestSample,
-                    history: memoryStore.history.entries,
-                    settings: moduleSettings,
-                    context: childContext
-                )
-            case .disks:
-                content = DiskMenuBarPresenter.content(
-                    sample: diskStore.latestSample,
-                    history: diskStore.history.entries,
-                    moduleSettings: moduleSettings,
-                    diskSettings: appSettings.disks,
-                    context: childContext
-                )
-            case .network:
-                content = NetworkMenuBarPresenter.content(
-                    sample: networkStore.latestSample,
-                    history: networkStore.history.entries,
-                    moduleSettings: moduleSettings,
-                    networkSettings: appSettings.network,
-                    context: childContext
-                )
-            case .sensors:
-                content = combinedSensorsContent(
-                    appSettings: appSettings,
-                    moduleSettings: moduleSettings,
-                    context: childContext
-                )
-            case .battery:
-                content = BatteryMenuBarPresenter.content(
-                    sample: batteryStore.latestSample,
-                    moduleSettings: moduleSettings,
-                    batterySettings: appSettings.battery,
-                    context: childContext
-                )
-            case .weather:
-                content = Self.renderWeather(
-                    sample: weatherStore.latestSample,
-                    history: weatherStore.history.entries,
-                    settings: moduleSettings,
-                    context: childContext
-                )
-            case .time:
-                content = TimeMenuBarPresenter.content(
-                    sample: timeStore.latestSample,
-                    settings: moduleSettings,
-                    timeSettings: appSettings.time,
-                    context: childContext
-                )
-            case .combined:
-                continue
-            }
-            images.append(content.image)
-            spokenValues.append(content.accessibilityValue)
-        }
-        if images.isEmpty {
+        guard let stack = appSettings.stacks.stack(id: id) else {
             return StatusItemContent(
                 image: TextRenderer(text: "—").render(in: context),
-                accessibilityValue: "Combined has no included modules"
+                accessibilityValue: "Stack unavailable"
             )
         }
-        return StatusItemContent(
-            image: CombinedImageRenderer(
-                images: images,
-                showsSeparators: appSettings.combined.showsSeparators
-            ).render(in: context),
-            accessibilityValue: spokenValues.joined(separator: "; ")
-        )
-    }
-
-    private func combinedSensorsContent(
-        appSettings: AppSettings,
-        moduleSettings: ModuleSettings,
-        context: RenderContext
-    ) -> StatusItemContent {
-        guard
-            let widget = appSettings.sensors.widgets.first(where: \.isEnabled)
-                ?? appSettings.sensors.widgets.first
-        else {
-            return StatusItemContent(
-                image: StackedLabelRenderer(label: "SENS", value: "—").render(in: context),
-                accessibilityValue: "Sensors unavailable"
+        let values = stack.metrics.map { metric in
+            ResolvedStackMetric(
+                metric: metric,
+                value: stackValue(for: metric, appSettings: appSettings)
             )
         }
-        return SensorsMenuBarPresenter.content(
-            sample: sensorStore.latestSample,
-            history: sensorStore.history.entries,
-            moduleSettings: moduleSettings,
-            sensorSettings: appSettings.sensors,
-            widget: widget,
-            temperatureUnit: appSettings.sensorTemperatureUnit,
-            context: context
-        )
+        return StackMenuBarPresenter.content(stack: stack, values: values, context: context)
     }
 
-    private func combinedChildContext(
-        parent: RenderContext,
-        appSettings: AppSettings,
-        moduleSettings: ModuleSettings
-    ) -> RenderContext {
-        RenderContext(
-            thickness: parent.thickness,
-            appearance: parent.appearance,
-            palette: MenuBarPalette(
-                light: NSColor(hex: appSettings.lightColor(for: moduleSettings)) ?? .controlAccentColor,
-                dark: NSColor(hex: appSettings.darkColor(for: moduleSettings)) ?? .controlAccentColor
-            ),
-            graphPalette: MenuBarPalette(
-                light: NSColor(hex: appSettings.graphLightColor(for: moduleSettings)) ?? .controlAccentColor,
-                dark: NSColor(hex: appSettings.graphDarkColor(for: moduleSettings)) ?? .controlAccentColor
-            ),
-            fillPalette: MenuBarPalette(
-                light: NSColor(hex: appSettings.fillLightColor(for: moduleSettings)) ?? .controlAccentColor,
-                dark: NSColor(hex: appSettings.fillDarkColor(for: moduleSettings)) ?? .controlAccentColor
-            ),
-            warningPalette: MenuBarPalette(
-                light: NSColor(hex: appSettings.warningLightColor(for: moduleSettings)) ?? .systemOrange,
-                dark: NSColor(hex: appSettings.warningDarkColor(for: moduleSettings)) ?? .systemOrange
-            ),
-            criticalPalette: MenuBarPalette(
-                light: NSColor(hex: appSettings.criticalLightColor(for: moduleSettings)) ?? .systemRed,
-                dark: NSColor(hex: appSettings.criticalDarkColor(for: moduleSettings)) ?? .systemRed
-            ),
-            fontSize: parent.fontSize,
-            isMonochrome: parent.isMonochrome,
-            scale: parent.scale,
-            backingScaleFactor: parent.backingScaleFactor,
-            graphOpacity: parent.graphOpacity,
-            fontWeight: parent.fontWeight
+    /// Resolves one metric against the live stores.
+    ///
+    /// Every branch returns the same reserved width whether or not a sample has arrived, so an item
+    /// never resizes as its module starts sampling.
+    private func stackValue(for metric: StackMetric, appSettings: AppSettings) -> SensorStackValue {
+        let label = metric.label
+        func field(_ value: String?, reserved: String) -> SensorStackValue {
+            SensorStackValue(
+                label: label,
+                value: value ?? "—",
+                reservedValue: reserved,
+                reservedLabel: label
+            )
+        }
+        func percent(_ value: Double?) -> SensorStackValue {
+            field(value.map { String(format: "%.0f%%", $0) }, reserved: "100%")
+        }
+
+        let disks = appSettings.disks
+        let network = appSettings.network
+        let temperatureUnit = appSettings.sensorTemperatureUnit
+        let capacityPlaceholder = disks.unitSystem == .binary ? "999GiB" : "999GB"
+        let ratePlaceholder = disks.unitSystem == .binary ? "999GiB/s" : "999GB/s"
+        let networkPlaceholder = NetworkRateFormatter.compactPlaceholder(
+            unit: network.rateUnit,
+            decimalPlaces: network.decimalPlaces
         )
+
+        switch metric {
+        case .cpuTotal:
+            return percent(cpuStore.latestSample?.totalPercent)
+        case .cpuUser:
+            return percent(cpuStore.latestSample?.userPercent)
+        case .cpuSystem:
+            return percent(cpuStore.latestSample?.systemPercent)
+        case .cpuIdle:
+            return percent(cpuStore.latestSample?.idlePercent)
+        case .cpuLoad:
+            return field(
+                cpuStore.latestSample?.loadAverages.first.map { String(format: "%.2f", $0) },
+                reserved: "99.99"
+            )
+        case .gpuUtilization:
+            return percent(gpuStore.latestSample?.deviceUtilizationPercent)
+        case .gpuPower:
+            return field(
+                gpuStore.latestSample?.powerWatts.map { String(format: "%.1fW", $0) },
+                reserved: "199.9W"
+            )
+        case .gpuTemperature:
+            return field(
+                gpuStore.latestSample?.temperatureCelsius.map { Self.temperature($0, unit: temperatureUnit) },
+                reserved: temperatureUnit == .fahrenheit ? "257°F" : "125°C"
+            )
+        case .memoryUsedPercent:
+            return percent(
+                memoryStore.latestSample.map { $0.total > 0 ? Double($0.used) / Double($0.total) * 100 : 0 }
+            )
+        case .memoryUsedBytes:
+            return field(
+                memoryStore.latestSample.map {
+                    DiskValueFormatter.capacity($0.used, unitSystem: disks.unitSystem, compact: true)
+                },
+                reserved: capacityPlaceholder
+            )
+        case .memoryFreeBytes:
+            return field(
+                memoryStore.latestSample.map {
+                    DiskValueFormatter.capacity($0.free, unitSystem: disks.unitSystem, compact: true)
+                },
+                reserved: capacityPlaceholder
+            )
+        case .memoryPressure:
+            return percent(memoryStore.latestSample?.pressurePercent)
+        case .memorySwap:
+            return field(
+                memoryStore.latestSample.map {
+                    DiskValueFormatter.capacity($0.swapUsed, unitSystem: disks.unitSystem, compact: true)
+                },
+                reserved: capacityPlaceholder
+            )
+        case .diskRead:
+            return field(
+                diskStore.latestSample.map {
+                    DiskValueFormatter.rate(
+                        Self.diskRates($0).read,
+                        unitSystem: disks.unitSystem,
+                        compact: true
+                    )
+                },
+                reserved: ratePlaceholder
+            )
+        case .diskWrite:
+            return field(
+                diskStore.latestSample.map {
+                    DiskValueFormatter.rate(
+                        Self.diskRates($0).write,
+                        unitSystem: disks.unitSystem,
+                        compact: true
+                    )
+                },
+                reserved: ratePlaceholder
+            )
+        case .diskUsedPercent:
+            return percent(diskStore.latestSample?.selectedVolume(settings: disks)?.usedPercent)
+        case .diskFreeBytes:
+            return field(
+                diskStore.latestSample?.selectedVolume(settings: disks).map {
+                    DiskValueFormatter.capacity($0.availableBytes, unitSystem: disks.unitSystem, compact: true)
+                },
+                reserved: capacityPlaceholder
+            )
+        case .networkDownload:
+            return field(
+                networkStore.latestSample?.interface(named: network.selectedInterfaceName).map {
+                    NetworkRateFormatter.compactString(
+                        bytesPerSecond: $0.downloadBytesPerSecond,
+                        unit: network.rateUnit,
+                        decimalPlaces: network.decimalPlaces
+                    )
+                },
+                reserved: networkPlaceholder
+            )
+        case .networkUpload:
+            return field(
+                networkStore.latestSample?.interface(named: network.selectedInterfaceName).map {
+                    NetworkRateFormatter.compactString(
+                        bytesPerSecond: $0.uploadBytesPerSecond,
+                        unit: network.rateUnit,
+                        decimalPlaces: network.decimalPlaces
+                    )
+                },
+                reserved: networkPlaceholder
+            )
+        case .sensorsHottest:
+            let reading = sensorStore.latestSample?.reading(id: "derived:temperature:hottest")
+            return field(
+                reading.map {
+                    SensorValueFormatter.string(
+                        $0,
+                        temperatureUnit: temperatureUnit,
+                        decimalPlaces: appSettings.sensors.decimalPlaces,
+                        compact: true
+                    )
+                },
+                reserved: temperatureUnit == .fahrenheit ? "257°F" : "125°C"
+            )
+        case .sensorsFan:
+            let fan = sensorStore.latestSample?.readings.first { $0.kind == .fan }
+            return field(
+                fan.map {
+                    SensorValueFormatter.string(
+                        $0,
+                        temperatureUnit: temperatureUnit,
+                        decimalPlaces: appSettings.sensors.decimalPlaces,
+                        compact: true
+                    )
+                },
+                reserved: "9999r"
+            )
+        case .batteryCharge:
+            return percent(batteryStore.latestSample?.chargePercent)
+        case .batteryTime:
+            return field(
+                batteryStore.latestSample.map {
+                    BatteryTimeFormatter.compact(minutes: $0.remainingMinutes)
+                },
+                reserved: BatteryTimeFormatter.reservedCompact
+            )
+        case .weatherTemperature:
+            return field(
+                weatherStore.latestSample.map {
+                    WeatherPresentationFormatter.menuBar(sample: $0, mode: "temperature").text
+                },
+                reserved: "-99°"
+            )
+        case .timeClock:
+            return field(
+                timeStore.latestSample.flatMap { sample in
+                    TimeZone(identifier: sample.systemTimeZoneIdentifier).map { zone in
+                        TimeFormatEngine.render(
+                            date: sample.timestamp,
+                            timeZone: zone,
+                            template: appSettings.time.menuBarTemplate,
+                            showsSeconds: appSettings.time.showsSeconds
+                        )
+                    }
+                },
+                reserved: TimeFormatEngine.menuBarPlaceholder(
+                    template: appSettings.time.menuBarTemplate,
+                    showsSeconds: appSettings.time.showsSeconds
+                )
+            )
+        }
     }
+
+    private static func temperature(_ celsius: Double, unit: TemperatureUnit) -> String {
+        let value = unit == .fahrenheit ? celsius * 9 / 5 + 32 : celsius
+        return String(format: "%.0f%@", value, unit.symbol)
+    }
+
+    private static func diskRates(_ sample: DiskSample) -> (read: Double, write: Double) {
+        sample.devices.reduce(into: (read: 0.0, write: 0.0)) { totals, device in
+            totals.read += device.readBytesPerSecond
+            totals.write += device.writeBytesPerSecond
+        }
+    }
+
 
     static func renderWeather(
         sample: WeatherSample?,

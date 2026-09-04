@@ -909,7 +909,9 @@ public struct IconTextRenderer: MenuBarRenderer {
                 NSImage(systemSymbolName: name, accessibilityDescription: nil)?
                     .withSymbolConfiguration(configuration)
             }.map { metrics.symbolSize(nativeSize: $0.size, font: font).width }.max() ?? 0
-        let gap = symbol == nil ? 0 : metrics.iconTextGap
+        // A renderer that reserves symbol width keeps the gap even when the current symbol fails to
+        // resolve, so one missing glyph cannot change the item's width.
+        let gap = symbol == nil && reservedSymbolWidth == 0 ? 0 : metrics.iconTextGap
         let symbolFieldWidth = max(symbolSize.width, reservedSymbolWidth)
         let textFieldWidth = ceil(max(textSize.width, reservedTextSize.width))
         let width =

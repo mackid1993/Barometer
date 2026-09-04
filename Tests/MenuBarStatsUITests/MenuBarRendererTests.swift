@@ -778,6 +778,99 @@ struct MenuBarRendererTests {
             #expect(unavailable.image.size == content.image.size)
         }
     }
+
+    @Test("every battery glyph the menu bar can show resolves on this system")
+    func batterySymbolsResolve() {
+        // SF Symbols publishes a bolt overlay only for the full glyph. A name that does not resolve
+        // renders nothing and collapses the icon gap, changing the item's width.
+        #expect(BatteryMenuBarPresenter.everyReservedSymbolResolves)
+        for charge in [0.0, 20, 40, 65, 90, 100] {
+            for charging in [false, true] {
+                let name = BatteryMenuBarPresenter.symbolName(for: batterySample(charge: charge, charging: charging))
+                #expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil, "\(name) is missing")
+            }
+        }
+    }
+
+    @Test("every battery presentation holds one width, and they all share it")
+    func batteryPresentationsHoldOneWidth() {
+        var widthsAcrossModes: Set<Double> = []
+        for mode in BatteryMenuBarPresenter.modes {
+            var widths: Set<Double> = [
+                BatteryMenuBarPresenter.content(
+                    sample: nil,
+                    moduleSettings: ModuleSettings(mode: mode),
+                    batterySettings: BatterySettings(),
+                    context: context
+                ).image.size.width
+            ]
+            let cases: [(Double, Int?, Bool)] = [
+                (0, nil, false), (5, 3, false), (50, 95, false), (82, 541, false),
+                (100, 1_439, false), (7, 725, true), (99, 1, true), (100, nil, true),
+            ]
+            for (charge, minutes, charging) in cases {
+                widths.insert(
+                    BatteryMenuBarPresenter.content(
+                        sample: batterySample(charge: charge, charging: charging, minutes: minutes),
+                        moduleSettings: ModuleSettings(mode: mode),
+                        batterySettings: BatterySettings(),
+                        context: context
+                    ).image.size.width
+                )
+            }
+            #expect(widths.count == 1, "\(mode) produced widths \(widths.sorted())")
+            widthsAcrossModes.formUnion(widths)
+        }
+        // Switching presentation must not resize the item: a status item keeps one length for the
+        // life of the process, so a narrower mode would be squeezed and the item would move.
+        #expect(widthsAcrossModes.count == 1, "modes produced widths \(widthsAcrossModes.sorted())")
+    }
+
+    @Test("a stack column holds one width while its readings move")
+    func stackColumnsHoldOneWidth() {
+        var widths: Set<Double> = []
+        for value in ["0%", "7%", "100%", "—"] {
+            for time in ["0:00", "9:01", "12:05", "—"] {
+                widths.insert(
+                    SensorStackRenderer(values: [
+                        SensorStackValue(label: "CPU", value: value, reservedValue: "100%", reservedLabel: "CPU"),
+                        SensorStackValue(label: "GPU", value: value, reservedValue: "100%", reservedLabel: "GPU"),
+                        SensorStackValue(
+                            label: "TIME",
+                            value: time,
+                            reservedValue: BatteryTimeFormatter.reservedCompact,
+                            reservedLabel: "TIME"
+                        ),
+                    ]).render(in: context).size.width
+                )
+            }
+        }
+        #expect(widths.count == 1, "stack produced widths \(widths.sorted())")
+    }
+
+    private func batterySample(charge: Double, charging: Bool, minutes: Int? = nil) -> BatterySample {
+        BatterySample(
+            snapshot: BatterySnapshot(
+                name: "Internal Battery",
+                chargePercent: charge,
+                state: charging ? .charging : .discharging,
+                isExternalConnected: charging,
+                isCharging: charging,
+                isFullyCharged: false,
+                healthPercent: nil,
+                cycleCount: nil,
+                temperatureCelsius: nil,
+                voltageVolts: nil,
+                amperageAmps: nil,
+                wattageWatts: nil,
+                condition: nil,
+                adapter: nil,
+                isLowPowerModeEnabled: false,
+                timeToEmptyMinutes: charging ? nil : minutes,
+                timeToFullMinutes: charging ? minutes : nil
+            )
+        )
+    }
 }
 
 @MainActor
@@ -1041,5 +1134,4 @@ struct StableGeometryTests {
         #expect(clipped.size == NSSize(width: 24, height: 22))
         #expect(StatusItemRendering.image(image, framedTo: 29) === image)
     }
-
 }
