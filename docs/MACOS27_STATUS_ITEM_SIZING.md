@@ -15,7 +15,7 @@ with zero app-added horizontal padding. This applies uniformly to plain text, la
 icon-and-text rows, symbols, and vertical icon stacks. Do not reintroduce either control.
 
 AppKit also reads `NSStatusItemSpacing` and `NSStatusItemSelectionPadding` from the defaults search list and wraps
-each explicit canvas in that spacing. Barometer sets both keys to two only in its own `com.barometer.app` defaults
+each explicit canvas in that spacing. Barometer sets both keys to one only in its own `com.barometer.app` defaults
 domain before constructing `StatusItemRegistry`. Zero makes adjacent text collide; the host default of four is too
 loose for dense monitoring. Never write or delete the by-host global values: Barometer's compact spacing must not
 change spacing for the rest of the user's menu bar.
@@ -115,6 +115,10 @@ insets, or renderer-specific side padding. Center a symbol only inside a symbol 
 Trailing-align a standalone changing value inside its stable numeric field, but never offset one row of a stacked
 label/value pair from the other. This preserves the one-time outer length without breaking row alignment.
 
+Multi-reading sensor stacks use explicit label and value columns. Labels in a column share one leading edge and values
+share one trailing edge. Never create alignment by adding live-value-dependent kerning to the last label character;
+that distorts the `CPU:` and `GPU:` label-to-temperature spacing as readings change.
+
 Do not replace the separate items with one combined status item as a sizing workaround. Combined is an optional
 module, not the implementation of density.
 
@@ -126,7 +130,7 @@ Before accepting a change to menu bar geometry or status-item lifecycle:
 2. Run the repository search above and verify exactly one production assignment remains.
 3. Run `swift build -c release` and `git diff --check`.
 4. Install with `make install`; repository-path launches are not valid compatibility tests.
-5. With a different by-host global spacing, confirm each active Barometer window is exactly two points wider than its
+5. With a different by-host global spacing, confirm each active Barometer window is exactly one point wider than its
    button, image, and fixed item length, which must match one another. Confirm each item also has its fixed autosave
    name, empty title, static AX label, nonzero image, and one bundle owner in
    `~/Library/Logs/Barometer/identity.json`.

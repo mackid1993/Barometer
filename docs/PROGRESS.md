@@ -1943,16 +1943,21 @@ global `NSStatusItemSpacing` and `NSStatusItemSelectionPadding` values had retur
 every Barometer window four points wider than its explicit item length and centered the image inside that shell.
 
 An application-domain experiment established that AppKit honors the same keys in `com.barometer.app` before
-status-item creation. Zero removed the shell completely but made neighboring labels and readings collide. Two points
-provides a clear visual boundary at half the host-default gap. Barometer now applies that value only to its own
+status-item creation. Zero removed the shell completely but made neighboring labels and readings collide. One point
+provides the smallest clear visual boundary. Barometer now applies that value only to its own
 defaults domain after validating and claiming the single app instance, but before constructing `StatusItemRegistry`.
 Other menu bar applications and the by-host global preference remain untouched.
 
+The Sensors renderer also stopped using a calculated `.kern` value on the colon to push each live temperature across
+the row. It now measures an explicit label field and value field per two-row column, draws `CPU:` and `GPU:` from the
+same leading coordinate, and trailing-aligns both temperatures. Reading changes cannot distort label typography or
+change the relationship between the two rows.
+
 Verification:
 
-- An isolated defaults-suite test verifies both Barometer application-domain values are two.
+- An isolated defaults-suite test verifies both Barometer application-domain values are one.
 - `swift test`, `swift build -c release`, and `git diff --check` completed successfully.
-- With the by-host global values still at four, every installed Barometer window was exactly two points wider than
+- With the by-host global values still at four, every installed Barometer window was exactly one point wider than
   its matching button, image, and immutable item length. The live capture showed compact separation without
-  collisions.
+  collisions, plus aligned CPU/GPU temperature label and value columns.
 - Strict code-signature verification passed. No notarization or stapling command ran.

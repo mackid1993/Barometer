@@ -750,7 +750,7 @@ public struct SensorStackRenderer: MenuBarRenderer {
         let labelGap: CGFloat = 0
         let columnGap = metrics.columnGap
         let sidePadding = metrics.denseTextPadding
-        let columnWidths = columns.map { column in
+        let labelWidths = columns.map { column in
             column.reduce(CGFloat(0)) { width, field in
                 let liveLabelWidth = NSAttributedString(
                     string: Self.displayLabel(field.label),
@@ -760,14 +760,21 @@ public struct SensorStackRenderer: MenuBarRenderer {
                     field.reservedLabel.map {
                         NSAttributedString(string: Self.displayLabel($0), attributes: labelAttributes).size().width
                     } ?? 0
-                let labelWidth = max(liveLabelWidth, reservedLabelWidth)
+                return max(width, ceil(max(liveLabelWidth, reservedLabelWidth)))
+            }
+        }
+        let valueWidths = columns.map { column in
+            column.reduce(CGFloat(0)) { width, field in
                 let reservedWidth = NSAttributedString(
                     string: field.reservedValue,
                     attributes: valueAttributes
                 ).size().width
                 let valueWidth = NSAttributedString(string: field.value, attributes: valueAttributes).size().width
-                return max(width, ceil(labelWidth + labelGap + max(reservedWidth, valueWidth)))
+                return max(width, ceil(max(reservedWidth, valueWidth)))
             }
+        }
+        let columnWidths = zip(labelWidths, valueWidths).map { labelWidth, valueWidth in
+            labelWidth + labelGap + valueWidth
         }
         let contentWidth =
             sidePadding * 2
@@ -779,30 +786,36 @@ public struct SensorStackRenderer: MenuBarRenderer {
             for (columnIndex, column) in columns.enumerated() {
                 let columnWidth = columnWidths[columnIndex]
                 for (rowIndex, field) in column.enumerated() {
-                    let label = NSMutableAttributedString(
+                    let label = NSAttributedString(
                         string: Self.displayLabel(field.label),
                         attributes: labelAttributes
                     )
                     let value = NSAttributedString(string: field.value, attributes: valueAttributes)
-                    let flexibleGap = max(labelGap, columnWidth - label.size().width - value.size().width)
-                    if label.length > 0 {
-                        label.addAttribute(
-                            .kern,
-                            value: flexibleGap,
-                            range: NSRange(location: label.length - 1, length: 1)
-                        )
-                    }
-                    label.append(value)
-                    let combinedHeight = label.size().height
+                    let origins = Self.rowOrigins(
+                        columnX: x,
+                        columnWidth: columnWidth,
+                        valueWidth: value.size().width
+                    )
+                    let combinedHeight = max(label.size().height, value.size().height)
                     let y =
                         fields.count == 1
                         ? floor((rect.height - combinedHeight) / 2)
                         : metrics.compactRowY(rowIndex, textHeight: combinedHeight)
-                    label.draw(at: NSPoint(x: x, y: y))
+                    label.draw(at: NSPoint(x: origins.label, y: y))
+                    value.draw(at: NSPoint(x: origins.value, y: y))
                 }
                 x += columnWidth + columnGap
             }
         }
+    }
+
+    /// Keeps labels on one leading edge and readings on one trailing edge without synthetic kerning.
+    static func rowOrigins(
+        columnX: CGFloat,
+        columnWidth: CGFloat,
+        valueWidth: CGFloat
+    ) -> (label: CGFloat, value: CGFloat) {
+        (columnX, columnX + max(0, columnWidth - valueWidth))
     }
 }
 

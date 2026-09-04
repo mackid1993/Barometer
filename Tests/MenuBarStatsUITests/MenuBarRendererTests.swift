@@ -220,8 +220,8 @@ struct MenuBarRendererTests {
 
         StatusItemSpacingPolicy.apply(to: defaults)
 
-        #expect(defaults.integer(forKey: StatusItemSpacingPolicy.spacingKey) == 2)
-        #expect(defaults.integer(forKey: StatusItemSpacingPolicy.selectionPaddingKey) == 2)
+        #expect(defaults.integer(forKey: StatusItemSpacingPolicy.spacingKey) == 1)
+        #expect(defaults.integer(forKey: StatusItemSpacingPolicy.selectionPaddingKey) == 1)
     }
 
     @Test
@@ -529,6 +529,10 @@ struct MenuBarRendererTests {
     func sensorStackKeepsStableGeometryAndExpandsByColumns() {
         #expect(SensorStackRenderer.displayLabel("CPU") == "CPU:")
         #expect(SensorStackRenderer.displayLabel("GPU:") == "GPU:")
+        let topOrigins = SensorStackRenderer.rowOrigins(columnX: 3, columnWidth: 68, valueWidth: 34)
+        let bottomOrigins = SensorStackRenderer.rowOrigins(columnX: 3, columnWidth: 68, valueWidth: 34)
+        #expect(topOrigins.label == bottomOrigins.label)
+        #expect(topOrigins.value == bottomOrigins.value)
 
         let cool = SensorStackRenderer(values: [
             SensorStackValue(label: "CPU", value: "39.1°C", reservedValue: "999.9°C"),
