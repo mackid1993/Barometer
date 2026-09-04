@@ -205,9 +205,10 @@ public final class MonitoringCoordinator {
                 return appSettings.battery.showsWhenConnectedToPower
                     || sharedBatteryStore.latestSample?.isExternalConnected != true
             },
-            render: { sample, _, _, context in
+            render: { sample, _, moduleSettings, context in
                 BatteryMenuBarPresenter.content(
                     sample: sample,
+                    moduleSettings: moduleSettings,
                     batterySettings: settingsStore.settings.battery,
                     context: context
                 )
@@ -1000,6 +1001,7 @@ public final class MonitoringCoordinator {
             case .battery:
                 content = BatteryMenuBarPresenter.content(
                     sample: batteryStore.latestSample,
+                    moduleSettings: moduleSettings,
                     batterySettings: appSettings.battery,
                     context: childContext
                 )

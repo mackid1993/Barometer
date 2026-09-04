@@ -93,7 +93,7 @@ public enum NetworkRateFormatter {
     public static func compactPlaceholder(unit: NetworkRateUnit, decimalPlaces: Int) -> String {
         let precision = min(2, max(0, decimalPlaces))
         let fraction = precision == 0 ? "" : "." + String(repeating: "9", count: precision)
-        return "99\(fraction)\(unit == .bits ? "m" : "M")"
+        return "99\(fraction)\(unit == .bits ? "Mb/s" : "MB/s")"
     }
 
     private static func format(
@@ -105,8 +105,8 @@ public enum NetworkRateFormatter {
         let clampedBytes = max(0, bytesPerSecond)
         let value = unit == .bits ? clampedBytes * 8 : clampedBytes
         let suffixes = unit == .bits
-            ? (compact ? ["b", "k", "m", "g", "t"] : ["b/s", "Kb/s", "Mb/s", "Gb/s", "Tb/s"])
-            : (compact ? ["B", "K", "M", "G", "T"] : ["B/s", "KB/s", "MB/s", "GB/s", "TB/s"])
+            ? ["b/s", "Kb/s", "Mb/s", "Gb/s", "Tb/s"]
+            : ["B/s", "KB/s", "MB/s", "GB/s", "TB/s"]
         let precision = min(2, max(0, decimalPlaces))
         let compactBoundary = 100 - 0.5 * pow(10, -Double(precision))
         let unitBoundary = compact ? compactBoundary : 1_000
@@ -117,6 +117,6 @@ public enum NetworkRateFormatter {
             suffixIndex += 1
         }
         let number = String(format: "%.*f", precision, scaled)
-        return compact ? "\(number)\(suffixes[suffixIndex])" : "\(number) \(suffixes[suffixIndex])"
+        return "\(number)\(compact ? "" : " ")\(suffixes[suffixIndex])"
     }
 }

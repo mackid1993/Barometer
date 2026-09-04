@@ -493,7 +493,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
             if version < 8, modules[.sensors]?.mode == "percentage" {
                 modules[.sensors]?.mode = "compactStack"
             }
-            modules[.battery]?.mode = "glyphPercentage"
+            if let batteryMode = modules[.battery]?.mode {
+                switch batteryMode {
+                case "glyphPercentage", "labeledPercentage": break
+                case "percentage": modules[.battery]?.mode = "labeledPercentage"
+                default: modules[.battery]?.mode = "glyphPercentage"
+                }
+            }
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .schemaVersion,

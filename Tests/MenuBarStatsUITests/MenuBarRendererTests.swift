@@ -38,6 +38,7 @@ struct MenuBarRendererTests {
 
         let low = BatteryMenuBarPresenter.content(
             sample: sample,
+            moduleSettings: ModuleSettings(isEnabled: true, mode: "glyphPercentage"),
             batterySettings: BatterySettings(),
             context: context
         )
@@ -60,6 +61,7 @@ struct MenuBarRendererTests {
         )
         let full = BatteryMenuBarPresenter.content(
             sample: BatterySample(snapshot: fullSnapshot),
+            moduleSettings: ModuleSettings(isEnabled: true, mode: "glyphPercentage"),
             batterySettings: BatterySettings(),
             context: context
         )
@@ -69,11 +71,21 @@ struct MenuBarRendererTests {
 
         let unavailable = BatteryMenuBarPresenter.content(
             sample: nil,
+            moduleSettings: ModuleSettings(isEnabled: true, mode: "glyphPercentage"),
             batterySettings: BatterySettings(),
             context: context
         )
         #expect(unavailable.image.size == full.image.size)
         #expect(unavailable.accessibilityValue == "Battery unavailable")
+
+        let labeled = BatteryMenuBarPresenter.content(
+            sample: sample,
+            moduleSettings: ModuleSettings(isEnabled: true, mode: "labeledPercentage"),
+            batterySettings: BatterySettings(),
+            context: context
+        )
+        #expect(labeled.image.size.width > low.image.size.width)
+        #expect(labeled.accessibilityValue == low.accessibilityValue)
     }
 
     @Test
@@ -282,8 +294,12 @@ struct MenuBarRendererTests {
     @Test
     func statusItemLengthMatchesRenderedCanvasWithoutAppKitInsets() {
         let image = TextRenderer(text: "CPU").render(in: context)
+        let target = StatusItemRendering.itemLength(for: image)
 
-        #expect(StatusItemRendering.itemLength(for: image) == ceil(image.size.width))
+        #expect(target == ceil(image.size.width))
+        #expect(!StatusItemRendering.shouldUpdateLength(current: target, target: target))
+        #expect(StatusItemRendering.shouldUpdateLength(current: nil, target: target))
+        #expect(StatusItemRendering.shouldUpdateLength(current: target + 1, target: target))
     }
 
     @Test
@@ -329,20 +345,20 @@ struct MenuBarRendererTests {
     @Test
     func peerRowsKeepTheSameGeometryWhenSwapped() {
         let first = NetworkRateStackRenderer(
-            download: "1.2M",
-            upload: "82.0K",
-            reservedValue: "99.9G"
+            download: "1.2MB/s",
+            upload: "82.0KB/s",
+            reservedValue: "99.9GB/s"
         ).render(in: context)
         let swapped = NetworkRateStackRenderer(
-            download: "82.0K",
-            upload: "1.2M",
-            reservedValue: "99.9G"
+            download: "82.0KB/s",
+            upload: "1.2MB/s",
+            reservedValue: "99.9GB/s"
         ).render(in: context)
 
         let threeDigitRate = NetworkRateStackRenderer(
-            download: "125.0M",
-            upload: "1.2M",
-            reservedValue: "99.9G"
+            download: "125.0MB/s",
+            upload: "1.2MB/s",
+            reservedValue: "99.9GB/s"
         ).render(in: context)
 
         #expect(first.size == swapped.size)

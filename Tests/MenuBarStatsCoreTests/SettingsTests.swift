@@ -48,6 +48,18 @@ struct SettingsTests {
         #expect(decoded.modules[.battery]?.mode == "glyphPercentage")
     }
 
+    @Test("supported battery presentations survive settings decoding")
+    func preservesSupportedBatteryPresentations() throws {
+        for mode in ["glyphPercentage", "labeledPercentage"] {
+            var settings = AppSettings()
+            settings.modules[.battery]?.mode = mode
+
+            let decoded = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
+
+            #expect(decoded.modules[.battery]?.mode == mode)
+        }
+    }
+
     @Test("version zero settings migrate to the current schema")
     func migrateVersionZero() throws {
         let versionZero = Data(

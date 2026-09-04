@@ -1431,10 +1431,10 @@ license, and weather attribution.
 ### P5-T2 Battery simplification follow-up
 
 Removed battery duration estimates completely at David's request. `BatterySource` no longer reads or stores them,
-the dropdown no longer shows them, and saved legacy Battery display modes migrate to one compact presentation: a
-fixed-width battery outline with its rounded percentage centered inside. The unavailable state uses the same glyph
-geometry so it cannot move neighboring menu bar items. Detailed state, health, power, adapter, and Bluetooth battery
-information remains in the dropdown.
+the dropdown no longer shows them, and saved legacy duration and wattage modes migrate to a fixed-width battery
+outline with its rounded percentage centered inside. The unavailable state uses the same glyph geometry so it cannot
+move neighboring menu bar items. Detailed state, health, power, adapter, and Bluetooth battery information remains
+in the dropdown.
 
 Verification:
 
@@ -1442,3 +1442,39 @@ Verification:
   glyph coverage.
 - `swift build -c release` completed successfully.
 - `git diff --check` and the 120-column check for changed Swift files passed.
+
+### Battery condition and display follow-up
+
+Restored a focused choice between two reliable menu bar presentations: percentage inside the battery glyph, or a
+BAT label with percentage. The removed duration estimate remains unavailable as a display choice, as does the
+redundant wattage presentation; power details remain in the dropdown.
+
+On macOS 27, the public power-source summary did not publish its formerly documented health string even though the
+registry reported full-charge and design capacities plus a zero permanent-failure status. Battery condition now
+prefers Apple's published condition and failure signals, then normalizes Apple's Good/Fair/Poor health values, and
+finally applies Apple's 80% service threshold to the measured maximum-capacity percentage. The live probe now reports
+`condition Normal` on the test Mac, matching System Information.
+
+Verification:
+
+- `swift test` and `swift build -c release` exited 0.
+- `mbs-probe battery` reported `health 100.1%; condition Normal; cycles 45` on the test Mac.
+
+### Network unit and menu bar manager placement follow-up
+
+Compact Network values now retain complete rate units, such as `82.0KB/s`, `1.4MB/s`, and `10.0Mb/s`, while keeping
+the no-space form needed for menu bar density. The KB/s or Kb/s floor and user-selected decimal precision remain.
+Reserved widths include the full unit so the upload and download rows remain aligned without moving neighboring
+items when the rate changes.
+
+Status-item controllers now cache the last length they applied and call AppKit's length setter only when the rendered
+width actually changes. Previously, every monitor sample reapplied the same fixed length; that unnecessary layout
+mutation could make Barometer items return to AppKit's placement after a menu bar manager restarted. Autosave names,
+accessibility identities, item lifetimes, and independent moveability are unchanged.
+
+Verification:
+
+- `swift test` exited 0. Formatter coverage verifies byte and bit suffixes, the KB/s floor, decimal precision, unit
+  promotion, and fixed geometry. Renderer coverage verifies that unchanged lengths do not request a new assignment.
+- `swift build -c release`, `git diff --check`, and the changed-file 120-column check passed.
+- Live confirmation after a Bartender restart remains a user-driven check; Barometer does not control Bartender.

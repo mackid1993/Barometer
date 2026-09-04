@@ -133,6 +133,10 @@ public struct BatterySource: Sendable {
             ?? Self.double(packData["FccComp1"])
         let designCapacity = Self.double(batteryData["DesignCapacity"])
             ?? Self.double(packData["DesignCapacity"])
+        let healthPercent = Self.healthPercent(
+            fullChargeCapacity: fullChargeCapacity,
+            designCapacity: designCapacity
+        )
         let voltageMillivolts = Self.double(detail["Voltage"])
             ?? Self.double(packData["Voltage"])
         let rawAmperage = Self.unsignedInteger(detail["InstantAmperage"])
@@ -150,10 +154,7 @@ public struct BatterySource: Sendable {
             isExternalConnected: isExternalConnected,
             isCharging: isCharging,
             isFullyCharged: isFullyCharged,
-            healthPercent: Self.healthPercent(
-                fullChargeCapacity: fullChargeCapacity,
-                designCapacity: designCapacity
-            ),
+            healthPercent: healthPercent,
             cycleCount: Self.integer(detail["CycleCount"]) ?? Self.integer(packData["CycleCount"]),
             temperatureCelsius: Self.celsius(
                 raw: Self.double(packData["Temperature"]) ?? Self.double(detail["Temperature"])
@@ -161,7 +162,14 @@ public struct BatterySource: Sendable {
             voltageVolts: voltageVolts,
             amperageAmps: amperageAmps,
             wattageWatts: voltageVolts.flatMap { voltage in amperageAmps.map { voltage * $0 } },
-            condition: Self.string(summary[Self.healthKey]),
+            condition: Self.condition(
+                publishedHealth: Self.string(summary[Self.healthKey]),
+                publishedCondition: Self.string(summary[Self.healthConditionKey]),
+                hasFailureModes: !(summary[Self.failureModesKey] as? [Any] ?? []).isEmpty,
+                permanentFailureStatus: Self.integer(batteryData["PermanentFailureStatus"])
+                    ?? Self.integer(packData["PermanentFailureStatus"]),
+                healthPercent: healthPercent
+            ),
             adapter: adapter,
             isLowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled
         )
@@ -191,6 +199,29 @@ public struct BatterySource: Sendable {
         }
         let value = fullChargeCapacity / designCapacity * 100
         return value.isFinite && (0...150).contains(value) ? value : nil
+    }
+
+    static func condition(
+        publishedHealth: String?,
+        publishedCondition: String?,
+        hasFailureModes: Bool,
+        permanentFailureStatus: Int?,
+        healthPercent: Double?
+    ) -> String? {
+        if publishedCondition != nil || hasFailureModes || permanentFailureStatus.map({ $0 != 0 }) == true {
+            return "Service Recommended"
+        }
+        if let publishedHealth {
+            switch publishedHealth.lowercased() {
+            case "good": return "Normal"
+            case "fair", "poor": return "Service Recommended"
+            default: return publishedHealth
+            }
+        }
+        guard let healthPercent else {
+            return nil
+        }
+        return healthPercent >= 80 ? "Normal" : "Service Recommended"
     }
 
     private func summary() -> [String: Any]? {
@@ -271,6 +302,8 @@ public struct BatterySource: Sendable {
     private static let isChargedKey = kIOPSIsChargedKey as String
     private static let powerSourceStateKey = kIOPSPowerSourceStateKey as String
     private static let healthKey = kIOPSBatteryHealthKey as String
+    private static let healthConditionKey = kIOPSBatteryHealthConditionKey as String
+    private static let failureModesKey = kIOPSBatteryFailureModesKey as String
     private static let nameKey = kIOPSNameKey as String
     private static let transportTypeKey = kIOPSTransportTypeKey as String
     private static let acPowerValue = kIOPSACPowerValue as String

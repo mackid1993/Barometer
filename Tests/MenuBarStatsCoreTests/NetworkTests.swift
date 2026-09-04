@@ -8,27 +8,28 @@ struct NetworkTests {
     func formatsRates() {
         #expect(NetworkRateFormatter.string(bytesPerSecond: 1_250_000, unit: .bytes) == "1.2 MB/s")
         #expect(NetworkRateFormatter.string(bytesPerSecond: 1_000_000, unit: .bits) == "8.0 Mb/s")
-        #expect(NetworkRateFormatter.compactString(bytesPerSecond: 82_000, unit: .bytes) == "82.0K")
+        #expect(NetworkRateFormatter.compactString(bytesPerSecond: 82_000, unit: .bytes) == "82.0KB/s")
         #expect(NetworkRateFormatter.string(bytesPerSecond: 62, unit: .bytes, decimalPlaces: 2) == "0.06 KB/s")
-        #expect(NetworkRateFormatter.compactString(bytesPerSecond: 62, unit: .bytes, decimalPlaces: 2) == "0.06K")
+        #expect(NetworkRateFormatter.compactString(bytesPerSecond: 62, unit: .bytes, decimalPlaces: 2) == "0.06KB/s")
         #expect(NetworkRateFormatter.string(bytesPerSecond: -1, unit: .bytes) == "0.0 KB/s")
         #expect(
-            NetworkRateFormatter.compactString(bytesPerSecond: 99_994, unit: .bytes, decimalPlaces: 2) == "99.99K"
+            NetworkRateFormatter.compactString(bytesPerSecond: 99_994, unit: .bytes, decimalPlaces: 2) == "99.99KB/s"
         )
         #expect(
-            NetworkRateFormatter.compactString(bytesPerSecond: 99_995, unit: .bytes, decimalPlaces: 2) == "0.10M"
+            NetworkRateFormatter.compactString(bytesPerSecond: 99_995, unit: .bytes, decimalPlaces: 2) == "0.10MB/s"
         )
         #expect(
-            NetworkRateFormatter.compactString(bytesPerSecond: 125_000, unit: .bytes, decimalPlaces: 2) == "0.13M"
+            NetworkRateFormatter.compactString(bytesPerSecond: 125_000, unit: .bytes, decimalPlaces: 2) == "0.13MB/s"
         )
         #expect(NetworkRateFormatter.string(bytesPerSecond: 125_000, unit: .bytes, decimalPlaces: 2) == "125.00 KB/s")
         #expect(
-            NetworkRateFormatter.compactString(bytesPerSecond: 82_000, unit: .bytes, decimalPlaces: 0) == "82K"
+            NetworkRateFormatter.compactString(bytesPerSecond: 82_000, unit: .bytes, decimalPlaces: 0) == "82KB/s"
         )
         #expect(
-            NetworkRateFormatter.compactString(bytesPerSecond: 82_000, unit: .bytes, decimalPlaces: 2) == "82.00K"
+            NetworkRateFormatter.compactString(bytesPerSecond: 82_000, unit: .bytes, decimalPlaces: 2) == "82.00KB/s"
         )
-        #expect(NetworkRateFormatter.compactPlaceholder(unit: .bytes, decimalPlaces: 2) == "99.99M")
+        #expect(NetworkRateFormatter.compactPlaceholder(unit: .bytes, decimalPlaces: 2) == "99.99MB/s")
+        #expect(NetworkRateFormatter.compactString(bytesPerSecond: 1_250_000, unit: .bits) == "10.0Mb/s")
     }
 
     @Test("network decimal precision migrates without losing prior preferences")

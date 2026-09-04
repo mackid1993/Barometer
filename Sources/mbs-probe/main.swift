@@ -29,6 +29,7 @@ private func runBatteryProbe() throws {
     print(String(format: "Battery %.1f%% — %@", sample.chargePercent, sample.state.rawValue))
     print(
         "health \(sample.healthPercent.map { String(format: "%.1f%%", $0) } ?? "unavailable"); "
+            + "condition \(sample.condition ?? "unavailable"); "
             + "cycles \(sample.cycleCount.map(String.init) ?? "unavailable")"
     )
     print(

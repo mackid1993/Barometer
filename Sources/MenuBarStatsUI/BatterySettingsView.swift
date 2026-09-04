@@ -22,7 +22,10 @@ struct BatterySettingsView: View {
                 )
             }
             Section("Menu Bar") {
-                LabeledContent("Display", value: "Percentage inside battery")
+                Picker("Display", selection: moduleBinding(\.mode)) {
+                    Text("Percentage inside battery").tag("glyphPercentage")
+                    Text("BAT label and percentage").tag("labeledPercentage")
+                }
                 Toggle("Show while connected to power", isOn: batteryBinding(\.showsWhenConnectedToPower))
                 MenuBarColorPickerRows(
                     lightColor: colorBinding(\.lightColor),

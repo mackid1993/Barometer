@@ -39,6 +39,7 @@ public final class StatusItemController<Sample: Sendable> {
     private let renderContent: Render
     private let isEnabled: IsEnabled
     private let logger = Logger(subsystem: "com.barometer.app", category: "render")
+    private var appliedLength: CGFloat?
 
     /// Creates and begins observing a status item controller.
     public init(
@@ -89,7 +90,11 @@ public final class StatusItemController<Sample: Sendable> {
         // on both sides. An explicit length makes the rendered canvas authoritative,
         // so the user-controlled spacing can reach zero while each module remains
         // a separate, movable status item.
-        statusItem.length = StatusItemRendering.itemLength(for: content.image)
+        let targetLength = StatusItemRendering.itemLength(for: content.image)
+        if StatusItemRendering.shouldUpdateLength(current: appliedLength, target: targetLength) {
+            statusItem.length = targetLength
+            appliedLength = targetLength
+        }
         button.setAccessibilityValue(content.accessibilityValue)
         if !statusItem.isVisible {
             statusItem.isVisible = true
@@ -126,6 +131,10 @@ enum StatusItemRendering {
 
     static func itemLength(for image: NSImage) -> CGFloat {
         max(1, ceil(image.size.width))
+    }
+
+    static func shouldUpdateLength(current: CGFloat?, target: CGFloat) -> Bool {
+        current.map { abs($0 - target) > 0.01 } ?? true
     }
 
     static func context(

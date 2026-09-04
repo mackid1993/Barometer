@@ -8,12 +8,13 @@ public enum BatteryMenuBarPresenter {
     /// Renders the Battery percentage inside a compact battery glyph.
     public static func content(
         sample: BatterySample?,
+        moduleSettings: ModuleSettings,
         batterySettings: BatterySettings,
         context: RenderContext
     ) -> StatusItemContent {
         guard let sample else {
             return StatusItemContent(
-                image: BatteryPercentRenderer(percent: nil).render(in: context),
+                image: renderer(percent: nil, mode: moduleSettings.mode).render(in: context),
                 accessibilityValue: "Battery unavailable"
             )
         }
@@ -24,9 +25,17 @@ public enum BatteryMenuBarPresenter {
         )
         let state = stateDescription(sample.state)
         return StatusItemContent(
-            image: BatteryPercentRenderer(percent: sample.chargePercent).render(in: renderContext),
+            image: renderer(percent: sample.chargePercent, mode: moduleSettings.mode).render(in: renderContext),
             accessibilityValue: String(format: "Battery %.1f percent, %@", sample.chargePercent, state)
         )
+    }
+
+    private static func renderer(percent: Double?, mode: String) -> any MenuBarRenderer {
+        guard mode == "labeledPercentage" else {
+            return BatteryPercentRenderer(percent: percent)
+        }
+        let value = percent.map { String(format: "%.0f%%", $0) } ?? "—"
+        return StackedLabelRenderer(label: "BAT", value: value, reservedValue: "100%")
     }
 
     static func symbolName(for sample: BatterySample) -> String {

@@ -269,7 +269,9 @@ End of Phase 4: stop for review.
 
 ### P5-T2 Battery module
 
-- `BatteryMonitor`, one compact percentage-inside-battery glyph, dropdown (details, health, adapter, charge history graph), settings (show when on AC, low battery threshold color). Do not expose duration estimates.
+- `BatteryMonitor`, compact percentage-inside-battery and BAT-label percentage presentations, dropdown (details,
+  health, adapter, charge history graph), settings (show when on AC, low battery threshold color). Do not expose
+  duration estimates.
 - Verify: unplug and replug the charger; the item updates within 2 s.
 
 ### P5-T3 Bluetooth device batteries (optional in v1)

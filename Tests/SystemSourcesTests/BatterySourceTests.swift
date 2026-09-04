@@ -20,6 +20,16 @@ struct BatterySourceTests {
     }
 
     @Test
+    func normalizesBatteryConditionFromPublishedAndFallbackSignals() {
+        #expect(condition(publishedHealth: "Good", healthPercent: nil) == "Normal")
+        #expect(condition(publishedHealth: "Fair", healthPercent: nil) == "Service Recommended")
+        #expect(condition(publishedHealth: nil, healthPercent: 100) == "Normal")
+        #expect(condition(publishedHealth: nil, healthPercent: 79.9) == "Service Recommended")
+        #expect(condition(publishedHealth: nil, permanentFailureStatus: 1, healthPercent: 100) == "Service Recommended")
+        #expect(condition(publishedHealth: nil, healthPercent: nil) == nil)
+    }
+
+    @Test
     func readsLiveLaptopWhenAvailable() throws {
         let source = BatterySource()
         guard source.isAvailable else {
@@ -32,5 +42,24 @@ struct BatterySourceTests {
         #expect(sample.voltageVolts.map { $0 > 0 } ?? true)
         #expect(sample.temperatureCelsius.map { (0...60).contains($0) } ?? true)
         #expect(sample.cycleCount.map { $0 >= 0 } ?? true)
+        if sample.healthPercent != nil {
+            #expect(sample.condition != nil)
+        }
+    }
+
+    private func condition(
+        publishedHealth: String?,
+        publishedCondition: String? = nil,
+        hasFailureModes: Bool = false,
+        permanentFailureStatus: Int? = nil,
+        healthPercent: Double?
+    ) -> String? {
+        BatterySource.condition(
+            publishedHealth: publishedHealth,
+            publishedCondition: publishedCondition,
+            hasFailureModes: hasFailureModes,
+            permanentFailureStatus: permanentFailureStatus,
+            healthPercent: healthPercent
+        )
     }
 }
