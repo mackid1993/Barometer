@@ -277,7 +277,13 @@ struct MenuBarLayoutMetrics {
     }
 
     func symbolSize(nativeSize: NSSize, font: NSFont) -> NSSize {
-        let height = min(font.pointSize * context.scale, context.thickness - 4)
+        // A glyph beside text has the whole bar to work with, so it is never shrunk below the size
+        // it has at the reference icon scale. Letting the automatic scale pull it down made the
+        // weather symbol read as an afterthought next to its temperature.
+        let height = min(
+            max(font.pointSize * context.scale, font.pointSize * RenderContext.referenceScale),
+            context.thickness - 4
+        )
         let aspectRatio = max(0.5, nativeSize.width / max(1, nativeSize.height))
         return NSSize(width: ceil(height * aspectRatio), height: height)
     }

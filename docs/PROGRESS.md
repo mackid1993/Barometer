@@ -2289,3 +2289,30 @@ Verification:
 - The direct checks still pass, including battery width and centering, two-row alignment at 22, 24, and 26 pt, and
   the weather glyph floor.
 - `make install` replaced and relaunched `/Applications/Barometer.app`.
+
+### P8-T12 make the weather item legible
+
+David said the weather glyph was still far too small, then identified the real problem: stacking the icon over the
+temperature gives each of them half of a 22 pt bar, so neither can be large. Raising the glyph inside its row was
+the wrong fix, and measurement showed it: at a floor of one point past the row the glyph merged into the value below
+it, leaving a single band of ink instead of two.
+
+Icon and temperature now sit side by side, so each uses the full bar height. Measured at David's item count the
+glyph and the temperature both draw around 11 pt of ink instead of roughly 8, and the temperature is set in the
+normal menu bar font rather than the compact two-row one.
+
+The cost is width: about 47 pt against 21 pt stacked. That is a real trade against the reason stacks exist, so the
+old presentation stays selectable as "Icon over temperature (compact)" rather than being replaced outright.
+
+Separately, `MenuBarLayoutMetrics.symbolSize` scaled a glyph beside text by the automatic icon scale, which shrinks
+as items are added. A glyph on one row has the whole bar to work with, so it is no longer pulled below its size at
+the reference scale.
+
+Verification:
+
+- `swift build`, `swift build -c release`, and `git diff --check` completed successfully; `swift test` built every
+  target, and the runner remains unavailable on this machine.
+- Rendering both presentations side by side to a magnified PNG showed the difference directly and caught the failed
+  first attempt, where the enlarged glyph collided with the temperature.
+- Widths and glyph ink were measured at every automatic scale from 3 to 16 items. All existing checks still pass.
+- `make install` replaced and relaunched `/Applications/Barometer.app`.

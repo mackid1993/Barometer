@@ -89,7 +89,8 @@ struct WeatherSettingsView: View {
             Section("Menu Bar") {
                 Toggle("Show in menu bar", isOn: moduleEnabledBinding)
                 Picker("Display", selection: moduleModeBinding) {
-                    Text("Icon over temperature").tag("iconTemperature")
+                    Text("Icon and temperature").tag("iconTemperature")
+                    Text("Icon over temperature (compact)").tag("iconTemperatureStacked")
                     Text("Temperature").tag("temperature")
                     Text("Icon + temperature + condition").tag("conditions")
                     Text("High / low").tag("highLow")

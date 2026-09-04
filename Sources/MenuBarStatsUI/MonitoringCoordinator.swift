@@ -1296,11 +1296,14 @@ public final class MonitoringCoordinator {
                 text: "—"
             )
         let reservedText = weatherReservedText(mode: settings.mode)
-        let reservedSymbols = settings.mode == "iconTemperature" ? [] : weatherSymbolNames
+        let isStacked = settings.mode == "iconTemperatureStacked"
+        let reservedSymbols = settings.mode == "iconTemperature" || isStacked ? [] : weatherSymbolNames
+        // Icon and temperature sit side by side by default. Stacking gives each of them half the
+        // bar, which leaves both hard to read; one row lets the glyph and the value each use the
+        // full height, at approximately twice the width. The stack stays available for anyone who
+        // would rather spend the menu bar space than the legibility.
         let renderer: any MenuBarRenderer =
-            if settings.mode == "iconTemperature",
-                let symbolName = presentation.symbolName
-            {
+            if isStacked, let symbolName = presentation.symbolName {
                 IconStackRenderer(
                     symbolName: symbolName,
                     text: presentation.text,
@@ -1337,6 +1340,7 @@ public final class MonitoringCoordinator {
 
     private static func weatherReservedText(mode: String) -> String {
         switch mode {
+        case "iconTemperatureStacked": "-99°"
         case "conditions": "99°F Thunderstorm with heavy hail"
         case "highLow": "H 99°  L 99°"
         case "precipitation": "100%"

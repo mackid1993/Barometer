@@ -395,6 +395,13 @@ allow `.combined` instances.
 - Reorderable reading list per stack, add and delete stacks, per-stack layout, replacement, and colors.
 - Verify: changes apply live and survive a relaunch.
 
+### P8-T12 Legible weather presentation
+
+- Icon and temperature sit side by side so both use the full bar height, instead of stacking them into half a bar
+  each where neither reads. Roughly twice the width, so the compact stack stays available as its own mode.
+- A glyph drawn beside text is never shrunk below its reference-scale size by the automatic item-count scale.
+- Verify: the glyph and the temperature are legible at every automatic scale; both modes are selectable.
+
 ### P8-T6 Battery power adapter correctness
 
 - `AppleSmartBattery` keeps publishing an `AdapterDetails` stub after the adapter is unplugged, which made the
