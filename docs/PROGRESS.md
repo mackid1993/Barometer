@@ -2256,3 +2256,36 @@ Verification:
   stack, where they previously began two points lower. The arrow rows are unchanged, every battery presentation
   still measures one width, and the two bare rows still share a center.
 - `make install` replaced and relaunched `/Applications/Barometer.app`.
+
+### P8-T11 stack dropdown detail and Settings preview
+
+David added a CPU and GPU stack and reported two things: nothing appeared, and the pane gave him no way to see what
+he was building.
+
+Nothing appeared because the stack was saved with `isEnabled` false. Adding a stack creates it hidden and stages its
+visibility, like a new Sensors widget, so the choice only takes effect through the Apply bar. That is the existing
+model for anything that changes the visible item set and was left alone, but it is exactly why the preview matters.
+
+The stack dropdown previously showed a two-tile summary per module. It now hosts each source module's own dropdown
+behind a tab, so a CPU and GPU stack opens the full CPU dropdown and the full GPU dropdown. Those views bring their
+own scroll container, so the stack view adds only the tab strip above them rather than nesting a second scaffold,
+and `DropdownController.fitContent` already measures intrinsic height so each tab sizes itself. The tab strip is
+hidden when a stack draws from a single module, where it would be one pointless tab. The dropdown now needs the same
+callbacks the individual items use, so location access, weather refresh, sensor energy reset, and calendar access
+are passed through from the coordinator.
+
+The Stacks pane now renders a preview, matching every other module pane. It reads
+`settingsIncludingPendingMenuBarChanges`, so staged edits appear before they are applied, which is the point of it.
+To keep the preview honest, the reserved width of every reading moved into `StackMetric.reservedValue(settings:)`
+and the menu bar renderer now sizes from that same catalog; the preview cannot show a width the real item would not.
+`StackMetric.previewValue(settings:)` supplies representative readings, and both follow the selected units.
+
+Verification:
+
+- `swift build`, `swift build -c release`, and `git diff --check` completed successfully; `swift test` built every
+  target, and the runner remains unavailable on this machine.
+- Rendering the preview path to a magnified PNG showed a CPU and GPU stack and a battery and temperature stack drawn
+  as matched two-row columns with a separator between the stacks, matching the menu bar output beside it.
+- The direct checks still pass, including battery width and centering, two-row alignment at 22, 24, and 26 pt, and
+  the weather glyph floor.
+- `make install` replaced and relaunched `/Applications/Barometer.app`.

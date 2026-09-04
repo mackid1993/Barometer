@@ -62,7 +62,7 @@ struct CombinedSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .settingsPane(module: .combined, settings: settingsStore.settings)
+        .settingsPane(module: .combined, settings: settingsStore.settings, preview: previewImage)
         // The person creating the stack names it. Nothing here invents one for them.
         .alert("Name this stack", isPresented: $isNamingStack) {
             TextField("Name", text: $newStackName)
@@ -138,6 +138,56 @@ struct CombinedSettingsView: View {
                 Label("Delete \(name)", systemImage: "trash")
             }
         }
+    }
+
+    // MARK: - Preview
+
+    /// The stacks exactly as the menu bar will draw them, including edits not yet applied.
+    ///
+    /// Stack edits are staged behind the Apply bar, so the preview reads the staged settings: the
+    /// point is to see the result before committing to it. Reserved widths come from the same
+    /// catalog the renderer uses, so the preview cannot show a width the real item would not.
+    private var previewImage: NSImage {
+        let appSettings = settingsStore.settingsIncludingPendingMenuBarChanges
+        let moduleSettings = appSettings.modules[.combined] ?? ModuleSettings()
+        let normal = NSColor(hex: appSettings.darkColor(for: moduleSettings)) ?? .controlAccentColor
+        let context = RenderContext(
+            thickness: NSStatusBar.system.thickness,
+            appearance: .dark,
+            palette: MenuBarPalette(light: normal, dark: normal),
+            fontSize: appSettings.effectiveMenuBarFontSize,
+            isMonochrome: appSettings.isMonochrome,
+            scale: appSettings.effectiveMenuBarScale,
+            graphOpacity: appSettings.graphOpacity,
+            fontWeight: appSettings.fontWeight
+        )
+        let renderers: [any MenuBarRenderer] = appSettings.stacks.stacks.map { stack in
+            let fields = stack.metrics.map { metric in
+                SensorStackValue(
+                    label: metric.label,
+                    value: metric.previewValue(settings: appSettings),
+                    reservedValue: metric.reservedValue(settings: appSettings),
+                    reservedLabel: metric.label
+                )
+            }
+            guard !fields.isEmpty else {
+                return TextRenderer(text: "—")
+            }
+            switch stack.layout {
+            case .columns:
+                return SensorStackRenderer(values: fields)
+            case .singleRow:
+                return TextRenderer(
+                    text: fields.map { "\($0.label) \($0.value)" }.joined(separator: "  "),
+                    reservedText: fields.map { "\($0.reservedLabel ?? $0.label) \($0.reservedValue)" }
+                        .joined(separator: "  ")
+                )
+            }
+        }
+        guard !renderers.isEmpty else {
+            return TextRenderer(text: "No stacks").render(in: context)
+        }
+        return CombinedRenderer(renderers: renderers).render(in: context)
     }
 
     // MARK: - Mutation

@@ -87,6 +87,17 @@ struct CombinedTests {
         #expect(StacksSettings.migrating(from: combined, isCombinedEnabled: false).stacks.isEmpty)
     }
 
+    @Test("every metric offers a reserved width and a preview value")
+    func metricsSupportThePreview() {
+        // The Settings preview and the menu bar renderer size from the same reserved string, so a
+        // preview can never show a width the real item would not.
+        let settings = AppSettings()
+        for metric in StackMetric.allCases {
+            #expect(!metric.reservedValue(settings: settings).isEmpty, "\(metric) has no reserved width")
+            #expect(!metric.previewValue(settings: settings).isEmpty, "\(metric) has no preview value")
+        }
+    }
+
     @Test("every stack metric names exactly one owning module")
     func metricsNameOneModule() {
         for metric in StackMetric.allCases {

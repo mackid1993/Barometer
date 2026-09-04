@@ -144,3 +144,95 @@ public enum StackMetric: String, CaseIterable, Codable, Hashable, Sendable {
         }
     }
 }
+
+extension StackMetric {
+    /// Widest string this reading can ever show, given the units currently selected.
+    ///
+    /// The menu bar renderer and the Settings preview both size from this, so a preview can never
+    /// show a different width than the item it is previewing.
+    public func reservedValue(settings: AppSettings) -> String {
+        let unitSystem = settings.disks.unitSystem
+        let capacity = unitSystem == .binary ? "999GiB" : "999GB"
+        let rate = unitSystem == .binary ? "999GiB/s" : "999GB/s"
+        let degrees = settings.sensorTemperatureUnit == .fahrenheit ? "257°F" : "125°C"
+        switch self {
+        case .cpuTotal, .cpuUser, .cpuSystem, .cpuIdle, .gpuUtilization,
+            .memoryUsedPercent, .memoryPressure, .diskUsedPercent, .batteryCharge:
+            return "100%"
+        case .cpuLoad:
+            return "99.99"
+        case .gpuPower:
+            return "199.9W"
+        case .gpuTemperature, .sensorsHottest:
+            return degrees
+        case .memoryUsedBytes, .memoryFreeBytes, .memorySwap, .diskFreeBytes:
+            return capacity
+        case .diskRead, .diskWrite:
+            return rate
+        case .networkDownload, .networkUpload:
+            return NetworkRateFormatter.compactPlaceholder(
+                unit: settings.network.rateUnit,
+                decimalPlaces: settings.network.decimalPlaces
+            )
+        case .sensorsFan:
+            return "9999r"
+        case .batteryTime:
+            return BatteryTimeFormatter.reservedCompact
+        case .weatherTemperature:
+            return "-99°"
+        case .timeClock:
+            return TimeFormatEngine.menuBarPlaceholder(
+                template: settings.time.menuBarTemplate,
+                showsSeconds: settings.time.showsSeconds
+            )
+        }
+    }
+
+    /// Representative value used by the Settings preview before any sample exists.
+    public func previewValue(settings: AppSettings) -> String {
+        let unitSystem = settings.disks.unitSystem
+        switch self {
+        case .cpuTotal: return "12%"
+        case .cpuUser: return "8%"
+        case .cpuSystem: return "4%"
+        case .cpuIdle: return "88%"
+        case .cpuLoad: return "1.42"
+        case .gpuUtilization: return "6%"
+        case .gpuPower: return "3.4W"
+        case .gpuTemperature, .sensorsHottest:
+            return settings.sensorTemperatureUnit == .fahrenheit ? "118°F" : "48°C"
+        case .memoryUsedPercent: return "71%"
+        case .memoryPressure: return "29%"
+        case .memoryUsedBytes: return unitSystem == .binary ? "17GiB" : "18GB"
+        case .memoryFreeBytes: return unitSystem == .binary ? "7GiB" : "7GB"
+        case .memorySwap: return unitSystem == .binary ? "2GiB" : "2GB"
+        case .diskUsedPercent: return "64%"
+        case .diskFreeBytes: return unitSystem == .binary ? "312GiB" : "335GB"
+        case .diskRead: return unitSystem == .binary ? "4MiB/s" : "4MB/s"
+        case .diskWrite: return unitSystem == .binary ? "1MiB/s" : "1MB/s"
+        case .networkDownload:
+            return NetworkRateFormatter.compactString(
+                bytesPerSecond: 1_200_000,
+                unit: settings.network.rateUnit,
+                decimalPlaces: settings.network.decimalPlaces
+            )
+        case .networkUpload:
+            return NetworkRateFormatter.compactString(
+                bytesPerSecond: 82_000,
+                unit: settings.network.rateUnit,
+                decimalPlaces: settings.network.decimalPlaces
+            )
+        case .sensorsFan: return "2100r"
+        case .batteryCharge: return "78%"
+        case .batteryTime: return "7:30"
+        case .weatherTemperature: return "72°"
+        case .timeClock:
+            return TimeFormatEngine.render(
+                date: Date(timeIntervalSince1970: 1_757_000_000),
+                timeZone: .current,
+                template: settings.time.menuBarTemplate,
+                showsSeconds: settings.time.showsSeconds
+            )
+        }
+    }
+}

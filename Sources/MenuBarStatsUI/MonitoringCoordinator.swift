@@ -748,7 +748,21 @@ public final class MonitoringCoordinator {
                         batteryStore: batteryStore,
                         weatherStore: weatherStore,
                         timeStore: timeStore,
-                        settingsStore: settingsStore
+                        settingsStore: settingsStore,
+                        locationAccess: { CurrentLocationProvider.shared.accessState },
+                        locationAction: { [weak self] in self?.handleNetworkLocationAction() },
+                        weatherRefreshAction: { [weak self] in
+                            guard let self else { return }
+                            Task { await self.weatherSession?.refresh() }
+                        },
+                        resetEnergyAction: { [weak self] in
+                            guard let self else { return }
+                            Task {
+                                await self.sensorsMonitor.resetSessionEnergy()
+                                await self.sensorsScheduler.refresh()
+                            }
+                        },
+                        requestCalendarAccess: { [weak self] in self?.requestCalendarAccess() }
                     )
                 ),
                 contentHeight: CombinedDropdownView.contentSize.height,
@@ -1114,28 +1128,23 @@ public final class MonitoringCoordinator {
     /// Every branch returns the same reserved width whether or not a sample has arrived, so an item
     /// never resizes as its module starts sampling.
     private func stackValue(for metric: StackMetric, appSettings: AppSettings) -> SensorStackValue {
-        let label = metric.label
-        func field(_ value: String?, reserved: String) -> SensorStackValue {
+        // The reserved width comes from the shared catalog, so the Settings preview and the item
+        // itself can never disagree about how wide a reading is.
+        func field(_ value: String?) -> SensorStackValue {
             SensorStackValue(
-                label: label,
+                label: metric.label,
                 value: value ?? "—",
-                reservedValue: reserved,
-                reservedLabel: label
+                reservedValue: metric.reservedValue(settings: appSettings),
+                reservedLabel: metric.label
             )
         }
         func percent(_ value: Double?) -> SensorStackValue {
-            field(value.map { String(format: "%.0f%%", $0) }, reserved: "100%")
+            field(value.map { String(format: "%.0f%%", $0) })
         }
 
         let disks = appSettings.disks
         let network = appSettings.network
         let temperatureUnit = appSettings.sensorTemperatureUnit
-        let capacityPlaceholder = disks.unitSystem == .binary ? "999GiB" : "999GB"
-        let ratePlaceholder = disks.unitSystem == .binary ? "999GiB/s" : "999GB/s"
-        let networkPlaceholder = NetworkRateFormatter.compactPlaceholder(
-            unit: network.rateUnit,
-            decimalPlaces: network.decimalPlaces
-        )
 
         switch metric {
         case .cpuTotal:
@@ -1147,22 +1156,13 @@ public final class MonitoringCoordinator {
         case .cpuIdle:
             return percent(cpuStore.latestSample?.idlePercent)
         case .cpuLoad:
-            return field(
-                cpuStore.latestSample?.loadAverages.first.map { String(format: "%.2f", $0) },
-                reserved: "99.99"
-            )
+            return field(cpuStore.latestSample?.loadAverages.first.map { String(format: "%.2f", $0) })
         case .gpuUtilization:
             return percent(gpuStore.latestSample?.deviceUtilizationPercent)
         case .gpuPower:
-            return field(
-                gpuStore.latestSample?.powerWatts.map { String(format: "%.1fW", $0) },
-                reserved: "199.9W"
-            )
+            return field(gpuStore.latestSample?.powerWatts.map { String(format: "%.1fW", $0) })
         case .gpuTemperature:
-            return field(
-                gpuStore.latestSample?.temperatureCelsius.map { Self.temperature($0, unit: temperatureUnit) },
-                reserved: temperatureUnit == .fahrenheit ? "257°F" : "125°C"
-            )
+            return field(gpuStore.latestSample?.temperatureCelsius.map { Self.temperature($0, unit: temperatureUnit) })
         case .memoryUsedPercent:
             return percent(
                 memoryStore.latestSample.map { $0.total > 0 ? Double($0.used) / Double($0.total) * 100 : 0 }
@@ -1171,15 +1171,13 @@ public final class MonitoringCoordinator {
             return field(
                 memoryStore.latestSample.map {
                     DiskValueFormatter.capacity($0.used, unitSystem: disks.unitSystem, compact: true)
-                },
-                reserved: capacityPlaceholder
+                }
             )
         case .memoryFreeBytes:
             return field(
                 memoryStore.latestSample.map {
                     DiskValueFormatter.capacity($0.free, unitSystem: disks.unitSystem, compact: true)
-                },
-                reserved: capacityPlaceholder
+                }
             )
         case .memoryPressure:
             return percent(memoryStore.latestSample?.pressurePercent)
@@ -1187,30 +1185,19 @@ public final class MonitoringCoordinator {
             return field(
                 memoryStore.latestSample.map {
                     DiskValueFormatter.capacity($0.swapUsed, unitSystem: disks.unitSystem, compact: true)
-                },
-                reserved: capacityPlaceholder
+                }
             )
         case .diskRead:
             return field(
                 diskStore.latestSample.map {
-                    DiskValueFormatter.rate(
-                        Self.diskRates($0).read,
-                        unitSystem: disks.unitSystem,
-                        compact: true
-                    )
-                },
-                reserved: ratePlaceholder
+                    DiskValueFormatter.rate(Self.diskRates($0).read, unitSystem: disks.unitSystem, compact: true)
+                }
             )
         case .diskWrite:
             return field(
                 diskStore.latestSample.map {
-                    DiskValueFormatter.rate(
-                        Self.diskRates($0).write,
-                        unitSystem: disks.unitSystem,
-                        compact: true
-                    )
-                },
-                reserved: ratePlaceholder
+                    DiskValueFormatter.rate(Self.diskRates($0).write, unitSystem: disks.unitSystem, compact: true)
+                }
             )
         case .diskUsedPercent:
             return percent(diskStore.latestSample?.selectedVolume(settings: disks)?.usedPercent)
@@ -1218,8 +1205,7 @@ public final class MonitoringCoordinator {
             return field(
                 diskStore.latestSample?.selectedVolume(settings: disks).map {
                     DiskValueFormatter.capacity($0.availableBytes, unitSystem: disks.unitSystem, compact: true)
-                },
-                reserved: capacityPlaceholder
+                }
             )
         case .networkDownload:
             return field(
@@ -1229,8 +1215,7 @@ public final class MonitoringCoordinator {
                         unit: network.rateUnit,
                         decimalPlaces: network.decimalPlaces
                     )
-                },
-                reserved: networkPlaceholder
+                }
             )
         case .networkUpload:
             return field(
@@ -1240,11 +1225,13 @@ public final class MonitoringCoordinator {
                         unit: network.rateUnit,
                         decimalPlaces: network.decimalPlaces
                     )
-                },
-                reserved: networkPlaceholder
+                }
             )
-        case .sensorsHottest:
-            let reading = sensorStore.latestSample?.reading(id: "derived:temperature:hottest")
+        case .sensorsHottest, .sensorsFan:
+            let reading =
+                metric == .sensorsFan
+                ? sensorStore.latestSample?.readings.first { $0.kind == .fan }
+                : sensorStore.latestSample?.reading(id: "derived:temperature:hottest")
             return field(
                 reading.map {
                     SensorValueFormatter.string(
@@ -1253,37 +1240,17 @@ public final class MonitoringCoordinator {
                         decimalPlaces: appSettings.sensors.decimalPlaces,
                         compact: true
                     )
-                },
-                reserved: temperatureUnit == .fahrenheit ? "257°F" : "125°C"
-            )
-        case .sensorsFan:
-            let fan = sensorStore.latestSample?.readings.first { $0.kind == .fan }
-            return field(
-                fan.map {
-                    SensorValueFormatter.string(
-                        $0,
-                        temperatureUnit: temperatureUnit,
-                        decimalPlaces: appSettings.sensors.decimalPlaces,
-                        compact: true
-                    )
-                },
-                reserved: "9999r"
+                }
             )
         case .batteryCharge:
             return percent(batteryStore.latestSample?.chargePercent)
         case .batteryTime:
-            return field(
-                batteryStore.latestSample.map {
-                    BatteryTimeFormatter.compact(minutes: $0.remainingMinutes)
-                },
-                reserved: BatteryTimeFormatter.reservedCompact
-            )
+            return field(batteryStore.latestSample.map { BatteryTimeFormatter.compact(minutes: $0.remainingMinutes) })
         case .weatherTemperature:
             return field(
                 weatherStore.latestSample.map {
                     WeatherPresentationFormatter.menuBar(sample: $0, mode: "temperature").text
-                },
-                reserved: "-99°"
+                }
             )
         case .timeClock:
             return field(
@@ -1296,11 +1263,7 @@ public final class MonitoringCoordinator {
                             showsSeconds: appSettings.time.showsSeconds
                         )
                     }
-                },
-                reserved: TimeFormatEngine.menuBarPlaceholder(
-                    template: appSettings.time.menuBarTemplate,
-                    showsSeconds: appSettings.time.showsSeconds
-                )
+                }
             )
         }
     }
