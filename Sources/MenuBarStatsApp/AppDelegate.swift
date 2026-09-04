@@ -41,7 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         monitoringCoordinator = MonitoringCoordinator(
             registry: registry,
             settingsStore: settingsStore,
-            settingsAction: { [weak self] in self?.showSettings() },
+            settingsAction: { [weak self] module in self?.showSettings(module: module) },
             quitAction: { NSApp.terminate(nil) }
         )
         Self.logger.info("Barometer started")
@@ -101,7 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
-    private func showSettings() {
+    private func showSettings(module: ModuleID? = nil) {
         if settingsWindowController == nil {
             guard let settingsStore, let monitoringCoordinator else {
                 return
@@ -110,12 +110,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 settingsStore: settingsStore,
                 gpuStore: monitoringCoordinator.gpuStore,
                 batteryStore: monitoringCoordinator.batteryStore,
+                timeStore: monitoringCoordinator.timeStore,
                 networkStore: monitoringCoordinator.networkStore,
                 diskStore: monitoringCoordinator.diskStore,
                 sensorStore: monitoringCoordinator.sensorStore
             )
         }
-        settingsWindowController?.show()
+        settingsWindowController?.show(module: module)
     }
 
     @objc private func openSettingsFromNotification() {

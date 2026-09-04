@@ -1,27 +1,34 @@
 import AppKit
 import MenuBarStatsCore
+import Observation
 import ServiceManagement
 import SwiftUI
 
 /// Owns and presents the MenuBarStats settings window.
 @MainActor
 public final class SettingsWindowController: NSWindowController {
+    private var navigationModel: SettingsNavigationModel?
+
     /// Creates the settings window controller.
     public convenience init(
         settingsStore: SettingsStore,
         gpuStore: ModuleStore<GPUSample>,
         batteryStore: ModuleStore<BatterySample>,
+        timeStore: ModuleStore<TimeSample>,
         networkStore: ModuleStore<NetworkSample>,
         diskStore: ModuleStore<DiskSample>,
         sensorStore: ModuleStore<SensorSample>
     ) {
+        let navigationModel = SettingsNavigationModel()
         let rootView = SettingsRootView(
             settingsStore: settingsStore,
             gpuStore: gpuStore,
             batteryStore: batteryStore,
+            timeStore: timeStore,
             networkStore: networkStore,
             diskStore: diskStore,
-            sensorStore: sensorStore
+            sensorStore: sensorStore,
+            navigationModel: navigationModel
         )
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
@@ -32,10 +39,12 @@ public final class SettingsWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
         window.center()
         self.init(window: window)
+        self.navigationModel = navigationModel
     }
 
     /// Brings the settings window to the front.
-    public func show() {
+    public func show(module: ModuleID? = nil) {
+        navigationModel?.selection = module.map(SettingsSelection.module) ?? .general
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate()
@@ -54,18 +63,25 @@ private enum SettingsSelection: Hashable {
     }
 }
 
+@MainActor
+@Observable
+private final class SettingsNavigationModel {
+    var selection: SettingsSelection? = .general
+}
+
 private struct SettingsRootView: View {
     let settingsStore: SettingsStore
     let gpuStore: ModuleStore<GPUSample>
     let batteryStore: ModuleStore<BatterySample>
+    let timeStore: ModuleStore<TimeSample>
     let networkStore: ModuleStore<NetworkSample>
     let diskStore: ModuleStore<DiskSample>
     let sensorStore: ModuleStore<SensorSample>
-    @State private var selection: SettingsSelection? = .general
+    @Bindable var navigationModel: SettingsNavigationModel
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $selection) {
+            List(selection: $navigationModel.selection) {
                 Label("General", systemImage: "gearshape")
                     .tag(SettingsSelection.general)
 
@@ -79,7 +95,7 @@ private struct SettingsRootView: View {
             .navigationTitle("Settings")
             .navigationSplitViewColumnWidth(min: 175, ideal: 195)
         } detail: {
-            switch selection ?? .general {
+            switch navigationModel.selection ?? .general {
             case .general:
                 GeneralSettingsView(settingsStore: settingsStore)
             case let .module(module) where module == .cpu || module == .memory:
@@ -88,6 +104,8 @@ private struct SettingsRootView: View {
                 GPUSettingsView(store: gpuStore, settingsStore: settingsStore)
             case let .module(module) where module == .battery:
                 BatterySettingsView(store: batteryStore, settingsStore: settingsStore)
+            case let .module(module) where module == .time:
+                TimeSettingsView(store: timeStore, settingsStore: settingsStore)
             case let .module(module) where module == .weather:
                 WeatherSettingsView(settingsStore: settingsStore)
             case let .module(module) where module == .network:

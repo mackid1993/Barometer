@@ -24,24 +24,19 @@ public struct WeatherSettings: Codable, Equatable, Sendable {
     /// Forecast refresh interval, constrained by the UI to 5 through 60 minutes.
     public var refreshIntervalMinutes: Int
 
-    /// User-editable menu bar token template.
-    public var menuBarTemplate: String
-
     /// Creates Weather settings.
     public init(
         locations: [Location] = [],
         primaryLocationID: String? = nil,
         usesCurrentLocation: Bool = false,
         units: WeatherUnits = .imperial,
-        refreshIntervalMinutes: Int = 15,
-        menuBarTemplate: String = "{temp} {cond}"
+        refreshIntervalMinutes: Int = 15
     ) {
         self.locations = locations
         self.primaryLocationID = primaryLocationID
         self.usesCurrentLocation = usesCurrentLocation
         self.units = units
         self.refreshIntervalMinutes = refreshIntervalMinutes
-        self.menuBarTemplate = menuBarTemplate
     }
 
     /// The selected location, falling back to the first saved location.
@@ -106,7 +101,7 @@ public struct ModuleSettings: Codable, Equatable, Sendable {
 /// Versioned application settings persisted as JSON in the app defaults domain.
 public struct AppSettings: Codable, Equatable, Sendable {
     /// Current settings schema version.
-    public static let currentSchemaVersion = 9
+    public static let currentSchemaVersion = 10
 
     /// Schema version encoded in this value.
     public var schemaVersion: Int
@@ -138,7 +133,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Per-module settings keyed by stable module identity.
     public var modules: [ModuleID: ModuleSettings]
 
-    /// Weather locations, units, refresh, and template preferences.
+    /// Weather locations, units, and refresh preferences.
     public var weather: WeatherSettings
 
     /// Temperature unit used by hardware sensor readouts.
@@ -155,6 +150,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
     /// Visibility and warning choices for Battery.
     public var battery: BatterySettings
+
+    /// Clock format, world-clock, and optional calendar choices.
+    public var time: TimeSettings
 
     /// Version of one-time default presentation migrations already applied.
     public private(set) var presentationDefaultsVersion: Int
@@ -176,7 +174,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         sensors: SensorSettings = SensorSettings(),
         network: NetworkSettings = NetworkSettings(),
         disks: DiskSettings = DiskSettings(),
-        battery: BatterySettings = BatterySettings()
+        battery: BatterySettings = BatterySettings(),
+        time: TimeSettings = TimeSettings()
     ) {
         self.schemaVersion = schemaVersion
         self.reducesSamplingOnBattery = reducesSamplingOnBattery
@@ -194,6 +193,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.network = network
         self.disks = disks
         self.battery = battery
+        self.time = time
         presentationDefaultsVersion = 3
     }
 
@@ -210,6 +210,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         values[.disks] = ModuleSettings(isEnabled: false, mode: "activityGraph", interval: 1)
         values[.sensors] = ModuleSettings(isEnabled: false, mode: "compactStack", interval: 2)
         values[.battery] = ModuleSettings(isEnabled: false, mode: "percentage", interval: 10)
+        values[.time] = ModuleSettings(isEnabled: false, mode: "custom", interval: 60)
         return values
     }
 
@@ -230,6 +231,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case network
         case disks
         case battery
+        case time
         case presentationDefaultsVersion
     }
 
@@ -259,6 +261,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
             network = NetworkSettings()
             disks = DiskSettings()
             battery = BatterySettings()
+            time = TimeSettings()
             presentationDefaultsVersion = 3
         case 1...Self.currentSchemaVersion:
             schemaVersion = Self.currentSchemaVersion
@@ -280,6 +283,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
             network = try container.decodeIfPresent(NetworkSettings.self, forKey: .network) ?? NetworkSettings()
             disks = try container.decodeIfPresent(DiskSettings.self, forKey: .disks) ?? DiskSettings()
             battery = try container.decodeIfPresent(BatterySettings.self, forKey: .battery) ?? BatterySettings()
+            time = try container.decodeIfPresent(TimeSettings.self, forKey: .time) ?? TimeSettings()
             presentationDefaultsVersion = try container.decodeIfPresent(
                 Int.self,
                 forKey: .presentationDefaultsVersion
@@ -308,6 +312,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
                 presentationDefaultsVersion = 3
             }
             if modules[.weather]?.mode == "percentage" {
+                modules[.weather]?.mode = "iconTemperature"
+            }
+            if modules[.weather]?.mode == "template" {
                 modules[.weather]?.mode = "iconTemperature"
             }
             if version < 5, modules[.network]?.mode == "percentage" {

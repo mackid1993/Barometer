@@ -56,28 +56,46 @@ public struct WeatherDropdownView: View {
     @ViewBuilder
     private func locationAndActions(sample: WeatherSample) -> some View {
         Divider()
-        HStack {
-            if settingsStore.settings.weather.locations.count > 1 {
-                Picker("Location", selection: primaryLocationBinding) {
-                    ForEach(settingsStore.settings.weather.locations) { location in
-                        Text(location.name).tag(location.id)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                if settingsStore.settings.weather.locations.count > 1 {
+                    Picker("Location", selection: primaryLocationBinding) {
+                        ForEach(settingsStore.settings.weather.locations) { location in
+                            Text(location.name).tag(location.id)
+                        }
                     }
+                    .labelsHidden()
+                    .frame(maxWidth: 180)
+                } else {
+                    Label(sample.forecast.location.name, systemImage: "location")
+                        .lineLimit(1)
                 }
-                .labelsHidden()
-                .frame(maxWidth: 180)
-            } else {
-                Label(sample.forecast.location.name, systemImage: "location")
-                    .lineLimit(1)
+                Spacer()
+                Button(action: refreshAction) {
+                    Label("Refresh Now", systemImage: "arrow.clockwise")
+                }
+                Button(action: openWeatherApplication) {
+                    Label("Weather", systemImage: "arrow.up.forward.app")
+                }
             }
-            Spacer()
-            Button(action: refreshAction) {
-                Label("Refresh", systemImage: "arrow.clockwise")
-            }
-            Button(action: openWeatherApplication) {
-                Label("Weather", systemImage: "arrow.up.forward.app")
+            .controlSize(.small)
+            Text(Self.updatedText(fetchedAt: sample.forecast.fetchedAt, now: Date()))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            if let refreshError = sample.refreshError {
+                Label("Refresh failed; showing saved weather. \(refreshError)", systemImage: "exclamationmark.triangle")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .lineLimit(2)
             }
         }
-        .controlSize(.small)
+    }
+
+    static func updatedText(fetchedAt: Date, now: Date) -> String {
+        let age = max(0, now.timeIntervalSince(fetchedAt))
+        if age < 60 { return "Weather updated just now" }
+        if age < 3_600 { return "Weather updated \(Int(age / 60)) min ago" }
+        return "Weather updated \(Int(age / 3_600)) hr ago"
     }
 
     private var primaryLocationBinding: Binding<String> {

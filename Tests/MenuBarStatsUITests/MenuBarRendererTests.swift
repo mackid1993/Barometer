@@ -81,6 +81,33 @@ struct MenuBarRendererTests {
     }
 
     @Test
+    func timePresentationUsesCustomTokensAndReportsItsValue() {
+        let sample = TimeSample(
+            timestamp: Date(timeIntervalSince1970: 1_704_110_400),
+            systemTimeZoneIdentifier: "UTC"
+        )
+        let content = TimeMenuBarPresenter.content(
+            sample: sample,
+            settings: ModuleSettings(isEnabled: true, mode: "custom"),
+            timeSettings: TimeSettings(menuBarTemplate: "{time24} {zone}"),
+            context: context
+        )
+
+        #expect(content.image.size.width > 0)
+        #expect(content.accessibilityValue == "Time 13:20 UTC")
+    }
+
+    @Test
+    func weatherRefreshAgeMakesSuccessfulUpdatesVisible() {
+        let now = Date(timeIntervalSince1970: 10_000)
+
+        #expect(WeatherDropdownView.updatedText(fetchedAt: now.addingTimeInterval(-12), now: now)
+            == "Weather updated just now")
+        #expect(WeatherDropdownView.updatedText(fetchedAt: now.addingTimeInterval(-125), now: now)
+            == "Weather updated 2 min ago")
+    }
+
+    @Test
     func stackedRowsShareOneLeadingEdge() {
         let metrics = MenuBarLayoutMetrics(context: context)
         let origins = metrics.stackedOrigins(labelHeight: 10, valueHeight: 12)

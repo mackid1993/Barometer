@@ -102,7 +102,7 @@ struct WeatherTests {
         #expect(phase.symbolName == symbol)
     }
 
-    @Test("menu bar formatting supports Fahrenheit, Celsius, templates, and stale state")
+    @Test("menu bar formatting supports Fahrenheit, Celsius, and stale state")
     func menuBarFormatting() throws {
         let data = try fixture(named: "forecast-boston")
         let imperial = try OpenMeteoClient.decodeForecast(data, for: boston, units: .imperial)
@@ -125,22 +125,14 @@ struct WeatherTests {
         #expect(
             WeatherPresentationFormatter.menuBar(
                 sample: imperialSample,
-                mode: "iconTemperature",
-                template: ""
+                mode: "iconTemperature"
             ).text == "66°F"
         )
         #expect(
             WeatherPresentationFormatter.menuBar(
                 sample: metricSample,
-                mode: "temperature",
-                template: ""
+                mode: "temperature"
             ).text == "66°C ⚠︎"
-        )
-        #expect(
-            WeatherPresentationFormatter.customTemplate(
-                sample: imperialSample,
-                template: "{temp} {cond} H:{hi} L:{lo} {wind} X:{unknown}"
-            ) == "66°F Overcast H:79° L:65° 8 mph X:{unknown}"
         )
     }
 

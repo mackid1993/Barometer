@@ -93,14 +93,7 @@ struct WeatherSettingsView: View {
                     Text("Icon + temperature + condition").tag("conditions")
                     Text("High / low").tag("highLow")
                     Text("Precipitation chance").tag("precipitation")
-                    Text("Custom template").tag("template")
                 }
-                TextField("Template", text: weatherBinding(\.menuBarTemplate))
-                    .textFieldStyle(.roundedBorder)
-                Text("Tokens: {temp} {cond} {hi} {lo} {pop} {wind} {aqi}")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                LabeledContent("Preview", value: templatePreview)
             }
         }
         .formStyle(.grouped)
@@ -274,17 +267,6 @@ struct WeatherSettingsView: View {
         if let current = weather.locations.first(where: { $0.id == "current-location" }) {
             remove(current)
         }
-    }
-
-    private var templatePreview: String {
-        weather.menuBarTemplate
-            .replacingOccurrences(of: "{temp}", with: weather.units.temperature == .fahrenheit ? "72°F" : "22°C")
-            .replacingOccurrences(of: "{cond}", with: "Partly Cloudy")
-            .replacingOccurrences(of: "{hi}", with: weather.units.temperature == .fahrenheit ? "78°" : "26°")
-            .replacingOccurrences(of: "{lo}", with: weather.units.temperature == .fahrenheit ? "61°" : "16°")
-            .replacingOccurrences(of: "{pop}", with: "20%")
-            .replacingOccurrences(of: "{wind}", with: "8 \(weather.units.windSpeed.symbol)")
-            .replacingOccurrences(of: "{aqi}", with: "42")
     }
 
     private func weatherBinding<Value>(_ keyPath: WritableKeyPath<WeatherSettings, Value>) -> Binding<Value> {

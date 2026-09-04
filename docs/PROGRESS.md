@@ -825,6 +825,41 @@ Verification:
   correct graceful result with no supported connected-device keys present during verification.
 - `swift build`, `git diff --check`, and the 120-column check passed.
 
+## P6-T1 Time module
+
+Implemented the permanent `Barometer.Time` item with a deterministic date/time token engine, optional seconds,
+12-hour locale-aware time, explicit 24-hour time, date, weekday, ISO week, day-of-year, and time-zone fields. The
+monitor samples once per second only when seconds are visible; otherwise its next interval is calculated to land on
+the wall-clock minute. System clock and time-zone notifications refresh it immediately.
+
+The dropdown includes a highlighted month calendar, searchable world clocks with UTC offsets and day/night glyphs,
+and sunrise/sunset from the primary Weather forecast. Time settings include live format preview, fixed-width choice,
+module colors, and ordered world-clock additions/removals.
+
+Verification:
+
+- `swift test` exited 0. New coverage verifies deterministic token output across UTC and America/New_York, optional
+  seconds, invalid/duplicate world-clock removal, wall-clock minute alignment, menu bar rendering, and accessibility.
+- `swift run mbs-probe time` reported the live local date, time with seconds, ISO week 36, day 247, EDT, and system
+  time-zone identifier `America/New_York`.
+- `swift build -c release`, `git diff --check`, and the 120-column check passed.
+
+### Widget settings navigation follow-up
+
+Every dropdown Settings command now selects that widget's own settings pane, including already-open Settings
+windows. The application-wide open-settings notification continues to select General.
+
+### Weather refresh visibility and presentation follow-up
+
+Runtime diagnostics confirmed that the running app refreshed and wrote the current-location Weather cache at
+01:08:17. The dropdown now displays the age of the last successful forecast fetch, resets visibly to “updated just
+now” after success, and explains when a refresh failed and saved weather is being shown. The manual action is labeled
+“Refresh Now.” Tests cover the freshness text.
+
+Removed the Weather custom-template mode, token editor, formatter branch, persisted template field, and test cases.
+Existing settings saved in the old `template` mode migrate to icon-over-temperature. Purpose-built Weather display
+modes remain unchanged.
+
 ### Compact sensor punctuation follow-up
 
 Compact Sensors widgets now display plain-language labels as `CPU:`, `GPU:`, and so on. The previous one-point

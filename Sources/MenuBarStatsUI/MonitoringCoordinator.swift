@@ -31,6 +31,9 @@ public final class MonitoringCoordinator {
     /// Observable Battery state used by its status item, dropdown, and settings.
     public let batteryStore = ModuleStore<BatterySample>(historyCapacity: 8_640)
 
+    /// Observable Time state used by its status item, dropdown, and settings.
+    public let timeStore = ModuleStore<TimeSample>(historyCapacity: 120)
+
     /// Shared application settings.
     public let settingsStore: SettingsStore
 
@@ -43,13 +46,16 @@ public final class MonitoringCoordinator {
     private let sensorsMonitor: SensorsMonitor
     private let sensorsScheduler: Scheduler<SensorsMonitor>
     private let batteryScheduler: Scheduler<BatteryMonitor>
+    private let timeMonitor: TimeMonitor
+    private let timeScheduler: Scheduler<TimeMonitor>
     private let registry: StatusItemRegistry
-    private let settingsAction: @MainActor () -> Void
+    private let settingsAction: @MainActor (ModuleID) -> Void
     private let quitAction: @MainActor () -> Void
     private let powerStateObserver = PowerStateObserver()
     private let displaySleepWatcher = DisplaySleepWatcher()
     private let networkChangeObserver = NetworkChangeObserver()
     private let volumeMountWatcher = VolumeMountWatcher()
+    private let timeZoneChangeWatcher = TimeZoneChangeWatcher()
     private var weatherSession: WeatherMonitoringSession?
     private var weatherConfiguration: WeatherConfiguration?
     private var cpuController: StatusItemController<CPUSample>?
@@ -60,6 +66,7 @@ public final class MonitoringCoordinator {
     private var diskController: StatusItemController<DiskSample>?
     private var sensorControllers: [Int: StatusItemController<SensorSample>] = [:]
     private var batteryController: StatusItemController<BatterySample>?
+    private var timeController: StatusItemController<TimeSample>?
     private var cpuDropdown: DropdownController?
     private var memoryDropdown: DropdownController?
     private var gpuDropdown: DropdownController?
@@ -68,6 +75,7 @@ public final class MonitoringCoordinator {
     private var diskDropdown: DropdownController?
     private var sensorDropdowns: [Int: DropdownController] = [:]
     private var batteryDropdown: DropdownController?
+    private var timeDropdown: DropdownController?
     private var cpuSampleTask: Task<Void, Never>?
     private var memorySampleTask: Task<Void, Never>?
     private var gpuSampleTask: Task<Void, Never>?
@@ -76,6 +84,7 @@ public final class MonitoringCoordinator {
     private var diskSampleTask: Task<Void, Never>?
     private var sensorSampleTask: Task<Void, Never>?
     private var batterySampleTask: Task<Void, Never>?
+    private var timeSampleTask: Task<Void, Never>?
     private var weatherGeneration = 0
     private var isTrackingCurrentLocation = false
     private var lastPublicIPEnabled: Bool?
@@ -84,7 +93,7 @@ public final class MonitoringCoordinator {
     public init(
         registry: StatusItemRegistry,
         settingsStore: SettingsStore,
-        settingsAction: @escaping @MainActor () -> Void,
+        settingsAction: @escaping @MainActor (ModuleID) -> Void,
         quitAction: @escaping @MainActor () -> Void
     ) {
         self.registry = registry
@@ -102,6 +111,9 @@ public final class MonitoringCoordinator {
         self.sensorsMonitor = sensorsMonitor
         sensorsScheduler = Scheduler(monitor: sensorsMonitor)
         batteryScheduler = Scheduler(monitor: BatteryMonitor())
+        let timeMonitor = TimeMonitor()
+        self.timeMonitor = timeMonitor
+        timeScheduler = Scheduler(monitor: timeMonitor)
 
         cpuController = StatusItemController(
             module: .cpu,
@@ -143,8 +155,7 @@ public final class MonitoringCoordinator {
                     sample: sample,
                     history: history,
                     settings: settings,
-                    context: context,
-                    template: settingsStore.settings.weather.menuBarTemplate
+                    context: context
                 )
             }
         )
@@ -198,13 +209,27 @@ public final class MonitoringCoordinator {
                 )
             }
         )
+        timeController = StatusItemController(
+            module: .time,
+            statusItem: registry.item(for: .time),
+            store: timeStore,
+            settingsStore: settingsStore,
+            render: { sample, _, moduleSettings, context in
+                TimeMenuBarPresenter.content(
+                    sample: sample,
+                    settings: moduleSettings,
+                    timeSettings: settingsStore.settings.time,
+                    context: context
+                )
+            }
+        )
         cpuDropdown = DropdownController(
             moduleName: ModuleID.cpu.displayName,
             statusItem: registry.item(for: .cpu),
             rootView: AnyView(CPUDropdownView(store: cpuStore, settingsStore: settingsStore)),
             contentHeight: 438,
             tickAction: { [weak cpuStore] in cpuStore?.tick() },
-            settingsAction: settingsAction,
+            settingsAction: { settingsAction(.cpu) },
             quitAction: quitAction
         )
         memoryDropdown = DropdownController(
@@ -213,7 +238,7 @@ public final class MonitoringCoordinator {
             rootView: AnyView(MemoryDropdownView(store: memoryStore, settingsStore: settingsStore)),
             contentHeight: 386,
             tickAction: { [weak memoryStore] in memoryStore?.tick() },
-            settingsAction: settingsAction,
+            settingsAction: { settingsAction(.memory) },
             quitAction: quitAction
         )
         gpuDropdown = DropdownController(
@@ -223,7 +248,7 @@ public final class MonitoringCoordinator {
             contentHeight: 500,
             contentWidth: 380,
             tickAction: { [weak gpuStore] in gpuStore?.tick() },
-            settingsAction: settingsAction,
+            settingsAction: { settingsAction(.gpu) },
             quitAction: quitAction
         )
         weatherDropdown = DropdownController(
@@ -246,7 +271,7 @@ public final class MonitoringCoordinator {
             contentHeight: 700,
             contentWidth: 420,
             tickAction: { [weak weatherStore] in weatherStore?.tick() },
-            settingsAction: settingsAction,
+            settingsAction: { settingsAction(.weather) },
             quitAction: quitAction
         )
         networkDropdown = DropdownController(
@@ -256,7 +281,7 @@ public final class MonitoringCoordinator {
             contentHeight: 540,
             contentWidth: 380,
             tickAction: { [weak networkStore] in networkStore?.tick() },
-            settingsAction: settingsAction,
+            settingsAction: { settingsAction(.network) },
             quitAction: quitAction
         )
         diskDropdown = DropdownController(
@@ -266,7 +291,7 @@ public final class MonitoringCoordinator {
             contentHeight: 520,
             contentWidth: 380,
             tickAction: { [weak diskStore] in diskStore?.tick() },
-            settingsAction: settingsAction,
+            settingsAction: { settingsAction(.disks) },
             quitAction: quitAction
         )
         batteryDropdown = DropdownController(
@@ -276,7 +301,19 @@ public final class MonitoringCoordinator {
             contentHeight: 520,
             contentWidth: 360,
             tickAction: { [weak batteryStore] in batteryStore?.tick() },
-            settingsAction: settingsAction,
+            settingsAction: { settingsAction(.battery) },
+            quitAction: quitAction
+        )
+        timeDropdown = DropdownController(
+            moduleName: ModuleID.time.displayName,
+            statusItem: registry.item(for: .time),
+            rootView: AnyView(
+                TimeDropdownView(store: timeStore, weatherStore: weatherStore, settingsStore: settingsStore)
+            ),
+            contentHeight: 540,
+            contentWidth: 360,
+            tickAction: { [weak timeStore] in timeStore?.tick() },
+            settingsAction: { settingsAction(.time) },
             quitAction: quitAction
         )
         configureSensorWidgets()
@@ -286,6 +323,7 @@ public final class MonitoringCoordinator {
         configureDisplaySleepAwareness()
         configureNetworkChangeAwareness()
         configureVolumeMountAwareness()
+        configureTimeZoneAwareness()
         observeSettings()
         configureWeatherMonitoring()
         configureCurrentLocation()
@@ -298,6 +336,7 @@ public final class MonitoringCoordinator {
             await diskScheduler.start()
             await sensorsScheduler.start()
             await batteryScheduler.start()
+            await timeScheduler.start()
         }
     }
 
@@ -311,7 +350,9 @@ public final class MonitoringCoordinator {
         diskSampleTask?.cancel()
         sensorSampleTask?.cancel()
         batterySampleTask?.cancel()
+        timeSampleTask?.cancel()
         CurrentLocationProvider.shared.stop()
+        timeZoneChangeWatcher.stop()
         Task {
             await cpuScheduler.stop()
             await memoryScheduler.stop()
@@ -320,6 +361,7 @@ public final class MonitoringCoordinator {
             await diskScheduler.stop()
             await sensorsScheduler.stop()
             await batteryScheduler.stop()
+            await timeScheduler.stop()
             await weatherSession?.stop()
         }
     }
@@ -390,6 +432,14 @@ public final class MonitoringCoordinator {
                 self?.batteryStore.receive(sample, at: sample.timestamp)
             }
         }
+
+        let timeSamples = timeScheduler.samples
+        timeSampleTask = Task { [weak self] in
+            for await sample in timeSamples {
+                guard !Task.isCancelled else { break }
+                self?.timeStore.receive(sample, at: sample.timestamp)
+            }
+        }
     }
 
     private func configurePowerAwareness() {
@@ -397,6 +447,15 @@ public final class MonitoringCoordinator {
             self?.applyPowerState(state)
         }
         applyPowerState(powerStateObserver.currentState)
+    }
+
+    private func configureTimeZoneAwareness() {
+        timeZoneChangeWatcher.onChange = { [weak self] in
+            guard let self else { return }
+            Task {
+                await self.timeScheduler.refresh()
+            }
+        }
     }
 
     private func configureDisplaySleepAwareness() {
@@ -412,6 +471,7 @@ public final class MonitoringCoordinator {
                 await self.diskScheduler.pause()
                 await self.sensorsScheduler.pause()
                 await self.batteryScheduler.pause()
+                await self.timeScheduler.pause()
                 await self.weatherSession?.pause()
             }
         }
@@ -427,6 +487,7 @@ public final class MonitoringCoordinator {
                 await self.diskScheduler.resume()
                 await self.sensorsScheduler.resume()
                 await self.batteryScheduler.resume()
+                await self.timeScheduler.resume()
                 await self.weatherSession?.resume()
             }
         }
@@ -458,12 +519,14 @@ public final class MonitoringCoordinator {
             _ = settingsStore.settings.modules[.disks]?.interval
             _ = settingsStore.settings.modules[.sensors]?.interval
             _ = settingsStore.settings.modules[.battery]?.interval
+            _ = settingsStore.settings.modules[.time]?.isEnabled
             _ = settingsStore.settings.weather
             _ = settingsStore.settings.network
             _ = settingsStore.settings.disks
             _ = settingsStore.settings.sensors
             _ = settingsStore.settings.sensorTemperatureUnit
             _ = settingsStore.settings.battery
+            _ = settingsStore.settings.time
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else {
@@ -490,6 +553,7 @@ public final class MonitoringCoordinator {
         let diskSeconds = settingsStore.settings.modules[.disks]?.interval ?? 1
         let sensorSeconds = settingsStore.settings.modules[.sensors]?.interval ?? 2
         let batterySeconds = settingsStore.settings.modules[.battery]?.interval ?? 10
+        let timeShowsSeconds = settingsStore.settings.time.showsSeconds
         Task {
             await cpuScheduler.setInterval(.milliseconds(Int64(max(0.25, cpuSeconds) * 1_000)))
             await memoryScheduler.setInterval(.milliseconds(Int64(max(0.25, memorySeconds) * 1_000)))
@@ -498,6 +562,9 @@ public final class MonitoringCoordinator {
             await diskScheduler.setInterval(.milliseconds(Int64(max(0.25, diskSeconds) * 1_000)))
             await sensorsScheduler.setInterval(.milliseconds(Int64(max(1, sensorSeconds) * 1_000)))
             await batteryScheduler.setInterval(.milliseconds(Int64(max(2, batterySeconds) * 1_000)))
+            await timeMonitor.setShowsSeconds(timeShowsSeconds)
+            await timeScheduler.setInterval(nil)
+            await timeScheduler.refresh()
         }
     }
 
@@ -551,7 +618,7 @@ public final class MonitoringCoordinator {
                 contentHeight: 600,
                 contentWidth: 420,
                 tickAction: { [weak sensorStore] in sensorStore?.tick() },
-                settingsAction: settingsAction,
+                settingsAction: { self.settingsAction(.sensors) },
                 quitAction: quitAction
             )
         }
@@ -788,8 +855,7 @@ public final class MonitoringCoordinator {
         sample: WeatherSample?,
         history: [HistoryEntry<WeatherSample>],
         settings: ModuleSettings,
-        context: RenderContext,
-        template: String
+        context: RenderContext
     ) -> StatusItemContent {
         guard let sample else {
             return StatusItemContent(
@@ -800,8 +866,7 @@ public final class MonitoringCoordinator {
         let forecast = sample.forecast
         let presentation = WeatherPresentationFormatter.menuBar(
             sample: sample,
-            mode: settings.mode,
-            template: template
+            mode: settings.mode
         )
         let renderer: any MenuBarRenderer = if settings.mode == "iconTemperature",
                                               let symbolName = presentation.symbolName {

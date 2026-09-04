@@ -18,6 +18,7 @@ private enum ProbeCommand: String {
     case sensors
     case smc
     case temps
+    case time
     case version
     case weather
     case wifi
@@ -53,6 +54,21 @@ private func runBatteryProbe() throws {
             print("Bluetooth battery: \(device.name) — \(levels)")
         }
     }
+}
+
+private func runTimeProbe() async throws {
+    let sample = await TimeMonitor().sample()
+    guard let timeZone = TimeZone(identifier: sample.systemTimeZoneIdentifier) else {
+        throw CocoaError(.formatting)
+    }
+    let local = TimeFormatEngine.render(
+        date: sample.timestamp,
+        timeZone: timeZone,
+        template: "{weekday} {date} {time} · W{week} D{day} · {zone}",
+        showsSeconds: true
+    )
+    print("Time \(local)")
+    print("system time zone: \(sample.systemTimeZoneIdentifier)")
 }
 
 private func runIdentityProbe() {
@@ -497,7 +513,7 @@ private enum ProbeMain {
                 "usage: mbs-probe <battery|cpu [--watch]|disks [--watch]|fans|freq [--watch]|geocode QUERY|"
                     + "gpu [--watch]|"
                     + "identity|"
-                    + "memory|net [--watch]|power [--watch]|sensors [--watch]|smc --list|temps|version|"
+                    + "memory|net [--watch]|power [--watch]|sensors [--watch]|smc --list|temps|time|version|"
                     + "weather --lat N --lon N|wifi>"
             )
             exit(EXIT_FAILURE)
@@ -589,6 +605,12 @@ private enum ProbeMain {
                     exit(EXIT_FAILURE)
                 }
                 try await runTemperatureProbe()
+            case .time:
+                guard arguments.count == 1 else {
+                    writeError("usage: mbs-probe time")
+                    exit(EXIT_FAILURE)
+                }
+                try await runTimeProbe()
             case .version:
                 guard arguments.count == 1 else {
                     writeError("usage: mbs-probe version")
