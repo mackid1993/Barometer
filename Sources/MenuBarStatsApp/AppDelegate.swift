@@ -36,7 +36,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let settingsStore = SettingsStore()
         statusItemRegistry = registry
         self.settingsStore = settingsStore
-        monitoringCoordinator = MonitoringCoordinator(registry: registry, settingsStore: settingsStore)
+        monitoringCoordinator = MonitoringCoordinator(
+            registry: registry,
+            settingsStore: settingsStore,
+            settingsAction: { [weak self] in self?.showSettings() },
+            quitAction: { NSApp.terminate(nil) }
+        )
         Self.logger.info("MenuBarStats started")
     }
 

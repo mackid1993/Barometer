@@ -20,6 +20,9 @@ public struct ProcessSnapshot: Sendable {
 
     /// Current thread count reported by libproc.
     public let threadCount: Int
+
+    /// Effective user identifier owning the process.
+    public let userIdentifier: uid_t
 }
 
 /// Aggregate process-list observation.
@@ -92,6 +95,7 @@ public final class ProcessSource {
             }
 
             let threadCount = processThreadCount(for: processIdentifier)
+            let userIdentifier = processUserIdentifier(for: processIdentifier)
             totalThreads += threadCount
             snapshots.append(
                 ProcessSnapshot(
@@ -100,7 +104,8 @@ public final class ProcessSource {
                     path: path,
                     cpuPercent: cpuPercent,
                     physicalFootprint: usage.ri_phys_footprint,
-                    threadCount: threadCount
+                    threadCount: threadCount,
+                    userIdentifier: userIdentifier
                 )
             )
             nextCache[processIdentifier] = CacheEntry(
@@ -172,6 +177,15 @@ public final class ProcessSource {
             proc_pidinfo(processIdentifier, PROC_PIDTASKINFO, 0, pointer, size)
         }
         return result == size ? Int(info.pti_threadnum) : 0
+    }
+
+    private func processUserIdentifier(for processIdentifier: pid_t) -> uid_t {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.stride)
+        let result = withUnsafeMutablePointer(to: &info) { pointer in
+            proc_pidinfo(processIdentifier, PROC_PIDTBSDINFO, 0, pointer, size)
+        }
+        return result == size ? info.pbi_uid : uid_t.max
     }
 
     private static func string(from buffer: [CChar], byteCount: Int) -> String {

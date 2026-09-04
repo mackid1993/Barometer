@@ -282,3 +282,32 @@ Screenshots were captured in `dist/phase1-light.png` and `dist/phase1-dark.png`.
 clipping. The required temporary switch to light appearance was visible to the user before the scripted restoration
 completed; dark appearance was immediately restored and verified through both global defaults and a new screenshot.
 Do not change the user's system appearance again without an explicit warning immediately before the change.
+
+## P1-T5 Dropdown framework
+
+Implemented a reusable `DropdownController` that owns each module menu, hosts a 320-point SwiftUI detail view,
+provides Settings and Quit commands, and runs a half-second `.common`-mode timer while menu tracking is active. The
+timer advances the observable store revision and logs `tracking tick` records in the `dropdown` category.
+
+The CPU dropdown includes a live history graph with 1-minute, 5-minute, 30-minute, 3-hour, and 24-hour ranges,
+per-core activity bars, load averages, uptime, process/thread counts, app icons, top-process CPU values, and process
+termination. Processes owned by another user or macOS require an explicit warning confirmation. The Memory dropdown
+includes a composition bar and legend, pressure history and severity coloring, swap use, app icons, and top process
+footprints. History capacities now retain a full 24 hours at the normal CPU and Memory intervals.
+
+`swift build` (exit 0):
+
+```text
+Building for debugging...
+[3/7] Compiling MenuBarStatsUI MonitoringCoordinator.swift
+[4/7] Emitting module MenuBarStatsUI
+[8/10] Linking MenuBarStatsApp
+Build complete! (1.42s)
+```
+
+`make app` and `make run` both exited 0. The packaged process remained running from
+`dist/MenuBarStats.app/Contents/MacOS/MenuBarStats`, confirming startup and menu installation did not crash.
+
+The required interactive 10-second open-menu check and corresponding live `log stream` capture remain for David's
+review because they require holding the actual CPU menu open. If the graph does not advance during that check, P1-T5
+must be reopened to add the `NSPanel` fallback before Phase 1 is accepted.

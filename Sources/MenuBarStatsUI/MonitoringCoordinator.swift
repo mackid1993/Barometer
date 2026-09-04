@@ -1,15 +1,16 @@
 import AppKit
 import MenuBarStatsCore
 import Observation
+import SwiftUI
 
 /// Wires Phase 1 monitors, stores, schedulers, and status item controllers together.
 @MainActor
 public final class MonitoringCoordinator {
     /// Observable CPU state used by status items and dropdowns.
-    public let cpuStore = ModuleStore<CPUSample>(historyCapacity: 8_640)
+    public let cpuStore = ModuleStore<CPUSample>(historyCapacity: 86_400)
 
     /// Observable Memory state used by status items and dropdowns.
-    public let memoryStore = ModuleStore<MemorySample>(historyCapacity: 8_640)
+    public let memoryStore = ModuleStore<MemorySample>(historyCapacity: 43_200)
 
     /// Shared application settings.
     public let settingsStore: SettingsStore
@@ -20,11 +21,18 @@ public final class MonitoringCoordinator {
     private let displaySleepWatcher = DisplaySleepWatcher()
     private var cpuController: StatusItemController<CPUSample>?
     private var memoryController: StatusItemController<MemorySample>?
+    private var cpuDropdown: DropdownController?
+    private var memoryDropdown: DropdownController?
     private var cpuSampleTask: Task<Void, Never>?
     private var memorySampleTask: Task<Void, Never>?
 
     /// Creates and starts Phase 1 monitoring.
-    public init(registry: StatusItemRegistry, settingsStore: SettingsStore) {
+    public init(
+        registry: StatusItemRegistry,
+        settingsStore: SettingsStore,
+        settingsAction: @escaping @MainActor () -> Void,
+        quitAction: @escaping @MainActor () -> Void
+    ) {
         self.settingsStore = settingsStore
         cpuScheduler = Scheduler(monitor: CPUMonitor())
         memoryScheduler = Scheduler(monitor: MemoryMonitor())
@@ -42,6 +50,24 @@ public final class MonitoringCoordinator {
             store: memoryStore,
             settingsStore: settingsStore,
             render: Self.renderMemory
+        )
+        cpuDropdown = DropdownController(
+            moduleName: ModuleID.cpu.displayName,
+            statusItem: registry.item(for: .cpu),
+            rootView: AnyView(CPUDropdownView(store: cpuStore)),
+            contentHeight: 438,
+            tickAction: { [weak cpuStore] in cpuStore?.tick() },
+            settingsAction: settingsAction,
+            quitAction: quitAction
+        )
+        memoryDropdown = DropdownController(
+            moduleName: ModuleID.memory.displayName,
+            statusItem: registry.item(for: .memory),
+            rootView: AnyView(MemoryDropdownView(store: memoryStore)),
+            contentHeight: 386,
+            tickAction: { [weak memoryStore] in memoryStore?.tick() },
+            settingsAction: settingsAction,
+            quitAction: quitAction
         )
 
         startSampleConsumption()

@@ -26,6 +26,9 @@ public struct CPUProcessSample: Sendable {
 
     /// CPU use as a percentage of total machine capacity.
     public let cpuPercent: Double
+
+    /// Effective user identifier owning the process.
+    public let userIdentifier: UInt32
 }
 
 /// One complete CPU module sample.
@@ -111,7 +114,8 @@ public actor CPUMonitor: Monitor {
                     processIdentifier: process.processIdentifier,
                     name: process.name,
                     path: process.path,
-                    cpuPercent: process.cpuPercent
+                    cpuPercent: process.cpuPercent,
+                    userIdentifier: process.userIdentifier
                 )
             }
 
