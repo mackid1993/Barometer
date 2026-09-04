@@ -27,11 +27,29 @@ sed \
 
 find "$binary_directory" -maxdepth 1 -type d -name '*.bundle' -exec cp -R '{}' "$resources_directory/" ';'
 
-codesign \
-    --force \
-    --sign - \
-    --identifier com.barometer.app \
-    "$application_directory"
+signing_identity=${CODESIGN_IDENTITY:-}
+if [ -z "$signing_identity" ]; then
+    signing_identity=$(security find-identity -v -p codesigning 2>/dev/null \
+        | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' \
+        | head -n 1)
+fi
+
+if [ -n "$signing_identity" ] && [ "$signing_identity" != "-" ]; then
+    codesign \
+        --force \
+        --options runtime \
+        --timestamp \
+        --sign "$signing_identity" \
+        --identifier com.barometer.app \
+        "$application_directory"
+else
+    echo "No Developer ID Application identity found; using an ad-hoc development signature." >&2
+    codesign \
+        --force \
+        --sign - \
+        --identifier com.barometer.app \
+        "$application_directory"
+fi
 
 bundle_identifier=$(plutil -extract CFBundleIdentifier raw -o - "$contents_directory/Info.plist")
 bundle_executable=$(plutil -extract CFBundleExecutable raw -o - "$contents_directory/Info.plist")

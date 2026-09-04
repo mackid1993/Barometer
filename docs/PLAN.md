@@ -57,7 +57,10 @@ Goal: a signed `.app` that shows one static status item with the correct identit
 ### P0-T2 Bundle assembly and Makefile
 
 - `Scripts/Info.plist` with the keys in design section 10, placeholders `__VERSION__` and `__BUILD__`.
-- `Scripts/make-app.sh`: build the `Barometer` product in release, create `dist/Barometer.app`, copy the `Barometer` binary as `Contents/MacOS/Barometer`, substitute the plist, copy any SwiftPM resource bundles (`.build/release/*.bundle`) into `Contents/Resources`, ad-hoc sign with identifier `com.barometer.app`.
+- `Scripts/make-app.sh`: build the `Barometer` product in release, create `dist/Barometer.app`, copy the `Barometer`
+  binary as `Contents/MacOS/Barometer`, substitute the plist, and copy any SwiftPM resource bundles
+  (`.build/release/*.bundle`) into `Contents/Resources`. Sign with an explicit or locally discovered Developer ID
+  Application identity when available, with an ad-hoc fallback, and preserve identifier `com.barometer.app`.
 - `Makefile` targets: `build`, `test`, `app`, `run`, `stop`, `install`, `probe SRC=cpu`, `clean`. `stop` uses `osascript -e 'quit app id "com.barometer.app"'` with a `pkill -f Barometer.app/Contents/MacOS/Barometer` fallback.
 - Done when: `make app` produces a bundle that `codesign -dv` reports with the right identifier and `plutil -p dist/Barometer.app/Contents/Info.plist` shows `LSUIElement => true`.
 - Verify: `make app && codesign -dv --verbose=2 dist/Barometer.app 2>&1 | grep -E 'Identifier|Signature'`.
@@ -66,7 +69,9 @@ Goal: a signed `.app` that shows one static status item with the correct identit
 
 - `main.swift`: create `NSApplication.shared`, set `AppDelegate`, `NSApp.setActivationPolicy(.accessory)`, `NSApp.run()`.
 - `AppDelegate`: single-instance guard (design 3.5 rule 10), logging setup, create `StatusItemRegistry`, create the Settings window controller lazily, handle `applicationShouldTerminate`.
-- `StatusItemRegistry` (in `MenuBarStatsUI`): owns every `NSStatusItem`. Public API: `item(for: ModuleID) -> NSStatusItem`, `setVisible(_:for:)`. Creates all ten items at launch with the autosave names from the identity table, `button.title = ""`, `setAccessibilityIdentifier`, `setAccessibilityLabel`, no `.removalAllowed`. In P0 only the CPU item is visible and it shows a static rendered image of the text "CPU".
+- `StatusItemRegistry` (in `MenuBarStatsUI`): owns every `NSStatusItem`. Creates all standard and saved extra
+  identities before any item becomes visible, with the autosave names from the identity table, `button.title = ""`,
+  a unique accessibility identifier, the common accessibility label `Barometer`, and no `.removalAllowed`.
 - `ModuleID` enum in `MenuBarStatsCore` with `autosaveName` and `displayName` computed properties. This is the single source of truth for the identity table.
 - Identity self-test: in debug builds, one second after launch, log each item's `autosaveName`, `button.window?.title`, AX identifier, AX label, AX title under category `identity`, and `assert` that label and identifier match.
 - Menu: the CPU item gets an `NSMenu` with "Settings…" and "Quit Barometer".
@@ -310,8 +315,8 @@ End of Phase 6: stop for review.
 
 - iStat-style theme presets plus fully custom palettes. Per-module and per-section light/dark colors cover menu bar
   text and symbols, line/area/bar graphs, dropdown charts, fills, category accents, and normal/warning/critical
-  thresholds. Include monochrome mode, graph style and opacity, font size and weight, item spacing, a global compact
-  toggle, reset-to-theme controls, and a live preview strip in Settings.
+  thresholds. Include monochrome mode, graph style and opacity, font weight, automatic item-count-based sizing,
+  reset-to-theme controls, and a live preview strip in Settings.
 - Verify: exercise every preset and custom color role; screenshots in both appearances with all items visible; no
   clipping at 24 pt thickness; export/import preserves the complete theme.
 

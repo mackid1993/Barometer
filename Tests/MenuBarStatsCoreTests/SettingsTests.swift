@@ -333,7 +333,7 @@ struct SettingsTests {
 
     @Test("active widget count automatically limits effective font size")
     func limitsFontSizeForDensity() {
-        var settings = AppSettings(fontSize: 12)
+        var settings = AppSettings(fontSize: 9)
         #expect(settings.enabledMenuBarItemCount == 2)
         #expect(settings.effectiveMenuBarFontSize == 12)
         #expect(settings.effectiveMenuBarScale == 1.15)
@@ -380,5 +380,30 @@ struct SettingsTests {
         #expect(settings.enabledMenuBarItemCount == 15)
         #expect(settings.effectiveMenuBarFontSize == 9)
         #expect(settings.effectiveMenuBarScale == 0.75)
+    }
+
+    @Test("launch menu bar geometry remains fixed after settings change")
+    @MainActor
+    func freezesLaunchMenuBarGeometry() {
+        let suiteName = "com.barometer.app.Tests.LaunchGeometry"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = SettingsStore(defaults: defaults)
+        #expect(store.launchMenuBarFontSize == 12)
+        #expect(store.launchMenuBarScale == 1.15)
+        #expect(store.launchMenuBarFontWeight == .medium)
+
+        for module in ModuleID.allCases {
+            store.settings.modules[module]?.isEnabled = true
+        }
+        store.settings.fontWeight = .semibold
+        #expect(store.settings.effectiveMenuBarScale < store.launchMenuBarScale)
+        #expect(store.launchMenuBarFontSize == 12)
+        #expect(store.launchMenuBarScale == 1.15)
+        #expect(store.launchMenuBarFontWeight == .medium)
     }
 }

@@ -1670,3 +1670,76 @@ Verification:
 - With six active widgets, the installed `v6` canvases total 242 points instead of the prior `v5` total of 280. CPU,
   GPU, and Memory each fell from 36 to 30 points, Network from 60 to 54, Sensors from 80 to 74, and Weather from 32
   to 24. Every rendered image width exactly matched its fixed status-item length, leaving no hidden trailing padding.
+
+### P7-T4 preserve Menu Bar authorization across development builds
+
+After the density install, Barometer remained running and sampled normally but no item appeared, even with Bartender
+closed. Desktop captures confirmed the empty menu bar. The installed bundle had a valid ad-hoc signature, but no Team
+ID, and each rebuild produced a new code hash. macOS 26 and 27 apply a per-application Menu Bar privacy control; this
+combination can leave a rebuilt development app running while MenuBarAgent suppresses every status item.
+
+`Scripts/make-app.sh` now honors `CODESIGN_IDENTITY`, otherwise selects the first valid Developer ID Application
+identity in the login keychain, and falls back to ad-hoc signing only when no stable identity is available. Developer
+ID builds use hardened runtime and a trusted timestamp. This does not notarize the app and does not call `notarytool`
+or `stapler`.
+
+Verification:
+
+- `sh -n Scripts/make-app.sh` passed, and `make install` built and installed the current code without restoring an old
+  commit.
+- The installed app reports identifier `com.barometer.app`, Developer ID authority, Team ID `BQNYYA2UND`, hardened
+  runtime, and a timestamp. Strict code-signature verification passed.
+- A fresh desktop capture showed Network, Memory, Weather, GPU, CPU, Sensors, and the battery item in the menu bar.
+  Barometer remained a single `/Applications/Barometer.app/Contents/MacOS/Barometer` process.
+- Gatekeeper correctly reported the Developer ID build as unnotarized. No notarization or stapling command ran.
+
+### P7-T4 finish automatic menu bar sizing
+
+The previous automatic-density implementation changed the renderer's font and graphic scale immediately while
+`StatusItemLengthLatch` correctly kept the outer AppKit frame fixed. Shrinking the content inside the old frame left
+transparent trailing space, so the menu bar looked wider even though its graphics were smaller. The persisted `v6`
+width cache could also make a new process reuse geometry calculated for an older widget count.
+
+Removed the manual Font size slider, leaving no user-facing size or spacing controls. Font size and graphic scale are
+now calculated from the complete saved widget set when `SettingsStore` initializes. Font weight is captured with that
+launch geometry. Every controller, including a Sensors controller created later, uses the same immutable geometry for
+the entire process. A separate geometry latch guards this contract alongside the existing one-write length latch.
+
+Removed committed rendered widths entirely. On every normal launch, each enabled item renders its current saved
+configuration, rounds its natural width to the two-point grid, assigns that AppKit length once before visibility, and
+never changes it while the process is alive. This makes automatic sizing real at startup without stale empty padding
+or application-initiated movement. Widget and typography changes take their final geometry after an ordinary quit and
+reopen; Barometer does not force a relaunch.
+
+Verification:
+
+- `swift test` built and linked every test target successfully. Regression coverage verifies the two-point width grid,
+  immutable launch geometry, and rejection of wider and narrower live length proposals.
+- `swift build -c release` completed successfully, and `make install` installed and launched the updated Developer ID
+  signed app at `/Applications/Barometer.app`. No notarization or stapling command ran.
+- Source scans found no Font size slider, committed-width cache, manual graphic-size control, spacing control, or
+  condensed-density control. Exactly one guarded production assignment to `statusItem.length` remains.
+- The installed process is owned by `com.barometer.app`, and strict signature verification passed with Team ID
+  `BQNYYA2UND`. A desktop capture confirmed the active Barometer items are visible after the relaunch.
+
+David's movement check then exposed a separate launch-order regression. Bartender's read-only cold-start catalog
+contained current collisions including `Barometer.CPU` paired with the Sensors AX identifier, `Barometer.Battery`
+paired with GPU, and `Barometer.Disks` paired with CPU. Its move-failure ledger also recorded two failures for Network.
+Barometer's delayed self-test was clean, proving the final state was correct but a manager could catalog the process
+while the registry was still interleaving new identities with visible controllers.
+
+`StatusItemRegistry` now prepares every standard module identity and every saved extra Sensors identity before the
+coordinator may show any item. Lookups cannot silently create another identity beside the live set. A Sensors widget
+added during the current process is saved but joins the complete identity set on the next normal launch, which also
+keeps its automatic sizing consistent with the launch snapshot. This applies one lifecycle to every widget and does
+not inspect, automate, or special-case a menu bar manager. Every child also exposes the common static AX label
+`Barometer`, while retaining its unique autosave name and AX identifier. This gives managers one source-app identity
+without collapsing the independently movable children into one identifier.
+
+AppKit replaces a button's earlier AX label when a new rendered image carries its own accessibility description.
+The first common-label build therefore still reported module labels after rendering. Every framed status-item image
+now carries the same `Barometer` accessibility description before assignment. The installed runtime report confirms
+all eleven prepared identities—including the disabled items and `Barometer.Sensors.2`—retain the common label, while
+their AX identifiers remain unique and their live AX values name the module. Bartender's existing cold-start catalog
+still contains its pre-fix records; David must restart or refresh the manager to perform the external movement check.
+Barometer did not modify the manager, its preferences, or its process.

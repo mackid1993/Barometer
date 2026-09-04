@@ -793,15 +793,12 @@ struct StableCanvasTests {
 }
 
 @MainActor
-struct RecordedWidthTests {
+struct StableGeometryTests {
     @Test
-    func recordedLengthsAlwaysWin() {
-        #expect(StatusItemRendering.normalizedLength(natural: 29, committed: nil) == 32)
-        #expect(StatusItemRendering.normalizedLength(natural: 32, committed: nil) == 32)
-        #expect(StatusItemRendering.normalizedLength(natural: 31, committed: 32) == 32)
-        #expect(StatusItemRendering.normalizedLength(natural: 20, committed: 32) == 32)
-        #expect(StatusItemRendering.normalizedLength(natural: 45, committed: 32) == 32)
-        #expect(StatusItemRendering.normalizedLength(natural: 1, committed: nil) == 4)
+    func widthsRoundToTheTwoPointGrid() {
+        #expect(StatusItemRendering.roundedLength(29) == 30)
+        #expect(StatusItemRendering.roundedLength(32) == 32)
+        #expect(StatusItemRendering.roundedLength(1) == 2)
     }
 
     @Test
@@ -818,7 +815,7 @@ struct RecordedWidthTests {
         #expect(narrower.length == 32)
         #expect(!narrower.shouldAssign)
         #expect(latch.length == 32)
-        #expect(StatusItemRendering.roundedLength(33) == 36)
+        #expect(StatusItemRendering.roundedLength(33) == 34)
 
         let narrowContext = RenderContext(
             thickness: 22,
@@ -843,6 +840,17 @@ struct RecordedWidthTests {
         var renderedWidth = StatusItemLengthLatch()
         #expect(renderedWidth.resolve(applied).shouldAssign)
         #expect(renderedWidth.resolve(staged).length == applied)
+    }
+
+    @Test
+    func geometryLatchRejectsEveryLaterSizeProposal() {
+        var latch = StatusItemGeometryLatch()
+        let initial = StatusItemGeometry(fontSize: 12, scale: 1.15, fontWeight: .medium)
+        let compact = StatusItemGeometry(fontSize: 9, scale: 0.75, fontWeight: .semibold)
+
+        #expect(latch.resolve(initial) == initial)
+        #expect(latch.resolve(compact) == initial)
+        #expect(latch.geometry == initial)
     }
 
     @Test

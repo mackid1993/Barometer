@@ -107,7 +107,9 @@ These rules are part of the public contract of the app. Changing any of them aft
 
    Multiple instances of one module (two weather locations, two sensor items) use `Barometer.Weather.2`, `Barometer.Weather.3`, and so on, allocated once and stored in settings so the numbering is stable.
 4. `button.title` is always the empty string. All menu bar content is rendered into an `NSImage` and assigned to `button.image`. Text in the menu bar is drawn text, not a title.
-5. `button.setAccessibilityIdentifier(autosaveName)` and `button.setAccessibilityLabel(staticHumanName)` where the human name is the module name ("CPU", "Weather"). Both are set once and never changed.
+5. `button.setAccessibilityIdentifier(autosaveName)` and `button.setAccessibilityLabel("Barometer")`. The common
+   label identifies the owning app to menu bar managers; the unique identifier distinguishes each movable child.
+   Both are set once and never changed.
 6. The live reading goes into `button.setAccessibilityValue(...)` only. This is what Control Center does for its Battery module, which Thaw identifies as `com.apple.controlcenter:Battery` regardless of the percentage.
 7. Never set the status item window's title. Never call `NSWindow.title` on `button.window`.
 8. Status items are created once at launch and live for the whole process lifetime. Disabling a module sets `isVisible = false`. It does not remove the item. Enabling sets it back to `true`.
@@ -203,7 +205,7 @@ Parity target is iStat Menus 7. Each module has a menu bar representation (sever
 
 - Launch at login (`SMAppService.mainApp`).
 - Per-module update intervals; global "pause while on battery" multiplier; automatic pause during display sleep.
-- Colors: a palette per module with light and dark variants; graph style (line, area, bars); graph width; text font size; monochrome (template) mode.
+- Colors: a palette per module with light and dark variants; graph style (line, area, bars); graph width; automatic text and graphic sizing; monochrome (template) mode.
 - Settings export and import as JSON.
 - Alerts (later phase): threshold rules such as "CPU above 90% for 60 s" delivered through UserNotifications.
 - About window with version, attribution, license, and links.
@@ -385,7 +387,11 @@ Every source below has been checked on the target machine unless marked "expecte
 
 ## 10. Build, packaging, signing, permissions
 
-- `swift build -c release --product Barometer` produces `.build/release/Barometer`. `Scripts/make-app.sh` creates `dist/Barometer.app/Contents/{MacOS,Resources}`, copies that binary without renaming it, writes `Info.plist` with version substitution, copies resources, verifies there is exactly one executable in the bundle, and runs `codesign --force --sign - --identifier com.barometer.app dist/Barometer.app`.
+- `swift build -c release --product Barometer` produces `.build/release/Barometer`. `Scripts/make-app.sh` creates
+  `dist/Barometer.app/Contents/{MacOS,Resources}`, copies that binary without renaming it, writes `Info.plist` with
+  version substitution, copies resources, and verifies there is exactly one executable in the bundle. It signs with
+  `CODESIGN_IDENTITY` when supplied, otherwise the first valid Developer ID Application identity in the login
+  keychain, and uses an ad-hoc signature only as a fallback.
 - `Info.plist` keys: `CFBundleIdentifier`, `CFBundleName`, `CFBundleDisplayName`, `CFBundleExecutable`, `CFBundlePackageType=APPL`, `CFBundleShortVersionString`, `CFBundleVersion`, `LSMinimumSystemVersion=26.0`, `LSUIElement=true`, `NSHumanReadableCopyright`, `NSLocationUsageDescription`, `NSCalendarsFullAccessUsageDescription`, `NSSupportsAutomaticTermination=false`, `NSSupportsSuddenTermination=false`.
 - `make run` kills any running instance, rebuilds, and opens the app with `open dist/Barometer.app`. `make install` copies to `/Applications`.
 - Launch at login uses `SMAppService.mainApp.register()`; it requires the app to be in a stable location, so Settings warns when running from `dist/`.

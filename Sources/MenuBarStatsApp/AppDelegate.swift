@@ -34,8 +34,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil
         )
 
-        let registry = StatusItemRegistry()
         let settingsStore = SettingsStore()
+        // Register every saved child identity before any controller makes one visible.
+        // Menu bar managers can otherwise catalog a partially constructed set and pair
+        // an inactive autosave slot with a different visible Barometer item.
+        let registry = StatusItemRegistry(settings: settingsStore.settings)
         statusItemRegistry = registry
         self.settingsStore = settingsStore
         monitoringCoordinator = MonitoringCoordinator(

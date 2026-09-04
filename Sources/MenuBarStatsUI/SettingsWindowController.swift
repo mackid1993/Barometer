@@ -202,14 +202,7 @@ private struct GeneralSettingsView: View {
                     Text("Medium").tag(MenuBarFontWeight.medium)
                     Text("Semibold").tag(MenuBarFontWeight.semibold)
                 }
-                HStack {
-                    Text("Font size")
-                    Slider(value: appBinding(\.fontSize), in: AppSettings.menuBarFontSizeRange, step: 0.5)
-                    Text(String(format: "%.1f pt", settingsStore.settings.fontSize))
-                        .monospacedDigit()
-                        .frame(width: 50, alignment: .trailing)
-                }
-                Text(fontSizeCaption)
+                Text(automaticSizingCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 HStack {
@@ -327,7 +320,7 @@ private struct GeneralSettingsView: View {
         .settingsPane(
             symbolName: "gearshape.fill",
             title: "General",
-            subtitle: "Launch behavior, sampling, typography, and the menu bar palette.",
+            subtitle: "Launch behavior, sampling, automatic sizing, and the menu bar palette.",
             accent: ModuleAccent(primary: Color(hex: 0x64748B), secondary: Color(hex: 0x94A3B8)),
             preview: appearancePreview
         )
@@ -437,34 +430,14 @@ private struct GeneralSettingsView: View {
         }
     }
 
-    private var fontSizeCaption: String {
+    private var automaticSizingCaption: String {
         let settings = settingsStore.settings
-        let thickness = NSStatusBar.system.thickness
-        let context = RenderContext(
-            thickness: thickness,
-            appearance: .dark,
-            palette: MenuBarPalette(light: .black, dark: .white),
-            fontSize: settings.effectiveMenuBarFontSize,
-            isMonochrome: true,
-            scale: settings.effectiveMenuBarScale
-        )
-        let compact = MenuBarLayoutMetrics(context: context).compactPointSize
-        let maximum = MenuBarLayoutMetrics.maximumCompactPointSize(thickness: thickness)
-        let base = String(
-            format:
-                "Single-line items use this size. Two-row items use %.1f pt, up to the %.1f pt that fits "
-                + "this menu bar.",
-            compact,
-            maximum
-        )
-        guard settings.effectiveMenuBarFontSize < settings.fontSize else {
-            return base
-        }
         return String(
-            format: "Using %.1f pt with %d active widgets to preserve menu bar space. %@",
+            format: "Barometer uses %.0f pt text and %.0f%% graphics for %d active widgets. "
+                + "Sizing is recalculated when Barometer next opens.",
             settings.effectiveMenuBarFontSize,
-            settings.enabledMenuBarItemCount,
-            base
+            settings.effectiveMenuBarScale * 100,
+            settings.enabledMenuBarItemCount
         )
     }
 

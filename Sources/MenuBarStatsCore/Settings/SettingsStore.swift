@@ -34,6 +34,15 @@ public final class SettingsStore {
         }
     }
 
+    /// Menu bar font size captured from the complete saved widget set at launch.
+    @ObservationIgnored public let launchMenuBarFontSize: Double
+
+    /// Menu bar graphic scale captured from the complete saved widget set at launch.
+    @ObservationIgnored public let launchMenuBarScale: Double
+
+    /// Menu bar font weight captured with the rest of the launch geometry.
+    @ObservationIgnored public let launchMenuBarFontWeight: MenuBarFontWeight
+
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let encoder = JSONEncoder()
     @ObservationIgnored private var saveTask: Task<Void, Never>?
@@ -45,13 +54,18 @@ public final class SettingsStore {
     /// Creates a settings store backed by the supplied defaults suite.
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        let initialSettings: AppSettings
         if let data = defaults.data(forKey: Self.defaultsKey),
             let decoded = try? JSONDecoder().decode(AppSettings.self, from: data)
         {
-            settings = decoded
+            initialSettings = decoded
         } else {
-            settings = AppSettings()
+            initialSettings = AppSettings()
         }
+        settings = initialSettings
+        launchMenuBarFontSize = initialSettings.effectiveMenuBarFontSize
+        launchMenuBarScale = initialSettings.effectiveMenuBarScale
+        launchMenuBarFontWeight = initialSettings.fontWeight
     }
 
     deinit {

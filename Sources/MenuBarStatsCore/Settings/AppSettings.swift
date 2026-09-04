@@ -524,9 +524,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         return count
     }
 
-    /// Selected font size reduced when many independent widgets would crowd the menu bar.
+    /// Automatic font size selected from the number of independently movable widgets.
     public var effectiveMenuBarFontSize: Double {
-        min(fontSize, Self.maximumMenuBarFontSize(forItemCount: enabledMenuBarItemCount))
+        Self.maximumMenuBarFontSize(forItemCount: enabledMenuBarItemCount)
     }
 
     /// Icon and graph scale reduced automatically as independently movable widgets are added.
@@ -546,7 +546,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         }
     }
 
-    /// Density ceiling used for a given number of independently movable items.
+    /// Automatic font size used for a given number of independently movable items.
     public static func maximumMenuBarFontSize(forItemCount count: Int) -> Double {
         switch count {
         case ...8: 12

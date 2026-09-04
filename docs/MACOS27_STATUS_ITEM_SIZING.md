@@ -2,12 +2,11 @@
 
 This document records the sizing contract that prevents Barometer items from moving with any menu bar manager. It is
 a design constraint, not an implementation suggestion. Read it before changing menu bar
-font size, font weight, condensed typography, glyph scale, graph size, display mode, or status-item code.
+font weight, typography, glyph scale, graph size, display mode, or status-item code.
 
-The supported menu bar font-size range is 9–12 points. Twelve points is the largest user-selectable size that fits
-the fixed-height canvases consistently. Icon and graph scale is automatic, ranging from 75–115 percent according to
-the enabled-item count. Keep both policies centralized in `AppSettings`; previews and production rendering must not
-define separate limits.
+Menu bar sizing is automatic. Text ranges from 9–12 points and icon and graph scale ranges from 75–115 percent,
+according to the enabled-item count. Keep both policies centralized in `AppSettings`; previews and production
+rendering must not define separate limits or expose manual size controls.
 
 The former Compact internal layout/high-density and Regular/Compact spacing controls were removed. Condensing text
 made it unreadable, while changing transparent padding inside immutable outer frames could only redistribute the same
@@ -17,8 +16,8 @@ with zero app-added horizontal padding. Do not reintroduce either control.
 Barometer also applies deterministic density tiers. Up to eight enabled independent items may use 12-point text,
 nine through eleven use at most 11, twelve through fourteen use at most 10, and fifteen or more use 9. Graphic scale
 is 115 percent for one through three items, 100 for four through six, 90 for seven or eight, 85 for nine through
-eleven, 80 for twelve through fourteen, and 75 for fifteen or more. The selected font size is retained, so disabling
-items can restore it. Count sensor-widget instances and respect Combined's hide-members behavior.
+eleven, 80 for twelve through fourteen, and 75 for fifteen or more. Count sensor-widget instances and respect
+Combined's hide-members behavior.
 
 ## Problem
 
@@ -37,8 +36,9 @@ length write followed by one or more independently movable items losing their es
 ## Decision
 
 An individual `StatusItemController` may assign `statusItem.length` exactly once per process lifetime. A one-way
-`StatusItemLengthLatch` enforces that invariant even when later renderings propose different widths. The assignment
-must happen during the controller's first enabled render and before `statusItem.isVisible` becomes true.
+`StatusItemLengthLatch` enforces that invariant even when later renderings propose different widths. A separate
+launch-time geometry latch prevents settings changes from shrinking content inside that immutable frame. The length
+assignment must happen during the controller's first enabled render and before `statusItem.isVisible` becomes true.
 
 `StatusItemController` is the only production type allowed to assign `statusItem.length`. A repository search should
 find exactly one assignment:
@@ -58,31 +58,33 @@ There are no live-resize exceptions. In particular, do not add an exception for:
 
 ## Width lifecycle
 
-1. A renderer produces its natural image for the current settings.
-2. Barometer rounds the natural width up to a two-point grid, absorbing fractional pixels without wasting notch space.
-3. On the first enabled render, Barometer prefers the previously committed width when one exists. It fits the image
-   into that canvas, assigns the AppKit length once, and only then makes the item visible.
-   A controller records geometry settings while hidden; when the user enables it later, its first render uses current
-   geometry instead of a stale committed width.
-4. If settings propose new geometry while the process remains live, Barometer records its rounded width under
-   `Barometer.CommittedWidth.v6.<autosaveName>`. The rendering retains its true font and glyph sizes and clips at the
-   trailing edge of the applied frame. It is never recentered or proportionally miniaturized.
-5. After the user ordinarily quits and reopens Barometer, the controller applies the staged width before the item
-   appears. Settings never force a relaunch.
+1. `SettingsStore` calculates font size and graphic scale once from the complete saved widget set when Barometer
+   starts and captures font weight with them. Controllers created later in the same process use that same launch
+   geometry.
+2. A renderer produces its natural image using that frozen geometry and the current module display settings.
+3. Barometer rounds the natural width up to a two-point grid, assigns the AppKit length once, and only then makes the
+   item visible. No width from an earlier process is read or preferred.
+4. Later settings and samples may redraw colors and readings, but cannot change launch geometry or the live AppKit
+   length. The rendering remains anchored to the leading edge and is never recentered or miniaturized.
+5. After the user ordinarily quits and reopens Barometer, all geometry and widths are freshly calculated from the
+   saved configuration before the items appear. Settings never force a relaunch.
 
-This preserves stable outer positions while keeping controls responsive. The exact outer width takes effect on
-the next launch because macOS 27 does not provide a verified way to resize a live item without risking reassessment
-by at least one manager.
+This preserves stable outer positions without retaining stale transparent space from an earlier layout. The exact
+outer width takes effect on the next launch because macOS 27 does not provide a verified way to resize a live item
+without risking reassessment by at least one manager.
 
 ## Common application identity
 
-Every status item is owned by the single `com.barometer.app` process and should group under Barometer in a manager.
-Each movable child still requires a unique autosave name and matching AX identifier, such as `Barometer.CPU`; giving
-all children the same key would create an identity collision rather than a common owner.
+Every status item is owned by the single `com.barometer.app` process and uses the static AX label `Barometer`, so every
+child groups under the same source app in a manager. Each movable child still requires a unique autosave name and
+matching AX identifier, such as `Barometer.CPU`; giving all children the same key would create an identity collision
+rather than a common owner.
 
-Assign the autosave name and AX identity synchronously before the first `isVisible` transition. Do not manually delete
-AppKit's visibility or position defaults for inactive children. On macOS 27, either mistake can recycle a persistence
-slot and produce a mismatched manager catalog, such as a Combined autosave record carrying Network's AX identifier.
+Prepare every standard identity and every saved extra Sensors identity before allowing any item to become visible.
+Assign each autosave name and AX identity synchronously before its first `isVisible` transition. Do not create another
+identity beside the live set; newly added Sensors widgets join on the next normal launch. Do not manually delete
+AppKit's visibility or position defaults for inactive children. On macOS 27, any of these mistakes can produce a
+mismatched manager catalog, such as a CPU autosave record carrying Sensors' AX identifier.
 
 ## Why the width is explicit
 
@@ -97,21 +99,16 @@ module, not the implementation of density.
 
 Before accepting a change to menu bar geometry or status-item lifecycle:
 
-1. Run `swift test` and keep tests proving that an applied live width wins over wider and narrower staged widths.
+1. Run `swift test` and keep tests proving that applied launch geometry and live width reject later proposals.
 2. Run the repository search above and verify exactly one production assignment remains.
 3. Run `swift build -c release` and `git diff --check`.
 4. Install with `make install`; repository-path launches are not valid compatibility tests.
 5. Confirm each active item has its fixed autosave name, empty title, static AX label, nonzero image, and one bundle
    owner in `~/Library/Logs/Barometer/identity.json`.
-6. Change font size, font weight, and glyph scale. Confirm the app stages new widths without
-   changing any live status-item length.
-7. Quit and reopen Barometer. Confirm the staged widths are applied before visibility.
+6. Change enabled widgets and font weight. Confirm no live status-item length or launch geometry changes.
+7. Quit and reopen Barometer. Confirm fresh widths are calculated from the saved settings before visibility.
 8. When a manager compatibility check is needed, ask David to restart or operate the manager. Barometer must never
    detect, modify, automate, or special-case Bartender, Thaw, Barbie, or another menu bar manager.
 
 If an operating-system update appears to permit safe live resizing, treat that as a new investigation. Preserve this
 contract until the alternative is reproduced, documented, and explicitly approved.
-
-The `v6` component is an intentional cache-schema version. Increment it when a future rendering constraint makes old
-committed widths structurally invalid. Do not increment it merely to force arbitrary movement or bypass the staged
-width lifecycle.

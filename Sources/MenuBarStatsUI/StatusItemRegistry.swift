@@ -6,34 +6,45 @@ import OSLog
 @MainActor
 public final class StatusItemRegistry: NSObject {
     private static let identityLogger = Logger(subsystem: "com.barometer.app", category: "identity")
+    static let accessibilityOwnerLabel = "Barometer"
 
     private var items: [StatusItemIdentity: NSStatusItem] = [:]
 
-    /// Creates an empty registry. Module items are created when first requested.
-    public override init() {
+    /// Creates every saved status-item identity before any one item becomes visible.
+    public init(settings: AppSettings) {
         super.init()
+        for module in ModuleID.allCases {
+            let identity = StatusItemIdentity(module: module)
+            items[identity] = makeItem(for: identity)
+        }
+        for widget in settings.sensors.widgets where widget.id > 1 {
+            let identity = StatusItemIdentity(module: .sensors, instance: widget.id)
+            items[identity] = makeItem(for: identity)
+        }
         perform(#selector(runIdentitySelfTest), with: nil, afterDelay: 1)
     }
 
-    /// Returns the stable status item for a module, creating it on first use.
+    /// Returns the stable status item prepared for a module at process launch.
     public func item(for module: ModuleID) -> NSStatusItem {
         item(for: StatusItemIdentity(module: module))
     }
 
-    /// Returns the stable status item for a numbered module instance.
+    /// Returns the stable status item prepared for a numbered module instance.
     public func item(for module: ModuleID, instance: Int) -> NSStatusItem {
         item(for: StatusItemIdentity(module: module, instance: instance))
     }
 
-    /// Returns a stable status item, creating it once for the process lifetime.
+    /// Returns a stable status item from the complete launch-time identity set.
     public func item(for identity: StatusItemIdentity) -> NSStatusItem {
-        if let statusItem = items[identity] {
-            return statusItem
+        guard let statusItem = items[identity] else {
+            preconditionFailure("Status item identity was not prepared at launch: \(identity.autosaveName)")
         }
-
-        let statusItem = makeItem(for: identity)
-        items[identity] = statusItem
         return statusItem
+    }
+
+    /// Returns a saved numbered identity, or nil when it was added after this process launched.
+    public func preparedItem(for module: ModuleID, instance: Int) -> NSStatusItem? {
+        items[StatusItemIdentity(module: module, instance: instance)]
     }
 
     /// Changes a status item's visibility without changing its identity or lifetime.
@@ -59,7 +70,7 @@ public final class StatusItemRegistry: NSObject {
         button.imagePosition = .imageOnly
         button.imageScaling = .scaleNone
         button.setAccessibilityIdentifier(identity.autosaveName)
-        button.setAccessibilityLabel(identity.displayName)
+        button.setAccessibilityLabel(Self.accessibilityOwnerLabel)
         // Creation and identity setup are synchronous on the main actor. Hide before
         // returning to the run loop, so managers never observe the placeholder.
         statusItem.isVisible = false
@@ -112,7 +123,7 @@ public final class StatusItemRegistry: NSObject {
             assert(windowTitle == identity.autosaveName)
             assert(autosaveName == identity.autosaveName)
             assert(identifier == identity.autosaveName)
-            assert(label == identity.displayName)
+            assert(label == Self.accessibilityOwnerLabel)
             assert(title.isEmpty)
             assert(button.title.isEmpty)
         }

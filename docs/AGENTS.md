@@ -105,7 +105,7 @@ was removed because even a temporary item from an unbundled executable has no ap
 
 ### A stable installation path matters
 
-The same valid, ad hoc-signed bundle behaved differently depending on launch path. From the repository's `dist/`
+The same valid bundle behaved differently depending on launch path. From the repository's `dist/`
 directory, MenuBarAgent accepted the client and completed scene creation, but CPU and Memory received zero-height
 fallback frames and Bartender could not place them. Installing the unchanged identity at
 `/Applications/Barometer.app` produced normal 33-point-high frames and restored manager placement.
@@ -144,11 +144,11 @@ The rule is absolute: each controller may assign `statusItem.length` at most onc
 the item visible. There is no exception for a user-initiated layout change, a debounced update, a manual recompute
 command, or assigning the same numeric value. `StatusItemController` must remain the only production writer.
 
-Width-affecting controls may redraw content, but the one-way length latch prevents them from resizing a live AppKit
-item. Content retains its true point size and clips at the trailing edge of the applied frame when necessary.
-Barometer records the new natural width under
-`Barometer.CommittedWidth.v6.<autosaveName>`, but must not apply it to the live AppKit item. On the next app launch,
-the controller reads that committed width and assigns it before the item becomes visible.
+Font size and graphic scale are automatic; those values and font weight are captured once from the complete saved
+widget set when the process starts. The one-way geometry latch prevents later settings changes from shrinking ink
+inside an immutable frame and creating transparent trailing space. The one-way length latch prevents live AppKit
+resizing. Do not persist rendered widths: every normal launch must render the current saved configuration, round its
+natural width, and assign it once before the item becomes visible.
 
 The complete decision, algorithm, prohibited alternatives, and regression checks are in
 [`MACOS27_STATUS_ITEM_SIZING.md`](MACOS27_STATUS_ITEM_SIZING.md). Read it before changing menu bar typography,
@@ -161,14 +161,18 @@ Never bring back a live-width slider or an Apply action that forces an applicati
 Do not add a condensed/high-density rendering mode. It narrows ink inside immutable live frames, producing larger
 apparent inter-item gaps and unreadable text. Density comes only from purpose-built renderers.
 
-Icon and graph scale is automatic and follows the enabled-item count. Do not expose a manual scale control. The
+Text, icon, and graph sizing is automatic and follows the enabled-item count. Do not expose a manual size control. The
 automatic tiers are 115 percent for 1–3 items, 100 for 4–6, 90 for 7–8, 85 for 9–11, 80 for 12–14, and 75 for
 15 or more. Each enabled Sensors instance counts; Combined counts once and its hidden members do not count.
 
-Every item has the common app owner `com.barometer.app`, while its autosave name and AX identifier remain unique child
-keys. Set `autosaveName` and AX identity synchronously before the item's first `isVisible` transition. Never delete or
-rewrite AppKit's `NSStatusItem Visible`, preferred-position, or restore-position defaults. Doing so recycles persistence
-slots and can make managers pair one Barometer child's identity with another.
+Every item has the common app owner `com.barometer.app` and the static AX label `Barometer`, while its autosave name and
+AX identifier remain unique child keys. The common label is the source-app identity exposed to menu bar managers; the
+unique identifier is what keeps each child independently movable. Prepare every standard identity and every saved
+extra Sensors identity before any item becomes visible, then set each `autosaveName` and AX identity synchronously
+before its first `isVisible` transition. Do not create another item beside the live set; newly added Sensors identities
+join on the next normal launch. Never delete or rewrite AppKit's `NSStatusItem Visible`, preferred-position, or
+restore-position defaults. Doing so recycles persistence slots and can make managers pair one Barometer child's
+identity with another.
 
 AppKit's variable-length image presentation also introduced its standard eight-point image inset on each side. An
 explicit status-item length equal to the rendered image width is what makes zero user spacing possible while keeping
@@ -305,8 +309,13 @@ universal performance guarantee.
 - Never request a new TCC category during launch or background sampling. Permission requests must follow a direct
   user action and require project approval before implementation.
 - `LSUIElement` keeps Barometer out of the Dock; it does not replace correct bundle identity or signing.
-- Local development artifacts are ad hoc signed. The release workflow supports Developer ID Application signing,
-  hardened runtime, a signed DMG, and optional notarization.
+- `make app` and `make install` use `CODESIGN_IDENTITY` when supplied, otherwise the first valid Developer ID
+  Application identity in the login keychain, and fall back to an ad-hoc signature only when neither exists.
+- On macOS 26 and 27, repeated ad-hoc rebuilds can leave Barometer running while the Menu Bar privacy control
+  suppresses every status item. A stable Developer ID team identity prevents the rebuilt app from appearing to be a
+  different unsigned application. Strict signature verification alone does not detect this failure.
+- Developer ID signing, hardened runtime, and timestamping are not notarization. The release workflow separately
+  supports a signed DMG and optional notarization.
 - GitHub release workflows are manual-dispatch only. Notarization remains off unless David explicitly enables it;
   do not submit a build merely because the workflow supports the path.
 

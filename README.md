@@ -60,11 +60,9 @@ several into the Combined item to save space.
 
 - Two-row items such as `CPU` over `24%` share one baseline. Values use fixed-width digits so they do not shift as
   the numbers change, and an item keeps the same width while its numbers change.
-- Choose a font size up to 12 points. Barometer keeps the full selected size with up to 8 widgets, then limits it to
-  11 points for 9–11, 10 points for 12–14, and 9 points for 15 or more.
-- Icons and graphs size themselves automatically: largest with 1–3 widgets, balanced with 4–6, then progressively
-  tighter at 7–8, 9–11, 12–14, and 15 or more. Each enabled Sensors widget counts separately; Combined counts as
-  one when it hides its members.
+- Text, icons, and graphs size themselves automatically from the number of enabled widgets. Text uses 12 points with
+  up to 8 widgets, 11 points with 9–11, 10 points with 12–14, and 9 points with 15 or more. Graphics use matching
+  density steps. Each enabled Sensors widget counts separately; Combined counts as one when it hides its members.
 - Barometer adds no extra spacing around menu bar items, leaving as much room as possible around the notch.
 - Themes: System (monochrome), Ocean, Sunset, Forest, Neon, or your own colors. Colors can be set once for
   everything or per module, with separate light and dark values and separate colors for graph lines, fills,
@@ -78,9 +76,8 @@ that:
 
 - Every item belongs to Barometer itself and has a fixed name that never contains a live value, so a manager can
   tell `Barometer.CPU` from `Barometer.Weather` and remember where each one goes.
-- Item widths are recorded and are never changed while Barometer is running. Font, display, and automatic density
-  changes take their final width the next time you normally quit and reopen Barometer.
-- Changing an item's display mode records a new width for that item without changing its identity.
+- Barometer calculates the complete layout when it opens, then keeps every item’s size fixed while it runs. Changes
+  to enabled widgets or display modes take their final size the next time you normally quit and reopen Barometer.
 - Hiding an item in Barometer keeps its identity, so it comes back where it was.
 
 ## Weather

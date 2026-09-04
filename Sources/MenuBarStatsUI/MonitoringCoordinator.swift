@@ -665,7 +665,12 @@ public final class MonitoringCoordinator {
         let sharedSettingsStore = settingsStore
         for widget in settingsStore.settings.sensors.widgets where sensorControllers[widget.id] == nil {
             let instance = widget.id
-            let statusItem = registry.item(for: .sensors, instance: instance)
+            // A newly added Sensors widget joins the complete identity set on the next
+            // normal launch. Creating it beside live items can make a manager pair its
+            // autosave slot with a different Barometer child.
+            guard let statusItem = registry.preparedItem(for: .sensors, instance: instance) else {
+                continue
+            }
             sensorControllers[instance] = StatusItemController(
                 module: .sensors,
                 statusItem: statusItem,
