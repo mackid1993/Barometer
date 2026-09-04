@@ -129,9 +129,7 @@ public enum NetworkRateFormatter {
             scaled /= 1_000
             suffixIndex += 1
         }
-        let factor = pow(10, Double(precision))
-        let rounded = (scaled * factor).rounded(.toNearestOrAwayFromZero) / factor
-        let number = String(format: "%.*f", precision, rounded)
+        let number = String(format: "%.*f", precision, scaled)
         return "\(number)\(compact ? "" : " ")\(suffixes[suffixIndex])"
     }
 }

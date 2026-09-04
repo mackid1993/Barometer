@@ -19,7 +19,7 @@ struct NetworkTests {
             NetworkRateFormatter.compactString(bytesPerSecond: 99_995, unit: .bytes, decimalPlaces: 2) == "0.10MB/s"
         )
         #expect(
-            NetworkRateFormatter.compactString(bytesPerSecond: 125_000, unit: .bytes, decimalPlaces: 2) == "0.13MB/s"
+            NetworkRateFormatter.compactString(bytesPerSecond: 125_000, unit: .bytes, decimalPlaces: 2) == "0.12MB/s"
         )
         #expect(NetworkRateFormatter.string(bytesPerSecond: 125_000, unit: .bytes, decimalPlaces: 2) == "125.00 KB/s")
         #expect(

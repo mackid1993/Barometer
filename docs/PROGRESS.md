@@ -2014,9 +2014,10 @@ required exact SF Symbol geometry from a different SDK.
 
 Live hardware smoke tests now retain their validation on supported Macs and exit cleanly when the source's public
 availability check says the interface is absent. Time and fixture assertions use their actual deterministic inputs.
-Network rate rounding is explicitly nearest with ties away from zero. Scheduler coverage waits until its actor has
-recorded the final sleep, and UI coverage verifies stable layout invariants without freezing one SDK's private font
-and symbol measurements into the test suite.
+Network rate tie expectations consistently follow Foundation's formatter. Scheduler coverage waits until its actor
+has recorded the final sleep and validates the exponential backoff separately from the wall-clock-aligned normal
+interval. UI coverage verifies stable layout invariants without freezing one SDK's private font and symbol
+measurements into the test suite.
 
 Verification:
 

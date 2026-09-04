@@ -8,7 +8,7 @@ struct SchedulerTests {
     @Test("errors back off exponentially with a fake clock")
     func errorsBackOff() async {
         let monitor = FailingTwiceMonitor()
-        let clock = RecordingClock(stopDuration: .seconds(5))
+        let clock = RecordingClock(stopAfterSleepCount: 3)
         let scheduler = Scheduler(monitor: monitor, clock: clock)
         var iterator = scheduler.samples.makeAsyncIterator()
 
@@ -18,7 +18,12 @@ struct SchedulerTests {
         await scheduler.stop()
 
         #expect(sample == 3)
-        #expect(await clock.recordedDurations() == [.seconds(1), .seconds(2), .seconds(5)])
+        let durations = await clock.recordedDurations()
+        #expect(durations.count == 3)
+        #expect(Array(durations.prefix(2)) == [.seconds(1), .seconds(2)])
+        if let normalDelay = durations.last?.secondsForTest {
+            #expect((1.5...6.5).contains(normalDelay))
+        }
     }
 
     @Test("manual refresh interrupts the current wait and samples immediately")
@@ -74,16 +79,16 @@ private actor FailingTwiceMonitor: Monitor {
 }
 
 private actor RecordingClock: SampleClock {
-    private let stopDuration: Duration
+    private let stopAfterSleepCount: Int
     private var durations: [Duration] = []
 
-    init(stopDuration: Duration) {
-        self.stopDuration = stopDuration
+    init(stopAfterSleepCount: Int) {
+        self.stopAfterSleepCount = stopAfterSleepCount
     }
 
     func sleep(for duration: Duration) throws {
         durations.append(duration)
-        if duration == stopDuration {
+        if durations.count >= stopAfterSleepCount {
             throw CancellationError()
         }
     }
