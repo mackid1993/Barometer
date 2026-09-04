@@ -28,7 +28,9 @@ public struct NetworkDropdownView: View {
                 NetworkHistoryGraph(
                     samples: store.history.entries,
                     selectedInterfaceName: settings.selectedInterfaceName,
-                    settings: settings
+                    settings: settings,
+                    downloadColor: AppearanceColorResolver.graph(settingsStore.settings, module: .network),
+                    uploadColor: AppearanceColorResolver.fill(settingsStore.settings, module: .network)
                 )
                 .frame(height: 86)
 
@@ -77,14 +79,14 @@ public struct NetworkDropdownView: View {
                     label: "Download",
                     value: interface?.downloadBytesPerSecond,
                     unit: unit,
-                    color: .cyan
+                    color: AppearanceColorResolver.graph(settingsStore.settings, module: .network)
                 )
                 rateSummary(
                     symbol: "arrow.up",
                     label: "Upload",
                     value: interface?.uploadBytesPerSecond,
                     unit: unit,
-                    color: .purple
+                    color: AppearanceColorResolver.fill(settingsStore.settings, module: .network)
                 )
             }
         }
@@ -160,14 +162,14 @@ public struct NetworkDropdownView: View {
                             value: process.downloadBytesPerSecond,
                             unit: unit,
                             decimalPlaces: decimalPlaces,
-                            color: .cyan
+                            color: AppearanceColorResolver.graph(settingsStore.settings, module: .network)
                         )
                         processRate(
                             symbol: "↑",
                             value: process.uploadBytesPerSecond,
                             unit: unit,
                             decimalPlaces: decimalPlaces,
-                            color: .purple
+                            color: AppearanceColorResolver.fill(settingsStore.settings, module: .network)
                         )
                     }
                 }
@@ -307,6 +309,8 @@ private struct NetworkHistoryGraph: View {
     let samples: [HistoryEntry<NetworkSample>]
     let selectedInterfaceName: String?
     let settings: NetworkSettings
+    let downloadColor: Color
+    let uploadColor: Color
 
     var body: some View {
         Canvas { context, size in
@@ -325,8 +329,8 @@ private struct NetworkHistoryGraph: View {
             let ceiling = settings.graphScale == .fixed
                 ? max(1, settings.fixedGraphMaximumBytesPerSecond)
                 : observedMaximum * 1.1
-            draw(values.map(\.0), ceiling: ceiling, color: .cyan, context: &context, size: size)
-            draw(values.map(\.1), ceiling: ceiling, color: .purple, context: &context, size: size)
+            draw(values.map(\.0), ceiling: ceiling, color: downloadColor, context: &context, size: size)
+            draw(values.map(\.1), ceiling: ceiling, color: uploadColor, context: &context, size: size)
         }
         .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 6))
     }

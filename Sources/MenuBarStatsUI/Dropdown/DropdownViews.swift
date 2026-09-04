@@ -65,7 +65,7 @@ public struct CPUDropdownView: View {
                     .controlSize(.small)
                     .frame(maxWidth: .infinity)
                 }
-                HistoryGraph(values: values, color: .cyan)
+                HistoryGraph(values: values, color: AppearanceColorResolver.graph(settingsStore.settings, module: .cpu))
                     .frame(height: 72)
 
                 if let sample {
@@ -143,7 +143,10 @@ public struct MemoryDropdownView: View {
                     }
 
                     Text("PRESSURE").sectionLabel()
-                    HistoryGraph(values: values, color: Self.pressureColor(sample.pressurePercent))
+                    HistoryGraph(
+                        values: values,
+                        color: pressureColor(sample.pressurePercent, settings: settingsStore.settings)
+                    )
                         .frame(height: 72)
                     MetricRow(
                         label: "Memory Pressure",
@@ -172,8 +175,14 @@ public struct MemoryDropdownView: View {
         ByteCountFormatter.string(fromByteCount: Int64(clamping: value), countStyle: .memory)
     }
 
-    private static func pressureColor(_ pressure: Double) -> Color {
-        pressure >= 80 ? .red : pressure >= 60 ? .orange : .green
+    private func pressureColor(_ pressure: Double, settings: AppSettings) -> Color {
+        if pressure >= 80 {
+            return AppearanceColorResolver.critical(settings, module: .memory)
+        }
+        if pressure >= 60 {
+            return AppearanceColorResolver.warning(settings, module: .memory)
+        }
+        return AppearanceColorResolver.graph(settings, module: .memory)
     }
 }
 

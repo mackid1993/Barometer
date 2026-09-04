@@ -145,10 +145,29 @@ enum StatusItemRendering {
                 light: NSColor(hex: appSettings.lightColor(for: moduleSettings)) ?? .controlAccentColor,
                 dark: NSColor(hex: appSettings.darkColor(for: moduleSettings)) ?? .controlAccentColor
             ),
+            graphPalette: MenuBarPalette(
+                light: NSColor(hex: appSettings.graphLightColor(for: moduleSettings)) ?? .controlAccentColor,
+                dark: NSColor(hex: appSettings.graphDarkColor(for: moduleSettings)) ?? .controlAccentColor
+            ),
+            fillPalette: MenuBarPalette(
+                light: NSColor(hex: appSettings.fillLightColor(for: moduleSettings)) ?? .controlAccentColor,
+                dark: NSColor(hex: appSettings.fillDarkColor(for: moduleSettings)) ?? .controlAccentColor
+            ),
+            warningPalette: MenuBarPalette(
+                light: NSColor(hex: appSettings.warningLightColor(for: moduleSettings)) ?? .systemOrange,
+                dark: NSColor(hex: appSettings.warningDarkColor(for: moduleSettings)) ?? .systemOrange
+            ),
+            criticalPalette: MenuBarPalette(
+                light: NSColor(hex: appSettings.criticalLightColor(for: moduleSettings)) ?? .systemRed,
+                dark: NSColor(hex: appSettings.criticalDarkColor(for: moduleSettings)) ?? .systemRed
+            ),
             fontSize: min(14, max(9, appSettings.fontSize)),
             isMonochrome: appSettings.isMonochrome,
             scale: scale,
-            horizontalSpacing: min(12, max(0, appSettings.menuBarSpacing))
+            horizontalSpacing: min(12, max(0, appSettings.menuBarSpacing)),
+            graphOpacity: appSettings.graphOpacity,
+            fontWeight: appSettings.fontWeight,
+            usesCompactLayout: appSettings.usesCompactLayout
         )
     }
 }

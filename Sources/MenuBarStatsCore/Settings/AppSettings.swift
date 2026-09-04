@@ -7,6 +7,23 @@ public enum GraphStyle: String, Codable, CaseIterable, Sendable {
     case bars
 }
 
+/// Built-in complete appearance palettes.
+public enum AppearancePreset: String, Codable, CaseIterable, Sendable {
+    case system
+    case ocean
+    case sunset
+    case forest
+    case neon
+    case custom
+}
+
+/// Supported menu bar type weights.
+public enum MenuBarFontWeight: String, Codable, CaseIterable, Sendable {
+    case regular
+    case medium
+    case semibold
+}
+
 /// Persisted choices for the Weather module.
 public struct WeatherSettings: Codable, Equatable, Sendable {
     /// Saved locations in user-selected display order.
@@ -74,6 +91,22 @@ public struct ModuleSettings: Codable, Equatable, Sendable {
     /// Dark-appearance RGB color encoded as a hexadecimal string.
     public var darkColor: String
 
+    /// Optional graph-stroke colors, falling back to the normal role.
+    public var graphLightColor: String?
+    public var graphDarkColor: String?
+
+    /// Optional graph-fill colors, falling back to the graph role.
+    public var fillLightColor: String?
+    public var fillDarkColor: String?
+
+    /// Optional warning colors, falling back to the application warning role.
+    public var warningLightColor: String?
+    public var warningDarkColor: String?
+
+    /// Optional critical colors, falling back to the application critical role.
+    public var criticalLightColor: String?
+    public var criticalDarkColor: String?
+
     /// Creates module settings.
     public init(
         isEnabled: Bool = false,
@@ -84,7 +117,15 @@ public struct ModuleSettings: Codable, Equatable, Sendable {
         showsProcesses: Bool = true,
         processCount: Int = 5,
         lightColor: String = "#2F7CF6",
-        darkColor: String = "#6BA4FF"
+        darkColor: String = "#6BA4FF",
+        graphLightColor: String? = nil,
+        graphDarkColor: String? = nil,
+        fillLightColor: String? = nil,
+        fillDarkColor: String? = nil,
+        warningLightColor: String? = nil,
+        warningDarkColor: String? = nil,
+        criticalLightColor: String? = nil,
+        criticalDarkColor: String? = nil
     ) {
         self.isEnabled = isEnabled
         self.mode = mode
@@ -95,13 +136,21 @@ public struct ModuleSettings: Codable, Equatable, Sendable {
         self.processCount = processCount
         self.lightColor = lightColor
         self.darkColor = darkColor
+        self.graphLightColor = graphLightColor
+        self.graphDarkColor = graphDarkColor
+        self.fillLightColor = fillLightColor
+        self.fillDarkColor = fillDarkColor
+        self.warningLightColor = warningLightColor
+        self.warningDarkColor = warningDarkColor
+        self.criticalLightColor = criticalLightColor
+        self.criticalDarkColor = criticalDarkColor
     }
 }
 
 /// Versioned application settings persisted as JSON in the app defaults domain.
 public struct AppSettings: Codable, Equatable, Sendable {
     /// Current settings schema version.
-    public static let currentSchemaVersion = 11
+    public static let currentSchemaVersion = 12
 
     /// Schema version encoded in this value.
     public var schemaVersion: Int
@@ -120,6 +169,28 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
     /// Shared dark-appearance RGB color encoded as a hexadecimal string.
     public var globalDarkColor: String
+
+    /// Selected built-in theme, or custom after direct role editing.
+    public var appearancePreset: AppearancePreset
+
+    /// Shared graph stroke, fill, warning, and critical role colors.
+    public var globalGraphLightColor: String
+    public var globalGraphDarkColor: String
+    public var globalFillLightColor: String
+    public var globalFillDarkColor: String
+    public var globalWarningLightColor: String
+    public var globalWarningDarkColor: String
+    public var globalCriticalLightColor: String
+    public var globalCriticalDarkColor: String
+
+    /// Shared graph fill/stroke opacity.
+    public var graphOpacity: Double
+
+    /// Shared menu bar type weight.
+    public var fontWeight: MenuBarFontWeight
+
+    /// Whether eligible renderers use their densest internal geometry.
+    public var usesCompactLayout: Bool
 
     /// Global menu bar font size.
     public var fontSize: Double
@@ -168,6 +239,18 @@ public struct AppSettings: Codable, Equatable, Sendable {
         usesGlobalColors: Bool = false,
         globalLightColor: String = "#2F7CF6",
         globalDarkColor: String = "#6BA4FF",
+        appearancePreset: AppearancePreset = .system,
+        globalGraphLightColor: String = "#2F7CF6",
+        globalGraphDarkColor: String = "#6BA4FF",
+        globalFillLightColor: String = "#72A8FF",
+        globalFillDarkColor: String = "#397FE8",
+        globalWarningLightColor: String = "#F59E0B",
+        globalWarningDarkColor: String = "#FBBF24",
+        globalCriticalLightColor: String = "#DC2626",
+        globalCriticalDarkColor: String = "#F87171",
+        graphOpacity: Double = 0.85,
+        fontWeight: MenuBarFontWeight = .medium,
+        usesCompactLayout: Bool = false,
         fontSize: Double = 12,
         menuBarScale: Double = 1,
         menuBarSpacing: Double = 3,
@@ -187,6 +270,18 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.usesGlobalColors = usesGlobalColors
         self.globalLightColor = globalLightColor
         self.globalDarkColor = globalDarkColor
+        self.appearancePreset = appearancePreset
+        self.globalGraphLightColor = globalGraphLightColor
+        self.globalGraphDarkColor = globalGraphDarkColor
+        self.globalFillLightColor = globalFillLightColor
+        self.globalFillDarkColor = globalFillDarkColor
+        self.globalWarningLightColor = globalWarningLightColor
+        self.globalWarningDarkColor = globalWarningDarkColor
+        self.globalCriticalLightColor = globalCriticalLightColor
+        self.globalCriticalDarkColor = globalCriticalDarkColor
+        self.graphOpacity = graphOpacity
+        self.fontWeight = fontWeight
+        self.usesCompactLayout = usesCompactLayout
         self.fontSize = fontSize
         self.menuBarScale = menuBarScale
         self.menuBarSpacing = menuBarSpacing
@@ -227,6 +322,18 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case usesGlobalColors
         case globalLightColor
         case globalDarkColor
+        case appearancePreset
+        case globalGraphLightColor
+        case globalGraphDarkColor
+        case globalFillLightColor
+        case globalFillDarkColor
+        case globalWarningLightColor
+        case globalWarningDarkColor
+        case globalCriticalLightColor
+        case globalCriticalDarkColor
+        case graphOpacity
+        case fontWeight
+        case usesCompactLayout
         case fontSize
         case menuBarScale
         case menuBarSpacing
@@ -258,6 +365,18 @@ public struct AppSettings: Codable, Equatable, Sendable {
             usesGlobalColors = false
             globalLightColor = "#2F7CF6"
             globalDarkColor = "#6BA4FF"
+            appearancePreset = .system
+            globalGraphLightColor = "#2F7CF6"
+            globalGraphDarkColor = "#6BA4FF"
+            globalFillLightColor = "#72A8FF"
+            globalFillDarkColor = "#397FE8"
+            globalWarningLightColor = "#F59E0B"
+            globalWarningDarkColor = "#FBBF24"
+            globalCriticalLightColor = "#DC2626"
+            globalCriticalDarkColor = "#F87171"
+            graphOpacity = 0.85
+            fontWeight = .medium
+            usesCompactLayout = false
             fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? 12
             menuBarScale = 1
             menuBarSpacing = 3
@@ -278,6 +397,45 @@ public struct AppSettings: Codable, Equatable, Sendable {
             usesGlobalColors = try container.decodeIfPresent(Bool.self, forKey: .usesGlobalColors) ?? false
             globalLightColor = try container.decodeIfPresent(String.self, forKey: .globalLightColor) ?? "#2F7CF6"
             globalDarkColor = try container.decodeIfPresent(String.self, forKey: .globalDarkColor) ?? "#6BA4FF"
+            appearancePreset = try container.decodeIfPresent(
+                AppearancePreset.self,
+                forKey: .appearancePreset
+            ) ?? .system
+            globalGraphLightColor = try container.decodeIfPresent(
+                String.self,
+                forKey: .globalGraphLightColor
+            ) ?? globalLightColor
+            globalGraphDarkColor = try container.decodeIfPresent(
+                String.self,
+                forKey: .globalGraphDarkColor
+            ) ?? globalDarkColor
+            globalFillLightColor = try container.decodeIfPresent(
+                String.self,
+                forKey: .globalFillLightColor
+            ) ?? globalGraphLightColor
+            globalFillDarkColor = try container.decodeIfPresent(
+                String.self,
+                forKey: .globalFillDarkColor
+            ) ?? globalGraphDarkColor
+            globalWarningLightColor = try container.decodeIfPresent(
+                String.self,
+                forKey: .globalWarningLightColor
+            ) ?? "#F59E0B"
+            globalWarningDarkColor = try container.decodeIfPresent(
+                String.self,
+                forKey: .globalWarningDarkColor
+            ) ?? "#FBBF24"
+            globalCriticalLightColor = try container.decodeIfPresent(
+                String.self,
+                forKey: .globalCriticalLightColor
+            ) ?? "#DC2626"
+            globalCriticalDarkColor = try container.decodeIfPresent(
+                String.self,
+                forKey: .globalCriticalDarkColor
+            ) ?? "#F87171"
+            graphOpacity = try container.decodeIfPresent(Double.self, forKey: .graphOpacity) ?? 0.85
+            fontWeight = try container.decodeIfPresent(MenuBarFontWeight.self, forKey: .fontWeight) ?? .medium
+            usesCompactLayout = try container.decodeIfPresent(Bool.self, forKey: .usesCompactLayout) ?? false
             fontSize = try container.decode(Double.self, forKey: .fontSize)
             menuBarScale = try container.decodeIfPresent(Double.self, forKey: .menuBarScale) ?? 1.15
             menuBarSpacing = try container.decodeIfPresent(Double.self, forKey: .menuBarSpacing) ?? 3
@@ -352,5 +510,87 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Resolves the dark-appearance color for a module under the global palette policy.
     public func darkColor(for moduleSettings: ModuleSettings) -> String {
         usesGlobalColors ? globalDarkColor : moduleSettings.darkColor
+    }
+
+    /// Resolves the light graph-stroke role.
+    public func graphLightColor(for moduleSettings: ModuleSettings) -> String {
+        usesGlobalColors ? globalGraphLightColor : moduleSettings.graphLightColor ?? moduleSettings.lightColor
+    }
+
+    /// Resolves the dark graph-stroke role.
+    public func graphDarkColor(for moduleSettings: ModuleSettings) -> String {
+        usesGlobalColors ? globalGraphDarkColor : moduleSettings.graphDarkColor ?? moduleSettings.darkColor
+    }
+
+    /// Resolves the light graph-fill role.
+    public func fillLightColor(for moduleSettings: ModuleSettings) -> String {
+        usesGlobalColors
+            ? globalFillLightColor
+            : moduleSettings.fillLightColor ?? graphLightColor(for: moduleSettings)
+    }
+
+    /// Resolves the dark graph-fill role.
+    public func fillDarkColor(for moduleSettings: ModuleSettings) -> String {
+        usesGlobalColors
+            ? globalFillDarkColor
+            : moduleSettings.fillDarkColor ?? graphDarkColor(for: moduleSettings)
+    }
+
+    /// Resolves the light warning role.
+    public func warningLightColor(for moduleSettings: ModuleSettings) -> String {
+        usesGlobalColors ? globalWarningLightColor : moduleSettings.warningLightColor ?? globalWarningLightColor
+    }
+
+    /// Resolves the dark warning role.
+    public func warningDarkColor(for moduleSettings: ModuleSettings) -> String {
+        usesGlobalColors ? globalWarningDarkColor : moduleSettings.warningDarkColor ?? globalWarningDarkColor
+    }
+
+    /// Resolves the light critical role.
+    public func criticalLightColor(for moduleSettings: ModuleSettings) -> String {
+        usesGlobalColors ? globalCriticalLightColor : moduleSettings.criticalLightColor ?? globalCriticalLightColor
+    }
+
+    /// Resolves the dark critical role.
+    public func criticalDarkColor(for moduleSettings: ModuleSettings) -> String {
+        usesGlobalColors ? globalCriticalDarkColor : moduleSettings.criticalDarkColor ?? globalCriticalDarkColor
+    }
+
+    /// Applies one complete built-in theme without modifying module-specific saved colors.
+    public mutating func applyTheme(_ preset: AppearancePreset) {
+        appearancePreset = preset
+        guard preset != .custom else { return }
+        isMonochrome = preset == .system
+        usesGlobalColors = preset != .system
+        let roles: (String, String, String, String, String, String, String, String, String, String)
+        switch preset {
+        case .system:
+            roles = ("#2F7CF6", "#6BA4FF", "#2F7CF6", "#6BA4FF", "#72A8FF", "#397FE8",
+                     "#F59E0B", "#FBBF24", "#DC2626", "#F87171")
+        case .ocean:
+            roles = ("#1677FF", "#70B7FF", "#00A7C7", "#5EE5FF", "#68D5E8", "#147EA3",
+                     "#F59E0B", "#FBBF24", "#DC2626", "#F87171")
+        case .sunset:
+            roles = ("#C241A7", "#FF8BD8", "#F97316", "#FDBA74", "#FB7185", "#BE185D",
+                     "#F59E0B", "#FBBF24", "#B91C1C", "#FB7185")
+        case .forest:
+            roles = ("#16803A", "#72E49A", "#0F9F6E", "#5EE6B8", "#6CCF8D", "#137A54",
+                     "#D97706", "#FBBF24", "#B91C1C", "#F87171")
+        case .neon:
+            roles = ("#A21CAF", "#F472FF", "#00A6A6", "#5FFFFF", "#FF4FD8", "#8B1FC7",
+                     "#F59E0B", "#FFE066", "#E11D48", "#FF5A7A")
+        case .custom:
+            return
+        }
+        globalLightColor = roles.0
+        globalDarkColor = roles.1
+        globalGraphLightColor = roles.2
+        globalGraphDarkColor = roles.3
+        globalFillLightColor = roles.4
+        globalFillDarkColor = roles.5
+        globalWarningLightColor = roles.6
+        globalWarningDarkColor = roles.7
+        globalCriticalLightColor = roles.8
+        globalCriticalDarkColor = roles.9
     }
 }

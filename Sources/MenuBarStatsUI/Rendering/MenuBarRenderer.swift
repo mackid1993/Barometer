@@ -38,6 +38,12 @@ public struct RenderContext {
     /// Module color palette.
     public let palette: MenuBarPalette
 
+    /// Graph stroke and fill palettes plus threshold roles.
+    public let graphPalette: MenuBarPalette
+    public let fillPalette: MenuBarPalette
+    public let warningPalette: MenuBarPalette
+    public let criticalPalette: MenuBarPalette
+
     /// Menu bar font size.
     public let fontSize: CGFloat
 
@@ -50,28 +56,63 @@ public struct RenderContext {
     /// Blank horizontal space added to each side of an item.
     public let horizontalSpacing: CGFloat
 
+    /// Shared graph opacity, type weight, and compact-layout choice.
+    public let graphOpacity: CGFloat
+    public let fontWeight: MenuBarFontWeight
+    public let usesCompactLayout: Bool
+
     /// Creates a render context.
     public init(
         thickness: CGFloat,
         appearance: MenuBarAppearance,
         palette: MenuBarPalette,
+        graphPalette: MenuBarPalette? = nil,
+        fillPalette: MenuBarPalette? = nil,
+        warningPalette: MenuBarPalette? = nil,
+        criticalPalette: MenuBarPalette? = nil,
         fontSize: CGFloat,
         isMonochrome: Bool,
         scale: CGFloat = 1,
-        horizontalSpacing: CGFloat = 0
+        horizontalSpacing: CGFloat = 0,
+        graphOpacity: CGFloat = 0.85,
+        fontWeight: MenuBarFontWeight = .medium,
+        usesCompactLayout: Bool = false
     ) {
         self.thickness = thickness
         self.appearance = appearance
         self.palette = palette
+        self.graphPalette = graphPalette ?? palette
+        self.fillPalette = fillPalette ?? graphPalette ?? palette
+        self.warningPalette = warningPalette ?? palette
+        self.criticalPalette = criticalPalette ?? warningPalette ?? palette
         self.fontSize = fontSize
         self.isMonochrome = isMonochrome
         self.scale = scale
         self.horizontalSpacing = horizontalSpacing
+        self.graphOpacity = min(1, max(0.1, graphOpacity))
+        self.fontWeight = fontWeight
+        self.usesCompactLayout = usesCompactLayout
     }
 
     /// Foreground color to use when drawing.
     public var foregroundColor: NSColor {
         isMonochrome ? .black : palette.color(for: appearance)
+    }
+
+    public var graphColor: NSColor {
+        isMonochrome ? .black : graphPalette.color(for: appearance)
+    }
+
+    public var fillColor: NSColor {
+        isMonochrome ? .black : fillPalette.color(for: appearance)
+    }
+
+    public var warningColor: NSColor {
+        isMonochrome ? .black : warningPalette.color(for: appearance)
+    }
+
+    public var criticalColor: NSColor {
+        isMonochrome ? .black : criticalPalette.color(for: appearance)
     }
 }
 
@@ -85,7 +126,7 @@ struct MenuBarLayoutMetrics {
     let context: RenderContext
 
     var iconTextGap: CGFloat {
-        max(3, round(3.5 * context.scale))
+        context.usesCompactLayout ? 1 : max(3, round(3.5 * context.scale))
     }
 
     func centeredY(for height: CGFloat) -> CGFloat {
@@ -170,7 +211,7 @@ public struct TextRenderer: MenuBarRenderer {
     @MainActor
     public func render(in context: RenderContext) -> NSImage {
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: context.fontSize, weight: .medium),
+            .font: NSFont.monospacedDigitSystemFont(ofSize: context.fontSize, weight: context.fontWeight.nsWeight),
             .foregroundColor: context.foregroundColor,
         ]
         let value = NSAttributedString(string: text, attributes: attributes)
@@ -199,11 +240,12 @@ public struct GraphRenderer: MenuBarRenderer {
     /// Renders the graph image.
     @MainActor
     public func render(in context: RenderContext) -> NSImage {
-        makeImage(width: width * context.scale, context: context) { rect in
+        let compactScale = context.usesCompactLayout ? 0.85 : 1
+        return makeImage(width: width * context.scale * compactScale, context: context) { rect in
             let drawingRect = rect.insetBy(dx: 2, dy: 3)
             let normalized = values.isEmpty ? [0] : values.map { min(1, max(0, $0)) }
-            context.foregroundColor.setFill()
-            context.foregroundColor.setStroke()
+            context.fillColor.withAlphaComponent(context.graphOpacity).setFill()
+            context.graphColor.withAlphaComponent(context.graphOpacity).setStroke()
 
             switch style {
             case .bars:
@@ -269,7 +311,7 @@ public struct DiskActivityGraphRenderer: MenuBarRenderer {
                 baseline: centerY,
                 extent: drawingRect.maxY - centerY,
                 direction: 1,
-                color: context.foregroundColor,
+                color: context.graphColor.withAlphaComponent(context.graphOpacity),
                 drawingRect: drawingRect
             )
             drawHalf(
@@ -277,7 +319,7 @@ public struct DiskActivityGraphRenderer: MenuBarRenderer {
                 baseline: centerY,
                 extent: centerY - drawingRect.minY,
                 direction: -1,
-                color: context.foregroundColor.withAlphaComponent(0.62),
+                color: context.fillColor.withAlphaComponent(context.graphOpacity * 0.7),
                 drawingRect: drawingRect
             )
         }
@@ -352,11 +394,11 @@ public struct StackedLabelRenderer: MenuBarRenderer {
         let metrics = MenuBarLayoutMetrics(context: context)
         let pointSize = metrics.compactPointSize
         let labelAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: pointSize, weight: .medium),
+            .font: NSFont.systemFont(ofSize: pointSize, weight: context.fontWeight.nsWeight),
             .foregroundColor: context.foregroundColor,
         ]
         let valueAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: pointSize, weight: .semibold),
+            .font: NSFont.monospacedDigitSystemFont(ofSize: pointSize, weight: context.fontWeight.nsWeight),
             .foregroundColor: context.foregroundColor,
         ]
         let labelText = NSAttributedString(string: label, attributes: labelAttributes)
@@ -399,7 +441,7 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
     public func render(in context: RenderContext) -> NSImage {
         let metrics = MenuBarLayoutMetrics(context: context)
         let pointSize = metrics.compactPointSize
-        let font = NSFont.monospacedDigitSystemFont(ofSize: pointSize, weight: .medium)
+        let font = NSFont.monospacedDigitSystemFont(ofSize: pointSize, weight: context.fontWeight.nsWeight)
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: context.foregroundColor,
@@ -469,11 +511,14 @@ public struct SensorStackRenderer: MenuBarRenderer {
         let valuePointSize = metrics.compactPointSize
         let labelPointSize = valuePointSize
         let labelAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: labelPointSize, weight: .medium),
+            .font: NSFont.systemFont(ofSize: labelPointSize, weight: context.fontWeight.nsWeight),
             .foregroundColor: context.foregroundColor.withAlphaComponent(0.82),
         ]
         let valueAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: valuePointSize, weight: .semibold),
+            .font: NSFont.monospacedDigitSystemFont(
+                ofSize: valuePointSize,
+                weight: context.fontWeight.nsWeight
+            ),
             .foregroundColor: context.foregroundColor,
         ]
         let fields = values.isEmpty
@@ -547,9 +592,15 @@ public struct IconTextRenderer: MenuBarRenderer {
     /// Renders the icon and text image.
     @MainActor
     public func render(in context: RenderContext) -> NSImage {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: context.fontSize, weight: .medium)
+        let font = NSFont.monospacedDigitSystemFont(
+            ofSize: context.fontSize,
+            weight: context.fontWeight.nsWeight
+        )
         let symbolPointSize = min(context.fontSize * context.scale, context.thickness - 4)
-        let baseConfiguration = NSImage.SymbolConfiguration(pointSize: symbolPointSize, weight: .medium)
+        let baseConfiguration = NSImage.SymbolConfiguration(
+            pointSize: symbolPointSize,
+            weight: context.fontWeight.nsWeight
+        )
         let colorConfiguration = NSImage.SymbolConfiguration(paletteColors: [context.foregroundColor])
         let configuration = baseConfiguration.applying(colorConfiguration)
         let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
@@ -599,9 +650,9 @@ public struct SymbolRenderer: MenuBarRenderer {
     /// Renders the symbol centered on the canonical menu bar canvas.
     @MainActor
     public func render(in context: RenderContext) -> NSImage {
-        let font = NSFont.systemFont(ofSize: context.fontSize, weight: .medium)
+        let font = NSFont.systemFont(ofSize: context.fontSize, weight: context.fontWeight.nsWeight)
         let pointSize = min(context.fontSize * context.scale, context.thickness - 4)
-        let baseConfiguration = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .medium)
+        let baseConfiguration = NSImage.SymbolConfiguration(pointSize: pointSize, weight: context.fontWeight.nsWeight)
         let colorConfiguration = NSImage.SymbolConfiguration(paletteColors: [context.foregroundColor])
         let configuration = baseConfiguration.applying(colorConfiguration)
         let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
@@ -642,9 +693,12 @@ public struct IconStackRenderer: MenuBarRenderer {
     public func render(in context: RenderContext) -> NSImage {
         let metrics = MenuBarLayoutMetrics(context: context)
         let pointSize = metrics.compactPointSize
-        let font = NSFont.monospacedDigitSystemFont(ofSize: pointSize, weight: .medium)
+        let font = NSFont.monospacedDigitSystemFont(ofSize: pointSize, weight: context.fontWeight.nsWeight)
         let symbolPointSize = min(context.thickness / 2 - 1, max(pointSize, pointSize * context.scale))
-        let baseConfiguration = NSImage.SymbolConfiguration(pointSize: symbolPointSize, weight: .medium)
+        let baseConfiguration = NSImage.SymbolConfiguration(
+            pointSize: symbolPointSize,
+            weight: context.fontWeight.nsWeight
+        )
         let colorConfiguration = NSImage.SymbolConfiguration(paletteColors: [context.foregroundColor])
         let configuration = baseConfiguration.applying(colorConfiguration)
         let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
@@ -770,4 +824,14 @@ private func makeImage(
     }
     image.isTemplate = context.isMonochrome
     return image
+}
+
+private extension MenuBarFontWeight {
+    var nsWeight: NSFont.Weight {
+        switch self {
+        case .regular: .regular
+        case .medium: .medium
+        case .semibold: .semibold
+        }
+    }
 }

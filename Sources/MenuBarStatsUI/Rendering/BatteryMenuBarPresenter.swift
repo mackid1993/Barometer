@@ -79,11 +79,18 @@ public enum BatteryMenuBarPresenter {
         return RenderContext(
             thickness: context.thickness,
             appearance: context.appearance,
-            palette: MenuBarPalette(light: .systemRed, dark: .systemRed),
+            palette: MenuBarPalette(light: context.warningColor, dark: context.warningColor),
+            graphPalette: context.graphPalette,
+            fillPalette: context.fillPalette,
+            warningPalette: context.warningPalette,
+            criticalPalette: context.criticalPalette,
             fontSize: context.fontSize,
             isMonochrome: context.isMonochrome,
             scale: context.scale,
-            horizontalSpacing: context.horizontalSpacing
+            horizontalSpacing: context.horizontalSpacing,
+            graphOpacity: context.graphOpacity,
+            fontWeight: context.fontWeight,
+            usesCompactLayout: context.usesCompactLayout
         )
     }
 

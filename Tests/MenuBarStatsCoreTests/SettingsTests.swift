@@ -11,6 +11,11 @@ struct SettingsTests {
         settings.modules[.cpu]?.mode = "graph"
         settings.weather.units.temperature = .celsius
         settings.sensorTemperatureUnit = .fahrenheit
+        settings.applyTheme(.neon)
+        settings.graphOpacity = 0.62
+        settings.fontWeight = .semibold
+        settings.usesCompactLayout = true
+        settings.modules[.cpu]?.warningLightColor = "#ABCDEF"
 
         let data = try JSONEncoder().encode(settings)
         let decoded = try JSONDecoder().decode(AppSettings.self, from: data)
@@ -24,7 +29,7 @@ struct SettingsTests {
         )
         let migrated = try JSONDecoder().decode(AppSettings.self, from: versionZero)
 
-        #expect(migrated.schemaVersion == 11)
+        #expect(migrated.schemaVersion == 12)
         #expect(!migrated.reducesSamplingOnBattery)
         #expect(!migrated.isMonochrome)
         #expect(migrated.fontSize == 12)
@@ -49,7 +54,7 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.schemaVersion == 11)
+        #expect(migrated.schemaVersion == 12)
         #expect(migrated.weather.refreshIntervalMinutes == 15)
         #expect(migrated.weather.units.temperature == .fahrenheit)
         #expect(migrated.sensorTemperatureUnit == .celsius)
@@ -74,7 +79,7 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.schemaVersion == 11)
+        #expect(migrated.schemaVersion == 12)
         #expect(migrated.network == NetworkSettings())
         #expect(migrated.modules[.network]?.mode == "twoLine")
         #expect(migrated.disks == DiskSettings())
@@ -115,7 +120,7 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.schemaVersion == 11)
+        #expect(migrated.schemaVersion == 12)
         #expect(migrated.disks == DiskSettings())
         #expect(migrated.modules[.disks]?.mode == "activityGraph")
     }
@@ -138,7 +143,7 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.schemaVersion == 11)
+        #expect(migrated.schemaVersion == 12)
         #expect(migrated.sensors == SensorSettings())
         #expect(migrated.modules[.sensors]?.mode == "compactStack")
     }
@@ -157,6 +162,37 @@ struct SettingsTests {
         settings.usesGlobalColors = false
         #expect(settings.lightColor(for: module) == "#111111")
         #expect(settings.darkColor(for: module) == "#EEEEEE")
+    }
+
+    @Test("appearance presets apply complete global color roles")
+    func appliesAppearancePreset() {
+        var settings = AppSettings()
+        settings.applyTheme(.ocean)
+
+        #expect(settings.appearancePreset == .ocean)
+        #expect(!settings.isMonochrome)
+        #expect(settings.usesGlobalColors)
+        #expect(settings.globalLightColor == "#1677FF")
+        #expect(settings.globalGraphLightColor == "#00A7C7")
+        #expect(settings.globalWarningLightColor == "#F59E0B")
+        #expect(settings.globalCriticalLightColor == "#DC2626")
+    }
+
+    @Test("module role colors fall back without erasing custom values")
+    func resolvesAppearanceRoles() {
+        let module = ModuleSettings(
+            lightColor: "#111111",
+            darkColor: "#EEEEEE",
+            graphLightColor: "#123456",
+            warningDarkColor: "#FEDCBA"
+        )
+        var settings = AppSettings(usesGlobalColors: false)
+
+        #expect(settings.graphLightColor(for: module) == "#123456")
+        #expect(settings.graphDarkColor(for: module) == "#EEEEEE")
+        #expect(settings.warningDarkColor(for: module) == "#FEDCBA")
+        settings.usesGlobalColors = true
+        #expect(settings.graphLightColor(for: module) == settings.globalGraphLightColor)
     }
 
     @Test("weather primary location falls back without losing order")

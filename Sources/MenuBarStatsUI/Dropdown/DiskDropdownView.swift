@@ -24,7 +24,11 @@ public struct DiskDropdownView: View {
                 header(sample: sample, settings: settings)
 
                 Text("ACTIVITY").diskSectionLabel()
-                DiskHistoryGraph(samples: store.history.entries)
+                DiskHistoryGraph(
+                    samples: store.history.entries,
+                    readColor: AppearanceColorResolver.graph(settingsStore.settings, module: .disks),
+                    writeColor: AppearanceColorResolver.fill(settingsStore.settings, module: .disks)
+                )
                     .frame(height: 86)
 
                 if let sample {
@@ -61,14 +65,14 @@ public struct DiskDropdownView: View {
                     label: "Read",
                     value: rates.read,
                     unitSystem: settings.unitSystem,
-                    color: .cyan
+                    color: AppearanceColorResolver.graph(settingsStore.settings, module: .disks)
                 )
                 rateSummary(
                     symbol: "arrow.up",
                     label: "Write",
                     value: rates.write,
                     unitSystem: settings.unitSystem,
-                    color: .orange
+                    color: AppearanceColorResolver.fill(settingsStore.settings, module: .disks)
                 )
             }
         }
@@ -122,7 +126,7 @@ public struct DiskDropdownView: View {
                         Text(String(format: "%.0f%% used", volume.usedPercent))
                         Spacer()
                         Text(
-                            "\(DiskValueFormatter.capacity(volume.availableBytes, unitSystem: settings.unitSystem)) free"
+                            DiskValueFormatter.capacity(volume.availableBytes, unitSystem: settings.unitSystem) + " free"
                         )
                     }
                     .font(.caption)
@@ -190,6 +194,8 @@ public struct DiskDropdownView: View {
 
 private struct DiskHistoryGraph: View {
     let samples: [HistoryEntry<DiskSample>]
+    let readColor: Color
+    let writeColor: Color
 
     var body: some View {
         Canvas { context, size in
@@ -204,8 +210,14 @@ private struct DiskHistoryGraph: View {
             }
             let maximum = max(1, values.reduce(0) { max($0, $1.read, $1.write) } * 1.1)
             let center = size.height / 2
-            draw(values.map(\.read), maximum: maximum, baseline: center, direction: -1, color: .cyan, in: &context, size: size)
-            draw(values.map(\.write), maximum: maximum, baseline: center, direction: 1, color: .orange, in: &context, size: size)
+            draw(
+                values.map(\.read), maximum: maximum, baseline: center, direction: -1,
+                color: readColor, in: &context, size: size
+            )
+            draw(
+                values.map(\.write), maximum: maximum, baseline: center, direction: 1,
+                color: writeColor, in: &context, size: size
+            )
         }
         .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 6))
     }

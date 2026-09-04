@@ -231,6 +231,33 @@ struct MenuBarRendererTests {
     }
 
     @Test
+    func compactLayoutReducesEligibleInternalGeometry() {
+        let regular = RenderContext(
+            thickness: context.thickness,
+            appearance: context.appearance,
+            palette: context.palette,
+            fontSize: context.fontSize,
+            isMonochrome: context.isMonochrome,
+            scale: context.scale,
+            usesCompactLayout: false
+        )
+        let compact = RenderContext(
+            thickness: context.thickness,
+            appearance: context.appearance,
+            palette: context.palette,
+            fontSize: context.fontSize,
+            isMonochrome: context.isMonochrome,
+            scale: context.scale,
+            usesCompactLayout: true
+        )
+
+        #expect(IconTextRenderer(symbolName: "cloud", text: "77°F").render(in: compact).size.width
+            < IconTextRenderer(symbolName: "cloud", text: "77°F").render(in: regular).size.width)
+        #expect(GraphRenderer(values: [0.2, 0.8], style: .line).render(in: compact).size.width
+            < GraphRenderer(values: [0.2, 0.8], style: .line).render(in: regular).size.width)
+    }
+
+    @Test
     func statusItemLengthMatchesRenderedCanvasWithoutAppKitInsets() {
         let image = TextRenderer(text: "CPU").render(in: context)
 

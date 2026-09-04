@@ -32,7 +32,10 @@ public struct BatteryDropdownView: View {
                         .font(.system(.title2, design: .rounded).monospacedDigit().weight(.semibold))
                 }
 
-                BatteryHistoryGraph(samples: store.history.entries)
+                BatteryHistoryGraph(
+                    samples: store.history.entries,
+                    color: AppearanceColorResolver.graph(settingsStore.settings, module: .battery)
+                )
                     .frame(height: 88)
                     .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 7))
 
@@ -131,6 +134,7 @@ private struct BatteryMetricRow: View {
 
 private struct BatteryHistoryGraph: View {
     let samples: [HistoryEntry<BatterySample>]
+    let color: Color
 
     var body: some View {
         Canvas { context, size in
@@ -142,7 +146,7 @@ private struct BatteryHistoryGraph: View {
                 let y = (1 - CGFloat(value)) * size.height
                 index == 0 ? path.move(to: CGPoint(x: x, y: y)) : path.addLine(to: CGPoint(x: x, y: y))
             }
-            context.stroke(path, with: .color(.green), lineWidth: 1.6)
+            context.stroke(path, with: .color(color), lineWidth: 1.6)
         }
     }
 }

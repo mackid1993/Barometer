@@ -1324,3 +1324,22 @@ Verification:
 - `swift test` exited 0. New coverage verifies membership normalization, safe visibility defaults, compact separator
   geometry, member hiding, and the rule that Combined can never hide itself.
 - `swift build -c release`, `git diff --check`, and the 120-column check passed.
+
+## P7-T2 Appearance system
+
+Added System, Ocean, Sunset, Forest, and Neon presets plus a complete custom appearance model. Global and
+per-module light/dark roles now cover normal content, graph strokes, graph fills, warnings, and critical states.
+Settings also expose graph opacity, regular/medium/semibold menu bar weights, monochrome behavior, compact internal
+geometry, reset-to-theme actions, and a live CPU/graph/Weather preview strip. Existing module colors remain intact
+when switching between global and per-module control.
+
+The semantic roles now feed menu bar renderers, Combined member renderers, battery warnings, and CPU, Memory, GPU,
+Battery, Disk, and Network detail graphs. Settings schema 12 migrates prior preferences without losing module
+customizations, while export/import round trips every new appearance field.
+
+Verification:
+
+- `swift test` exited 0. Coverage verifies complete preset application, global and module fallback resolution,
+  schema migration, appearance export/import fidelity, and narrower icon and graph geometry in compact mode.
+- `swift build -c release` completed successfully.
+- The changed Swift files pass the 120-column check.

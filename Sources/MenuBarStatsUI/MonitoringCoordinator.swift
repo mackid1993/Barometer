@@ -1054,10 +1054,29 @@ public final class MonitoringCoordinator {
                 light: NSColor(hex: appSettings.lightColor(for: moduleSettings)) ?? .controlAccentColor,
                 dark: NSColor(hex: appSettings.darkColor(for: moduleSettings)) ?? .controlAccentColor
             ),
+            graphPalette: MenuBarPalette(
+                light: NSColor(hex: appSettings.graphLightColor(for: moduleSettings)) ?? .controlAccentColor,
+                dark: NSColor(hex: appSettings.graphDarkColor(for: moduleSettings)) ?? .controlAccentColor
+            ),
+            fillPalette: MenuBarPalette(
+                light: NSColor(hex: appSettings.fillLightColor(for: moduleSettings)) ?? .controlAccentColor,
+                dark: NSColor(hex: appSettings.fillDarkColor(for: moduleSettings)) ?? .controlAccentColor
+            ),
+            warningPalette: MenuBarPalette(
+                light: NSColor(hex: appSettings.warningLightColor(for: moduleSettings)) ?? .systemOrange,
+                dark: NSColor(hex: appSettings.warningDarkColor(for: moduleSettings)) ?? .systemOrange
+            ),
+            criticalPalette: MenuBarPalette(
+                light: NSColor(hex: appSettings.criticalLightColor(for: moduleSettings)) ?? .systemRed,
+                dark: NSColor(hex: appSettings.criticalDarkColor(for: moduleSettings)) ?? .systemRed
+            ),
             fontSize: parent.fontSize,
             isMonochrome: parent.isMonochrome,
             scale: parent.scale,
-            horizontalSpacing: 0
+            horizontalSpacing: 0,
+            graphOpacity: parent.graphOpacity,
+            fontWeight: parent.fontWeight,
+            usesCompactLayout: parent.usesCompactLayout
         )
     }
 
