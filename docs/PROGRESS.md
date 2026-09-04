@@ -777,3 +777,32 @@ Verification:
   buttons had been 16 points wider than their images.
 - A tight Retina capture at `dist/menubar-independent-spacing-final.png` confirmed aligned CPU/MEM rows, aligned
   Weather glyph and temperature, and compact zero-added-spacing presentation without changing system appearance.
+
+## P3-T1 Network source
+
+Added 64-bit cumulative interface counters from `NET_RT_IFLIST2`, IPv4 and IPv6 addresses from `getifaddrs`, and
+primary interface, router, and DNS data from SystemConfiguration. The configuration watcher reports changes to the
+main actor. CoreWLAN supplies power, signal, noise, channel, band, transmit rate, and security; SSID and BSSID remain
+explicitly unavailable when the process lacks Location authorization. The optional public-IP source is off by
+default and independently validates IPv4 and IPv6 responses.
+
+Added the data-only `NetworkMonitor` rate calculation needed by the diagnostic probe plus `mbs-probe net [--watch]`
+and `mbs-probe wifi`. No speed-test feature, file, or dependency is part of Barometer; verification only generated
+temporary traffic and discarded its response.
+
+Verification:
+
+- `swift build --disable-sandbox` compiled all targets under Swift 6 strict concurrency.
+- `swift test --disable-sandbox --filter 'network|publicIP'` rebuilt and linked the network smoke and address-parser
+  tests and exited 0. The Command Line Tools runner still omits its execution summary.
+- `swift run --disable-sandbox mbs-probe net` reported primary interface `en0`, IPv4 and IPv6 addresses, router,
+  two DNS servers, current rates, and cumulative download/upload totals.
+- `swift run --disable-sandbox mbs-probe wifi` reported a powered 6 GHz connection at -58 dBm, -92 dBm noise,
+  576 Mbps transmit rate, and WPA3 Personal security. SSID and BSSID correctly reported that Location permission may
+  be required.
+- During `mbs-probe net --watch`, a temporary 100 MB download raised the measured receive rate from idle traffic to
+  17.1, 32.4, and 37.0 MiB/s and increased the cumulative received total by about 110 MiB.
+- The plan's Cloudflare traffic URL returned HTTP 403 on September 3, 2026. A reachable 100 MB test object was used
+  instead and written directly to `/dev/null`; no file remained. This was a verification-endpoint deviation, not a
+  source fallback.
+- `git diff --check` passed, and the changed Swift files contain no lines longer than 120 columns.

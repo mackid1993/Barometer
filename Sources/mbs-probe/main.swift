@@ -7,8 +7,10 @@ private enum ProbeCommand: String {
     case geocode
     case identity
     case memory
+    case net
     case version
     case weather
+    case wifi
 }
 
 private func runIdentityProbe() {
@@ -86,6 +88,49 @@ private func runMemoryProbe() async throws {
     let monitor = MemoryMonitor()
     let sample = try await monitor.sample()
     printMemorySample(sample)
+}
+
+private func runNetworkProbe(watch: Bool) async throws {
+    let monitor = NetworkMonitor()
+    _ = try await monitor.sample()
+    repeat {
+        try await Task.sleep(for: .seconds(1))
+        let sample = try await monitor.sample()
+        printNetworkSample(sample)
+    } while watch
+}
+
+private func printNetworkSample(_ sample: NetworkSample) {
+    guard let primary = sample.primary else {
+        print("Network unavailable")
+        return
+    }
+    print(
+        "Primary \(primary.name): down \(formatRate(primary.downloadBytesPerSecond)), "
+            + "up \(formatRate(primary.uploadBytesPerSecond))"
+    )
+    print("IPv4: \(primary.ipv4Addresses.joined(separator: ", "))")
+    print("IPv6: \(primary.ipv6Addresses.joined(separator: ", "))")
+    print("Router: \(sample.router ?? "unavailable"); DNS: \(sample.dnsServers.joined(separator: ", "))")
+    print("Totals: down \(formatBytes(primary.receivedBytes)); up \(formatBytes(primary.sentBytes))")
+}
+
+private func runWiFiProbe() async throws {
+    let sample = try await NetworkMonitor().sample()
+    guard let wifi = sample.wifi else {
+        print("Wi-Fi unavailable")
+        return
+    }
+    print("Interface: \(wifi.interfaceName); powered: \(wifi.isPowered ? "yes" : "no")")
+    print("SSID: \(wifi.ssid ?? "unavailable (Location permission may be required)")")
+    print("BSSID: \(wifi.bssid ?? "unavailable (Location permission may be required)")")
+    print("RSSI: \(wifi.rssi.map { "\($0) dBm" } ?? "unavailable")")
+    print("Noise: \(wifi.noise.map { "\($0) dBm" } ?? "unavailable")")
+    print("Channel: \(wifi.channel.map(String.init) ?? "unavailable"); band: \(wifi.band ?? "unavailable")")
+    print(
+        "Transmit rate: \(wifi.transmitRateMbps.map { String(format: "%.0f Mbps", $0) } ?? "unavailable"); "
+            + "security: \(wifi.security ?? "unavailable")"
+    )
 }
 
 private func runGeocodingProbe(query: String) async throws {
@@ -178,6 +223,16 @@ private func formatBytes(_ bytes: UInt64) -> String {
     return String(format: "%.1f MiB", Double(bytes) / 1_048_576)
 }
 
+private func formatRate(_ bytesPerSecond: Double) -> String {
+    if bytesPerSecond >= 1_048_576 {
+        return String(format: "%.1f MiB/s", bytesPerSecond / 1_048_576)
+    }
+    if bytesPerSecond >= 1_024 {
+        return String(format: "%.1f KiB/s", bytesPerSecond / 1_024)
+    }
+    return String(format: "%.0f B/s", bytesPerSecond)
+}
+
 private func writeError(_ message: String) {
     let data = Data("mbs-probe: \(message)\n".utf8)
     FileHandle.standardError.write(data)
@@ -189,7 +244,10 @@ private enum ProbeMain {
         setbuf(stdout, nil)
         let arguments = Array(CommandLine.arguments.dropFirst())
         guard let commandName = arguments.first, let command = ProbeCommand(rawValue: commandName) else {
-            writeError("usage: mbs-probe <cpu [--watch]|geocode QUERY|identity|memory|version|weather --lat N --lon N>")
+            writeError(
+                "usage: mbs-probe <cpu [--watch]|geocode QUERY|identity|memory|net [--watch]|version|"
+                    + "weather --lat N --lon N|wifi>"
+            )
             exit(EXIT_FAILURE)
         }
 
@@ -219,6 +277,12 @@ private enum ProbeMain {
                     exit(EXIT_FAILURE)
                 }
                 try await runMemoryProbe()
+            case .net:
+                guard arguments.count == 1 || arguments == ["net", "--watch"] else {
+                    writeError("usage: mbs-probe net [--watch]")
+                    exit(EXIT_FAILURE)
+                }
+                try await runNetworkProbe(watch: arguments.count == 2)
             case .version:
                 guard arguments.count == 1 else {
                     writeError("usage: mbs-probe version")
@@ -236,6 +300,12 @@ private enum ProbeMain {
                     exit(EXIT_FAILURE)
                 }
                 try await runWeatherProbe(latitude: latitude, longitude: longitude)
+            case .wifi:
+                guard arguments.count == 1 else {
+                    writeError("usage: mbs-probe wifi")
+                    exit(EXIT_FAILURE)
+                }
+                try await runWiFiProbe()
             }
         } catch {
             writeError(String(describing: error))

@@ -28,3 +28,20 @@ import Testing
     #expect(ProcessSource.applicationBundleURL(forExecutablePath: executableURL.path) == applicationURL)
     #expect(ProcessSource.applicationDisplayName(forExecutablePath: executableURL.path) == "Parallels Desktop")
 }
+
+@Test func networkSourceReadsRouteInterfaces() throws {
+    let snapshot = try NetworkSource().read()
+
+    #expect(!snapshot.interfaces.isEmpty)
+    #expect(snapshot.interfaces.contains { $0.name == "lo0" && $0.isLoopback })
+    #expect(snapshot.interfaces.allSatisfy { !$0.name.isEmpty && $0.index > 0 })
+}
+
+@Test func publicIPSourceParsesAndValidatesAddresses() {
+    let data = Data(#"{"ip":"203.0.113.4"}"#.utf8)
+
+    #expect(PublicIPSource.address(from: data) == "203.0.113.4")
+    #expect(PublicIPSource.isValid(address: "203.0.113.4", family: AF_INET))
+    #expect(PublicIPSource.isValid(address: "2001:db8::1", family: AF_INET6))
+    #expect(!PublicIPSource.isValid(address: "not-an-address", family: AF_INET))
+}
