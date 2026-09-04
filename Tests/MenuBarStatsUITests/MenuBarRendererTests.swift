@@ -303,6 +303,14 @@ struct MenuBarRendererTests {
     }
 
     @Test
+    func hiddenStatusItemsRemoveOnlyVisibilityPreferences() {
+        #expect(StatusItemRendering.visibilityPreferenceKeys(autosaveName: "Barometer.Disks") == [
+            "NSStatusItem VisibleCC Barometer.Disks",
+            "NSStatusItem Visible Barometer.Disks",
+        ])
+    }
+
+    @Test
     func networkPresentationSupportsEveryMenuBarMode() {
         let interface = NetworkInterfaceSample(
             name: "en0",

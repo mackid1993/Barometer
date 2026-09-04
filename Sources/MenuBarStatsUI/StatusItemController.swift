@@ -69,6 +69,7 @@ public final class StatusItemController<Sample: Sendable> {
             if statusItem.isVisible {
                 statusItem.isVisible = false
             }
+            StatusItemRendering.clearInactiveVisibilityPreferences(autosaveName: statusItem.autosaveName)
             return
         }
         guard let button = statusItem.button else {
@@ -135,6 +136,22 @@ enum StatusItemRendering {
 
     static func shouldUpdateLength(current: CGFloat?, target: CGFloat) -> Bool {
         current.map { abs($0 - target) > 0.01 } ?? true
+    }
+
+    static func visibilityPreferenceKeys(autosaveName: String) -> [String] {
+        [
+            "NSStatusItem VisibleCC \(autosaveName)",
+            "NSStatusItem Visible \(autosaveName)",
+        ]
+    }
+
+    static func clearInactiveVisibilityPreferences(autosaveName: String?) {
+        guard let autosaveName, !autosaveName.isEmpty else {
+            return
+        }
+        for key in visibilityPreferenceKeys(autosaveName: autosaveName) {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
     }
 
     static func context(

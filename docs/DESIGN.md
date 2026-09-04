@@ -111,6 +111,10 @@ These rules are part of the public contract of the app. Changing any of them aft
 6. The live reading goes into `button.setAccessibilityValue(...)` only. This is what Control Center does for its Battery module, which Thaw identifies as `com.apple.controlcenter:Battery` regardless of the percentage.
 7. Never set the status item window's title. Never call `NSWindow.title` on `button.window`.
 8. Status items are created once at launch and live for the whole process lifetime. Disabling a module sets `isVisible = false`. It does not remove the item. Enabling sets it back to `true`.
+   Disabled items discard only AppKit's redundant `NSStatusItem Visible` and `VisibleCC` defaults records. Barometer's
+   settings remain the visibility source of truth, while removing those inactive records prevents menu bar managers
+   from pairing a hidden autosave name with a different visible item during cold-start discovery. Position records
+   are never removed or modified.
 9. `NSStatusItem.behavior` does not include `.removalAllowed`. Visibility is managed from Settings.
 10. Only one instance of the app runs. On launch, if another process with the same bundle identifier is running, the new one activates the old one's settings window and exits.
 11. Position is left to the system (`NSStatusItem Preferred Position <autosaveName>` in the app's own defaults) and to the menu bar manager. The app never tries to reorder its own items.

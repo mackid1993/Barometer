@@ -1472,9 +1472,17 @@ width actually changes. Previously, every monitor sample reapplied the same fixe
 mutation could make Barometer items return to AppKit's placement after a menu bar manager restarted. Autosave names,
 accessibility identities, item lifetimes, and independent moveability are unchanged.
 
+The Bartender cold-start catalog then exposed the direct identity collision: inactive `Barometer.Disks` was paired
+with the visible Weather item's accessibility identity, and inactive `Barometer.Combined` was paired with Network.
+Barometer now removes only the redundant AppKit visibility-default records for inactive items. It retains every
+status item and autosave name for the process lifetime and never touches any position record. This prevents an
+inactive identity from stealing a visible item when a menu bar manager reconstructs its catalog.
+
 Verification:
 
 - `swift test` exited 0. Formatter coverage verifies byte and bit suffixes, the KB/s floor, decimal precision, unit
   promotion, and fixed geometry. Renderer coverage verifies that unchanged lengths do not request a new assignment.
 - `swift build -c release`, `git diff --check`, and the changed-file 120-column check passed.
-- Live confirmation after a Bartender restart remains a user-driven check; Barometer does not control Bartender.
+- Before the correction, Bartender's read-only cold-start catalog showed the Disks→Weather and Combined→Network
+  identity collisions. Live confirmation after installing the correction remains user-driven; Barometer does not
+  control Bartender.
