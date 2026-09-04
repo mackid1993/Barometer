@@ -113,6 +113,8 @@ private struct SettingsRootView: View {
                     settingsStore: settingsStore,
                     requestCalendarAccess: calendarAccessAction
                 )
+            case let .module(module) where module == .combined:
+                CombinedSettingsView(settingsStore: settingsStore)
             case let .module(module) where module == .weather:
                 WeatherSettingsView(settingsStore: settingsStore)
             case let .module(module) where module == .network:
@@ -455,7 +457,7 @@ private struct FutureModuleSettingsView: View {
     }
 }
 
-private extension ModuleID {
+extension ModuleID {
     var symbolName: String {
         switch self {
         case .cpu: "cpu"

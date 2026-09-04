@@ -1306,3 +1306,21 @@ Verification:
 - The committed application property list already contains `NSCalendarsFullAccessUsageDescription`; no new TCC
   category was requested during implementation or verification.
 - `swift build -c release`, `git diff --check`, and the 120-column check passed.
+
+## P7-T1 Combined item
+
+Implemented the permanent `Barometer.Combined` status item with any ordered subset of CPU, GPU, Memory, Disks,
+Network, Sensors, Battery, Weather, and Time. It reuses each module's selected presentation and color on a single
+canvas with compact optional separators. One outer spacing value is applied; member renderings do not reintroduce
+individual item padding.
+
+Combined settings support adding, removing, and reordering members. “Hide included individual items” changes only
+visibility: each individual status item remains allocated with its fixed identity and saved position. The Combined
+dropdown provides a tabbed current-value summary in the same selected order, and its Settings command deep-links to
+Combined settings.
+
+Verification:
+
+- `swift test` exited 0. New coverage verifies membership normalization, safe visibility defaults, compact separator
+  geometry, member hiding, and the rule that Combined can never hide itself.
+- `swift build -c release`, `git diff --check`, and the 120-column check passed.

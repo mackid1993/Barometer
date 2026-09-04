@@ -63,7 +63,8 @@ public final class StatusItemController<Sample: Sendable> {
     public func update() {
         let appSettings = settingsStore.settings
         let moduleSettings = appSettings.modules[module] ?? ModuleSettings()
-        guard isEnabled(appSettings, moduleSettings) else {
+        let isHiddenInCombined = StatusItemRendering.isHiddenByCombined(module: module, settings: appSettings)
+        guard isEnabled(appSettings, moduleSettings), !isHiddenInCombined else {
             if statusItem.isVisible {
                 statusItem.isVisible = false
             }
@@ -116,6 +117,13 @@ public final class StatusItemController<Sample: Sendable> {
 
 @MainActor
 enum StatusItemRendering {
+    static func isHiddenByCombined(module: ModuleID, settings: AppSettings) -> Bool {
+        module != .combined
+            && settings.modules[.combined]?.isEnabled == true
+            && settings.combined.hidesIndividualMembers
+            && settings.combined.members.contains(module)
+    }
+
     static func itemLength(for image: NSImage) -> CGFloat {
         max(1, ceil(image.size.width))
     }

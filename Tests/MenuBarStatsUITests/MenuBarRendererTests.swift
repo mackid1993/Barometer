@@ -108,6 +108,33 @@ struct MenuBarRendererTests {
     }
 
     @Test
+    func combinedCompositionUsesCompactGapsAndPreservesMemberVisibilitySettings() {
+        let childContext = RenderContext(
+            thickness: context.thickness,
+            appearance: context.appearance,
+            palette: context.palette,
+            fontSize: context.fontSize,
+            isMonochrome: context.isMonochrome,
+            scale: context.scale,
+            horizontalSpacing: 0
+        )
+        let images = [
+            StackedLabelRenderer(label: "CPU", value: "42%").render(in: childContext),
+            StackedLabelRenderer(label: "MEM", value: "68%").render(in: childContext),
+        ]
+        let compact = CombinedImageRenderer(images: images, showsSeparators: false).render(in: context)
+        let separated = CombinedImageRenderer(images: images, showsSeparators: true).render(in: context)
+
+        #expect(compact.size.width < separated.size.width)
+        var settings = AppSettings()
+        settings.modules[.combined]?.isEnabled = true
+        settings.combined = CombinedSettings(members: [.cpu], hidesIndividualMembers: true)
+        #expect(StatusItemRendering.isHiddenByCombined(module: .cpu, settings: settings))
+        #expect(!StatusItemRendering.isHiddenByCombined(module: .memory, settings: settings))
+        #expect(!StatusItemRendering.isHiddenByCombined(module: .combined, settings: settings))
+    }
+
+    @Test
     func stackedRowsShareOneLeadingEdge() {
         let metrics = MenuBarLayoutMetrics(context: context)
         let origins = metrics.stackedOrigins(labelHeight: 10, valueHeight: 12)

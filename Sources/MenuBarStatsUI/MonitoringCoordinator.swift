@@ -34,6 +34,9 @@ public final class MonitoringCoordinator {
     /// Observable Time state used by its status item, dropdown, and settings.
     public let timeStore = ModuleStore<TimeSample>(historyCapacity: 120)
 
+    /// Redraw state for the Combined status item.
+    public let combinedStore = ModuleStore<CombinedSample>(historyCapacity: 2)
+
     /// Shared application settings.
     public let settingsStore: SettingsStore
 
@@ -67,6 +70,7 @@ public final class MonitoringCoordinator {
     private var sensorControllers: [Int: StatusItemController<SensorSample>] = [:]
     private var batteryController: StatusItemController<BatterySample>?
     private var timeController: StatusItemController<TimeSample>?
+    private var combinedController: StatusItemController<CombinedSample>?
     private var cpuDropdown: DropdownController?
     private var memoryDropdown: DropdownController?
     private var gpuDropdown: DropdownController?
@@ -76,6 +80,7 @@ public final class MonitoringCoordinator {
     private var sensorDropdowns: [Int: DropdownController] = [:]
     private var batteryDropdown: DropdownController?
     private var timeDropdown: DropdownController?
+    private var combinedDropdown: DropdownController?
     private var cpuSampleTask: Task<Void, Never>?
     private var memorySampleTask: Task<Void, Never>?
     private var gpuSampleTask: Task<Void, Never>?
@@ -223,6 +228,18 @@ public final class MonitoringCoordinator {
                 )
             }
         )
+        combinedController = StatusItemController(
+            module: .combined,
+            statusItem: registry.item(for: .combined),
+            store: combinedStore,
+            settingsStore: settingsStore,
+            render: { [weak self] _, _, _, context in
+                self?.renderCombined(context: context) ?? StatusItemContent(
+                    image: TextRenderer(text: "—").render(in: context),
+                    accessibilityValue: "Combined unavailable"
+                )
+            }
+        )
         cpuDropdown = DropdownController(
             moduleName: ModuleID.cpu.displayName,
             statusItem: registry.item(for: .cpu),
@@ -321,6 +338,29 @@ public final class MonitoringCoordinator {
             settingsAction: { settingsAction(.time) },
             quitAction: quitAction
         )
+        combinedDropdown = DropdownController(
+            moduleName: ModuleID.combined.displayName,
+            statusItem: registry.item(for: .combined),
+            rootView: AnyView(
+                CombinedDropdownView(
+                    cpuStore: cpuStore,
+                    memoryStore: memoryStore,
+                    gpuStore: gpuStore,
+                    networkStore: networkStore,
+                    diskStore: diskStore,
+                    sensorStore: sensorStore,
+                    batteryStore: batteryStore,
+                    weatherStore: weatherStore,
+                    timeStore: timeStore,
+                    settingsStore: settingsStore
+                )
+            ),
+            contentHeight: 420,
+            contentWidth: 400,
+            tickAction: { [weak combinedStore] in combinedStore?.tick() },
+            settingsAction: { settingsAction(.combined) },
+            quitAction: quitAction
+        )
         configureSensorWidgets()
 
         startSampleConsumption()
@@ -387,6 +427,7 @@ public final class MonitoringCoordinator {
                     break
                 }
                 self?.cpuStore.receive(sample, at: sample.timestamp)
+                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
             }
         }
 
@@ -397,6 +438,7 @@ public final class MonitoringCoordinator {
                     break
                 }
                 self?.memoryStore.receive(sample, at: sample.timestamp)
+                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
             }
         }
 
@@ -405,6 +447,7 @@ public final class MonitoringCoordinator {
             for await sample in gpuSamples {
                 guard !Task.isCancelled else { break }
                 self?.gpuStore.receive(sample, at: sample.timestamp)
+                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
             }
         }
 
@@ -415,6 +458,7 @@ public final class MonitoringCoordinator {
                     break
                 }
                 self?.networkStore.receive(sample, at: sample.timestamp)
+                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
             }
         }
 
@@ -425,6 +469,7 @@ public final class MonitoringCoordinator {
                     break
                 }
                 self?.diskStore.receive(sample, at: sample.timestamp)
+                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
             }
         }
 
@@ -435,6 +480,7 @@ public final class MonitoringCoordinator {
                     break
                 }
                 self?.sensorStore.receive(sample, at: sample.timestamp)
+                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
             }
         }
 
@@ -443,6 +489,7 @@ public final class MonitoringCoordinator {
             for await sample in batterySamples {
                 guard !Task.isCancelled else { break }
                 self?.batteryStore.receive(sample, at: sample.timestamp)
+                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
             }
         }
 
@@ -451,6 +498,7 @@ public final class MonitoringCoordinator {
             for await sample in timeSamples {
                 guard !Task.isCancelled else { break }
                 self?.timeStore.receive(sample, at: sample.timestamp)
+                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
             }
         }
     }
@@ -713,6 +761,7 @@ public final class MonitoringCoordinator {
                     break
                 }
                 self.weatherStore.receive(sample, at: sample.timestamp)
+                self.combinedStore.receive(CombinedSample(), at: sample.timestamp)
             }
         }
     }
@@ -867,6 +916,148 @@ public final class MonitoringCoordinator {
                 usedPercent,
                 sample.pressurePercent
             )
+        )
+    }
+
+    private func renderCombined(context: RenderContext) -> StatusItemContent {
+        let appSettings = settingsStore.settings
+        var images: [NSImage] = []
+        var spokenValues: [String] = []
+        for module in appSettings.combined.members where module != .combined {
+            let moduleSettings = appSettings.modules[module] ?? ModuleSettings()
+            let childContext = combinedChildContext(
+                parent: context,
+                appSettings: appSettings,
+                moduleSettings: moduleSettings
+            )
+            let content: StatusItemContent
+            switch module {
+            case .cpu:
+                content = Self.renderCPU(
+                    sample: cpuStore.latestSample,
+                    history: cpuStore.history.entries,
+                    settings: moduleSettings,
+                    context: childContext
+                )
+            case .gpu:
+                content = GPUMenuBarPresenter.content(
+                    sample: gpuStore.latestSample,
+                    history: gpuStore.history.entries,
+                    cpuPercent: cpuStore.latestSample?.totalPercent,
+                    settings: moduleSettings,
+                    context: childContext
+                )
+            case .memory:
+                content = Self.renderMemory(
+                    sample: memoryStore.latestSample,
+                    history: memoryStore.history.entries,
+                    settings: moduleSettings,
+                    context: childContext
+                )
+            case .disks:
+                content = DiskMenuBarPresenter.content(
+                    sample: diskStore.latestSample,
+                    history: diskStore.history.entries,
+                    moduleSettings: moduleSettings,
+                    diskSettings: appSettings.disks,
+                    context: childContext
+                )
+            case .network:
+                content = NetworkMenuBarPresenter.content(
+                    sample: networkStore.latestSample,
+                    history: networkStore.history.entries,
+                    moduleSettings: moduleSettings,
+                    networkSettings: appSettings.network,
+                    context: childContext
+                )
+            case .sensors:
+                content = combinedSensorsContent(
+                    appSettings: appSettings,
+                    moduleSettings: moduleSettings,
+                    context: childContext
+                )
+            case .battery:
+                content = BatteryMenuBarPresenter.content(
+                    sample: batteryStore.latestSample,
+                    moduleSettings: moduleSettings,
+                    batterySettings: appSettings.battery,
+                    context: childContext
+                )
+            case .weather:
+                content = Self.renderWeather(
+                    sample: weatherStore.latestSample,
+                    history: weatherStore.history.entries,
+                    settings: moduleSettings,
+                    context: childContext
+                )
+            case .time:
+                content = TimeMenuBarPresenter.content(
+                    sample: timeStore.latestSample,
+                    settings: moduleSettings,
+                    timeSettings: appSettings.time,
+                    context: childContext
+                )
+            case .combined:
+                continue
+            }
+            images.append(content.image)
+            spokenValues.append(content.accessibilityValue)
+        }
+        if images.isEmpty {
+            return StatusItemContent(
+                image: TextRenderer(text: "—").render(in: context),
+                accessibilityValue: "Combined has no included modules"
+            )
+        }
+        return StatusItemContent(
+            image: CombinedImageRenderer(
+                images: images,
+                showsSeparators: appSettings.combined.showsSeparators
+            ).render(in: context),
+            accessibilityValue: spokenValues.joined(separator: "; ")
+        )
+    }
+
+    private func combinedSensorsContent(
+        appSettings: AppSettings,
+        moduleSettings: ModuleSettings,
+        context: RenderContext
+    ) -> StatusItemContent {
+        guard let widget = appSettings.sensors.widgets.first(where: \.isEnabled)
+            ?? appSettings.sensors.widgets.first
+        else {
+            return StatusItemContent(
+                image: StackedLabelRenderer(label: "SENS", value: "—").render(in: context),
+                accessibilityValue: "Sensors unavailable"
+            )
+        }
+        return SensorsMenuBarPresenter.content(
+            sample: sensorStore.latestSample,
+            history: sensorStore.history.entries,
+            moduleSettings: moduleSettings,
+            sensorSettings: appSettings.sensors,
+            widget: widget,
+            temperatureUnit: appSettings.sensorTemperatureUnit,
+            context: context
+        )
+    }
+
+    private func combinedChildContext(
+        parent: RenderContext,
+        appSettings: AppSettings,
+        moduleSettings: ModuleSettings
+    ) -> RenderContext {
+        RenderContext(
+            thickness: parent.thickness,
+            appearance: parent.appearance,
+            palette: MenuBarPalette(
+                light: NSColor(hex: appSettings.lightColor(for: moduleSettings)) ?? .controlAccentColor,
+                dark: NSColor(hex: appSettings.darkColor(for: moduleSettings)) ?? .controlAccentColor
+            ),
+            fontSize: parent.fontSize,
+            isMonochrome: parent.isMonochrome,
+            scale: parent.scale,
+            horizontalSpacing: 0
         )
     }
 

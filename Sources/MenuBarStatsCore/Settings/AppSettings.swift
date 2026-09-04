@@ -101,7 +101,7 @@ public struct ModuleSettings: Codable, Equatable, Sendable {
 /// Versioned application settings persisted as JSON in the app defaults domain.
 public struct AppSettings: Codable, Equatable, Sendable {
     /// Current settings schema version.
-    public static let currentSchemaVersion = 10
+    public static let currentSchemaVersion = 11
 
     /// Schema version encoded in this value.
     public var schemaVersion: Int
@@ -154,6 +154,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Clock format, world-clock, and optional calendar choices.
     public var time: TimeSettings
 
+    /// Ordered composition and individual-item visibility for Combined.
+    public var combined: CombinedSettings
+
     /// Version of one-time default presentation migrations already applied.
     public private(set) var presentationDefaultsVersion: Int
 
@@ -175,7 +178,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         network: NetworkSettings = NetworkSettings(),
         disks: DiskSettings = DiskSettings(),
         battery: BatterySettings = BatterySettings(),
-        time: TimeSettings = TimeSettings()
+        time: TimeSettings = TimeSettings(),
+        combined: CombinedSettings = CombinedSettings()
     ) {
         self.schemaVersion = schemaVersion
         self.reducesSamplingOnBattery = reducesSamplingOnBattery
@@ -194,6 +198,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.disks = disks
         self.battery = battery
         self.time = time
+        self.combined = combined
         presentationDefaultsVersion = 3
     }
 
@@ -211,6 +216,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         values[.sensors] = ModuleSettings(isEnabled: false, mode: "compactStack", interval: 2)
         values[.battery] = ModuleSettings(isEnabled: false, mode: "percentage", interval: 10)
         values[.time] = ModuleSettings(isEnabled: false, mode: "custom", interval: 60)
+        values[.combined] = ModuleSettings(isEnabled: false, mode: "members", interval: 1)
         return values
     }
 
@@ -232,6 +238,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case disks
         case battery
         case time
+        case combined
         case presentationDefaultsVersion
     }
 
@@ -262,6 +269,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
             disks = DiskSettings()
             battery = BatterySettings()
             time = TimeSettings()
+            combined = CombinedSettings()
             presentationDefaultsVersion = 3
         case 1...Self.currentSchemaVersion:
             schemaVersion = Self.currentSchemaVersion
@@ -284,6 +292,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
             disks = try container.decodeIfPresent(DiskSettings.self, forKey: .disks) ?? DiskSettings()
             battery = try container.decodeIfPresent(BatterySettings.self, forKey: .battery) ?? BatterySettings()
             time = try container.decodeIfPresent(TimeSettings.self, forKey: .time) ?? TimeSettings()
+            combined = try container.decodeIfPresent(CombinedSettings.self, forKey: .combined) ?? CombinedSettings()
             presentationDefaultsVersion = try container.decodeIfPresent(
                 Int.self,
                 forKey: .presentationDefaultsVersion
