@@ -6,13 +6,15 @@ import SwiftUI
 struct CombinedSettingsView: View {
     let settingsStore: SettingsStore
 
-    private var settings: CombinedSettings { settingsStore.settings.combined }
+    private var settings: CombinedSettings {
+        settingsStore.settingsIncludingPendingMenuBarChanges.combined
+    }
 
     var body: some View {
         Form {
             Section {
-                Toggle("Show in menu bar", isOn: moduleBinding(\.isEnabled))
-                Toggle("Hide included individual items", isOn: combinedBinding(\.hidesIndividualMembers))
+                Toggle("Show in menu bar", isOn: settingsStore.menuBarVisibilityBinding(for: .combined))
+                Toggle("Hide included individual items", isOn: hidesIndividualMembersBinding)
                 Text("Hidden member items remain allocated and keep their saved menu bar positions.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -69,24 +71,19 @@ struct CombinedSettingsView: View {
     }
 
     private func add(_ module: ModuleID) {
-        var appSettings = settingsStore.settings
-        appSettings.combined.members.append(module)
-        appSettings.combined.normalize()
-        settingsStore.settings = appSettings
+        settingsStore.stageCombinedMembers(settings.members + [module])
     }
 
     private func remove(_ module: ModuleID) {
-        var appSettings = settingsStore.settings
-        appSettings.combined.members.removeAll { $0 == module }
-        settingsStore.settings = appSettings
+        settingsStore.stageCombinedMembers(settings.members.filter { $0 != module })
     }
 
     private func move(_ index: Int, by offset: Int) {
         let destination = index + offset
         guard settings.members.indices.contains(index), settings.members.indices.contains(destination) else { return }
-        var appSettings = settingsStore.settings
-        appSettings.combined.members.swapAt(index, destination)
-        settingsStore.settings = appSettings
+        var members = settings.members
+        members.swapAt(index, destination)
+        settingsStore.stageCombinedMembers(members)
     }
 
     private func moduleBinding<Value>(_ keyPath: WritableKeyPath<ModuleSettings, Value>) -> Binding<Value> {
@@ -110,6 +107,13 @@ struct CombinedSettingsView: View {
                 appSettings.combined[keyPath: keyPath] = value
                 settingsStore.settings = appSettings
             }
+        )
+    }
+
+    private var hidesIndividualMembersBinding: Binding<Bool> {
+        Binding(
+            get: { settings.hidesIndividualMembers },
+            set: { settingsStore.stageCombinedHidesIndividualMembers($0) }
         )
     }
 

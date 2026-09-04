@@ -180,7 +180,7 @@ struct WeatherSettingsView: View {
     }
 
     private var moduleEnabledBinding: Binding<Bool> {
-        moduleBinding(\.isEnabled)
+        settingsStore.menuBarVisibilityBinding(for: .weather)
     }
 
     private var moduleModeBinding: Binding<String> {
@@ -352,9 +352,9 @@ struct WeatherSettingsView: View {
     }
 
     private func setWeatherEnabled(_ enabled: Bool) {
+        settingsStore.stageMenuBarVisibility(enabled, for: .weather)
         var appSettings = settingsStore.settings
         var moduleSettings = appSettings.modules[.weather] ?? ModuleSettings()
-        moduleSettings.isEnabled = enabled
         if moduleSettings.mode == "percentage" {
             moduleSettings.mode = "iconTemperature"
         }

@@ -90,6 +90,65 @@ struct SettingsSidebarRow: View {
     }
 }
 
+/// Prominent commit control for status-item visibility changes that require a clean launch geometry.
+struct PendingMenuBarChangesBar: View {
+    let previewSettings: AppSettings
+    let applyAction: @MainActor () -> Void
+    let discardAction: @MainActor () -> Void
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "sparkles.rectangle.stack.fill")
+                .font(.title2)
+                .foregroundStyle(.white)
+                .symbolRenderingMode(.hierarchical)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Menu bar changes are ready")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Text(sizingSummary)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+            Spacer()
+            Button("Discard", action: discardAction)
+                .buttonStyle(.plain)
+                .foregroundStyle(.white.opacity(0.85))
+            Button(action: applyAction) {
+                Label("Apply Changes", systemImage: "arrow.clockwise")
+                    .fontWeight(.semibold)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.white)
+            .foregroundStyle(Color.accentColor)
+            .controlSize(.large)
+            .keyboardShortcut(.return, modifiers: [.command])
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .background(
+            LinearGradient(
+                colors: [Color.accentColor, Color.accentColor.opacity(0.78)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .overlay(alignment: .top) {
+            Rectangle().fill(.white.opacity(0.2)).frame(height: 1)
+        }
+        .shadow(color: Color.accentColor.opacity(0.3), radius: 12, y: -2)
+    }
+
+    private var sizingSummary: String {
+        String(
+            format: "%d widgets · %.0f pt text · %.0f%% graphics · Barometer will reopen",
+            previewSettings.enabledMenuBarItemCount,
+            previewSettings.effectiveMenuBarFontSize,
+            previewSettings.effectiveMenuBarScale * 100
+        )
+    }
+}
+
 extension View {
     /// Wraps a settings form with the shared pane header for a module.
     func settingsPane(module: ModuleID, settings: AppSettings, preview: NSImage? = nil) -> some View {

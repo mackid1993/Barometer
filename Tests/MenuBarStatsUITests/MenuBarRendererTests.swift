@@ -902,8 +902,8 @@ struct StableGeometryTests {
     @Test
     func geometryLatchRejectsEveryLaterSizeProposal() {
         var latch = StatusItemGeometryLatch()
-        let initial = StatusItemGeometry(fontSize: 12, scale: 1.15, fontWeight: .medium)
-        let compact = StatusItemGeometry(fontSize: 9, scale: 0.75, fontWeight: .semibold)
+        let initial = StatusItemGeometry(fontSize: 12, scale: 1.15)
+        let compact = StatusItemGeometry(fontSize: 9, scale: 0.75)
 
         #expect(latch.resolve(initial) == initial)
         #expect(latch.resolve(compact) == initial)

@@ -1875,3 +1875,34 @@ Verification:
   verification passed. No notarization or stapling command ran.
 - The installed identity report contains nine visible, nonzero items. Every autosave name equals its AX identifier,
   every label is static and distinct, and Weather reports `Barometer.Weather`, `Weather`, and a fixed 22-point canvas.
+
+### P7-T4 apply menu bar topology as one launch configuration
+
+Module visibility previously mutated the live settings as soon as a toggle changed. That let the coordinator publish
+or hide status items before the user had finished selecting the desired set, while automatic font and graphic sizing
+still reflected launch geometry. Font weight was also unnecessarily captured as geometry even though it can redraw
+inside the fixed canvas without changing its length.
+
+All module visibility controls now stage their values in `SettingsStore`. The same boundary covers every independent
+Sensors widget plus Combined membership and its replacement of individual member items. Settings previews and the
+automatic sizing summary use the staged configuration, while monitors and status-item controllers continue to read
+the last applied settings. A prominent Apply Changes bar reports the resulting widget count, text size, and graphic
+scale; Discard restores the saved choices. Apply schedules a reopen, persists the complete staged set once, and
+terminates the current process. The new process constructs the final canonical status-item set and assigns each
+length once before visibility. It never resizes, removes, or recreates an item in the current process.
+
+Font weight now redraws live as a paint property using the current setting. The initial canvas reserves the semibold
+rendering width so switching weight cannot clip or require a length write. Font size and graphic scale remain frozen
+launch geometry, preserving the macOS 27 compatibility contract.
+
+Verification:
+
+- `swift test` exited 0 and built and linked every test target. New settings coverage verifies that module, Sensors
+  widget, and Combined topology changes remain absent from live settings until Apply and that canceling a toggle back
+  to its saved value clears the pending state.
+- `swift build -c release` and `git diff --check` completed successfully.
+- A source scan found exactly one production assignment to `statusItem.length`, still guarded by the one-way length
+  latch in `StatusItemController`.
+- `make install` replaced `/Applications/Barometer.app` and launched it as the single `com.barometer.app` process.
+  Strict code-signature verification passed. The installed identity report contains matching autosave and AX
+  identifiers for every visible item. No notarization or stapling command ran.

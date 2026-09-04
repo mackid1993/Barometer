@@ -1,8 +1,8 @@
 # Stable status-item sizing on macOS 27
 
 This document records the sizing contract that prevents Barometer items from moving with any menu bar manager. It is
-a design constraint, not an implementation suggestion. Read it before changing menu bar
-font weight, typography, glyph scale, graph size, display mode, or status-item code.
+a design constraint, not an implementation suggestion. Read it before changing menu bar typography, glyph scale,
+graph size, display mode, or status-item code.
 
 Menu bar sizing is automatic. Text ranges from 9–12 points and icon and graph scale ranges from 75–115 percent,
 according to the enabled-item count. Keep both policies centralized in `AppSettings`; previews and production
@@ -26,9 +26,9 @@ managers to reassess its placement. Reassigning the same numeric length is unsaf
 user changes typography is also unsafe.
 
 Barometer first triggered this by writing the rendered width on every sample. A later UI refactor brought the bug
-back with a narrower exception: it allowed a live length write when `AppSettings` changed. Font size, font weight,
-the former density controls and glyph scale therefore appeared to work immediately, but the items no longer reliably
-retained the positions chosen by the user.
+back with a narrower exception: it allowed a live length write when `AppSettings` changed. Font size, the former
+density controls, and glyph scale therefore appeared to work immediately, but the items no longer reliably retained
+the positions chosen by the user.
 
 The user's manual reorder of two items is not evidence of this bug. The failure signature is an application-initiated
 length write followed by one or more independently movable items losing their established placement.
@@ -59,15 +59,17 @@ There are no live-resize exceptions. In particular, do not add an exception for:
 ## Width lifecycle
 
 1. `SettingsStore` calculates font size and graphic scale once from the complete saved widget set when Barometer
-   starts and captures font weight with them. Controllers created later in the same process use that same launch
-   geometry.
-2. A renderer produces its natural image using that frozen geometry and the current module display settings.
+   starts. Controllers created later in the same process use that same launch geometry.
+2. A renderer produces its natural image using that frozen geometry and the current module display settings. Font
+   weight and colors are live paint properties and redraw immediately inside the fixed canvas. The initial length
+   calculation reserves the semibold rendering width, allowing every supported weight to fit without a later resize.
 3. Barometer rounds the natural width up to a two-point grid, assigns the AppKit length once, and only then makes the
    item visible. No width from an earlier process is read or preferred.
 4. Later settings and samples may redraw colors and readings, but cannot change launch geometry or the live AppKit
    length. The rendering remains anchored to the leading edge and is never recentered or miniaturized.
-5. After the user ordinarily quits and reopens Barometer, all geometry and widths are freshly calculated from the
-   saved configuration before the items appear. Settings never force a relaunch.
+5. Module and Sensors-widget visibility controls remain staged until the user selects **Apply Changes**. Apply saves
+   the complete visibility set and performs a controlled application reopen; it never mutates a live item length.
+   All geometry and widths are then freshly calculated from the saved configuration before any item appears.
 
 This preserves stable outer positions without retaining stale transparent space from an earlier layout. The exact
 outer width takes effect on the next launch because macOS 27 does not provide a verified way to resize a live item
@@ -112,8 +114,9 @@ Before accepting a change to menu bar geometry or status-item lifecycle:
 4. Install with `make install`; repository-path launches are not valid compatibility tests.
 5. Confirm each active item has its fixed autosave name, empty title, static AX label, nonzero image, and one bundle
    owner in `~/Library/Logs/Barometer/identity.json`.
-6. Change enabled widgets and font weight. Confirm no live status-item length or launch geometry changes.
-7. Quit and reopen Barometer. Confirm fresh widths are calculated from the saved settings before visibility.
+6. Change enabled widgets and confirm the live set does not change before selecting **Apply Changes**.
+7. Apply the pending changes. Confirm Barometer reopens and calculates fresh widths from the complete saved set before
+   visibility. Change font weight separately and confirm it redraws live without changing item length.
 8. When a manager compatibility check is needed, ask David to restart or operate the manager. Barometer must never
    detect, modify, automate, or special-case Bartender, Thaw, Barbie, or another menu bar manager.
 

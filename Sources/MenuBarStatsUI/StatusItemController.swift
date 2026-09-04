@@ -90,8 +90,7 @@ public final class StatusItemController<Sample: Sendable> {
         let geometry = geometryLatch.resolve(
             StatusItemGeometry(
                 fontSize: settingsStore.launchMenuBarFontSize,
-                scale: settingsStore.launchMenuBarScale,
-                fontWeight: settingsStore.launchMenuBarFontWeight
+                scale: settingsStore.launchMenuBarScale
             )
         )
         let isHiddenInCombined = StatusItemRendering.isHiddenByCombined(module: module, settings: appSettings)
@@ -117,11 +116,31 @@ public final class StatusItemController<Sample: Sendable> {
             geometry: geometry
         )
         let content = renderContent(store.latestSample, store.history.entries, moduleSettings, context)
+        let reservedFontWeightWidth: CGFloat
+        if lengthLatch.length == nil, appSettings.fontWeight != .semibold {
+            var sizingSettings = appSettings
+            sizingSettings.fontWeight = .semibold
+            let sizingContext = StatusItemRendering.context(
+                button: button,
+                appSettings: sizingSettings,
+                moduleSettings: moduleSettings,
+                appearance: appearance,
+                geometry: geometry
+            )
+            reservedFontWeightWidth = renderContent(
+                store.latestSample,
+                store.history.entries,
+                moduleSettings,
+                sizingContext
+            ).image.size.width
+        } else {
+            reservedFontWeightWidth = content.image.size.width
+        }
         // Menu bar managers on macOS 27 can move an item when its AppKit length changes.
         // Once this controller has applied a length, both its outer frame and its
         // geometry are immutable for the rest of the process lifetime. A normal launch
         // recomputes both from the complete saved widget set.
-        let naturalLength = StatusItemRendering.itemLength(for: content.image)
+        let naturalLength = max(StatusItemRendering.itemLength(for: content.image), reservedFontWeightWidth)
         let proposedLength = StatusItemRendering.roundedLength(naturalLength)
         let lengthDecision = lengthLatch.resolve(proposedLength)
         let displayedImage = StatusItemRendering.image(content.image, framedTo: lengthDecision.length)
@@ -168,7 +187,6 @@ public final class StatusItemController<Sample: Sendable> {
 struct StatusItemGeometry: Equatable {
     let fontSize: CGFloat
     let scale: CGFloat
-    let fontWeight: MenuBarFontWeight
 }
 
 /// Prevents a settings update from shrinking content inside an immutable AppKit frame.
@@ -235,8 +253,7 @@ enum StatusItemRendering {
     static func geometry(appSettings: AppSettings) -> StatusItemGeometry {
         StatusItemGeometry(
             fontSize: appSettings.effectiveMenuBarFontSize,
-            scale: appSettings.effectiveMenuBarScale,
-            fontWeight: appSettings.fontWeight
+            scale: appSettings.effectiveMenuBarScale
         )
     }
 
@@ -298,7 +315,7 @@ enum StatusItemRendering {
             isMonochrome: appSettings.isMonochrome,
             scale: geometry.scale,
             graphOpacity: appSettings.graphOpacity,
-            fontWeight: geometry.fontWeight
+            fontWeight: appSettings.fontWeight
         )
     }
 }

@@ -382,7 +382,10 @@ Every source below has been checked on the target machine unless marked "expecte
 
 - `AppSettings` is a versioned `Codable` struct (`schemaVersion`) stored as JSON data in `UserDefaults.standard` under one key, with a migration chain. The bundle identifier `com.barometer.app` fixes the preferences domain, and `NSStatusItem` position keys live in the same domain.
 - Each module has a `ModuleSettings` struct: enabled, menu bar mode, interval, colors, graph options, dropdown options, and module-specific fields (weather locations and units, sensor selection, time formats).
-- Changes are applied live. The settings window is SwiftUI (`NSWindow` hosting a `TabView` or sidebar with one pane per module plus General, Appearance, and About).
+- Appearance, formatting, and sampling changes are applied live. Menu bar module and Sensors-widget visibility is
+  staged until the user selects **Apply Changes**; Barometer then saves the complete set and performs a controlled
+  reopen so automatic geometry is calculated before status items become visible. The settings window is SwiftUI
+  (`NSWindow` hosting a `TabView` or sidebar with one pane per module plus General, Appearance, and About).
 - Export and import: JSON file via `NSSavePanel` and `NSOpenPanel`.
 
 ## 10. Build, packaging, signing, permissions

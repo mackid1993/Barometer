@@ -19,7 +19,7 @@ struct NetworkSettingsView: View {
         let _ = store.revision
         Form {
             Section {
-                Toggle("Show in menu bar", isOn: moduleBinding(\.isEnabled))
+                Toggle("Show in menu bar", isOn: settingsStore.menuBarVisibilityBinding(for: .network))
             }
 
             Section("Menu Bar") {

@@ -18,7 +18,7 @@ struct TimeSettingsView: View {
         let now = store.latestSample?.timestamp ?? Date()
         Form {
             Section {
-                Toggle("Show in menu bar", isOn: moduleBinding(\.isEnabled))
+                Toggle("Show in menu bar", isOn: settingsStore.menuBarVisibilityBinding(for: .time))
                 LabeledContent("Live preview", value: preview(date: now))
             }
             Section("Menu Bar") {

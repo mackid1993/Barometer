@@ -18,7 +18,8 @@ public final class SettingsWindowController: NSWindowController {
         networkStore: ModuleStore<NetworkSample>,
         diskStore: ModuleStore<DiskSample>,
         sensorStore: ModuleStore<SensorSample>,
-        calendarAccessAction: @escaping @MainActor () -> Void
+        calendarAccessAction: @escaping @MainActor () -> Void,
+        applyMenuBarChangesAction: @escaping @MainActor () -> Void
     ) {
         let navigationModel = SettingsNavigationModel()
         let rootView = SettingsRootView(
@@ -30,6 +31,7 @@ public final class SettingsWindowController: NSWindowController {
             diskStore: diskStore,
             sensorStore: sensorStore,
             calendarAccessAction: calendarAccessAction,
+            applyMenuBarChangesAction: applyMenuBarChangesAction,
             navigationModel: navigationModel
         )
         let hostingController = NSHostingController(rootView: rootView)
@@ -89,6 +91,7 @@ private struct SettingsRootView: View {
     let diskStore: ModuleStore<DiskSample>
     let sensorStore: ModuleStore<SensorSample>
     let calendarAccessAction: @MainActor () -> Void
+    let applyMenuBarChangesAction: @MainActor () -> Void
     @Bindable var navigationModel: SettingsNavigationModel
 
     var body: some View {
@@ -123,36 +126,51 @@ private struct SettingsRootView: View {
             .navigationTitle("Settings")
             .navigationSplitViewColumnWidth(min: 190, ideal: 210)
         } detail: {
-            switch navigationModel.selection ?? .general {
-            case .general:
-                GeneralSettingsView(settingsStore: settingsStore)
-            case .module(.cpu):
-                ModuleSettingsView(module: .cpu, settingsStore: settingsStore)
-            case .module(.memory):
-                ModuleSettingsView(module: .memory, settingsStore: settingsStore)
-            case .module(.gpu):
-                GPUSettingsView(store: gpuStore, settingsStore: settingsStore)
-            case .module(.battery):
-                BatterySettingsView(settingsStore: settingsStore)
-            case .module(.time):
-                TimeSettingsView(
-                    store: timeStore,
-                    settingsStore: settingsStore,
-                    requestCalendarAccess: calendarAccessAction
-                )
-            case .module(.combined):
-                CombinedSettingsView(settingsStore: settingsStore)
-            case .module(.weather):
-                WeatherSettingsView(settingsStore: settingsStore)
-            case .module(.network):
-                NetworkSettingsView(store: networkStore, settingsStore: settingsStore)
-            case .module(.disks):
-                DiskSettingsView(store: diskStore, settingsStore: settingsStore)
-            case .module(.sensors):
-                SensorSettingsView(store: sensorStore, settingsStore: settingsStore)
-            case .about:
-                AboutSettingsView()
+            VStack(spacing: 0) {
+                Group {
+                    switch navigationModel.selection ?? .general {
+                    case .general:
+                        GeneralSettingsView(settingsStore: settingsStore)
+                    case .module(.cpu):
+                        ModuleSettingsView(module: .cpu, settingsStore: settingsStore)
+                    case .module(.memory):
+                        ModuleSettingsView(module: .memory, settingsStore: settingsStore)
+                    case .module(.gpu):
+                        GPUSettingsView(store: gpuStore, settingsStore: settingsStore)
+                    case .module(.battery):
+                        BatterySettingsView(settingsStore: settingsStore)
+                    case .module(.time):
+                        TimeSettingsView(
+                            store: timeStore,
+                            settingsStore: settingsStore,
+                            requestCalendarAccess: calendarAccessAction
+                        )
+                    case .module(.combined):
+                        CombinedSettingsView(settingsStore: settingsStore)
+                    case .module(.weather):
+                        WeatherSettingsView(settingsStore: settingsStore)
+                    case .module(.network):
+                        NetworkSettingsView(store: networkStore, settingsStore: settingsStore)
+                    case .module(.disks):
+                        DiskSettingsView(store: diskStore, settingsStore: settingsStore)
+                    case .module(.sensors):
+                        SensorSettingsView(store: sensorStore, settingsStore: settingsStore)
+                    case .about:
+                        AboutSettingsView()
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if settingsStore.hasPendingMenuBarChanges {
+                    PendingMenuBarChangesBar(
+                        previewSettings: settingsStore.settingsIncludingPendingMenuBarChanges,
+                        applyAction: applyMenuBarChangesAction,
+                        discardAction: settingsStore.discardPendingMenuBarChanges
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
+            .animation(.snappy(duration: 0.25), value: settingsStore.hasPendingMenuBarChanges)
         }
     }
 }
@@ -431,10 +449,10 @@ private struct GeneralSettingsView: View {
     }
 
     private var automaticSizingCaption: String {
-        let settings = settingsStore.settings
+        let settings = settingsStore.settingsIncludingPendingMenuBarChanges
         return String(
             format: "Barometer uses %.0f pt text and %.0f%% graphics for %d active widgets. "
-                + "Sizing is recalculated when Barometer next opens.",
+                + "Visibility changes take effect when you apply them.",
             settings.effectiveMenuBarFontSize,
             settings.effectiveMenuBarScale * 100,
             settings.enabledMenuBarItemCount
@@ -587,7 +605,7 @@ private struct ModuleSettingsView: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Show in menu bar", isOn: moduleBinding(\.isEnabled))
+                Toggle("Show in menu bar", isOn: settingsStore.menuBarVisibilityBinding(for: module))
             }
 
             Section("Menu Bar") {

@@ -119,6 +119,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 sensorStore: monitoringCoordinator.sensorStore,
                 calendarAccessAction: { [weak monitoringCoordinator] in
                     monitoringCoordinator?.requestCalendarAccess()
+                },
+                applyMenuBarChangesAction: { [weak self] in
+                    self?.applyMenuBarChangesAndReopen()
                 }
             )
         }
@@ -127,5 +130,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openSettingsFromNotification() {
         showSettings()
+    }
+
+    private func applyMenuBarChangesAndReopen() {
+        guard let settingsStore, settingsStore.hasPendingMenuBarChanges else { return }
+
+        let relauncher = Process()
+        relauncher.executableURL = URL(fileURLWithPath: "/bin/sh")
+        relauncher.arguments = [
+            "-c",
+            "sleep 0.75; /usr/bin/open \"$1\"",
+            "barometer-relaunch",
+            Bundle.main.bundleURL.path,
+        ]
+        relauncher.standardOutput = FileHandle.nullDevice
+        relauncher.standardError = FileHandle.nullDevice
+
+        do {
+            try relauncher.run()
+        } catch {
+            let message = "Unable to schedule Barometer reopen: \(String(describing: error))"
+            Self.logger.error("\(message, privacy: .public)")
+            return
+        }
+
+        settingsStore.applyPendingMenuBarChanges()
+        Self.logger.info("Applied menu bar visibility changes; reopening with new launch geometry")
+        NSApp.terminate(nil)
     }
 }

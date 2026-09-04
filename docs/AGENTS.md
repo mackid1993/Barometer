@@ -138,17 +138,19 @@ After this correction, David restarted Bartender and confirmed that all Baromete
 
 Reassigning even the same `statusItem.length` on every sample caused items to return to AppKit placement after a menu
 bar manager restarted. A later UI refactor reintroduced the failure through a settings-change exception: changing the
-font size, font weight, glyph scale, or the former density controls wrote a new live length and made items move again.
+font size, glyph scale, or the former density controls wrote a new live length and made items move again.
 
 The rule is absolute: each controller may assign `statusItem.length` at most once per process lifetime, before making
 the item visible. There is no exception for a user-initiated layout change, a debounced update, a manual recompute
 command, or assigning the same numeric value. `StatusItemController` must remain the only production writer.
 
-Font size and graphic scale are automatic; those values and font weight are captured once from the complete saved
-widget set when the process starts. The one-way geometry latch prevents later settings changes from shrinking ink
-inside an immutable frame and creating transparent trailing space. The one-way length latch prevents live AppKit
-resizing. Do not persist rendered widths: every normal launch must render the current saved configuration, round its
-natural width, and assign it once before the item becomes visible.
+Font size and graphic scale are automatic and captured once from the complete saved widget set when the process
+starts. Font weight is a live paint property and must redraw immediately inside the fixed canvas without assigning
+`statusItem.length`; the initial canvas reserves the semibold rendering width so a later weight change cannot clip.
+The one-way geometry latch prevents later settings changes from shrinking ink inside an
+immutable frame and creating transparent trailing space. The one-way length latch prevents live AppKit resizing. Do
+not persist rendered widths: every normal launch must render the current saved configuration, round its natural width,
+and assign it once before the item becomes visible.
 
 The complete decision, algorithm, prohibited alternatives, and regression checks are in
 [`MACOS27_STATUS_ITEM_SIZING.md`](MACOS27_STATUS_ITEM_SIZING.md). Read it before changing menu bar typography,
@@ -156,7 +158,10 @@ rendered widths, or status-item lifecycle code.
 
 Barometer adds zero horizontal padding around item canvases. Do not expose item-spacing controls: changing transparent
 padding inside an immutable frame only redistributes the same blank area and cannot change the actual item spacing.
-Never bring back a live-width slider or an Apply action that forces an application relaunch.
+Never bring back a live-width slider. Show/hide controls are the deliberate exception to otherwise-live settings:
+stage those choices until the user selects **Apply Changes**, persist the complete set once, and perform a controlled
+application reopen. The reopen is required so automatic sizing is calculated from the final enabled-item count before
+any status item becomes visible. Never resize an existing item as part of Apply.
 
 Do not add a condensed/high-density rendering mode. It narrows ink inside immutable live frames, producing larger
 apparent inter-item gaps and unreadable text. Density comes only from purpose-built renderers.

@@ -34,14 +34,23 @@ public final class SettingsStore {
         }
     }
 
+    /// Module visibility choices waiting for the user to apply them.
+    public private(set) var pendingModuleVisibility: [ModuleID: Bool] = [:]
+
+    /// Per-widget Sensors visibility choices waiting for the user to apply them.
+    public private(set) var pendingSensorWidgetVisibility: [Int: Bool] = [:]
+
+    /// Combined membership waiting for the user to apply it.
+    public private(set) var pendingCombinedMembers: [ModuleID]?
+
+    /// Whether Combined should hide its members after the user applies the change.
+    public private(set) var pendingCombinedHidesIndividualMembers: Bool?
+
     /// Menu bar font size captured from the complete saved widget set at launch.
     @ObservationIgnored public let launchMenuBarFontSize: Double
 
     /// Menu bar graphic scale captured from the complete saved widget set at launch.
     @ObservationIgnored public let launchMenuBarScale: Double
-
-    /// Menu bar font weight captured with the rest of the launch geometry.
-    @ObservationIgnored public let launchMenuBarFontWeight: MenuBarFontWeight
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let encoder = JSONEncoder()
@@ -65,7 +74,6 @@ public final class SettingsStore {
         settings = initialSettings
         launchMenuBarFontSize = initialSettings.effectiveMenuBarFontSize
         launchMenuBarScale = initialSettings.effectiveMenuBarScale
-        launchMenuBarFontWeight = initialSettings.fontWeight
     }
 
     deinit {
@@ -80,6 +88,7 @@ public final class SettingsStore {
         let imported = try JSONDecoder().decode(AppSettings.self, from: data)
         try Self.validate(imported)
         settings = imported
+        discardPendingMenuBarChanges()
     }
 
     /// Encodes the current settings for export.
@@ -97,6 +106,106 @@ public final class SettingsStore {
         } catch {
             let message = "Unable to encode settings: \(String(describing: error))"
             logger.error("\(message, privacy: .public)")
+        }
+    }
+
+    /// Settings including staged visibility choices, used by Settings previews and automatic sizing text.
+    public var settingsIncludingPendingMenuBarChanges: AppSettings {
+        var result = settings
+        applyPendingVisibility(to: &result)
+        return result
+    }
+
+    /// Whether at least one staged visibility choice differs from the saved configuration.
+    public var hasPendingMenuBarChanges: Bool {
+        !pendingModuleVisibility.isEmpty
+            || !pendingSensorWidgetVisibility.isEmpty
+            || pendingCombinedMembers != nil
+            || pendingCombinedHidesIndividualMembers != nil
+    }
+
+    /// Returns the staged module visibility, falling back to the saved value.
+    public func menuBarVisibility(for module: ModuleID) -> Bool {
+        pendingModuleVisibility[module] ?? settings.modules[module]?.isEnabled ?? false
+    }
+
+    /// Stages a module visibility choice without changing live status items.
+    public func stageMenuBarVisibility(_ isVisible: Bool, for module: ModuleID) {
+        let savedValue = settings.modules[module]?.isEnabled ?? false
+        if isVisible == savedValue {
+            pendingModuleVisibility.removeValue(forKey: module)
+        } else {
+            pendingModuleVisibility[module] = isVisible
+        }
+    }
+
+    /// Returns the staged Sensors widget visibility, falling back to the saved value.
+    public func sensorWidgetVisibility(for id: Int) -> Bool {
+        pendingSensorWidgetVisibility[id] ?? settings.sensors.widget(id: id)?.isEnabled ?? false
+    }
+
+    /// Stages visibility for one independently movable Sensors widget.
+    public func stageSensorWidgetVisibility(_ isVisible: Bool, for id: Int) {
+        let savedValue = settings.sensors.widget(id: id)?.isEnabled ?? false
+        if isVisible == savedValue {
+            pendingSensorWidgetVisibility.removeValue(forKey: id)
+        } else {
+            pendingSensorWidgetVisibility[id] = isVisible
+        }
+    }
+
+    /// Stages the modules rendered by Combined because membership changes the independently visible item set.
+    public func stageCombinedMembers(_ members: [ModuleID]) {
+        var normalized = settings.combined
+        normalized.members = members
+        normalized.normalize()
+        pendingCombinedMembers = normalized.members == settings.combined.members ? nil : normalized.members
+    }
+
+    /// Stages whether Combined replaces its included individual items.
+    public func stageCombinedHidesIndividualMembers(_ hidesMembers: Bool) {
+        pendingCombinedHidesIndividualMembers = hidesMembers == settings.combined.hidesIndividualMembers
+            ? nil
+            : hidesMembers
+    }
+
+    /// Commits all staged visibility choices and persists them immediately.
+    public func applyPendingMenuBarChanges() {
+        guard hasPendingMenuBarChanges else { return }
+        var updated = settings
+        applyPendingVisibility(to: &updated)
+        pendingModuleVisibility.removeAll()
+        pendingSensorWidgetVisibility.removeAll()
+        pendingCombinedMembers = nil
+        pendingCombinedHidesIndividualMembers = nil
+        settings = updated
+        saveNow()
+    }
+
+    /// Removes all uncommitted visibility choices.
+    public func discardPendingMenuBarChanges() {
+        pendingModuleVisibility.removeAll()
+        pendingSensorWidgetVisibility.removeAll()
+        pendingCombinedMembers = nil
+        pendingCombinedHidesIndividualMembers = nil
+    }
+
+    private func applyPendingVisibility(to result: inout AppSettings) {
+        for (module, isVisible) in pendingModuleVisibility {
+            var moduleSettings = result.modules[module] ?? ModuleSettings()
+            moduleSettings.isEnabled = isVisible
+            result.modules[module] = moduleSettings
+        }
+        for (id, isVisible) in pendingSensorWidgetVisibility {
+            guard let index = result.sensors.widgets.firstIndex(where: { $0.id == id }) else { continue }
+            result.sensors.widgets[index].isEnabled = isVisible
+        }
+        if let pendingCombinedMembers {
+            result.combined.members = pendingCombinedMembers
+            result.combined.normalize()
+        }
+        if let pendingCombinedHidesIndividualMembers {
+            result.combined.hidesIndividualMembers = pendingCombinedHidesIndividualMembers
         }
     }
 

@@ -395,7 +395,6 @@ struct SettingsTests {
         let store = SettingsStore(defaults: defaults)
         #expect(store.launchMenuBarFontSize == 12)
         #expect(store.launchMenuBarScale == 1.15)
-        #expect(store.launchMenuBarFontWeight == .medium)
 
         for module in ModuleID.allCases {
             store.settings.modules[module]?.isEnabled = true
@@ -404,6 +403,100 @@ struct SettingsTests {
         #expect(store.settings.effectiveMenuBarScale < store.launchMenuBarScale)
         #expect(store.launchMenuBarFontSize == 12)
         #expect(store.launchMenuBarScale == 1.15)
-        #expect(store.launchMenuBarFontWeight == .medium)
+        #expect(store.settings.fontWeight == .semibold)
+    }
+
+    @Test("menu bar visibility remains pending until applied")
+    @MainActor
+    func stagesMenuBarVisibility() {
+        let suiteName = "com.barometer.app.Tests.PendingVisibility"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = SettingsStore(defaults: defaults)
+        #expect(store.settings.modules[.network]?.isEnabled == false)
+
+        store.stageMenuBarVisibility(true, for: .network)
+
+        #expect(store.menuBarVisibility(for: .network))
+        #expect(store.settings.modules[.network]?.isEnabled == false)
+        #expect(store.settingsIncludingPendingMenuBarChanges.modules[.network]?.isEnabled == true)
+        #expect(store.hasPendingMenuBarChanges)
+
+        store.applyPendingMenuBarChanges()
+
+        #expect(store.settings.modules[.network]?.isEnabled == true)
+        #expect(!store.hasPendingMenuBarChanges)
+    }
+
+    @Test("returning a visibility toggle to its saved value clears the pending change")
+    @MainActor
+    func cancelsPendingMenuBarVisibility() {
+        let suiteName = "com.barometer.app.Tests.CanceledVisibility"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = SettingsStore(defaults: defaults)
+        store.stageMenuBarVisibility(true, for: .weather)
+        store.stageMenuBarVisibility(false, for: .weather)
+
+        #expect(!store.hasPendingMenuBarChanges)
+        #expect(store.settings.modules[.weather]?.isEnabled == false)
+    }
+
+    @Test("Sensors widget visibility uses the same apply boundary")
+    @MainActor
+    func stagesSensorWidgetVisibility() {
+        let suiteName = "com.barometer.app.Tests.PendingSensorVisibility"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = SettingsStore(defaults: defaults)
+        let widgetID = store.settings.sensors.widgets[0].id
+        #expect(store.settings.sensors.widgets[0].isEnabled)
+
+        store.stageSensorWidgetVisibility(false, for: widgetID)
+
+        #expect(!store.sensorWidgetVisibility(for: widgetID))
+        #expect(store.settings.sensors.widgets[0].isEnabled)
+
+        store.applyPendingMenuBarChanges()
+
+        #expect(store.settings.sensors.widgets[0].isEnabled == false)
+        #expect(!store.hasPendingMenuBarChanges)
+    }
+
+    @Test("Combined topology remains pending until applied")
+    @MainActor
+    func stagesCombinedTopology() {
+        let suiteName = "com.barometer.app.Tests.PendingCombinedTopology"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = SettingsStore(defaults: defaults)
+        let savedMembers = store.settings.combined.members
+        store.stageCombinedMembers([.cpu, .weather])
+        store.stageCombinedHidesIndividualMembers(false)
+
+        #expect(store.settings.combined.members == savedMembers)
+        #expect(store.settingsIncludingPendingMenuBarChanges.combined.members == [.cpu, .weather])
+        #expect(store.settingsIncludingPendingMenuBarChanges.combined.hidesIndividualMembers == false)
+
+        store.applyPendingMenuBarChanges()
+
+        #expect(store.settings.combined.members == [.cpu, .weather])
+        #expect(store.settings.combined.hidesIndividualMembers == false)
     }
 }

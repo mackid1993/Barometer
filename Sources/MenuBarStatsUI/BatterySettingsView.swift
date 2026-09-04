@@ -13,7 +13,7 @@ struct BatterySettingsView: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Show in menu bar", isOn: moduleBinding(\.isEnabled))
+                Toggle("Show in menu bar", isOn: settingsStore.menuBarVisibilityBinding(for: .battery))
             }
             Section("Menu Bar") {
                 Picker("Display", selection: moduleBinding(\.mode)) {

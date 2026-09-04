@@ -16,7 +16,7 @@ public struct SensorSettingsView: View {
     public var body: some View {
         Form {
             Section {
-                Toggle("Show Sensors in menu bar", isOn: moduleBinding(\.isEnabled))
+                Toggle("Show Sensors in menu bar", isOn: settingsStore.menuBarVisibilityBinding(for: .sensors))
                 let count = store.latestSample?.readings.count ?? 0
                 LabeledContent("Live readings", value: count == 0 ? "Discovering…" : "\(count)")
             }
@@ -46,7 +46,7 @@ public struct SensorSettingsView: View {
             Section("Menu Bar Widgets") {
                 ForEach(settingsStore.settings.sensors.widgets) { widget in
                     DisclosureGroup("Widget \(widget.id)") {
-                        Toggle("Visible", isOn: widgetBinding(widget.id, \.isEnabled))
+                        Toggle("Visible", isOn: settingsStore.sensorWidgetVisibilityBinding(for: widget.id))
                         Picker("Display", selection: widgetBinding(widget.id, \.mode)) {
                             ForEach(SensorWidgetMode.allCases, id: \.self) { mode in
                                 Text(mode.title).tag(mode)
@@ -261,16 +261,15 @@ public struct SensorSettingsView: View {
 
     private func addWidget() {
         var settings = settingsStore.settings
-        settings.sensors.widgets.append(SensorWidgetSettings(id: settings.sensors.nextWidgetID))
-        settings.modules[.sensors]?.isEnabled = true
+        let id = settings.sensors.nextWidgetID
+        settings.sensors.widgets.append(SensorWidgetSettings(id: id, isEnabled: false))
         settingsStore.settings = settings
+        settingsStore.stageSensorWidgetVisibility(true, for: id)
+        settingsStore.stageMenuBarVisibility(true, for: .sensors)
     }
 
     private func disableWidget(_ id: Int) {
-        updateWidget(id) { widget in
-            widget.isEnabled = false
-            widget.sensorIDs = []
-        }
+        settingsStore.stageSensorWidgetVisibility(false, for: id)
     }
 }
 

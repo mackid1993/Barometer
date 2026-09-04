@@ -76,8 +76,9 @@ that:
 
 - Every item belongs to Barometer itself and has a fixed name that never contains a live value, so a manager can
   tell `Barometer.CPU` from `Barometer.Weather` and remember where each one goes.
-- Barometer calculates the complete layout when it opens, then keeps every item’s size fixed while it runs. Changes
-  to enabled widgets or display modes take their final size the next time you normally quit and reopen Barometer.
+- Barometer calculates the complete layout when it opens, then keeps every item’s size fixed while it runs. Show or
+  hide as many widgets as you like in Settings, then select **Apply Changes**. Barometer reopens once with the complete
+  selection and sizes everything together.
 - Hiding an item in Barometer keeps its identity, so it comes back where it was.
 
 ## Weather
