@@ -32,7 +32,8 @@ public enum NetworkSourceError: Error, Sendable {
     case sysctl(Int32)
 }
 
-/// Reads interface counters from `NET_RT_IFLIST2` and configuration from SystemConfiguration.
+/// Reads interface identity from `NET_RT_IFLIST2`, 64-bit counters from IFMIB, and configuration from
+/// SystemConfiguration.
 public struct NetworkSource: Sendable {
     /// Whether the routing information base exposes at least one interface.
     public var isAvailable: Bool {
@@ -93,7 +94,7 @@ public struct NetworkSource: Sendable {
             throw NetworkSourceError.sysctl(errno)
         }
 
-        var result: [UInt32: InterfaceCounters] = [:]
+        var metadata: [InterfaceMetadata] = []
         bytes.withUnsafeBytes { buffer in
             var offset = 0
             while offset + MemoryLayout<if_msghdr>.size <= byteCount {
@@ -107,23 +108,53 @@ public struct NetworkSource: Sendable {
                     let message = buffer.loadUnaligned(fromByteOffset: offset, as: if_msghdr2.self)
                     let index = UInt32(message.ifm_index)
                     if let name = Self.interfaceName(index: index) {
-                        result[index] = InterfaceCounters(
+                        metadata.append(InterfaceMetadata(
                             name: name,
                             index: index,
-                            flags: UInt32(bitPattern: message.ifm_flags),
-                            receivedBytes: message.ifm_data.ifi_ibytes,
-                            sentBytes: message.ifm_data.ifi_obytes,
-                            receivedPackets: message.ifm_data.ifi_ipackets,
-                            sentPackets: message.ifm_data.ifi_opackets,
-                            inputErrors: message.ifm_data.ifi_ierrors,
-                            outputErrors: message.ifm_data.ifi_oerrors
-                        )
+                            flags: UInt32(bitPattern: message.ifm_flags)
+                        ))
                     }
                 }
                 offset += messageLength
             }
         }
+
+        var result: [UInt32: InterfaceCounters] = [:]
+        for interface in metadata {
+            let data = try Self.interfaceData(index: interface.index)
+            result[interface.index] = InterfaceCounters(
+                name: interface.name,
+                index: interface.index,
+                flags: interface.flags,
+                receivedBytes: data.ifi_ibytes,
+                sentBytes: data.ifi_obytes,
+                receivedPackets: data.ifi_ipackets,
+                sentPackets: data.ifi_opackets,
+                inputErrors: data.ifi_ierrors,
+                outputErrors: data.ifi_oerrors
+            )
+        }
         return result
+    }
+
+    private static func interfaceData(index: UInt32) throws -> if_data64 {
+        var managementInformationBase: [Int32] = [
+            CTL_NET,
+            PF_LINK,
+            NETLINK_GENERIC,
+            IFMIB_IFDATA,
+            Int32(index),
+            IFDATA_GENERAL,
+        ]
+        var data = ifmibdata()
+        var byteCount = MemoryLayout<ifmibdata>.size
+        let result = withUnsafeMutablePointer(to: &data) { pointer in
+            sysctl(&managementInformationBase, 6, pointer, &byteCount, nil, 0)
+        }
+        guard result == 0 else {
+            throw NetworkSourceError.sysctl(errno)
+        }
+        return data.ifmd_data
     }
 
     private static func interfaceName(index: UInt32) -> String? {
@@ -198,6 +229,12 @@ private struct InterfaceCounters {
     let sentPackets: UInt64
     let inputErrors: UInt64
     let outputErrors: UInt64
+}
+
+private struct InterfaceMetadata {
+    let name: String
+    let index: UInt32
+    let flags: UInt32
 }
 
 private struct InterfaceAddresses {

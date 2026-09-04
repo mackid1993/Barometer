@@ -103,10 +103,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showSettings() {
         if settingsWindowController == nil {
-            guard let settingsStore else {
+            guard let settingsStore, let monitoringCoordinator else {
                 return
             }
-            settingsWindowController = SettingsWindowController(settingsStore: settingsStore)
+            settingsWindowController = SettingsWindowController(
+                settingsStore: settingsStore,
+                networkStore: monitoringCoordinator.networkStore
+            )
         }
         settingsWindowController?.show()
     }

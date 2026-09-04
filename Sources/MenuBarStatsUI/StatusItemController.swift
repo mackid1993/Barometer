@@ -128,8 +128,8 @@ enum StatusItemRendering {
             thickness: NSStatusBar.system.thickness,
             appearance: resolvedAppearance,
             palette: MenuBarPalette(
-                light: NSColor(hex: moduleSettings.lightColor) ?? .controlAccentColor,
-                dark: NSColor(hex: moduleSettings.darkColor) ?? .controlAccentColor
+                light: NSColor(hex: appSettings.lightColor(for: moduleSettings)) ?? .controlAccentColor,
+                dark: NSColor(hex: appSettings.darkColor(for: moduleSettings)) ?? .controlAccentColor
             ),
             fontSize: min(14, max(9, appSettings.fontSize)),
             isMonochrome: appSettings.isMonochrome,

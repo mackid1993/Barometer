@@ -16,26 +16,36 @@ public final class MonitoringCoordinator {
     /// Observable Weather state used by its status item and dropdown.
     public let weatherStore = ModuleStore<WeatherSample>(historyCapacity: 192)
 
+    /// Observable Network state used by its status item, dropdown, and settings.
+    public let networkStore = ModuleStore<NetworkSample>(historyCapacity: 86_400)
+
     /// Shared application settings.
     public let settingsStore: SettingsStore
 
     private let cpuScheduler: Scheduler<CPUMonitor>
     private let memoryScheduler: Scheduler<MemoryMonitor>
+    private let networkMonitor: NetworkMonitor
+    private let networkScheduler: Scheduler<NetworkMonitor>
     private let powerStateObserver = PowerStateObserver()
     private let displaySleepWatcher = DisplaySleepWatcher()
+    private let networkChangeObserver = NetworkChangeObserver()
     private var weatherSession: WeatherMonitoringSession?
     private var weatherConfiguration: WeatherConfiguration?
     private var cpuController: StatusItemController<CPUSample>?
     private var memoryController: StatusItemController<MemorySample>?
     private var weatherController: StatusItemController<WeatherSample>?
+    private var networkController: StatusItemController<NetworkSample>?
     private var cpuDropdown: DropdownController?
     private var memoryDropdown: DropdownController?
     private var weatherDropdown: DropdownController?
+    private var networkDropdown: DropdownController?
     private var cpuSampleTask: Task<Void, Never>?
     private var memorySampleTask: Task<Void, Never>?
     private var weatherSampleTask: Task<Void, Never>?
+    private var networkSampleTask: Task<Void, Never>?
     private var weatherGeneration = 0
     private var isTrackingCurrentLocation = false
+    private var lastPublicIPEnabled: Bool?
 
     /// Creates and starts Phase 1 monitoring.
     public init(
@@ -47,6 +57,9 @@ public final class MonitoringCoordinator {
         self.settingsStore = settingsStore
         cpuScheduler = Scheduler(monitor: CPUMonitor())
         memoryScheduler = Scheduler(monitor: MemoryMonitor())
+        let networkMonitor = NetworkMonitor()
+        self.networkMonitor = networkMonitor
+        networkScheduler = Scheduler(monitor: networkMonitor)
 
         cpuController = StatusItemController(
             module: .cpu,
@@ -74,6 +87,21 @@ public final class MonitoringCoordinator {
                     settings: settings,
                     context: context,
                     template: settingsStore.settings.weather.menuBarTemplate
+                )
+            }
+        )
+        networkController = StatusItemController(
+            module: .network,
+            statusItem: registry.item(for: .network),
+            store: networkStore,
+            settingsStore: settingsStore,
+            render: { sample, history, moduleSettings, context in
+                NetworkMenuBarPresenter.content(
+                    sample: sample,
+                    history: history,
+                    moduleSettings: moduleSettings,
+                    networkSettings: settingsStore.settings.network,
+                    context: context
                 )
             }
         )
@@ -118,10 +146,21 @@ public final class MonitoringCoordinator {
             settingsAction: settingsAction,
             quitAction: quitAction
         )
+        networkDropdown = DropdownController(
+            moduleName: ModuleID.network.displayName,
+            statusItem: registry.item(for: .network),
+            rootView: AnyView(NetworkDropdownView(store: networkStore, settingsStore: settingsStore)),
+            contentHeight: 540,
+            contentWidth: 380,
+            tickAction: { [weak networkStore] in networkStore?.tick() },
+            settingsAction: settingsAction,
+            quitAction: quitAction
+        )
 
         startSampleConsumption()
         configurePowerAwareness()
         configureDisplaySleepAwareness()
+        configureNetworkChangeAwareness()
         observeSettings()
         configureWeatherMonitoring()
         configureCurrentLocation()
@@ -129,6 +168,7 @@ public final class MonitoringCoordinator {
         Task {
             await cpuScheduler.start()
             await memoryScheduler.start()
+            await networkScheduler.start()
         }
     }
 
@@ -137,10 +177,12 @@ public final class MonitoringCoordinator {
         cpuSampleTask?.cancel()
         memorySampleTask?.cancel()
         weatherSampleTask?.cancel()
+        networkSampleTask?.cancel()
         CurrentLocationProvider.shared.stop()
         Task {
             await cpuScheduler.stop()
             await memoryScheduler.stop()
+            await networkScheduler.stop()
             await weatherSession?.stop()
         }
     }
@@ -165,6 +207,16 @@ public final class MonitoringCoordinator {
                 self?.memoryStore.receive(sample, at: sample.timestamp)
             }
         }
+
+        let networkSamples = networkScheduler.samples
+        networkSampleTask = Task { [weak self] in
+            for await sample in networkSamples {
+                guard !Task.isCancelled else {
+                    break
+                }
+                self?.networkStore.receive(sample, at: sample.timestamp)
+            }
+        }
     }
 
     private func configurePowerAwareness() {
@@ -182,6 +234,7 @@ public final class MonitoringCoordinator {
             Task {
                 await self.cpuScheduler.pause()
                 await self.memoryScheduler.pause()
+                await self.networkScheduler.pause()
                 await self.weatherSession?.pause()
             }
         }
@@ -192,6 +245,7 @@ public final class MonitoringCoordinator {
             Task {
                 await self.cpuScheduler.resume()
                 await self.memoryScheduler.resume()
+                await self.networkScheduler.resume()
                 await self.weatherSession?.resume()
             }
         }
@@ -203,6 +257,7 @@ public final class MonitoringCoordinator {
         Task {
             await cpuScheduler.setIntervalMultiplier(multiplier)
             await memoryScheduler.setIntervalMultiplier(multiplier)
+            await networkScheduler.setIntervalMultiplier(multiplier)
         }
     }
 
@@ -212,7 +267,9 @@ public final class MonitoringCoordinator {
             _ = settingsStore.settings.modules[.cpu]?.interval
             _ = settingsStore.settings.modules[.memory]?.interval
             _ = settingsStore.settings.modules[.weather]?.isEnabled
+            _ = settingsStore.settings.modules[.network]?.interval
             _ = settingsStore.settings.weather
+            _ = settingsStore.settings.network
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else {
@@ -222,18 +279,46 @@ public final class MonitoringCoordinator {
                 self.applySamplingIntervals()
                 self.configureWeatherMonitoring()
                 self.configureCurrentLocation()
+                self.applyNetworkSettings()
                 self.observeSettings()
             }
         }
         applySamplingIntervals()
+        applyNetworkSettings()
     }
 
     private func applySamplingIntervals() {
         let cpuSeconds = settingsStore.settings.modules[.cpu]?.interval ?? 1
         let memorySeconds = settingsStore.settings.modules[.memory]?.interval ?? 2
+        let networkSeconds = settingsStore.settings.modules[.network]?.interval ?? 1
         Task {
             await cpuScheduler.setInterval(.milliseconds(Int64(max(0.25, cpuSeconds) * 1_000)))
             await memoryScheduler.setInterval(.milliseconds(Int64(max(0.25, memorySeconds) * 1_000)))
+            await networkScheduler.setInterval(.milliseconds(Int64(max(0.25, networkSeconds) * 1_000)))
+        }
+    }
+
+    private func configureNetworkChangeAwareness() {
+        networkChangeObserver.onChange = { [weak self] in
+            guard let self else {
+                return
+            }
+            Task {
+                await self.networkMonitor.refreshPublicIP()
+                await self.networkScheduler.refresh()
+            }
+        }
+    }
+
+    private func applyNetworkSettings() {
+        let isPublicIPEnabled = settingsStore.settings.network.showsPublicIP
+        let didChange = lastPublicIPEnabled != isPublicIPEnabled
+        lastPublicIPEnabled = isPublicIPEnabled
+        Task {
+            await networkMonitor.setPublicIPEnabled(isPublicIPEnabled)
+            if didChange {
+                await networkScheduler.refresh()
+            }
         }
     }
 

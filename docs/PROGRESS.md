@@ -780,11 +780,13 @@ Verification:
 
 ## P3-T1 Network source
 
-Added 64-bit cumulative interface counters from `NET_RT_IFLIST2`, IPv4 and IPv6 addresses from `getifaddrs`, and
-primary interface, router, and DNS data from SystemConfiguration. The configuration watcher reports changes to the
-main actor. CoreWLAN supplies power, signal, noise, channel, band, transmit rate, and security; SSID and BSSID remain
-explicitly unavailable when the process lacks Location authorization. The optional public-IP source is off by
-default and independently validates IPv4 and IPv6 responses.
+Added interface identity and flags from `NET_RT_IFLIST2`, IPv4 and IPv6 addresses from `getifaddrs`, and primary
+interface, router, and DNS data from SystemConfiguration. P3-T2 validation found that macOS 27 returned only the low
+32 bits of the cumulative `if_msghdr2` byte fields despite the SDK exposing `if_data64`. The source now uses the
+documented per-interface IFMIB table for full 64-bit counters while retaining `NET_RT_IFLIST2` for the interface
+list. The configuration watcher reports changes to the main actor. CoreWLAN supplies power, signal, noise, channel,
+band, transmit rate, and security; SSID and BSSID remain explicitly unavailable when the process lacks Location
+authorization. The optional public-IP source is off by default and independently validates IPv4 and IPv6 responses.
 
 Added the data-only `NetworkMonitor` rate calculation needed by the diagnostic probe plus `mbs-probe net [--watch]`
 and `mbs-probe wifi`. No speed-test feature, file, or dependency is part of Barometer; verification only generated
@@ -805,4 +807,52 @@ Verification:
 - The plan's Cloudflare traffic URL returned HTTP 403 on September 3, 2026. A reachable 100 MB test object was used
   instead and written directly to `/dev/null`; no file remained. This was a verification-endpoint deviation, not a
   source fallback.
+- `git diff --check` passed, and the changed Swift files contain no lines longer than 120 columns.
+
+## P3-T2 Network module
+
+Completed the Network status item, live monitor, dropdown, and settings pane. The monitor calculates rates from
+64-bit cumulative counters, handles counter resets without producing spikes, follows the primary interface by
+default, supports an explicit interface selection, and refreshes immediately after network configuration changes.
+Public IPv4 and IPv6 lookup remains off by default, is clearly disclosed in settings, and is cached for 15 minutes
+when enabled.
+
+The menu bar supports equal download/upload rows, one-line arrows and rates, a download-focused NET stack, and an
+activity graph. The default two-row renderer replaces the rejected cramped text prototype with matched SF Symbol
+arrows and identical monospaced typography. Values are right-aligned inside one stable field, so changing digit or
+unit counts does not move the status item. Network settings offer 0, 1, or 2 decimal places; the selected precision
+is applied consistently in the menu bar, accessibility value, preview, and dropdown.
+
+The dropdown includes a dual download/upload history graph, interface picker, received and sent totals, copyable
+local addresses, router and DNS values, Wi-Fi signal/noise/channel/transmit/security detail, and opt-in public
+addresses. Settings include interface, bytes/bits, decimal precision, public-IP privacy, automatic/fixed graph
+scale, graph style, colors, and sampling interval.
+Graph style remains editable in every display mode so a user can configure it before switching to the graph.
+
+User review also exposed a confusing color-control layout. All module panes now use canonical light-appearance and
+dark-appearance rows. General settings add an optional global palette that resolves through the shared status-item
+render context for every module without erasing saved per-module colors. Color rows explain when Monochrome mode or
+the global palette makes a local picker inactive. The settings schema migrates older data to these defaults.
+
+Phase 4's Sensors specification now requires multiple independently movable temperature widgets. Each widget has an
+arbitrary ordered sensor selection and uses the same matched-type, stable-decimal discipline as the Network rows;
+additional readings flow into compact two-row columns rather than being limited to a hard-coded CPU/GPU pair.
+
+Verification:
+
+- `swift test` rebuilt and linked all application and test targets and exited 0. Tests cover all four Network menu
+  bar modes, stable two-row geometry, 0/1/2 decimal formatting, precision migration, counter resets, selected
+  interface fallback, global palette migration, and global/per-module color resolution.
+- `swift run mbs-probe net` reported `42.64 GiB` received and `124.83 GiB` sent for `en0`. The simultaneous
+  `netstat -ibn -I en0` row reported 45,788,408,839 received bytes and 134,032,184,210 sent bytes, which convert to
+  the same binary totals. This check caught and verified the IFMIB 64-bit correction without generating test
+  traffic.
+- `make run` release-built, ad hoc signed, installed, and launched `/Applications/Barometer.app` from the one
+  application bundle. `codesign --verify --deep --strict --verbose=2` reported it valid on disk and satisfying its
+  designated requirement.
+- The live Retina capture at `dist/menubar-network-closeup.png` showed CPU, Memory, Network, and Weather as separate
+  movable items. Network displayed equally sized, aligned download and upload rows with a consistent decimal.
+- The defaults domain retained the fixed `Barometer.Network` status-item visibility key alongside the other nine
+  permanent identities. The read-only Thaw defaults query returned no stored Barometer identifier because Thaw was
+  not running; Barometer did not launch or modify Thaw.
 - `git diff --check` passed, and the changed Swift files contain no lines longer than 120 columns.

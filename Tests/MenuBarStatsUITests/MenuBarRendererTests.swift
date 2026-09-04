@@ -1,4 +1,5 @@
 import AppKit
+import MenuBarStatsCore
 @testable import MenuBarStatsUI
 import Testing
 
@@ -102,5 +103,62 @@ struct MenuBarRendererTests {
         let image = TextRenderer(text: "CPU").render(in: context)
 
         #expect(StatusItemRendering.itemLength(for: image) == ceil(image.size.width))
+    }
+
+    @Test
+    func networkPresentationSupportsEveryMenuBarMode() {
+        let interface = NetworkInterfaceSample(
+            name: "en0",
+            isUp: true,
+            isLoopback: false,
+            isVPN: false,
+            ipv4Addresses: ["192.0.2.10"],
+            ipv6Addresses: [],
+            downloadBytesPerSecond: 1_250_000,
+            uploadBytesPerSecond: 82_000,
+            receivedBytes: 10_000_000,
+            sentBytes: 2_000_000,
+            inputErrors: 0,
+            outputErrors: 0
+        )
+        let sample = NetworkSample(
+            timestamp: Date(timeIntervalSince1970: 10),
+            interfaces: [interface],
+            primaryInterface: "en0",
+            router: "192.0.2.1",
+            dnsServers: ["192.0.2.53"],
+            wifi: nil,
+            publicIP: nil
+        )
+        let history = [HistoryEntry(timestamp: sample.timestamp, value: sample)]
+
+        for mode in ["twoLine", "arrows", "stacked", "graph"] {
+            let content = NetworkMenuBarPresenter.content(
+                sample: sample,
+                history: history,
+                moduleSettings: ModuleSettings(isEnabled: true, mode: mode),
+                networkSettings: NetworkSettings(),
+                context: context
+            )
+            #expect(content.image.size.width > 0)
+            #expect(content.accessibilityValue.contains("Network en0"))
+        }
+    }
+
+    @Test
+    func peerRowsKeepTheSameGeometryWhenSwapped() {
+        let first = NetworkRateStackRenderer(
+            download: "1.2MB",
+            upload: "82.0KB",
+            reservedValue: "999.9GB"
+        ).render(in: context)
+        let swapped = NetworkRateStackRenderer(
+            download: "82.0KB",
+            upload: "1.2MB",
+            reservedValue: "999.9GB"
+        ).render(in: context)
+
+        #expect(first.size == swapped.size)
+        #expect(first.size.height == context.thickness)
     }
 }

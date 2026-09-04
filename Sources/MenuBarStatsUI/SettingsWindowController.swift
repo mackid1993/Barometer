@@ -7,8 +7,8 @@ import SwiftUI
 @MainActor
 public final class SettingsWindowController: NSWindowController {
     /// Creates the settings window controller.
-    public convenience init(settingsStore: SettingsStore) {
-        let rootView = SettingsRootView(settingsStore: settingsStore)
+    public convenience init(settingsStore: SettingsStore, networkStore: ModuleStore<NetworkSample>) {
+        let rootView = SettingsRootView(settingsStore: settingsStore, networkStore: networkStore)
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Barometer Settings"
@@ -42,6 +42,7 @@ private enum SettingsSelection: Hashable {
 
 private struct SettingsRootView: View {
     let settingsStore: SettingsStore
+    let networkStore: ModuleStore<NetworkSample>
     @State private var selection: SettingsSelection? = .general
 
     var body: some View {
@@ -67,6 +68,8 @@ private struct SettingsRootView: View {
                 ModuleSettingsView(module: module, settingsStore: settingsStore)
             case let .module(module) where module == .weather:
                 WeatherSettingsView(settingsStore: settingsStore)
+            case let .module(module) where module == .network:
+                NetworkSettingsView(store: networkStore, settingsStore: settingsStore)
             case let .module(module):
                 FutureModuleSettingsView(module: module)
             }
@@ -122,6 +125,24 @@ private struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Menu Bar Colors") {
+                Toggle("Use one palette for every module", isOn: appBinding(\.usesGlobalColors))
+                MenuBarColorPickerRows(
+                    lightColor: globalColorBinding(\.globalLightColor),
+                    darkColor: globalColorBinding(\.globalDarkColor),
+                    isDisabled: !settingsStore.settings.usesGlobalColors || settingsStore.settings.isMonochrome
+                )
+                if settingsStore.settings.isMonochrome {
+                    Text("Turn off Monochrome menu bar to display colors.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if !settingsStore.settings.usesGlobalColors {
+                    Text("Each module uses its own light and dark colors.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("Measurement Units") {
                 Picker("Hardware temperatures", selection: appBinding(\.sensorTemperatureUnit)) {
                     Text("Celsius (°C)").tag(TemperatureUnit.celsius)
@@ -153,6 +174,22 @@ private struct GeneralSettingsView: View {
             set: { value in
                 var settings = settingsStore.settings
                 settings[keyPath: keyPath] = value
+                settingsStore.settings = settings
+            }
+        )
+    }
+
+    private func globalColorBinding(_ keyPath: WritableKeyPath<AppSettings, String>) -> Binding<Color> {
+        Binding(
+            get: {
+                Color(nsColor: NSColor(hex: settingsStore.settings[keyPath: keyPath]) ?? .controlAccentColor)
+            },
+            set: { color in
+                guard let hex = NSColor(color).hexRGB else {
+                    return
+                }
+                var settings = settingsStore.settings
+                settings[keyPath: keyPath] = hex
                 settingsStore.settings = settings
             }
         )
@@ -238,9 +275,19 @@ private struct ModuleSettingsView: View {
                         Text(style.rawValue.capitalized).tag(style)
                     }
                 }
-                HStack {
-                    ColorPicker("Light", selection: colorBinding(\.lightColor), supportsOpacity: false)
-                    ColorPicker("Dark", selection: colorBinding(\.darkColor), supportsOpacity: false)
+                MenuBarColorPickerRows(
+                    lightColor: colorBinding(\.lightColor),
+                    darkColor: colorBinding(\.darkColor),
+                    isDisabled: settingsStore.settings.usesGlobalColors || settingsStore.settings.isMonochrome
+                )
+                if settingsStore.settings.usesGlobalColors {
+                    Text("The global palette in General is active.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if settingsStore.settings.isMonochrome {
+                    Text("Turn off Monochrome menu bar in General to display colors.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -285,16 +332,17 @@ private struct ModuleSettingsView: View {
     }
 
     private var previewImage: NSImage {
-        let color = NSColor(hexString: settings.darkColor) ?? .controlAccentColor
-        let scale = settingsStore.settings.menuBarScale
+        let appSettings = settingsStore.settings
+        let color = NSColor(hexString: appSettings.darkColor(for: settings)) ?? .controlAccentColor
+        let scale = appSettings.menuBarScale
         let context = RenderContext(
             thickness: NSStatusBar.system.thickness,
             appearance: .dark,
             palette: MenuBarPalette(light: color, dark: color),
-            fontSize: min(14, max(9, settingsStore.settings.fontSize)),
-            isMonochrome: settingsStore.settings.isMonochrome,
+            fontSize: min(14, max(9, appSettings.fontSize)),
+            isMonochrome: appSettings.isMonochrome,
             scale: scale,
-            horizontalSpacing: settingsStore.settings.menuBarSpacing
+            horizontalSpacing: appSettings.menuBarSpacing
         )
         let value = module == .cpu ? "42%" : "68%"
         let renderer: any MenuBarRenderer
@@ -332,13 +380,7 @@ private struct ModuleSettingsView: View {
         Binding(
             get: { Color(nsColor: NSColor(hexString: settings[keyPath: keyPath]) ?? .controlAccentColor) },
             set: { color in
-                guard let components = NSColor(color).usingColorSpace(.sRGB) else { return }
-                let hex = String(
-                    format: "#%02X%02X%02X",
-                    Int(components.redComponent * 255),
-                    Int(components.greenComponent * 255),
-                    Int(components.blueComponent * 255)
-                )
+                guard let hex = NSColor(color).hexRGB else { return }
                 var appSettings = settingsStore.settings
                 var moduleSettings = appSettings.modules[module] ?? ModuleSettings()
                 moduleSettings[keyPath: keyPath] = hex
@@ -388,6 +430,18 @@ private extension NSColor {
             green: CGFloat((integer >> 8) & 0xFF) / 255,
             blue: CGFloat(integer & 0xFF) / 255,
             alpha: 1
+        )
+    }
+
+    var hexRGB: String? {
+        guard let components = usingColorSpace(.sRGB) else {
+            return nil
+        }
+        return String(
+            format: "#%02X%02X%02X",
+            Int(components.redComponent * 255),
+            Int(components.greenComponent * 255),
+            Int(components.blueComponent * 255)
         )
     }
 }

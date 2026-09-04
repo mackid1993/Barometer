@@ -106,7 +106,7 @@ public struct ModuleSettings: Codable, Equatable, Sendable {
 /// Versioned application settings persisted as JSON in the app defaults domain.
 public struct AppSettings: Codable, Equatable, Sendable {
     /// Current settings schema version.
-    public static let currentSchemaVersion = 4
+    public static let currentSchemaVersion = 6
 
     /// Schema version encoded in this value.
     public var schemaVersion: Int
@@ -116,6 +116,15 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
     /// Whether renderers produce template images without explicit colors.
     public var isMonochrome: Bool
+
+    /// Whether every module uses the shared application palette.
+    public var usesGlobalColors: Bool
+
+    /// Shared light-appearance RGB color encoded as a hexadecimal string.
+    public var globalLightColor: String
+
+    /// Shared dark-appearance RGB color encoded as a hexadecimal string.
+    public var globalDarkColor: String
 
     /// Global menu bar font size.
     public var fontSize: Double
@@ -135,6 +144,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Temperature unit used by hardware sensor readouts.
     public var sensorTemperatureUnit: TemperatureUnit
 
+    /// Interface, unit, privacy, and graph choices for Network.
+    public var network: NetworkSettings
+
     /// Version of one-time default presentation migrations already applied.
     public private(set) var presentationDefaultsVersion: Int
 
@@ -143,22 +155,30 @@ public struct AppSettings: Codable, Equatable, Sendable {
         schemaVersion: Int = AppSettings.currentSchemaVersion,
         reducesSamplingOnBattery: Bool = true,
         isMonochrome: Bool = true,
+        usesGlobalColors: Bool = false,
+        globalLightColor: String = "#2F7CF6",
+        globalDarkColor: String = "#6BA4FF",
         fontSize: Double = 12,
         menuBarScale: Double = 1,
         menuBarSpacing: Double = 3,
         modules: [ModuleID: ModuleSettings] = AppSettings.defaultModules,
         weather: WeatherSettings = WeatherSettings(),
-        sensorTemperatureUnit: TemperatureUnit = .celsius
+        sensorTemperatureUnit: TemperatureUnit = .celsius,
+        network: NetworkSettings = NetworkSettings()
     ) {
         self.schemaVersion = schemaVersion
         self.reducesSamplingOnBattery = reducesSamplingOnBattery
         self.isMonochrome = isMonochrome
+        self.usesGlobalColors = usesGlobalColors
+        self.globalLightColor = globalLightColor
+        self.globalDarkColor = globalDarkColor
         self.fontSize = fontSize
         self.menuBarScale = menuBarScale
         self.menuBarSpacing = menuBarSpacing
         self.modules = modules
         self.weather = weather
         self.sensorTemperatureUnit = sensorTemperatureUnit
+        self.network = network
         presentationDefaultsVersion = 3
     }
 
@@ -170,6 +190,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         values[.cpu] = ModuleSettings(isEnabled: true, mode: "stacked", interval: 1)
         values[.memory] = ModuleSettings(isEnabled: true, mode: "stacked", interval: 2)
         values[.weather] = ModuleSettings(isEnabled: false, mode: "iconTemperature", interval: 900)
+        values[.network] = ModuleSettings(isEnabled: false, mode: "twoLine", interval: 1)
         return values
     }
 
@@ -177,12 +198,16 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case schemaVersion
         case reducesSamplingOnBattery
         case isMonochrome
+        case usesGlobalColors
+        case globalLightColor
+        case globalDarkColor
         case fontSize
         case menuBarScale
         case menuBarSpacing
         case modules
         case weather
         case sensorTemperatureUnit
+        case network
         case presentationDefaultsVersion
     }
 
@@ -199,17 +224,24 @@ public struct AppSettings: Codable, Equatable, Sendable {
                 forKey: .reducesSamplingOnBattery
             ) ?? true
             isMonochrome = try container.decodeIfPresent(Bool.self, forKey: .isMonochrome) ?? true
+            usesGlobalColors = false
+            globalLightColor = "#2F7CF6"
+            globalDarkColor = "#6BA4FF"
             fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? 12
             menuBarScale = 1
             menuBarSpacing = 3
             modules = Self.defaultModules
             weather = WeatherSettings()
             sensorTemperatureUnit = .celsius
+            network = NetworkSettings()
             presentationDefaultsVersion = 3
         case 1...Self.currentSchemaVersion:
             schemaVersion = Self.currentSchemaVersion
             reducesSamplingOnBattery = try container.decode(Bool.self, forKey: .reducesSamplingOnBattery)
             isMonochrome = try container.decode(Bool.self, forKey: .isMonochrome)
+            usesGlobalColors = try container.decodeIfPresent(Bool.self, forKey: .usesGlobalColors) ?? false
+            globalLightColor = try container.decodeIfPresent(String.self, forKey: .globalLightColor) ?? "#2F7CF6"
+            globalDarkColor = try container.decodeIfPresent(String.self, forKey: .globalDarkColor) ?? "#6BA4FF"
             fontSize = try container.decode(Double.self, forKey: .fontSize)
             menuBarScale = try container.decodeIfPresent(Double.self, forKey: .menuBarScale) ?? 1.15
             menuBarSpacing = try container.decodeIfPresent(Double.self, forKey: .menuBarSpacing) ?? 3
@@ -219,6 +251,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
                 TemperatureUnit.self,
                 forKey: .sensorTemperatureUnit
             ) ?? .celsius
+            network = try container.decodeIfPresent(NetworkSettings.self, forKey: .network) ?? NetworkSettings()
             presentationDefaultsVersion = try container.decodeIfPresent(
                 Int.self,
                 forKey: .presentationDefaultsVersion
@@ -249,6 +282,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
             if modules[.weather]?.mode == "percentage" {
                 modules[.weather]?.mode = "iconTemperature"
             }
+            if version < 5, modules[.network]?.mode == "percentage" {
+                modules[.network]?.mode = "twoLine"
+            }
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .schemaVersion,
@@ -256,5 +292,15 @@ public struct AppSettings: Codable, Equatable, Sendable {
                 debugDescription: "Unsupported settings schema version \(version)"
             )
         }
+    }
+
+    /// Resolves the light-appearance color for a module under the global palette policy.
+    public func lightColor(for moduleSettings: ModuleSettings) -> String {
+        usesGlobalColors ? globalLightColor : moduleSettings.lightColor
+    }
+
+    /// Resolves the dark-appearance color for a module under the global palette policy.
+    public func darkColor(for moduleSettings: ModuleSettings) -> String {
+        usesGlobalColors ? globalDarkColor : moduleSettings.darkColor
     }
 }

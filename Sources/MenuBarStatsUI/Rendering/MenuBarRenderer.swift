@@ -252,6 +252,88 @@ public struct StackedLabelRenderer: MenuBarRenderer {
     }
 }
 
+/// Renders download and upload as two visually equal, stable-width rows.
+public struct NetworkRateStackRenderer: MenuBarRenderer {
+    private let download: String
+    private let upload: String
+    private let reservedValue: String
+
+    /// Creates an equal two-row network renderer.
+    public init(download: String, upload: String, reservedValue: String) {
+        self.download = download
+        self.upload = upload
+        self.reservedValue = reservedValue
+    }
+
+    /// Renders matched arrow symbols and right-aligned values on a fixed canvas.
+    @MainActor
+    public func render(in context: RenderContext) -> NSImage {
+        let pointSize = min(max(8, context.fontSize - 3), max(8, context.thickness / 2 - 2))
+        let font = NSFont.monospacedDigitSystemFont(ofSize: pointSize, weight: .medium)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: context.foregroundColor,
+        ]
+        let downloadText = NSAttributedString(string: download, attributes: attributes)
+        let uploadText = NSAttributedString(string: upload, attributes: attributes)
+        let reservedWidth = ceil(NSAttributedString(string: reservedValue, attributes: attributes).size().width)
+        let symbolConfiguration = NSImage.SymbolConfiguration(pointSize: pointSize - 0.5, weight: .semibold)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [context.foregroundColor]))
+        let downloadSymbol = NSImage(systemSymbolName: "arrow.down", accessibilityDescription: nil)?
+            .withSymbolConfiguration(symbolConfiguration)
+        let uploadSymbol = NSImage(systemSymbolName: "arrow.up", accessibilityDescription: nil)?
+            .withSymbolConfiguration(symbolConfiguration)
+        let symbolWidth = ceil(max(downloadSymbol?.size.width ?? 0, uploadSymbol?.size.width ?? 0))
+        let symbolGap: CGFloat = 2
+        let width = MenuBarLayoutMetrics.contentInset * 2 + symbolWidth + symbolGap + reservedWidth
+
+        return makeImage(width: width, context: context) { rect in
+            let rowHeight = rect.height / 2
+            drawNetworkRow(
+                symbol: downloadSymbol,
+                value: downloadText,
+                y: rowHeight,
+                rowHeight: rowHeight,
+                symbolWidth: symbolWidth,
+                reservedWidth: reservedWidth,
+                symbolGap: symbolGap
+            )
+            drawNetworkRow(
+                symbol: uploadSymbol,
+                value: uploadText,
+                y: 0,
+                rowHeight: rowHeight,
+                symbolWidth: symbolWidth,
+                reservedWidth: reservedWidth,
+                symbolGap: symbolGap
+            )
+        }
+    }
+
+    @MainActor
+    private func drawNetworkRow(
+        symbol: NSImage?,
+        value: NSAttributedString,
+        y: CGFloat,
+        rowHeight: CGFloat,
+        symbolWidth: CGFloat,
+        reservedWidth: CGFloat,
+        symbolGap: CGFloat
+    ) {
+        let inset = MenuBarLayoutMetrics.contentInset
+        if let symbol {
+            let symbolOrigin = NSPoint(
+                x: inset + floor((symbolWidth - symbol.size.width) / 2),
+                y: y + floor((rowHeight - symbol.size.height) / 2)
+            )
+            symbol.draw(at: symbolOrigin, from: .zero, operation: .sourceOver, fraction: 1)
+        }
+        let valueSize = value.size()
+        let valueX = inset + symbolWidth + symbolGap + reservedWidth - valueSize.width
+        value.draw(at: NSPoint(x: valueX, y: y + floor((rowHeight - valueSize.height) / 2)))
+    }
+}
+
 /// Renders an SF Symbol followed by text.
 public struct IconTextRenderer: MenuBarRenderer {
     private let symbolName: String
