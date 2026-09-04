@@ -37,6 +37,13 @@ public struct ProcessListSnapshot: Sendable {
     public let threadCount: Int
 }
 
+/// Resolved display identity for a running process.
+public struct ProcessIdentitySnapshot: Sendable {
+    public let processIdentifier: pid_t
+    public let name: String
+    public let path: String?
+}
+
 /// Reads and caches process metadata and resource usage through libproc.
 public final class ProcessSource {
     private struct CacheEntry {
@@ -145,6 +152,16 @@ public final class ProcessSource {
             processCount: processIdentifiers.count,
             threadCount: totalThreads
         )
+    }
+
+    /// Resolves a process to its containing application's name and executable path.
+    public func identity(processIdentifier: pid_t, fallbackName: String) -> ProcessIdentitySnapshot {
+        let path = processPath(for: processIdentifier)
+        let processName = processName(for: processIdentifier)
+        let name = path.flatMap(Self.applicationDisplayName(forExecutablePath:))
+            ?? (processName.isEmpty ? nil : processName)
+            ?? fallbackName
+        return ProcessIdentitySnapshot(processIdentifier: processIdentifier, name: name, path: path)
     }
 
     private func processIdentifiers() -> [pid_t] {

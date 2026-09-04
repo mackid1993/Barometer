@@ -13,7 +13,7 @@ public enum GPUMenuBarPresenter {
     ) -> StatusItemContent {
         guard let sample else {
             return StatusItemContent(
-                image: StackedLabelRenderer(label: "GPU", value: "—", reservedValue: "100%").render(in: context),
+                image: StackedLabelRenderer(label: "GPU", value: "—", reservedValue: "99%").render(in: context),
                 accessibilityValue: "GPU unavailable"
             )
         }
@@ -32,7 +32,7 @@ public enum GPUMenuBarPresenter {
                 SensorStackValue(label: "GPU", value: percentage, reservedValue: "100%"),
             ])
         default:
-            renderer = StackedLabelRenderer(label: "GPU", value: percentage, reservedValue: "100%")
+            renderer = StackedLabelRenderer(label: "GPU", value: percentage, reservedValue: "99%")
         }
         return StatusItemContent(
             image: renderer.render(in: context),

@@ -16,6 +16,7 @@ public struct NetworkDropdownView: View {
     public var body: some View {
         let sample = store.latestSample
         let settings = settingsStore.settings.network
+        let moduleSettings = settingsStore.settings.modules[.network] ?? ModuleSettings(mode: "twoLine")
         let interface = sample?.interface(named: settings.selectedInterfaceName)
         let _ = store.revision
 
@@ -30,6 +31,15 @@ public struct NetworkDropdownView: View {
                     settings: settings
                 )
                 .frame(height: 86)
+
+                if moduleSettings.showsProcesses, let sample {
+                    processActivity(
+                        sample: sample,
+                        limit: moduleSettings.processCount,
+                        unit: settings.rateUnit,
+                        decimalPlaces: settings.decimalPlaces
+                    )
+                }
 
                 if let sample {
                     interfacePicker(sample: sample)
@@ -120,6 +130,68 @@ public struct NetworkDropdownView: View {
         }
         .pickerStyle(.menu)
         .font(.caption)
+    }
+
+    @ViewBuilder
+    private func processActivity(
+        sample: NetworkSample,
+        limit: Int,
+        unit: NetworkRateUnit,
+        decimalPlaces: Int
+    ) -> some View {
+        Text("TOP NETWORK ACTIVITY").networkSectionLabel()
+        if !sample.isProcessActivityAvailable {
+            Text("Per-process activity unavailable")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else if sample.topProcesses.isEmpty {
+            Text("No recent external network activity")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            ForEach(sample.topProcesses.prefix(limit), id: \.processIdentifier) { process in
+                HStack(spacing: 7) {
+                    ProcessIcon(processIdentifier: process.processIdentifier, path: process.path)
+                    Text(process.name).lineLimit(1)
+                    Spacer(minLength: 8)
+                    VStack(alignment: .trailing, spacing: 1) {
+                        processRate(
+                            symbol: "↓",
+                            value: process.downloadBytesPerSecond,
+                            unit: unit,
+                            decimalPlaces: decimalPlaces,
+                            color: .cyan
+                        )
+                        processRate(
+                            symbol: "↑",
+                            value: process.uploadBytesPerSecond,
+                            unit: unit,
+                            decimalPlaces: decimalPlaces,
+                            color: .purple
+                        )
+                    }
+                }
+                .font(.caption)
+            }
+        }
+    }
+
+    private func processRate(
+        symbol: String,
+        value: Double,
+        unit: NetworkRateUnit,
+        decimalPlaces: Int,
+        color: Color
+    ) -> some View {
+        Text(
+            symbol + NetworkRateFormatter.string(
+                bytesPerSecond: value,
+                unit: unit,
+                decimalPlaces: decimalPlaces
+            )
+        )
+        .font(.caption2.monospacedDigit())
+        .foregroundStyle(color)
     }
 
     private func totals(interface: NetworkInterfaceSample) -> some View {

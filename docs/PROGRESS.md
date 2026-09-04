@@ -1113,3 +1113,53 @@ Verification:
 - The runtime identity report contains `Barometer.GPU`, AX label `GPU`, empty button and AX titles, and owner bundle
   `com.barometer.app`. The status item remains allocated but hidden while the saved GPU toggle is off.
 - `git diff --check` passed, and all changed Swift files stay within 120 columns.
+
+### Compact menu bar geometry follow-up
+
+Standardized every two-row renderer on one shared grid and one compact point size. CPU, memory, GPU, Sensors,
+network, and weather now use identical upper and lower row centers. Sensors compose each label and reading into one
+attributed line so proportional labels and monospaced temperatures share a real text baseline. Internal content
+insets, sensor label gaps, and column gaps are reduced without changing the user-controlled spacing value. GPU now
+reserves the compact `0–99%` range instead of permanently reserving an extra digit for the rare exact `100%` reading.
+
+The network stack now places compact down/up arrow glyphs directly beside its readings and uses one-character rate
+suffixes in the menu bar while retaining full units in the dropdown. Stable-width placeholders still reserve the
+selected decimal precision and the normal two-digit magnitude. A live three-digit rate expands the canvas instead
+of clipping. Kilobytes per second, or kilobits per second in bit mode, are the minimum display units, preventing
+idle traffic from constantly changing raw byte-level values. Temperature placeholders reserve credible Celsius and
+Fahrenheit maxima instead of an unnecessarily wide three-digit value in both scales.
+
+Weather's default display now stacks the condition glyph over the temperature. Its existing status item and mode
+identifier are unchanged, so the item remains independently movable and existing settings migrate without action.
+Long condition text continues using the horizontal presentation selected by its separate mode.
+
+The Sensors dropdown now explains that session energy is energy used since Barometer opened and spells out `joules`
+and `watt-hours` instead of showing unexplained `J` or `Wh` abbreviations.
+
+The Network monitor now samples macOS's own cumulative per-process external-network accounting every five seconds,
+calculates download and upload rates, resolves executable paths to application display names, and exposes the ten
+most active processes. The dropdown shows configurable top-process rows with real app icons and separate download
+and upload rates. The source degrades to an explicit unavailable state and never requires root, a bundled helper, or
+a hardware-specific identifier.
+
+Verification:
+
+- `swift test` rebuilt and linked every target and exited 0. Added coverage verifies that stacked weather is narrower
+  than horizontal icon-and-temperature rendering, network and sensor canvases remain stable as values change, and
+  session-energy units use plain language. Process-network coverage verifies CSV quoting, PID extraction, duplicate
+  row aggregation, and invalid-row rejection.
+- `swift build -c release` completed successfully.
+- `swift run mbs-probe net --watch` produced per-process deltas after the second five-second accounting snapshot. A
+  live sample resolved ChatGPT, Spotify, mDNSResponder, Codex (Service), Vivaldi Helper, and Dropbox, with independent
+  receive and send rates. The probe was then stopped and no sampling process remained running.
+- `make install` rebuilt, signed, installed, and launched the first density build. After the GPU width adjustment, a
+  normal AppleScript quit request did not return while the running app was in use. Only that Barometer process was
+  terminated; the final bundle was copied to `/Applications/Barometer.app` and relaunched directly.
+- A live Retina menu bar capture at font size 10 and spacing 0 confirmed matching two-row baselines, directly adjacent
+  network arrows and values, baseline-aligned CPU/GPU sensor rows, and the weather glyph centered above `75°F`. The
+  runtime identity report measured CPU at 21 points, GPU at 23 points, memory at 23 points, and weather at 13 points;
+  GPU was 29 points before removing its permanent `100%` reservation. Network fell from 50 to 44 points after using
+  the two-digit rate reservation, and the installed menu bar showed `↓4.53K` and `↑4.24K` without byte-level units.
+- `codesign --verify --deep --strict --verbose=2 /Applications/Barometer.app` passed. The installed identifier remains
+  `com.barometer.app`, and `Contents/MacOS/Barometer` remains its only executable.
+- `git diff --check` passed, and all changed Swift files stay within 120 columns.

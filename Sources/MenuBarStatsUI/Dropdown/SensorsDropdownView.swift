@@ -42,7 +42,12 @@ public struct SensorsDropdownView: View {
 
                 if let sample, !sample.sessionEnergy.isEmpty {
                     HStack {
-                        Text("SESSION ENERGY").sensorSectionLabel()
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("SESSION ENERGY").sensorSectionLabel()
+                            Text("Energy used since Barometer opened")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                         Spacer()
                         Button("Reset", action: resetEnergyAction).buttonStyle(.plain)
                     }
@@ -105,11 +110,11 @@ public struct SensorsDropdownView: View {
         return raw.map { ($0 - minimum) / (maximum - minimum) }
     }
 
-    private static func energy(_ joules: Double) -> String {
+    static func energy(_ joules: Double) -> String {
         if joules >= 3_600 {
-            return String(format: "%.3f Wh", joules / 3_600)
+            return String(format: "%.3f watt-hours", joules / 3_600)
         }
-        return String(format: "%.1f J", joules)
+        return String(format: "%.1f joules", joules)
     }
 }
 

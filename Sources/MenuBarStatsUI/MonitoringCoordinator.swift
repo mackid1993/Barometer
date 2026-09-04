@@ -736,7 +736,7 @@ public final class MonitoringCoordinator {
     ) -> StatusItemContent {
         guard let sample else {
             return StatusItemContent(
-                image: IconTextRenderer(symbolName: "cloud.sun", text: "—").render(in: context),
+                image: IconStackRenderer(symbolName: "cloud.sun", text: "—").render(in: context),
                 accessibilityValue: "Weather unavailable"
             )
         }
@@ -746,7 +746,10 @@ public final class MonitoringCoordinator {
             mode: settings.mode,
             template: template
         )
-        let renderer: any MenuBarRenderer = if let symbolName = presentation.symbolName {
+        let renderer: any MenuBarRenderer = if settings.mode == "iconTemperature",
+                                              let symbolName = presentation.symbolName {
+            IconStackRenderer(symbolName: symbolName, text: presentation.text)
+        } else if let symbolName = presentation.symbolName {
             IconTextRenderer(symbolName: symbolName, text: presentation.text)
         } else {
             TextRenderer(text: presentation.text)

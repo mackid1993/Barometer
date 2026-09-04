@@ -80,7 +80,7 @@ public struct RenderContext {
 /// Keeping these calculations in one place prevents modules from acquiring subtly
 /// different baselines, insets, and gaps as their renderers evolve.
 struct MenuBarLayoutMetrics {
-    static let contentInset: CGFloat = 2
+    static let contentInset: CGFloat = 0.5
 
     let context: RenderContext
 
@@ -111,6 +111,34 @@ struct MenuBarLayoutMetrics {
             label: NSPoint(x: Self.contentInset, y: bottom + valueHeight + rowGap),
             value: NSPoint(x: Self.contentInset, y: bottom)
         )
+    }
+
+    var compactPointSize: CGFloat {
+        min(max(8, context.fontSize - 2), max(8, context.thickness / 2 - 2))
+    }
+
+    func compactRowY(_ row: Int, textHeight: CGFloat) -> CGFloat {
+        let rowHeight = context.thickness / 2
+        let rowBottom = row == 0 ? rowHeight : 0
+        return rowBottom + floor((rowHeight - textHeight) / 2)
+    }
+
+    func compactSymbolSize(nativeSize: NSSize) -> NSSize {
+        let rowHeight = context.thickness / 2
+        let scaledHeight = compactPointSize * context.scale
+        let targetHeight = min(rowHeight - 1, max(scaledHeight, (rowHeight - 1) * min(1, context.scale)))
+        let aspectRatio = max(0.5, nativeSize.width / max(1, nativeSize.height))
+        return NSSize(width: ceil(targetHeight * aspectRatio), height: targetHeight)
+    }
+
+    func compactSymbolY(for size: NSSize, nativeSize: NSSize, alignmentRect: NSRect) -> CGFloat {
+        let centered = compactRowY(0, textHeight: size.height)
+        guard nativeSize.height > 0 else {
+            return centered
+        }
+        let scale = size.height / nativeSize.height
+        let opticalAdjustment = (nativeSize.height / 2 - alignmentRect.midY) * scale
+        return centered + opticalAdjustment
     }
 
     func symbolSize(nativeSize: NSSize, font: NSFont) -> NSSize {
@@ -321,26 +349,34 @@ public struct StackedLabelRenderer: MenuBarRenderer {
     /// Renders the stacked image.
     @MainActor
     public func render(in context: RenderContext) -> NSImage {
+        let metrics = MenuBarLayoutMetrics(context: context)
+        let pointSize = metrics.compactPointSize
         let labelAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: max(7, context.fontSize - 4), weight: .medium),
+            .font: NSFont.systemFont(ofSize: pointSize, weight: .medium),
             .foregroundColor: context.foregroundColor,
         ]
         let valueAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: max(8, context.fontSize - 2), weight: .semibold),
+            .font: NSFont.monospacedDigitSystemFont(ofSize: pointSize, weight: .semibold),
             .foregroundColor: context.foregroundColor,
         ]
         let labelText = NSAttributedString(string: label, attributes: labelAttributes)
         let valueText = NSAttributedString(string: value, attributes: valueAttributes)
         let reservedText = NSAttributedString(string: reservedValue ?? value, attributes: valueAttributes)
-        let metrics = MenuBarLayoutMetrics(context: context)
         let width = ceil(max(labelText.size().width, max(valueText.size().width, reservedText.size().width)))
             + MenuBarLayoutMetrics.contentInset * 2
-        return makeImage(width: width, context: context) { rect in
-            let labelSize = labelText.size()
-            let valueSize = valueText.size()
-            let origins = metrics.stackedOrigins(labelHeight: labelSize.height, valueHeight: valueSize.height)
-            labelText.draw(at: origins.label)
-            valueText.draw(at: origins.value)
+        return makeImage(width: width, context: context) { _ in
+            labelText.draw(
+                at: NSPoint(
+                    x: MenuBarLayoutMetrics.contentInset,
+                    y: metrics.compactRowY(0, textHeight: labelText.size().height)
+                )
+            )
+            valueText.draw(
+                at: NSPoint(
+                    x: MenuBarLayoutMetrics.contentInset,
+                    y: metrics.compactRowY(1, textHeight: valueText.size().height)
+                )
+            )
         }
     }
 }
@@ -358,72 +394,43 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
         self.reservedValue = reservedValue
     }
 
-    /// Renders matched arrow symbols and right-aligned values on a fixed canvas.
+    /// Renders matched arrows and values on a fixed canvas.
     @MainActor
     public func render(in context: RenderContext) -> NSImage {
-        let pointSize = min(max(8, context.fontSize - 3), max(8, context.thickness / 2 - 2))
+        let metrics = MenuBarLayoutMetrics(context: context)
+        let pointSize = metrics.compactPointSize
         let font = NSFont.monospacedDigitSystemFont(ofSize: pointSize, weight: .medium)
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: context.foregroundColor,
         ]
-        let downloadText = NSAttributedString(string: download, attributes: attributes)
-        let uploadText = NSAttributedString(string: upload, attributes: attributes)
-        let reservedWidth = ceil(NSAttributedString(string: reservedValue, attributes: attributes).size().width)
-        let symbolConfiguration = NSImage.SymbolConfiguration(pointSize: pointSize - 0.5, weight: .semibold)
-            .applying(NSImage.SymbolConfiguration(paletteColors: [context.foregroundColor]))
-        let downloadSymbol = NSImage(systemSymbolName: "arrow.down", accessibilityDescription: nil)?
-            .withSymbolConfiguration(symbolConfiguration)
-        let uploadSymbol = NSImage(systemSymbolName: "arrow.up", accessibilityDescription: nil)?
-            .withSymbolConfiguration(symbolConfiguration)
-        let symbolWidth = ceil(max(downloadSymbol?.size.width ?? 0, uploadSymbol?.size.width ?? 0))
-        let symbolGap: CGFloat = 2
-        let width = MenuBarLayoutMetrics.contentInset * 2 + symbolWidth + symbolGap + reservedWidth
-
-        return makeImage(width: width, context: context) { rect in
-            let rowHeight = rect.height / 2
-            drawNetworkRow(
-                symbol: downloadSymbol,
-                value: downloadText,
-                y: rowHeight,
-                rowHeight: rowHeight,
-                symbolWidth: symbolWidth,
-                reservedWidth: reservedWidth,
-                symbolGap: symbolGap
+        let downloadText = NSAttributedString(string: "↓\(download)", attributes: attributes)
+        let uploadText = NSAttributedString(string: "↑\(upload)", attributes: attributes)
+        let reservedDownload = NSAttributedString(string: "↓\(reservedValue)", attributes: attributes)
+        let reservedUpload = NSAttributedString(string: "↑\(reservedValue)", attributes: attributes)
+        let width = MenuBarLayoutMetrics.contentInset * 2 + ceil(
+            max(
+                downloadText.size().width,
+                uploadText.size().width,
+                reservedDownload.size().width,
+                reservedUpload.size().width
             )
-            drawNetworkRow(
-                symbol: uploadSymbol,
-                value: uploadText,
-                y: 0,
-                rowHeight: rowHeight,
-                symbolWidth: symbolWidth,
-                reservedWidth: reservedWidth,
-                symbolGap: symbolGap
+        )
+
+        return makeImage(width: width, context: context) { _ in
+            downloadText.draw(
+                at: NSPoint(
+                    x: MenuBarLayoutMetrics.contentInset,
+                    y: metrics.compactRowY(0, textHeight: downloadText.size().height)
+                )
+            )
+            uploadText.draw(
+                at: NSPoint(
+                    x: MenuBarLayoutMetrics.contentInset,
+                    y: metrics.compactRowY(1, textHeight: uploadText.size().height)
+                )
             )
         }
-    }
-
-    @MainActor
-    private func drawNetworkRow(
-        symbol: NSImage?,
-        value: NSAttributedString,
-        y: CGFloat,
-        rowHeight: CGFloat,
-        symbolWidth: CGFloat,
-        reservedWidth: CGFloat,
-        symbolGap: CGFloat
-    ) {
-        let inset = MenuBarLayoutMetrics.contentInset
-        if let symbol {
-            let symbolOrigin = NSPoint(
-                x: inset + floor((symbolWidth - symbol.size.width) / 2),
-                y: y + floor((rowHeight - symbol.size.height) / 2)
-            )
-            symbol.draw(at: symbolOrigin, from: .zero, operation: .sourceOver, fraction: 1)
-        }
-        let valueSize = value.size()
-        let valueX = inset + symbolWidth + symbolGap + reservedWidth - valueSize.width
-        value.draw(at: NSPoint(x: valueX, y: y + floor((rowHeight - valueSize.height) / 2)))
     }
 }
 
@@ -453,8 +460,9 @@ public struct SensorStackRenderer: MenuBarRenderer {
     /// Renders two readings per column and expands horizontally for additional values.
     @MainActor
     public func render(in context: RenderContext) -> NSImage {
-        let valuePointSize = min(max(8, context.fontSize - 3), max(8, context.thickness / 2 - 2))
-        let labelPointSize = max(7, valuePointSize - 1)
+        let metrics = MenuBarLayoutMetrics(context: context)
+        let valuePointSize = metrics.compactPointSize
+        let labelPointSize = valuePointSize
         let labelAttributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: labelPointSize, weight: .medium),
             .foregroundColor: context.foregroundColor.withAlphaComponent(0.82),
@@ -469,16 +477,17 @@ public struct SensorStackRenderer: MenuBarRenderer {
         let columns = stride(from: 0, to: fields.count, by: 2).map { start in
             Array(fields[start..<min(start + 2, fields.count)])
         }
-        let labelGap: CGFloat = 3
-        let columnGap: CGFloat = 5
+        let labelGap: CGFloat = 1
+        let columnGap: CGFloat = 2
         let columnWidths = columns.map { column in
             column.reduce(CGFloat(0)) { width, field in
                 let labelWidth = NSAttributedString(string: field.label, attributes: labelAttributes).size().width
-                let valueWidth = NSAttributedString(
+                let reservedWidth = NSAttributedString(
                     string: field.reservedValue,
                     attributes: valueAttributes
                 ).size().width
-                return max(width, ceil(labelWidth + labelGap + valueWidth))
+                let valueWidth = NSAttributedString(string: field.value, attributes: valueAttributes).size().width
+                return max(width, ceil(labelWidth + labelGap + max(reservedWidth, valueWidth)))
             }
         }
         let contentWidth = MenuBarLayoutMetrics.contentInset * 2
@@ -487,22 +496,25 @@ public struct SensorStackRenderer: MenuBarRenderer {
 
         return makeImage(width: contentWidth, context: context) { rect in
             var x = MenuBarLayoutMetrics.contentInset
-            let rowHeight = rect.height / 2
             for (columnIndex, column) in columns.enumerated() {
                 let columnWidth = columnWidths[columnIndex]
                 for (rowIndex, field) in column.enumerated() {
-                    let label = NSAttributedString(string: field.label, attributes: labelAttributes)
+                    let label = NSMutableAttributedString(string: field.label, attributes: labelAttributes)
                     let value = NSAttributedString(string: field.value, attributes: valueAttributes)
-                    let combinedHeight = max(label.size().height, value.size().height)
-                    let y: CGFloat
-                    if fields.count == 1 {
-                        y = floor((rect.height - combinedHeight) / 2)
-                    } else {
-                        let rowBottom = rowIndex == 0 ? rowHeight : 0
-                        y = rowBottom + floor((rowHeight - combinedHeight) / 2)
+                    let flexibleGap = max(labelGap, columnWidth - label.size().width - value.size().width)
+                    if label.length > 0 {
+                        label.addAttribute(
+                            .kern,
+                            value: flexibleGap,
+                            range: NSRange(location: label.length - 1, length: 1)
+                        )
                     }
+                    label.append(value)
+                    let combinedHeight = label.size().height
+                    let y = fields.count == 1
+                        ? floor((rect.height - combinedHeight) / 2)
+                        : metrics.compactRowY(rowIndex, textHeight: combinedHeight)
                     label.draw(at: NSPoint(x: x, y: y))
-                    value.draw(at: NSPoint(x: x + columnWidth - value.size().width, y: y))
                 }
                 x += columnWidth + columnGap
             }
@@ -558,6 +570,62 @@ public struct IconTextRenderer: MenuBarRenderer {
                 x = symbolRect.maxX + gap
             }
             textValue.draw(at: NSPoint(x: x, y: metrics.centeredY(for: textSize.height)))
+        }
+    }
+}
+
+/// Renders an SF Symbol directly above compact text.
+public struct IconStackRenderer: MenuBarRenderer {
+    private let symbolName: String
+    private let text: String
+
+    /// Creates a vertically stacked icon-and-text renderer.
+    public init(symbolName: String, text: String) {
+        self.symbolName = symbolName
+        self.text = text
+    }
+
+    /// Renders the icon and text on the canonical compact two-row grid.
+    @MainActor
+    public func render(in context: RenderContext) -> NSImage {
+        let metrics = MenuBarLayoutMetrics(context: context)
+        let pointSize = metrics.compactPointSize
+        let font = NSFont.monospacedDigitSystemFont(ofSize: pointSize, weight: .medium)
+        let symbolPointSize = min(context.thickness / 2 - 1, max(pointSize, pointSize * context.scale))
+        let baseConfiguration = NSImage.SymbolConfiguration(pointSize: symbolPointSize, weight: .medium)
+        let colorConfiguration = NSImage.SymbolConfiguration(paletteColors: [context.foregroundColor])
+        let configuration = baseConfiguration.applying(colorConfiguration)
+        let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(configuration)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: context.foregroundColor,
+        ]
+        let textValue = NSAttributedString(string: text, attributes: attributes)
+        let textSize = textValue.size()
+        let symbolSize = symbol.map { metrics.compactSymbolSize(nativeSize: $0.size) } ?? .zero
+        let width = MenuBarLayoutMetrics.contentInset * 2 + ceil(max(symbolSize.width, textSize.width))
+
+        return makeImage(width: width, context: context) { rect in
+            if let symbol {
+                let symbolRect = NSRect(
+                    x: floor((rect.width - symbolSize.width) / 2),
+                    y: metrics.compactSymbolY(
+                        for: symbolSize,
+                        nativeSize: symbol.size,
+                        alignmentRect: symbol.alignmentRect
+                    ),
+                    width: symbolSize.width,
+                    height: symbolSize.height
+                )
+                symbol.draw(in: symbolRect)
+            }
+            textValue.draw(
+                at: NSPoint(
+                    x: floor((rect.width - textSize.width) / 2),
+                    y: metrics.compactRowY(1, textHeight: textSize.height)
+                )
+            )
         }
     }
 }

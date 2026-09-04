@@ -47,6 +47,30 @@ public struct NetworkInterfaceSample: Equatable, Sendable {
     }
 }
 
+/// Recent external-network activity attributed to one process.
+public struct NetworkProcessSample: Equatable, Sendable {
+    public let processIdentifier: pid_t
+    public let name: String
+    public let path: String?
+    public let downloadBytesPerSecond: Double
+    public let uploadBytesPerSecond: Double
+
+    /// Creates one per-process network-rate sample.
+    public init(
+        processIdentifier: pid_t,
+        name: String,
+        path: String?,
+        downloadBytesPerSecond: Double,
+        uploadBytesPerSecond: Double
+    ) {
+        self.processIdentifier = processIdentifier
+        self.name = name
+        self.path = path
+        self.downloadBytesPerSecond = downloadBytesPerSecond
+        self.uploadBytesPerSecond = uploadBytesPerSecond
+    }
+}
+
 /// A complete network sample with primary route and optional Wi-Fi detail.
 public struct NetworkSample: Equatable, Sendable {
     public let timestamp: Date
@@ -56,6 +80,8 @@ public struct NetworkSample: Equatable, Sendable {
     public let dnsServers: [String]
     public let wifi: WiFiSnapshot?
     public let publicIP: PublicIPSnapshot?
+    public let isProcessActivityAvailable: Bool
+    public let topProcesses: [NetworkProcessSample]
 
     /// Creates a complete Network sample.
     public init(
@@ -65,7 +91,9 @@ public struct NetworkSample: Equatable, Sendable {
         router: String?,
         dnsServers: [String],
         wifi: WiFiSnapshot?,
-        publicIP: PublicIPSnapshot?
+        publicIP: PublicIPSnapshot?,
+        isProcessActivityAvailable: Bool = false,
+        topProcesses: [NetworkProcessSample] = []
     ) {
         self.timestamp = timestamp
         self.interfaces = interfaces
@@ -74,6 +102,8 @@ public struct NetworkSample: Equatable, Sendable {
         self.dnsServers = dnsServers
         self.wifi = wifi
         self.publicIP = publicIP
+        self.isProcessActivityAvailable = isProcessActivityAvailable
+        self.topProcesses = topProcesses
     }
 
     /// The primary interface sample when it is present.
@@ -95,7 +125,13 @@ public actor NetworkMonitor: Monitor {
     private let networkSource: NetworkSource
     private let wiFiSource: WiFiSource
     private let publicIPSource: PublicIPSource
+    private let processNetworkSource: ProcessNetworkSource
+    private let processSource: ProcessSource
     private var previousCounters: [String: PreviousCounter] = [:]
+    private var previousProcessCounters: [pid_t: ProcessNetworkCounter] = [:]
+    private var lastProcessRefresh: Date?
+    private var isProcessActivityAvailable = false
+    private var cachedTopProcesses: [NetworkProcessSample] = []
     private var isPublicIPEnabled = false
     private var publicIP: PublicIPSnapshot?
     private var lastPublicIPAttempt: Date?
@@ -111,12 +147,15 @@ public actor NetworkMonitor: Monitor {
         interval: Duration = .seconds(1),
         networkSource: NetworkSource = NetworkSource(),
         wiFiSource: WiFiSource = WiFiSource(),
-        publicIPSource: PublicIPSource = PublicIPSource()
+        publicIPSource: PublicIPSource = PublicIPSource(),
+        processNetworkSource: ProcessNetworkSource = ProcessNetworkSource()
     ) {
         self.interval = interval
         self.networkSource = networkSource
         self.wiFiSource = wiFiSource
         self.publicIPSource = publicIPSource
+        self.processNetworkSource = processNetworkSource
+        processSource = ProcessSource()
     }
 
     /// Enables or disables the explicit external public-address lookup.
@@ -171,6 +210,7 @@ public actor NetworkMonitor: Monitor {
             )
         }
         previousCounters = nextCounters
+        refreshProcessActivityIfNeeded(at: timestamp)
         await updatePublicIPIfNeeded(at: timestamp)
         return NetworkSample(
             timestamp: timestamp,
@@ -179,7 +219,9 @@ public actor NetworkMonitor: Monitor {
             router: snapshot.router,
             dnsServers: snapshot.dnsServers,
             wifi: wiFiSource.read(interfaceName: snapshot.primaryInterface),
-            publicIP: publicIP
+            publicIP: publicIP,
+            isProcessActivityAvailable: isProcessActivityAvailable,
+            topProcesses: cachedTopProcesses
         )
     }
 
@@ -199,6 +241,56 @@ public actor NetworkMonitor: Monitor {
             publicIP = try await publicIPSource.read()
         } catch {
             Self.logger.error("Public IP refresh failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    private func refreshProcessActivityIfNeeded(at timestamp: Date) {
+        if let lastProcessRefresh, timestamp.timeIntervalSince(lastProcessRefresh) < 5 {
+            return
+        }
+        let elapsed = lastProcessRefresh.map { timestamp.timeIntervalSince($0) } ?? 0
+        lastProcessRefresh = timestamp
+        do {
+            let counters = try processNetworkSource.read()
+            isProcessActivityAvailable = true
+            let current = Dictionary(uniqueKeysWithValues: counters.map { ($0.processIdentifier, $0) })
+            defer { previousProcessCounters = current }
+            guard elapsed > 0 else {
+                return
+            }
+            cachedTopProcesses = counters.compactMap { counter in
+                guard let previous = previousProcessCounters[counter.processIdentifier],
+                      previous.fallbackName == counter.fallbackName
+                else {
+                    return nil
+                }
+                let received = Self.counterDelta(from: previous.receivedBytes, to: counter.receivedBytes)
+                let sent = Self.counterDelta(from: previous.sentBytes, to: counter.sentBytes)
+                guard received > 0 || sent > 0 else {
+                    return nil
+                }
+                let identity = processSource.identity(
+                    processIdentifier: counter.processIdentifier,
+                    fallbackName: counter.fallbackName
+                )
+                return NetworkProcessSample(
+                    processIdentifier: counter.processIdentifier,
+                    name: identity.name,
+                    path: identity.path,
+                    downloadBytesPerSecond: Double(received) / elapsed,
+                    uploadBytesPerSecond: Double(sent) / elapsed
+                )
+            }
+            .sorted {
+                $0.downloadBytesPerSecond + $0.uploadBytesPerSecond
+                    > $1.downloadBytesPerSecond + $1.uploadBytesPerSecond
+            }
+            .prefix(10)
+            .map { $0 }
+        } catch {
+            isProcessActivityAvailable = false
+            cachedTopProcesses = []
+            Self.logger.error("Per-process network refresh failed: \(String(describing: error), privacy: .public)")
         }
     }
 }

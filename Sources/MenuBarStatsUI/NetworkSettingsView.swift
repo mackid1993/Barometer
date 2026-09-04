@@ -94,6 +94,13 @@ struct NetworkSettingsView: View {
                 }
             }
 
+            Section("Dropdown") {
+                Toggle("Show top network activity", isOn: moduleBinding(\.showsProcesses))
+                Stepper(value: moduleBinding(\.processCount), in: 1...10) {
+                    Text("Process count: \(moduleSettings.processCount)")
+                }
+            }
+
             Section("Sampling") {
                 HStack {
                     Text("Interval")

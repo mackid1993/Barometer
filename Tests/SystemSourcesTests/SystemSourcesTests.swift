@@ -29,6 +29,25 @@ import Testing
     #expect(ProcessSource.applicationDisplayName(forExecutablePath: executableURL.path) == "Parallels Desktop")
 }
 
+@Test func processNetworkSourceParsesQuotedNamesAndAggregatesDuplicateRows() throws {
+    let output = """
+    ,bytes_in,bytes_out,
+    "Example, Helper.42",100,20,
+    "Example, Helper.42",25,5,
+    Browser.81,900,120,
+    invalid,1,2,
+    """
+
+    let counters = ProcessNetworkSource.parse(output)
+    let helper = try #require(counters.first { $0.processIdentifier == 42 })
+
+    #expect(helper.fallbackName == "Example, Helper")
+    #expect(helper.receivedBytes == 125)
+    #expect(helper.sentBytes == 25)
+    #expect(counters.first { $0.processIdentifier == 81 }?.receivedBytes == 900)
+    #expect(counters.count == 2)
+}
+
 @Test func networkSourceReadsRouteInterfaces() throws {
     let snapshot = try NetworkSource().read()
 

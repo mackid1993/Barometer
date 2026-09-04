@@ -262,7 +262,7 @@ private struct MemoryProcessRow: View {
     }
 }
 
-private struct ProcessIcon: View {
+struct ProcessIcon: View {
     let processIdentifier: pid_t
     let path: String?
 

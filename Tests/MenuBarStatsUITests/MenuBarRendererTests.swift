@@ -43,14 +43,26 @@ struct MenuBarRendererTests {
     }
 
     @Test
+    func stackedWeatherUsesTheCompactGridAndLessWidth() {
+        let horizontal = IconTextRenderer(symbolName: "cloud.sun", text: "77°F").render(in: context)
+        let stacked = IconStackRenderer(symbolName: "cloud.sun", text: "77°F").render(in: context)
+
+        #expect(stacked.size.height == context.thickness)
+        #expect(stacked.size.width < horizontal.size.width)
+    }
+
+    @Test
     func stackedRendererReservesTheWidestRowWithoutChangingAlignment() {
         let memory = StackedLabelRenderer(label: "MEM", value: "85%").render(in: context)
         let cpu = StackedLabelRenderer(label: "CPU", value: "24%").render(in: context)
+        let idleGPU = StackedLabelRenderer(label: "GPU", value: "0%", reservedValue: "99%").render(in: context)
+        let busyGPU = StackedLabelRenderer(label: "GPU", value: "99%", reservedValue: "99%").render(in: context)
 
         #expect(memory.size.height == context.thickness)
         #expect(cpu.size.height == context.thickness)
         #expect(memory.size.width > 0)
         #expect(cpu.size.width > 0)
+        #expect(idleGPU.size == busyGPU.size)
     }
 
     @Test
@@ -148,18 +160,25 @@ struct MenuBarRendererTests {
     @Test
     func peerRowsKeepTheSameGeometryWhenSwapped() {
         let first = NetworkRateStackRenderer(
-            download: "1.2MB",
-            upload: "82.0KB",
-            reservedValue: "999.9GB"
+            download: "1.2M",
+            upload: "82.0K",
+            reservedValue: "99.9G"
         ).render(in: context)
         let swapped = NetworkRateStackRenderer(
-            download: "82.0KB",
-            upload: "1.2MB",
-            reservedValue: "999.9GB"
+            download: "82.0K",
+            upload: "1.2M",
+            reservedValue: "99.9G"
+        ).render(in: context)
+
+        let threeDigitRate = NetworkRateStackRenderer(
+            download: "125.0M",
+            upload: "1.2M",
+            reservedValue: "99.9G"
         ).render(in: context)
 
         #expect(first.size == swapped.size)
         #expect(first.size.height == context.thickness)
+        #expect(threeDigitRate.size.width > first.size.width)
     }
 
     @Test
@@ -182,6 +201,12 @@ struct MenuBarRendererTests {
         #expect(cool.size == hot.size)
         #expect(cool.size.height == context.thickness)
         #expect(fourReadings.size.width > cool.size.width)
+    }
+
+    @Test
+    func sessionEnergyUsesPlainLanguageUnits() {
+        #expect(SensorsDropdownView.energy(125) == "125.0 joules")
+        #expect(SensorsDropdownView.energy(7_200) == "2.000 watt-hours")
     }
 
     @Test

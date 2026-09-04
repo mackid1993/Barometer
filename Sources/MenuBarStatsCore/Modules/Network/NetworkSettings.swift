@@ -89,11 +89,11 @@ public enum NetworkRateFormatter {
         format(bytesPerSecond: bytesPerSecond, unit: unit, decimalPlaces: decimalPlaces, compact: true)
     }
 
-    /// Returns the widest compact value reserved by the stable two-row renderer.
+    /// Returns the normal two-digit value reserved by the stable two-row renderer.
     public static func compactPlaceholder(unit: NetworkRateUnit, decimalPlaces: Int) -> String {
         let precision = min(2, max(0, decimalPlaces))
         let fraction = precision == 0 ? "" : "." + String(repeating: "9", count: precision)
-        return "999\(fraction)\(unit == .bits ? "Gb" : "GB")"
+        return "99\(fraction)\(unit == .bits ? "m" : "M")"
     }
 
     private static func format(
@@ -105,10 +105,10 @@ public enum NetworkRateFormatter {
         let clampedBytes = max(0, bytesPerSecond)
         let value = unit == .bits ? clampedBytes * 8 : clampedBytes
         let suffixes = unit == .bits
-            ? (compact ? ["b", "Kb", "Mb", "Gb", "Tb"] : ["b/s", "Kb/s", "Mb/s", "Gb/s", "Tb/s"])
-            : (compact ? ["B", "KB", "MB", "GB", "TB"] : ["B/s", "KB/s", "MB/s", "GB/s", "TB/s"])
-        var scaled = value
-        var suffixIndex = 0
+            ? (compact ? ["b", "k", "m", "g", "t"] : ["b/s", "Kb/s", "Mb/s", "Gb/s", "Tb/s"])
+            : (compact ? ["B", "K", "M", "G", "T"] : ["B/s", "KB/s", "MB/s", "GB/s", "TB/s"])
+        var scaled = value / 1_000
+        var suffixIndex = 1
         while scaled >= 1_000, suffixIndex < suffixes.count - 1 {
             scaled /= 1_000
             suffixIndex += 1

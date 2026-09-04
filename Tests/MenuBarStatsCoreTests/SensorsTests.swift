@@ -48,7 +48,7 @@ struct SensorsTests {
                 for: temperature,
                 temperatureUnit: .fahrenheit,
                 decimalPlaces: 2
-            ) == "999.99°F"
+            ) == "257.99°F"
         )
     }
 

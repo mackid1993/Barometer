@@ -187,6 +187,17 @@ private func printNetworkSample(_ sample: NetworkSample) {
     print("IPv6: \(primary.ipv6Addresses.joined(separator: ", "))")
     print("Router: \(sample.router ?? "unavailable"); DNS: \(sample.dnsServers.joined(separator: ", "))")
     print("Totals: down \(formatBytes(primary.receivedBytes)); up \(formatBytes(primary.sentBytes))")
+    if !sample.isProcessActivityAvailable {
+        print("Per-process activity unavailable")
+    } else if !sample.topProcesses.isEmpty {
+        print("Top network activity:")
+        for process in sample.topProcesses.prefix(5) {
+            print(
+                "  \(process.name): down \(formatRate(process.downloadBytesPerSecond)), "
+                    + "up \(formatRate(process.uploadBytesPerSecond))"
+            )
+        }
+    }
 }
 
 private func runWiFiProbe() async throws {

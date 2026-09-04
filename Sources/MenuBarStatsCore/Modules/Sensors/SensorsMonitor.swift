@@ -154,7 +154,9 @@ public enum SensorValueFormatter {
         let precision = reading.unit == .rpm ? 0 : min(2, max(0, decimalPlaces))
         let fraction = precision == 0 ? "" : "." + String(repeating: "9", count: precision)
         switch reading.unit {
-        case .celsius: return "999\(fraction)\(temperatureUnit.symbol)"
+        case .celsius:
+            let maximum = temperatureUnit == .celsius ? "125" : "257"
+            return "\(maximum)\(fraction)\(temperatureUnit.symbol)"
         case .rpm: return "9999r"
         case .watts: return "999\(fraction)W"
         case .volts: return "999\(fraction)V"
