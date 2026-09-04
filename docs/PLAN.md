@@ -296,8 +296,12 @@ End of Phase 6: stop for review.
 
 ### P7-T2 Appearance system
 
-- Palette per module with light and dark values; monochrome mode; graph style; font size; item spacing; global "compact" toggle; live preview strip in Settings.
-- Verify: screenshots in both appearances with all items visible; no clipping at 24 pt thickness.
+- iStat-style theme presets plus fully custom palettes. Per-module and per-section light/dark colors cover menu bar
+  text and symbols, line/area/bar graphs, dropdown charts, fills, category accents, and normal/warning/critical
+  thresholds. Include monochrome mode, graph style and opacity, font size and weight, item spacing, a global compact
+  toggle, reset-to-theme controls, and a live preview strip in Settings.
+- Verify: exercise every preset and custom color role; screenshots in both appearances with all items visible; no
+  clipping at 24 pt thickness; export/import preserves the complete theme.
 
 ### P7-T3 About, export and import, launch at login polish
 
