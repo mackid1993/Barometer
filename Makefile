@@ -9,8 +9,7 @@ test:
 app:
 	./Scripts/make-app.sh
 
-run: stop app
-	open dist/Barometer.app
+run: install
 
 stop:
 	-osascript -e 'quit app id "com.barometer.app"'

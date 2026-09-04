@@ -511,8 +511,32 @@ Verification:
 - Both items had stable `Barometer.*` autosave and AX identifiers, empty button titles, nonempty template images,
   enabled visibility, and current accessibility values.
 - macOS still assigned both scenes a zero-height fallback frame and wrote no Barometer entry to
-  `com.apple.MenuBarAgent` even though Stats has existing placement records on the same Mac. This matches Stats'
-  documented macOS 26 requirement that each third-party app be explicitly enabled under System Settings > Menu Bar
-  > Allow in the Menu Bar. Bartender's own hidden/visible choice is a separate setting and cannot grant the macOS
-  permission. The System Settings Menu Bar pane was opened for manual authorization; no Apple, Bartender, Stats, or
-  Thaw preference was changed by Barometer or the build process.
+  `com.apple.MenuBarAgent` even though Stats has existing placement records on the same Mac. The initial comparison
+  suggested the macOS Allow in the Menu Bar switch, but subsequent unified-log inspection disproved that inference:
+  MenuBarAgent created both Barometer status items with `isAllowed: true`, and all four FrontBoard scene-creation
+  actions completed successfully. Bartender's diagnostics likewise discovered Memory but returned BT02 when trying
+  to move its unplaced scene. The remaining controlled difference is that Stats runs from `/Applications` while
+  Barometer runs from the repository's `dist/` directory; `/Applications/Barometer.app` does not exist. Testing a
+  stable-path installation requires David's explicit approval because it writes outside the repository. No Apple,
+  Bartender, Stats, or Thaw preference was changed by Barometer or the build process.
+
+David explicitly approved installation into `/Applications`. `make install` rebuilt build 17, copied the signed app
+to `/Applications/Barometer.app`, stopped the repository copy, and launched the installed copy. This resolved the
+placement failure without changing any application or manager preferences:
+
+- Process inspection showed exactly one Barometer process at
+  `/Applications/Barometer.app/Contents/MacOS/Barometer`.
+- The identity report showed the installed bundle path and the unchanged `com.barometer.app` identifier.
+- CPU changed from a zero-height fallback frame to an unobscured 33 x 33 frame at `(1178, 1084)`.
+- Memory changed from a zero-height fallback frame to an unobscured 39 x 33 frame at `(1139, 1084)`.
+- MenuBarAgent accepted the installed client, created both status items with `isAllowed: true`, and completed scene
+  hosting under the main Barometer process.
+- Bartender refreshed the current stable identities
+  `axid:com.barometer.app:com.barometer.app:Barometer.CPU` and
+  `axid:com.barometer.app:com.barometer.app:Barometer.Memory`, both with the installed app's bundle identifier.
+- `codesign --verify --strict` passed, and the installed `Info.plist` reported build 17 and
+  `NSPrincipalClass = NSApplication`.
+
+Because macOS 27 status-item placement depends on the stable installed bundle path, `make run` now delegates to
+`make install`. `make app` remains the repository-only command for producing `dist/Barometer.app`; interactive menu
+bar compatibility checks always launch `/Applications/Barometer.app`.
