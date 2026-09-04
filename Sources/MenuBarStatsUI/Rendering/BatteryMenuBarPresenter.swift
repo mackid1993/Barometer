@@ -72,6 +72,7 @@ public enum BatteryMenuBarPresenter {
             fontSize: context.fontSize,
             isMonochrome: context.isMonochrome,
             scale: context.scale,
+            backingScaleFactor: context.backingScaleFactor,
             graphOpacity: context.graphOpacity,
             fontWeight: context.fontWeight
         )

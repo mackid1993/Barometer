@@ -53,6 +53,9 @@ public struct RenderContext {
     /// Scale applied to renderer widths and symbol sizes.
     public let scale: CGFloat
 
+    /// Number of device pixels represented by one logical point.
+    public let backingScaleFactor: CGFloat
+
     /// Shared graph opacity and type weight.
     public let graphOpacity: CGFloat
     public let fontWeight: MenuBarFontWeight
@@ -69,6 +72,7 @@ public struct RenderContext {
         fontSize: CGFloat,
         isMonochrome: Bool,
         scale: CGFloat = 1,
+        backingScaleFactor: CGFloat = 2,
         graphOpacity: CGFloat = 0.85,
         fontWeight: MenuBarFontWeight = .medium
     ) {
@@ -82,6 +86,7 @@ public struct RenderContext {
         self.fontSize = fontSize
         self.isMonochrome = isMonochrome
         self.scale = scale
+        self.backingScaleFactor = max(1, backingScaleFactor)
         self.graphOpacity = min(1, max(0.1, graphOpacity))
         self.fontWeight = fontWeight
     }
@@ -149,7 +154,12 @@ struct MenuBarLayoutMetrics {
 
     /// Minimal separator between independently configured sensor columns.
     var sensorColumnGap: CGFloat {
-        1
+        oneDevicePixel
+    }
+
+    /// One physical pixel at the destination display's backing scale.
+    var oneDevicePixel: CGFloat {
+        1 / context.backingScaleFactor
     }
 
     func centeredY(for height: CGFloat) -> CGFloat {
@@ -597,7 +607,6 @@ public struct StackedLabelRenderer: MenuBarRenderer {
 
 /// Renders download and upload as two visually equal, stable-width rows.
 public struct NetworkRateStackRenderer: MenuBarRenderer {
-    private static let pairGap: CGFloat = 1
     private let top: String
     private let bottom: String
     private let reservedTop: String
@@ -649,24 +658,25 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
             max(topValue.size().width, bottomValue.size().width, reservedTopValue.size().width,
                 reservedBottomValue.size().width)
         )
+        let pairGap = metrics.oneDevicePixel
         let width =
             MenuBarLayoutMetrics.contentInset * 2
             + markerWidth
-            + Self.pairGap
+            + pairGap
             + valueWidth
 
         return makeImage(width: width, context: context) { _ in
             let topOrigins = Self.rowOrigins(
-                containerWidth: markerWidth + Self.pairGap + valueWidth,
+                containerWidth: markerWidth + pairGap + valueWidth,
                 markerWidth: topMarker.size().width,
                 valueWidth: topValue.size().width,
-                gap: Self.pairGap
+                gap: pairGap
             )
             let bottomOrigins = Self.rowOrigins(
-                containerWidth: markerWidth + Self.pairGap + valueWidth,
+                containerWidth: markerWidth + pairGap + valueWidth,
                 markerWidth: bottomMarker.size().width,
                 valueWidth: bottomValue.size().width,
-                gap: Self.pairGap
+                gap: pairGap
             )
             topMarker.draw(
                 at: NSPoint(
@@ -735,7 +745,6 @@ public struct SensorStackValue {
 /// Renders arbitrary labeled readings in matched two-row columns.
 public struct SensorStackRenderer: MenuBarRenderer {
     private let values: [SensorStackValue]
-    private static let pairGap: CGFloat = 1
 
     /// Creates a compact stack in user-selected order.
     public init(values: [SensorStackValue]) {
@@ -768,7 +777,7 @@ public struct SensorStackRenderer: MenuBarRenderer {
         let columns = stride(from: 0, to: fields.count, by: 2).map { start in
             Array(fields[start..<min(start + 2, fields.count)])
         }
-        let labelGap = Self.pairGap
+        let labelGap = metrics.oneDevicePixel
         let columnGap = metrics.sensorColumnGap
         let sidePadding = metrics.denseTextPadding
         let labelWidths = columns.map { column in

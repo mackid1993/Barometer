@@ -521,50 +521,51 @@ struct MenuBarRendererTests {
         #expect(NetworkRateStackRenderer.rowParts("↑1.2MB/s").value == "1.2MB/s")
 
         let shortOrigins = NetworkRateStackRenderer.rowOrigins(
-            containerWidth: 51,
+            containerWidth: 50.5,
             markerWidth: 8,
             valueWidth: 24,
-            gap: 1
+            gap: 0.5
         )
         let longOrigins = NetworkRateStackRenderer.rowOrigins(
-            containerWidth: 51,
+            containerWidth: 50.5,
             markerWidth: 8,
             valueWidth: 34,
-            gap: 1
+            gap: 0.5
         )
         #expect(shortOrigins.marker == 9)
-        #expect(shortOrigins.value == 18)
+        #expect(shortOrigins.value == 17.5)
         #expect(longOrigins.marker == 4)
-        #expect(longOrigins.value == 13)
-        #expect(shortOrigins.value - shortOrigins.marker == 9)
-        #expect(longOrigins.value - longOrigins.marker == 9)
-        #expect(51 - (shortOrigins.value + 24) == 9)
-        #expect(51 - (longOrigins.value + 34) == 4)
+        #expect(longOrigins.value == 12.5)
+        #expect(shortOrigins.value - shortOrigins.marker == 8.5)
+        #expect(longOrigins.value - longOrigins.marker == 8.5)
+        #expect(50.5 - (shortOrigins.value + 24) == 9)
+        #expect(50.5 - (longOrigins.value + 34) == 4)
     }
 
     @Test
     func sensorStackKeepsStableGeometryAndExpandsByColumns() {
-        #expect(MenuBarLayoutMetrics(context: context).sensorColumnGap == 1)
+        #expect(MenuBarLayoutMetrics(context: context).oneDevicePixel == 0.5)
+        #expect(MenuBarLayoutMetrics(context: context).sensorColumnGap == 0.5)
         #expect(SensorStackRenderer.displayLabel("CPU") == "CPU:")
         #expect(SensorStackRenderer.displayLabel("GPU:") == "GPU:")
         let topOrigins = SensorStackRenderer.rowOrigins(
             columnX: 3,
-            columnWidth: 69,
+            columnWidth: 68.5,
             labelWidth: 22,
             valueWidth: 34,
-            gap: 1
+            gap: 0.5
         )
         let bottomOrigins = SensorStackRenderer.rowOrigins(
             columnX: 3,
-            columnWidth: 69,
+            columnWidth: 68.5,
             labelWidth: 22,
             valueWidth: 34,
-            gap: 1
+            gap: 0.5
         )
         #expect(topOrigins == bottomOrigins)
         #expect(topOrigins.label == 9)
-        #expect(topOrigins.value == 32)
-        #expect(topOrigins.value - topOrigins.label == 23)
+        #expect(topOrigins.value == 31.5)
+        #expect(topOrigins.value - topOrigins.label == 22.5)
 
         let cool = SensorStackRenderer(values: [
             SensorStackValue(label: "CPU", value: "39.1°C", reservedValue: "999.9°C"),

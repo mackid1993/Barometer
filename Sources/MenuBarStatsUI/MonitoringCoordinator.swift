@@ -1173,6 +1173,7 @@ public final class MonitoringCoordinator {
             fontSize: parent.fontSize,
             isMonochrome: parent.isMonochrome,
             scale: parent.scale,
+            backingScaleFactor: parent.backingScaleFactor,
             graphOpacity: parent.graphOpacity,
             fontWeight: parent.fontWeight
         )

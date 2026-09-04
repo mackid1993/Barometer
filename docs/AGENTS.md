@@ -163,7 +163,7 @@ spacing. Standalone numeric readings remain trailing-aligned inside their reserv
 label/value widgets share one leading edge; dense Sensors and Network pairs follow the compact rule below. Do not add
 generic width allowances, half-point insets, or renderer-specific side padding.
 
-Sensor stacks use explicit stable-width columns. A single internal point separates each label from its live reading,
+Sensor stacks use explicit stable-width columns. A single device pixel separates each label from its live reading,
 and unused reservation width is balanced on both sides of the pair. Network arrows follow the same rule. Never place
 all unused width before or inside a prefix/value pair, add a trailing exception based on the following widget, or
 synthesize spacing with flexible kerning.

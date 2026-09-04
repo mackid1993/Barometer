@@ -314,6 +314,7 @@ enum StatusItemRendering {
             fontSize: geometry.fontSize,
             isMonochrome: appSettings.isMonochrome,
             scale: geometry.scale,
+            backingScaleFactor: button.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2,
             graphOpacity: appSettings.graphOpacity,
             fontWeight: appSettings.fontWeight
         )
