@@ -2232,3 +2232,27 @@ Verification:
   every scale, so a larger glyph cannot move the item. Rendering a magnified strip beside the CPU stack confirmed
   the glyph reads at the same weight as its neighbors.
 - `make install` replaced and relaunched `/Applications/Barometer.app`.
+
+### P8-T10 lift the stacked battery rows onto the shared two-row grid
+
+David reported that the stacked battery percentage over time sat lower than every other item. It did, by two points.
+
+`NetworkRateStackRenderer` sizes each row from `max(markerHeight, valueHeight)`. Attributes applied to an empty
+attributed string apply to no characters, so a row with no `↑` or `↓` reported the default system font's line
+height rather than this renderer's compact one. The maximum therefore came out around 14 instead of 11, and
+`compactRowY`'s `floor((rowHeight - textHeight) / 2)` went negative and pushed both rows down. A row without a
+marker now takes its height from its value alone.
+
+The earlier alignment check missed this because it ran at a 24 pt thickness, where the arithmetic happens to round
+to the same result. The real menu bar on this Mac is 22 pt, taken from the live status item geometry in
+`~/Library/Logs/Barometer/identity.json`. The regression test now runs at 22, 24, and 26 pt, and pins the arrow rows
+as well so Network cannot drift either.
+
+Verification:
+
+- `swift build`, `swift build -c release`, and `git diff --check` completed successfully; `swift test` built every
+  target, and the runner remains unavailable on this machine.
+- Direct measurement at the real 22 pt thickness: the battery rows now begin on the same two scanlines as the CPU
+  stack, where they previously began two points lower. The arrow rows are unchanged, every battery presentation
+  still measures one width, and the two bare rows still share a center.
+- `make install` replaced and relaunched `/Applications/Barometer.app`.

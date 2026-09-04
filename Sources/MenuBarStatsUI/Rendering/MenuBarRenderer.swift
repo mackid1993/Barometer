@@ -683,6 +683,16 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
         // a ragged column, so each row is centered on the other instead.
         let topValueOffset = hasMarker ? 0 : ((valueWidth - ceil(topValue.size().width)) / 2).rounded()
         let bottomValueOffset = hasMarker ? 0 : ((valueWidth - ceil(bottomValue.size().width)) / 2).rounded()
+        // An empty marker must not take part in the row height. Attributes on an empty attributed
+        // string apply to no characters, so it reports the default system font's line height rather
+        // than this renderer's compact one, and taking the maximum pushed both rows below the row
+        // every other two-row item uses.
+        let topTextHeight = topParts.marker.isEmpty
+            ? topValue.size().height
+            : max(topMarker.size().height, topValue.size().height)
+        let bottomTextHeight = bottomParts.marker.isEmpty
+            ? bottomValue.size().height
+            : max(bottomMarker.size().height, bottomValue.size().height)
         return makeImage(width: width, context: context) { _ in
             let topOrigins = Self.rowOrigins(
                 markerFieldWidth: markerWidth,
@@ -697,25 +707,25 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
             topMarker.draw(
                 at: NSPoint(
                     x: MenuBarLayoutMetrics.contentInset + topOrigins.marker,
-                    y: metrics.compactRowY(0, textHeight: max(topMarker.size().height, topValue.size().height))
+                    y: metrics.compactRowY(0, textHeight: topTextHeight)
                 )
             )
             topValue.draw(
                 at: NSPoint(
                     x: MenuBarLayoutMetrics.contentInset + topOrigins.value + topValueOffset,
-                    y: metrics.compactRowY(0, textHeight: max(topMarker.size().height, topValue.size().height))
+                    y: metrics.compactRowY(0, textHeight: topTextHeight)
                 )
             )
             bottomMarker.draw(
                 at: NSPoint(
                     x: MenuBarLayoutMetrics.contentInset + bottomOrigins.marker,
-                    y: metrics.compactRowY(1, textHeight: max(bottomMarker.size().height, bottomValue.size().height))
+                    y: metrics.compactRowY(1, textHeight: bottomTextHeight)
                 )
             )
             bottomValue.draw(
                 at: NSPoint(
                     x: MenuBarLayoutMetrics.contentInset + bottomOrigins.value + bottomValueOffset,
-                    y: metrics.compactRowY(1, textHeight: max(bottomMarker.size().height, bottomValue.size().height))
+                    y: metrics.compactRowY(1, textHeight: bottomTextHeight)
                 )
             )
         }

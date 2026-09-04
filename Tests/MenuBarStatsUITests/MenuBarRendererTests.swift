@@ -848,6 +848,71 @@ struct MenuBarRendererTests {
         #expect(widths.count == 1, "stack produced widths \(widths.sorted())")
     }
 
+    @Test("every two-row item puts its rows on the same lines")
+    func twoRowItemsShareTheirRows() {
+        // 22 is the real menu bar thickness on this Mac. Testing only at 24 hid a two-point drop,
+        // because the offending expression happens to round to the same result there.
+        for thickness in [22.0, 24.0, 26.0] {
+            let ctx = RenderContext(
+                thickness: thickness,
+                appearance: .dark,
+                palette: MenuBarPalette(light: .black, dark: .white),
+                fontSize: RenderContext.referenceFontSize,
+                isMonochrome: true,
+                scale: RenderContext.referenceScale
+            )
+            let reference = Self.rowOrigins(
+                StackedLabelRenderer(label: "CPU", value: "7:30", reservedValue: "99:99").render(in: ctx)
+            )
+            // Two live rows with no leading arrow.
+            let bare = Self.rowOrigins(
+                NetworkRateStackRenderer(
+                    top: "78%", bottom: "7:30", reservedTop: "100%", reservedBottom: "99:99"
+                ).render(in: ctx)
+            )
+            // The same renderer with arrows, which Network uses.
+            let arrows = Self.rowOrigins(
+                NetworkRateStackRenderer(
+                    download: "1.2M", upload: "15K", reservedValue: "999MB/s"
+                ).render(in: ctx)
+            )
+            #expect(reference.count == 2)
+            #expect(bare.count == 2)
+            #expect(arrows.count == 2)
+            for row in 0..<min(2, min(reference.count, bare.count)) {
+                #expect(
+                    abs(reference[row] - bare[row]) <= 1,
+                    "at \(thickness) pt, row \(row) sits at \(bare[row]) instead of \(reference[row])"
+                )
+            }
+            for row in 0..<min(2, min(reference.count, arrows.count)) {
+                #expect(abs(reference[row] - arrows[row]) <= 1)
+            }
+        }
+    }
+
+    /// Top edge of each contiguous band of ink, measured down from the image top.
+    private static func rowOrigins(_ image: NSImage) -> [CGFloat] {
+        guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff) else {
+            return []
+        }
+        let scale = CGFloat(bitmap.pixelsHigh) / image.size.height
+        var origins: [CGFloat] = []
+        var inBand = false
+        for y in 0..<bitmap.pixelsHigh {
+            var hasInk = false
+            for x in 0..<bitmap.pixelsWide where (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.05 {
+                hasInk = true
+                break
+            }
+            if hasInk, !inBand {
+                origins.append(CGFloat(y) / scale)
+            }
+            inBand = hasInk
+        }
+        return origins
+    }
+
     @Test("the weather glyph stays legible at every automatic icon scale")
     func weatherGlyphIsGatedAtALegibleSize() {
         // The icon scale drops as items are added, which had shrunk the glyph until it read as
