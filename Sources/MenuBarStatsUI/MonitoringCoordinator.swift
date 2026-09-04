@@ -419,37 +419,17 @@ public final class MonitoringCoordinator {
             )
         }
         let forecast = sample.forecast
-        let temperature = String(format: "%.0f%@", forecast.current.temperature, forecast.units.temperature.symbol)
-        let staleMarker = sample.isStale ? " ⚠︎" : ""
-        let renderer: any MenuBarRenderer
-        switch settings.mode {
-        case "temperature":
-            renderer = TextRenderer(text: temperature + staleMarker)
-        case "conditions":
-            renderer = IconTextRenderer(
-                symbolName: forecast.current.code.symbolName(isDay: forecast.current.isDay),
-                text: "\(temperature) \(forecast.current.code.description)\(staleMarker)"
-            )
-        case "highLow":
-            let today = forecast.daily.first
-            let high = today?.high.map { String(format: "%.0f°", $0) } ?? "—"
-            let low = today?.low.map { String(format: "%.0f°", $0) } ?? "—"
-            renderer = TextRenderer(text: "H \(high)  L \(low)\(staleMarker)")
-        case "precipitation":
-            let probability = forecast.hourly.first?.precipitationProbability
-                ?? forecast.daily.first?.precipitationProbability
-            let value = probability.map { String(format: "%.0f%%", $0) } ?? "—"
-            renderer = IconTextRenderer(symbolName: "drop", text: value + staleMarker)
-        case "template":
-            renderer = TextRenderer(
-                text: weatherTemplate(sample: sample, template: template) + staleMarker
-            )
-        default:
-            renderer = IconTextRenderer(
-                symbolName: forecast.current.code.symbolName(isDay: forecast.current.isDay),
-                text: temperature + staleMarker
-            )
+        let presentation = WeatherPresentationFormatter.menuBar(
+            sample: sample,
+            mode: settings.mode,
+            template: template
+        )
+        let renderer: any MenuBarRenderer = if let symbolName = presentation.symbolName {
+            IconTextRenderer(symbolName: symbolName, text: presentation.text)
+        } else {
+            TextRenderer(text: presentation.text)
         }
+        let temperature = String(format: "%.0f%@", forecast.current.temperature, forecast.units.temperature.symbol)
         let staleDescription = sample.isStale ? ", stale" : ""
         return StatusItemContent(
             image: renderer.render(in: context),
@@ -458,27 +438,6 @@ public final class MonitoringCoordinator {
         )
     }
 
-    private static func weatherTemplate(sample: WeatherSample, template: String) -> String {
-        let forecast = sample.forecast
-        let today = forecast.daily.first
-        let pop = forecast.hourly.first?.precipitationProbability ?? today?.precipitationProbability
-        return template
-            .replacingOccurrences(
-                of: "{temp}",
-                with: String(format: "%.0f%@", forecast.current.temperature, forecast.units.temperature.symbol)
-            )
-            .replacingOccurrences(of: "{cond}", with: forecast.current.code.description)
-            .replacingOccurrences(of: "{hi}", with: today?.high.map { String(format: "%.0f°", $0) } ?? "—")
-            .replacingOccurrences(of: "{lo}", with: today?.low.map { String(format: "%.0f°", $0) } ?? "—")
-            .replacingOccurrences(of: "{pop}", with: pop.map { String(format: "%.0f%%", $0) } ?? "—")
-            .replacingOccurrences(
-                of: "{wind}",
-                with: forecast.current.windSpeed.map {
-                    String(format: "%.0f %@", $0, forecast.units.windSpeed.symbol)
-                } ?? "—"
-            )
-            .replacingOccurrences(of: "{aqi}", with: sample.airQuality?.usAQI.map(String.init) ?? "—")
-    }
 }
 
 private struct WeatherConfiguration: Equatable {

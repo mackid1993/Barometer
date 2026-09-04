@@ -102,6 +102,48 @@ struct WeatherTests {
         #expect(phase.symbolName == symbol)
     }
 
+    @Test("menu bar formatting supports Fahrenheit, Celsius, templates, and stale state")
+    func menuBarFormatting() throws {
+        let data = try fixture(named: "forecast-boston")
+        let imperial = try OpenMeteoClient.decodeForecast(data, for: boston, units: .imperial)
+        let metric = try OpenMeteoClient.decodeForecast(data, for: boston, units: .metric)
+        let imperialSample = WeatherSample(
+            timestamp: imperial.fetchedAt,
+            forecast: imperial,
+            airQuality: nil,
+            isStale: false,
+            refreshError: nil
+        )
+        let metricSample = WeatherSample(
+            timestamp: metric.fetchedAt,
+            forecast: metric,
+            airQuality: nil,
+            isStale: true,
+            refreshError: "offline"
+        )
+
+        #expect(
+            WeatherPresentationFormatter.menuBar(
+                sample: imperialSample,
+                mode: "iconTemperature",
+                template: ""
+            ).text == "66°F"
+        )
+        #expect(
+            WeatherPresentationFormatter.menuBar(
+                sample: metricSample,
+                mode: "temperature",
+                template: ""
+            ).text == "66°C ⚠︎"
+        )
+        #expect(
+            WeatherPresentationFormatter.customTemplate(
+                sample: imperialSample,
+                template: "{temp} {cond} H:{hi} L:{lo} {wind} X:{unknown}"
+            ) == "66°F Overcast H:79° L:65° 8 mph X:{unknown}"
+        )
+    }
+
     private func fixture(named name: String) throws -> Data {
         let url = try #require(Bundle.module.url(forResource: name, withExtension: "json"))
         return try Data(contentsOf: url)

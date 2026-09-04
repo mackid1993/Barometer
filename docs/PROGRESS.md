@@ -649,3 +649,26 @@ Verification:
   six initial Weather menu bar modes under Swift 6 strict concurrency.
 - Core Location permission was not requested during automated verification; it remains an explicit user action from
   the Weather settings pane.
+
+## P2-T4 Weather menu bar renderer
+
+Extracted Weather presentation into a deterministic core formatter and completed all six planned menu bar modes:
+temperature, icon plus temperature, icon plus temperature and condition, daily high/low, precipitation probability,
+and a custom token template. The formatter expands `{temp}`, `{cond}`, `{hi}`, `{lo}`, `{pop}`, `{wind}`, and
+`{aqi}`, preserves unknown tokens for user correction, and appends a visible warning marker to stale cached data.
+Temperature output includes its explicit °F or °C suffix. Accessibility values continue to use only the live value;
+the Weather label and `Barometer.Weather` identifier remain static.
+
+SF Symbols now receive the selected module palette before being composited. The final image remains a template only
+in monochrome mode, preserving correct system tinting in both appearances while allowing configured colors when
+monochrome mode is off.
+
+Verification:
+
+- `swift test --disable-sandbox --filter Weather` built and linked the Weather formatter tests and exited 0.
+- Formatter coverage includes Fahrenheit, Celsius, stale state, conditions, high/low, wind, known custom tokens, and
+  preservation of an unknown token.
+- `swift build --disable-sandbox` compiled every renderer mode and the AppKit symbol-palette configuration under
+  Swift 6 strict concurrency.
+- System appearance was not toggled automatically because David previously reported an unwanted machine-wide
+  appearance change. Light and dark visual review remains appropriate for the later Fable UI pass.

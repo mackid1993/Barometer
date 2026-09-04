@@ -218,7 +218,9 @@ public struct IconTextRenderer: MenuBarRenderer {
     /// Renders the icon and text image.
     @MainActor
     public func render(in context: RenderContext) -> NSImage {
-        let configuration = NSImage.SymbolConfiguration(pointSize: context.fontSize, weight: .medium)
+        let baseConfiguration = NSImage.SymbolConfiguration(pointSize: context.fontSize, weight: .medium)
+        let colorConfiguration = NSImage.SymbolConfiguration(paletteColors: [context.foregroundColor])
+        let configuration = baseConfiguration.applying(colorConfiguration)
         let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
             .withSymbolConfiguration(configuration)
         let attributes: [NSAttributedString.Key: Any] = [
