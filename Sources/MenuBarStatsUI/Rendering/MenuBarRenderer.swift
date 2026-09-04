@@ -92,11 +92,15 @@ struct MenuBarLayoutMetrics {
         floor((context.thickness - height) / 2)
     }
 
-    func symbolY(for height: CGFloat, font: NSFont) -> CGFloat {
-        // Text line boxes reserve space below the baseline for descenders, while
-        // weather symbols do not. Lift symbols by half that reserved depth so
-        // their visible center matches digits and capital letters.
-        centeredY(for: height) + ceil(abs(font.descender) / 2)
+    func symbolY(for size: NSSize, nativeSize: NSSize, alignmentRect: NSRect) -> CGFloat {
+        guard nativeSize.height > 0 else {
+            return centeredY(for: size.height)
+        }
+        // SF Symbols include transparent optical padding. Align the symbol's
+        // published alignment rect instead of its full image canvas.
+        let scale = size.height / nativeSize.height
+        let opticalAdjustment = (nativeSize.height / 2 - alignmentRect.midY) * scale
+        return centeredY(for: size.height) + opticalAdjustment
     }
 
     func stackedOrigins(labelHeight: CGFloat, valueHeight: CGFloat) -> (label: NSPoint, value: NSPoint) {
@@ -110,7 +114,7 @@ struct MenuBarLayoutMetrics {
     }
 
     func symbolSize(nativeSize: NSSize, font: NSFont) -> NSSize {
-        let height = min(font.pointSize, context.thickness - 6)
+        let height = min(font.pointSize * context.scale, context.thickness - 4)
         let aspectRatio = max(0.5, nativeSize.width / max(1, nativeSize.height))
         return NSSize(width: ceil(height * aspectRatio), height: height)
     }
@@ -263,7 +267,8 @@ public struct IconTextRenderer: MenuBarRenderer {
     @MainActor
     public func render(in context: RenderContext) -> NSImage {
         let font = NSFont.monospacedDigitSystemFont(ofSize: context.fontSize, weight: .medium)
-        let baseConfiguration = NSImage.SymbolConfiguration(pointSize: context.fontSize, weight: .medium)
+        let symbolPointSize = min(context.fontSize * context.scale, context.thickness - 4)
+        let baseConfiguration = NSImage.SymbolConfiguration(pointSize: symbolPointSize, weight: .medium)
         let colorConfiguration = NSImage.SymbolConfiguration(paletteColors: [context.foregroundColor])
         let configuration = baseConfiguration.applying(colorConfiguration)
         let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
@@ -283,7 +288,11 @@ public struct IconTextRenderer: MenuBarRenderer {
             if let symbol {
                 let symbolRect = NSRect(
                     x: x,
-                    y: metrics.symbolY(for: symbolSize.height, font: font),
+                    y: metrics.symbolY(
+                        for: symbolSize,
+                        nativeSize: symbol.size,
+                        alignmentRect: symbol.alignmentRect
+                    ),
                     width: symbolSize.width,
                     height: symbolSize.height
                 )

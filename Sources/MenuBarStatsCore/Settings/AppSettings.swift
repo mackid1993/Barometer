@@ -106,7 +106,7 @@ public struct ModuleSettings: Codable, Equatable, Sendable {
 /// Versioned application settings persisted as JSON in the app defaults domain.
 public struct AppSettings: Codable, Equatable, Sendable {
     /// Current settings schema version.
-    public static let currentSchemaVersion = 2
+    public static let currentSchemaVersion = 4
 
     /// Schema version encoded in this value.
     public var schemaVersion: Int
@@ -120,7 +120,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Global menu bar font size.
     public var fontSize: Double
 
-    /// Scale applied to all menu bar content, including graphs and icons.
+    /// Scale applied to menu bar graphs and icons without changing type size.
     public var menuBarScale: Double
 
     /// Horizontal padding on each side of every menu bar item, in points.
@@ -143,8 +143,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         schemaVersion: Int = AppSettings.currentSchemaVersion,
         reducesSamplingOnBattery: Bool = true,
         isMonochrome: Bool = true,
-        fontSize: Double = 11,
-        menuBarScale: Double = 1.15,
+        fontSize: Double = 12,
+        menuBarScale: Double = 1,
         menuBarSpacing: Double = 3,
         modules: [ModuleID: ModuleSettings] = AppSettings.defaultModules,
         weather: WeatherSettings = WeatherSettings(),
@@ -159,7 +159,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.modules = modules
         self.weather = weather
         self.sensorTemperatureUnit = sensorTemperatureUnit
-        presentationDefaultsVersion = 2
+        presentationDefaultsVersion = 3
     }
 
     /// Default module settings, with CPU and Memory enabled for Phase 1.
@@ -199,13 +199,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
                 forKey: .reducesSamplingOnBattery
             ) ?? true
             isMonochrome = try container.decodeIfPresent(Bool.self, forKey: .isMonochrome) ?? true
-            fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? 11
-            menuBarScale = 1.15
+            fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? 12
+            menuBarScale = 1
             menuBarSpacing = 3
             modules = Self.defaultModules
             weather = WeatherSettings()
             sensorTemperatureUnit = .celsius
-            presentationDefaultsVersion = 2
+            presentationDefaultsVersion = 3
         case 1...Self.currentSchemaVersion:
             schemaVersion = Self.currentSchemaVersion
             reducesSamplingOnBattery = try container.decode(Bool.self, forKey: .reducesSamplingOnBattery)
@@ -236,6 +236,15 @@ public struct AppSettings: Codable, Equatable, Sendable {
                 menuBarScale = 1.15
                 menuBarSpacing = 3
                 presentationDefaultsVersion = 2
+            }
+            if presentationDefaultsVersion < 3 {
+                // Older builds multiplied both controls together. Fold that
+                // effective size into the font once so upgrading does not
+                // visually shrink existing menu bar text, then let the scale
+                // control affect only icons and graphs.
+                fontSize = min(14, max(9, fontSize * menuBarScale))
+                menuBarScale = 1
+                presentationDefaultsVersion = 3
             }
             if modules[.weather]?.mode == "percentage" {
                 modules[.weather]?.mode = "iconTemperature"

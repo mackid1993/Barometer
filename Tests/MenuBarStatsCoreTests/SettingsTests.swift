@@ -24,11 +24,11 @@ struct SettingsTests {
         )
         let migrated = try JSONDecoder().decode(AppSettings.self, from: versionZero)
 
-        #expect(migrated.schemaVersion == 2)
+        #expect(migrated.schemaVersion == 4)
         #expect(!migrated.reducesSamplingOnBattery)
         #expect(!migrated.isMonochrome)
         #expect(migrated.fontSize == 12)
-        #expect(migrated.menuBarScale == 1.15)
+        #expect(migrated.menuBarScale == 1)
         #expect(migrated.menuBarSpacing == 3)
         #expect(migrated.modules[.cpu]?.isEnabled == true)
         #expect(migrated.modules[.memory]?.isEnabled == true)
@@ -48,7 +48,7 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.schemaVersion == 2)
+        #expect(migrated.schemaVersion == 4)
         #expect(migrated.weather.refreshIntervalMinutes == 15)
         #expect(migrated.weather.units.temperature == .fahrenheit)
         #expect(migrated.sensorTemperatureUnit == .celsius)
@@ -95,8 +95,9 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.menuBarScale == 1.15)
+        #expect(migrated.menuBarScale == 1)
         #expect(migrated.menuBarSpacing == 3)
+        #expect(abs(migrated.fontSize - 13.8) < 0.001)
     }
 
     @Test("settings store persists immediately")

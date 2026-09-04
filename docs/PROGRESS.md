@@ -746,3 +746,34 @@ Verification:
 - `make run` release-built, signed, installed, and launched `/Applications/Barometer.app`.
 - Tight Retina screenshot review measured the Weather cloud and `77°F` visible centers within one pixel.
 - David approved the installed result during live review: "That is sexy."
+
+## P1-F5 Independent status-item spacing and sizing
+
+Separated the two global size controls. Font size now affects menu bar type only, while Icon and graph size affects
+SF Symbols and graph widths without rescaling text. Existing settings migrate their former combined effective size
+into the font once, preserving the installed appearance. The settings schema remains forward-compatible with the
+brief development build that wrote schema 4.
+
+Fixed the spacing regression without grouping modules. AppKit's variable-length status-item button added an
+undocumented eight-point image inset on each side, even when Barometer's rendered spacing was zero. Each controller
+now sets its permanent `NSStatusItem.length` to the exact rendered image width after every update. CPU, Memory, and
+Weather therefore remain separate status items with separate `Barometer.*` identities and can be moved independently
+by macOS, Bartender, or Thaw. The Combined workaround was removed from the active implementation and remains a later,
+explicitly optional Phase 7 feature.
+
+The shared renderer geometry now aligns SF Symbols from their published alignment rectangles, avoiding hard-coded
+weather offsets. Regression tests cover independent text/graphic scaling, exact two-sided spacing, exact status-item
+canvas length, shared stacked-label origins, and Weather symbol optical alignment.
+
+Verification:
+
+- `swift test --disable-sandbox` rebuilt and linked every app and test target and exited 0. The previously documented
+  Command Line Tools runner behavior still omits a test-execution summary.
+- `make run` release-built, ad hoc signed, installed, and launched `/Applications/Barometer.app`.
+- `codesign --verify --deep --strict --verbose=2 /Applications/Barometer.app` reported the app valid on disk and
+  satisfying its designated requirement.
+- Live identity diagnostics reported exact button/image widths of 23/23 points for CPU, 29/29 for Memory, and 36/36
+  for Weather. The three status-item windows were adjacent and independently positioned; the former variable-length
+  buttons had been 16 points wider than their images.
+- A tight Retina capture at `dist/menubar-independent-spacing-final.png` confirmed aligned CPU/MEM rows, aligned
+  Weather glyph and temperature, and compact zero-added-spacing presentation without changing system appearance.

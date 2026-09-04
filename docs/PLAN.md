@@ -131,7 +131,8 @@ Goal: the real architecture with two full modules, including live dropdowns and 
 
 ### P1-T6 Settings panes for General, CPU, Memory
 
-- General: launch at login (`SMAppService`), reduce sampling on battery, monochrome mode, font size, export and import settings.
+- General: launch at login (`SMAppService`), reduce sampling on battery, monochrome mode, independent font and
+  icon/graph sizes, adjustable spacing for each movable status item, export and import settings.
 - CPU and Memory: enabled toggle (drives `isVisible`), mode picker with live preview image, interval, graph options, color pickers, dropdown options (show processes, count).
 - Verify: toggle CPU off and on, confirm the item hides and returns without the Thaw identity changing (run the Thaw identity check before and after).
 

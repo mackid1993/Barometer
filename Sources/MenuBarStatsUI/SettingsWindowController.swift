@@ -104,7 +104,7 @@ private struct GeneralSettingsView: View {
                         .frame(width: 50, alignment: .trailing)
                 }
                 HStack {
-                    Text("Menu bar size")
+                    Text("Icon and graph size")
                     Slider(value: appBinding(\.menuBarScale), in: 0.75...1.35, step: 0.05)
                     Text(settingsStore.settings.menuBarScale, format: .percent.precision(.fractionLength(0)))
                         .monospacedDigit()
@@ -117,6 +117,9 @@ private struct GeneralSettingsView: View {
                         .monospacedDigit()
                         .frame(width: 42, alignment: .trailing)
                 }
+                Text("Adds space around each independent, movable menu bar item.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Measurement Units") {
@@ -288,7 +291,7 @@ private struct ModuleSettingsView: View {
             thickness: NSStatusBar.system.thickness,
             appearance: .dark,
             palette: MenuBarPalette(light: color, dark: color),
-            fontSize: min(14, settingsStore.settings.fontSize * scale),
+            fontSize: min(14, max(9, settingsStore.settings.fontSize)),
             isMonochrome: settingsStore.settings.isMonochrome,
             scale: scale,
             horizontalSpacing: settingsStore.settings.menuBarSpacing

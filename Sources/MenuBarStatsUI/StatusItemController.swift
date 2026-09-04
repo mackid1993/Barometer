@@ -55,7 +55,8 @@ public final class StatusItemController<Sample: Sendable> {
 
     /// Renders the latest store and settings state immediately.
     public func update() {
-        let moduleSettings = settingsStore.settings.modules[module] ?? ModuleSettings()
+        let appSettings = settingsStore.settings
+        let moduleSettings = appSettings.modules[module] ?? ModuleSettings()
         guard moduleSettings.isEnabled else {
             if statusItem.isVisible {
                 statusItem.isVisible = false
@@ -69,22 +70,19 @@ public final class StatusItemController<Sample: Sendable> {
         let appearance: MenuBarAppearance = button.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
             ? .dark
             : .light
-        let appSettings = settingsStore.settings
-        let scale = min(1.35, max(0.75, appSettings.menuBarScale))
-        let context = RenderContext(
-            thickness: NSStatusBar.system.thickness,
-            appearance: appearance,
-            palette: MenuBarPalette(
-                light: NSColor(hex: moduleSettings.lightColor) ?? .controlAccentColor,
-                dark: NSColor(hex: moduleSettings.darkColor) ?? .controlAccentColor
-            ),
-            fontSize: min(14, appSettings.fontSize * scale),
-            isMonochrome: appSettings.isMonochrome,
-            scale: scale,
-            horizontalSpacing: min(12, max(0, appSettings.menuBarSpacing))
+        let context = StatusItemRendering.context(
+            button: button,
+            appSettings: appSettings,
+            moduleSettings: moduleSettings,
+            appearance: appearance
         )
         let content = renderContent(store.latestSample, store.history.entries, moduleSettings, context)
         button.image = content.image
+        // NSStatusItem.variableLength adds AppKit's standard 8-point image inset
+        // on both sides. An explicit length makes the rendered canvas authoritative,
+        // so the user-controlled spacing can reach zero while each module remains
+        // a separate, movable status item.
+        statusItem.length = StatusItemRendering.itemLength(for: content.image)
         button.setAccessibilityValue(content.accessibilityValue)
         if !statusItem.isVisible {
             statusItem.isVisible = true
@@ -110,7 +108,38 @@ public final class StatusItemController<Sample: Sendable> {
     }
 }
 
-private extension NSColor {
+@MainActor
+enum StatusItemRendering {
+    static func itemLength(for image: NSImage) -> CGFloat {
+        max(1, ceil(image.size.width))
+    }
+
+    static func context(
+        button: NSStatusBarButton,
+        appSettings: AppSettings,
+        moduleSettings: ModuleSettings,
+        appearance: MenuBarAppearance? = nil
+    ) -> RenderContext {
+        let resolvedAppearance = appearance ?? (
+            button.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light
+        )
+        let scale = min(1.35, max(0.75, appSettings.menuBarScale))
+        return RenderContext(
+            thickness: NSStatusBar.system.thickness,
+            appearance: resolvedAppearance,
+            palette: MenuBarPalette(
+                light: NSColor(hex: moduleSettings.lightColor) ?? .controlAccentColor,
+                dark: NSColor(hex: moduleSettings.darkColor) ?? .controlAccentColor
+            ),
+            fontSize: min(14, max(9, appSettings.fontSize)),
+            isMonochrome: appSettings.isMonochrome,
+            scale: scale,
+            horizontalSpacing: min(12, max(0, appSettings.menuBarSpacing))
+        )
+    }
+}
+
+extension NSColor {
     convenience init?(hex: String) {
         let value = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
         guard value.count == 6, let integer = UInt64(value, radix: 16) else {

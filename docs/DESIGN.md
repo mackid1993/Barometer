@@ -355,6 +355,10 @@ Every source below has been checked on the target machine unless marked "expecte
 - Stacked label mode draws two lines (label above value) at a smaller font, mirroring iStat Menus 7.
 - Combined mode concatenates renderers with a 6 pt gap and a 1 pt separator line.
 - After each render: `button.image = image`, `button.setAccessibilityValue(text)`. Never touch `button.title`.
+- Set `statusItem.length` to the rendered image width after each update. Leaving an item at
+  `NSStatusItem.variableLength` adds an undocumented eight-point inset on each side on macOS 27, which prevents a
+  zero-spacing layout. An explicit length removes that inset without combining modules, so every module remains an
+  independent status item that macOS, Bartender, and Thaw can move.
 - Rendering runs on the main actor and must stay under 1 ms per item. Cache fonts, attributed string attributes, and paths.
 
 ## 8. Dropdown menus
