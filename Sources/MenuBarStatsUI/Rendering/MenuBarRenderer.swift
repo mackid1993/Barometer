@@ -241,7 +241,11 @@ struct MenuBarLayoutMetrics {
     var compactSymbolVisibleHeight: CGFloat {
         let rowHeight = context.thickness / 2
         let unscaledHeight = (rowHeight - 1) / RenderContext.referenceScale
-        return min(rowHeight - 0.5, max(5.5, unscaledHeight * context.scale))
+        // The icon scale drops automatically as items are added, which shrank the weather glyph
+        // until it read as microscopic beside its temperature. The floor keeps the glyph within a
+        // point of filling its row at every automatic scale; the ceiling still leaves the top of
+        // the icon scale slider room to grow it.
+        return min(rowHeight - 0.5, max(rowHeight - 1, unscaledHeight * context.scale))
     }
 
     /// Image box whose alignment rect matches `compactSymbolVisibleHeight`.

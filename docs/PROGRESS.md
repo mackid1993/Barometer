@@ -2211,3 +2211,24 @@ Verification:
   with estimates from 3 minutes to 12 hours, both rows still land on the same scanlines as the CPU stack, every
   Battery presentation still measures one width, and the Network item's arrows still share one leading edge.
 - `make install` replaced and relaunched `/Applications/Barometer.app`.
+
+### P8-T9 gate the weather glyph at a legible size
+
+David reported the weather glyph as microscopic. `MenuBarLayoutMetrics.compactSymbolVisibleHeight` multiplied the
+glyph height by the automatic icon scale, which drops from 1.15 to 0.75 as items are added, with a floor of only
+5.5 pt. At his seven enabled items the scale is 0.9, so the glyph drew at 8.6 pt inside a 12 pt row while the
+temperature under it drew at 7 pt, making the icon look like an afterthought.
+
+The floor is now one point short of the row, so the glyph fills its row at every automatic scale, and the ceiling is
+unchanged so the top of the icon scale slider still grows it. Only `IconStackRenderer` reads this metric, and only
+Weather's icon-and-temperature mode and the Settings preview strip use that renderer, so nothing else moved.
+
+Verification:
+
+- `swift build`, `swift build -c release`, and `git diff --check` completed successfully; `swift test` built every
+  target, and the runner remains unavailable on this machine.
+- Direct measurement across every automatic scale from 3 to 16 items: the glyph now draws at 11 pt at all of them,
+  up from 8.6 pt at David's current item count, still clears the value row, and the item's width is identical at
+  every scale, so a larger glyph cannot move the item. Rendering a magnified strip beside the CPU stack confirmed
+  the glyph reads at the same weight as its neighbors.
+- `make install` replaced and relaunched `/Applications/Barometer.app`.

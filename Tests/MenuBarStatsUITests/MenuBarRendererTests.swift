@@ -848,6 +848,53 @@ struct MenuBarRendererTests {
         #expect(widths.count == 1, "stack produced widths \(widths.sorted())")
     }
 
+    @Test("the weather glyph stays legible at every automatic icon scale")
+    func weatherGlyphIsGatedAtALegibleSize() {
+        // The icon scale drops as items are added, which had shrunk the glyph until it read as
+        // microscopic beside its temperature.
+        var widths: Set<Double> = []
+        for count in [3, 6, 8, 11, 14, 16] {
+            let scaled = RenderContext(
+                thickness: 24,
+                appearance: .dark,
+                palette: MenuBarPalette(light: .black, dark: .white),
+                fontSize: RenderContext.referenceFontSize,
+                isMonochrome: true,
+                scale: AppSettings.menuBarScale(forItemCount: count)
+            )
+            let image = IconStackRenderer(
+                symbolName: "cloud.sun", text: "72°F", reservedText: "-99°F"
+            ).render(in: scaled)
+            widths.insert(image.size.width)
+            let glyphHeight = Self.topBandHeight(image)
+            #expect(glyphHeight >= 10, "glyph was \(glyphHeight) pt at \(count) items")
+            // It must still clear the value row rather than growing into it.
+            #expect(glyphHeight <= scaled.thickness / 2)
+        }
+        // The canvas is sized by the reserved text, so a larger glyph must not move the item.
+        #expect(widths.count == 1, "weather widths varied: \(widths.sorted())")
+    }
+
+    /// Height of the first contiguous band of ink, top-down.
+    private static func topBandHeight(_ image: NSImage) -> CGFloat {
+        guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff) else {
+            return 0
+        }
+        var first = -1
+        for y in 0..<bitmap.pixelsHigh {
+            var hasInk = false
+            for x in 0..<bitmap.pixelsWide where (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.05 {
+                hasInk = true
+                break
+            }
+            if hasInk, first < 0 { first = y }
+            if !hasInk, first >= 0 {
+                return CGFloat(y - first) / (CGFloat(bitmap.pixelsHigh) / image.size.height)
+            }
+        }
+        return 0
+    }
+
     @Test("two bare readings stacked in one item share a center")
     func stackedReadingsShareACenter() {
         // Rows with arrows keep one leading column so the markers line up. Rows without them are two
