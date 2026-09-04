@@ -9,8 +9,8 @@ the fixed-height canvases consistently. The icon and graph scale is 75–115 per
 `AppSettings`; settings, previews, and production rendering must not define separate limits.
 
 Spacing is intentionally a two-state choice, not a continuous slider: Regular adds 3 points on each side and Compact
-adds zero app-controlled points. Legacy values normalize to the nearest preset. The exact outer gap is applied by the
-controlled Apply Menu Bar Layout relaunch; the live frame must not resize when the picker changes.
+adds zero app-controlled points. Legacy values normalize to the nearest preset. The live frame must not resize when
+the picker changes; the staged outer width is used on the next ordinary application launch.
 
 Barometer also applies a deterministic density ceiling to the effective font size: up to eight enabled independent
 items may use 12 points, nine through eleven use at most 11, twelve through fourteen use at most 10, and fifteen or
@@ -61,22 +61,25 @@ There are no live-resize exceptions. In particular, do not add an exception for:
    into that canvas, assigns the AppKit length once, and only then makes the item visible.
    A controller records geometry settings while hidden; when the user enables it later, its first render uses current
    geometry instead of a stale committed width.
-4. Width-affecting controls edit a local draft. They do not change the settings observed by live status items.
-5. Apply & Relaunch commits every draft value together, clears stale recorded widths, renders the new natural widths,
-   saves settings, and starts a controlled relaunch. The old process never changes its AppKit lengths.
-6. If another code path proposes geometry while the process remains live, Barometer records its rounded width under
+4. If settings propose new geometry while the process remains live, Barometer records its rounded width under
    `Barometer.CommittedWidth.v4.<autosaveName>`. The rendering retains its true font and glyph sizes and clips at the
    trailing edge of the applied frame. It is never recentered or proportionally miniaturized.
-7. After the user quits and reopens Barometer, the controller applies the staged width before the item appears.
+5. After the user ordinarily quits and reopens Barometer, the controller applies the staged width before the item
+   appears. Settings never force a relaunch.
 
-The Settings action named Apply Menu Bar Layout stages every width, saves settings, and reopens the same application
-bundle after the current process exits. Its short-lived shell process launches the main bundle only; it never owns or
-creates a status item and therefore does not violate the single-bundle identity contract. The action is guarded
-against repeated activation and refuses to relaunch a bare development executable that is not inside an app bundle.
-
-This preserves stable outer positions while keeping draft previews responsive. The exact outer width takes effect on
+This preserves stable outer positions while keeping controls responsive. The exact outer width takes effect on
 the next launch because macOS 27 does not provide a verified way to resize a live item without risking reassessment
 by at least one manager.
+
+## Common application identity
+
+Every status item is owned by the single `com.barometer.app` process and should group under Barometer in a manager.
+Each movable child still requires a unique autosave name and matching AX identifier, such as `Barometer.CPU`; giving
+all children the same key would create an identity collision rather than a common owner.
+
+Assign the autosave name and AX identity synchronously before the first `isVisible` transition. Do not manually delete
+AppKit's visibility or position defaults for inactive children. On macOS 27, either mistake can recycle a persistence
+slot and produce a mismatched manager catalog, such as a Combined autosave record carrying Network's AX identifier.
 
 ## Why the width is explicit
 

@@ -59,17 +59,6 @@ public final class StatusItemController<Sample: Sendable> {
         self.isEnabled = isEnabled
         renderContent = render
         observeChanges()
-        // Controllers are created once per permanent status item and live for the whole
-        // process, so the observation is never removed.
-        NotificationCenter.default.addObserver(
-            forName: .barometerStageItemWidths,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.update()
-            }
-        }
         update()
     }
 
@@ -86,7 +75,6 @@ public final class StatusItemController<Sample: Sendable> {
             if statusItem.isVisible {
                 statusItem.isVisible = false
             }
-            StatusItemRendering.clearInactiveVisibilityPreferences(autosaveName: statusItem.autosaveName)
             return
         }
         guard let button = statusItem.button else {
@@ -186,7 +174,6 @@ enum StatusItemRendering {
     /// Item lengths are rounded up to this grid so small typography changes cannot move them.
     static let widthStep: CGFloat = 4
 
-    private static let committedLengthRoot = "Barometer.CommittedWidth."
     private static let committedLengthPrefix = "Barometer.CommittedWidth.v4."
 
     static func committedLengthKey(autosaveName: String) -> String {
@@ -207,14 +194,6 @@ enum StatusItemRendering {
             return
         }
         UserDefaults.standard.set(Double(length), forKey: committedLengthKey(autosaveName: autosaveName))
-    }
-
-    /// Forgets every recorded width so current renderings can stage replacement widths.
-    static func clearCommittedLengths() {
-        let defaults = UserDefaults.standard
-        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(committedLengthRoot) {
-            defaults.removeObject(forKey: key)
-        }
     }
 
     /// The length to apply: the recorded width when there is one, otherwise the natural
@@ -248,22 +227,6 @@ enum StatusItemRendering {
         }
         fitted.isTemplate = image.isTemplate
         return fitted
-    }
-
-    static func visibilityPreferenceKeys(autosaveName: String) -> [String] {
-        [
-            "NSStatusItem VisibleCC \(autosaveName)",
-            "NSStatusItem Visible \(autosaveName)",
-        ]
-    }
-
-    static func clearInactiveVisibilityPreferences(autosaveName: String?) {
-        guard let autosaveName, !autosaveName.isEmpty else {
-            return
-        }
-        for key in visibilityPreferenceKeys(autosaveName: autosaveName) {
-            UserDefaults.standard.removeObject(forKey: key)
-        }
     }
 
     static func context(
@@ -323,9 +286,4 @@ extension NSColor {
             alpha: 1
         )
     }
-}
-
-extension Notification.Name {
-    /// Posted after recorded widths are cleared so every item stages its current natural width.
-    public static let barometerStageItemWidths = Notification.Name("com.barometer.app.stageItemWidths")
 }

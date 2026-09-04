@@ -1589,6 +1589,28 @@ density ceiling and made a saved 12-point setting appear extremely small. Live r
 selected font and glyph sizes: a wider proposal clips at the trailing edge until Apply Menu Bar Layout safely
 relaunches. The cache schema advanced to `v4` because widths recorded for the scaling fallback are structurally stale.
 
+The Apply/relaunch workflow was removed after it proved that another forced application restart did not solve manager
+position persistence. Layout controls remain protected by the one-way live-length latch, and staged widths take effect
+only on an ordinary future launch.
+
+Read-only inspection of Bartender's current cold-start catalog exposed the actual identity failure: its records paired
+`Barometer.Combined` with Network's AX identifier and `Barometer.Disks` with Memory's. Barometer had hidden newly
+created items before assigning their autosave names and manually deleted AppKit visibility defaults for inactive
+items. Both behaviors can recycle persistence slots. Identity is now attached before the first visibility transition,
+and Barometer no longer deletes any `NSStatusItem` visibility or position preference. All children retain the common
+`com.barometer.app` owner while keeping the unique child keys required for independent movement.
+
+Verification:
+
+- `swift test` exited 0 and linked every test target; `swift build -c release` completed successfully.
+- `rg -n 'statusItem\.length\s*=' Sources` still found exactly one guarded production assignment.
+- A source scan found no code reading, deleting, or writing AppKit visibility or position preference keys.
+- `make install` built, signed, installed, and launched `/Applications/Barometer.app`; strict signature verification
+  passed. The live identity report reads each actual AppKit autosave name and confirms that all eleven status items
+  have their expected unique child name and AX identifier under bundle owner `com.barometer.app`.
+- Bartender restart persistence requires David's external verification; Barometer did not launch, automate, or modify
+  Bartender or its preferences.
+
 Verification:
 
 - `swift test` exited 0 and built and linked every test target. Command Line Tools did not print a test-execution

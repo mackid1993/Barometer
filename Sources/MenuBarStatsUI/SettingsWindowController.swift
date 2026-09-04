@@ -176,43 +176,11 @@ private enum ItemSpacingPreset: Hashable {
     }
 }
 
-private struct MenuBarLayoutDraft: Equatable {
-    var fontWeight: MenuBarFontWeight
-    var usesCompactLayout: Bool
-    var fontSize: Double
-    var iconAndGraphScale: Double
-    var spacing: Double
-
-    init(settings: AppSettings) {
-        fontWeight = settings.fontWeight
-        usesCompactLayout = settings.usesCompactLayout
-        fontSize = settings.fontSize
-        iconAndGraphScale = settings.menuBarScale
-        spacing = settings.menuBarSpacing
-    }
-
-    func apply(to settings: inout AppSettings) {
-        settings.fontWeight = fontWeight
-        settings.usesCompactLayout = usesCompactLayout
-        settings.fontSize = fontSize
-        settings.menuBarScale = iconAndGraphScale
-        settings.menuBarSpacing = spacing
-    }
-}
-
 private struct GeneralSettingsView: View {
     let settingsStore: SettingsStore
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var serviceError: String?
-    @State private var layoutError: String?
-    @State private var isApplyingLayout = false
-    @State private var layoutDraft: MenuBarLayoutDraft
     @State private var colorModule: ModuleID = .cpu
-
-    init(settingsStore: SettingsStore) {
-        self.settingsStore = settingsStore
-        _layoutDraft = State(initialValue: MenuBarLayoutDraft(settings: settingsStore.settings))
-    }
 
     var body: some View {
         Form {
@@ -248,12 +216,12 @@ private struct GeneralSettingsView: View {
                     }
                 }
                 Toggle("Monochrome menu bar", isOn: appBinding(\.isMonochrome))
-                Picker("Font weight", selection: layoutBinding(\.fontWeight)) {
+                Picker("Font weight", selection: appBinding(\.fontWeight)) {
                     Text("Regular").tag(MenuBarFontWeight.regular)
                     Text("Medium").tag(MenuBarFontWeight.medium)
                     Text("Semibold").tag(MenuBarFontWeight.semibold)
                 }
-                Toggle("Compact internal layout", isOn: layoutBinding(\.usesCompactLayout))
+                Toggle("Compact internal layout", isOn: appBinding(\.usesCompactLayout))
                 Text(
                     "Uses the condensed system typeface and tighter icon gaps, sensor padding, graph width, "
                         + "and Combined separators, so every item narrows by the same proportion."
@@ -262,8 +230,8 @@ private struct GeneralSettingsView: View {
                 .foregroundStyle(.secondary)
                 HStack {
                     Text("Font size")
-                    Slider(value: layoutBinding(\.fontSize), in: AppSettings.menuBarFontSizeRange, step: 0.5)
-                    Text(String(format: "%.1f pt", layoutDraft.fontSize))
+                    Slider(value: appBinding(\.fontSize), in: AppSettings.menuBarFontSizeRange, step: 0.5)
+                    Text(String(format: "%.1f pt", settingsStore.settings.fontSize))
                         .monospacedDigit()
                         .frame(width: 50, alignment: .trailing)
                 }
@@ -272,12 +240,8 @@ private struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
                 HStack {
                     Text("Icon and graph size")
-                    Slider(
-                        value: layoutBinding(\.iconAndGraphScale),
-                        in: AppSettings.menuBarScaleRange,
-                        step: 0.05
-                    )
-                    Text(layoutDraft.iconAndGraphScale, format: .percent.precision(.fractionLength(0)))
+                    Slider(value: appBinding(\.menuBarScale), in: AppSettings.menuBarScaleRange, step: 0.05)
+                    Text(settingsStore.settings.menuBarScale, format: .percent.precision(.fractionLength(0)))
                         .monospacedDigit()
                         .frame(width: 42, alignment: .trailing)
                 }
@@ -301,40 +265,6 @@ private struct GeneralSettingsView: View {
                     Text(settingsStore.settings.graphOpacity, format: .percent.precision(.fractionLength(0)))
                         .monospacedDigit()
                         .frame(width: 42, alignment: .trailing)
-                }
-            }
-
-            Section("Apply Layout") {
-                HStack(spacing: 16) {
-                    Button {
-                        applyMenuBarLayout()
-                    } label: {
-                        Label("Apply & Relaunch", systemImage: "checkmark.circle.fill")
-                            .fontWeight(.semibold)
-                            .frame(minWidth: 170)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .disabled(isApplyingLayout || !hasPendingLayoutChanges)
-
-                    if hasPendingLayoutChanges {
-                        Label("Changes ready", systemImage: "circle.fill")
-                            .font(.callout.weight(.semibold))
-                            .foregroundStyle(.orange)
-                    } else {
-                        Label("Layout applied", systemImage: "checkmark")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Text(
-                    "Font, compact layout, icon and graph size, and spacing remain drafts until you apply them. "
-                        + "Apply saves the complete layout and safely relaunches Barometer once."
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                if let layoutError {
-                    Text(layoutError).font(.caption).foregroundStyle(.red)
                 }
             }
 
@@ -464,13 +394,6 @@ private struct GeneralSettingsView: View {
         )
     }
 
-    private func layoutBinding<Value>(_ keyPath: WritableKeyPath<MenuBarLayoutDraft, Value>) -> Binding<Value> {
-        Binding(
-            get: { layoutDraft[keyPath: keyPath] },
-            set: { layoutDraft[keyPath: keyPath] = $0 }
-        )
-    }
-
     private var appearancePresetBinding: Binding<AppearancePreset> {
         Binding(
             get: { settingsStore.settings.appearancePreset },
@@ -484,13 +407,13 @@ private struct GeneralSettingsView: View {
 
     private var spacingPresetBinding: Binding<ItemSpacingPreset> {
         Binding(
-            get: { ItemSpacingPreset(points: layoutDraft.spacing) },
-            set: { layoutDraft.spacing = $0.points }
+            get: { ItemSpacingPreset(points: settingsStore.settings.menuBarSpacing) },
+            set: { preset in
+                var settings = settingsStore.settings
+                settings.menuBarSpacing = preset.points
+                settingsStore.settings = settings
+            }
         )
-    }
-
-    private var hasPendingLayoutChanges: Bool {
-        layoutDraft != MenuBarLayoutDraft(settings: settingsStore.settings)
     }
 
     private func globalColorBinding(_ keyPath: WritableKeyPath<AppSettings, String>) -> Binding<Color> {
@@ -535,10 +458,6 @@ private struct GeneralSettingsView: View {
     private var appearancePreview: NSImage {
         let settings = settingsStore.settings
         let module = settings.modules[.cpu] ?? ModuleSettings()
-        let effectiveFontSize = min(
-            layoutDraft.fontSize,
-            AppSettings.maximumMenuBarFontSize(forItemCount: settings.enabledMenuBarItemCount)
-        )
         let normal = NSColor(hex: settings.darkColor(for: module)) ?? .white
         let graph = NSColor(hex: settings.graphDarkColor(for: module)) ?? normal
         let fill = NSColor(hex: settings.fillDarkColor(for: module)) ?? graph
@@ -548,13 +467,13 @@ private struct GeneralSettingsView: View {
             palette: MenuBarPalette(light: normal, dark: normal),
             graphPalette: MenuBarPalette(light: graph, dark: graph),
             fillPalette: MenuBarPalette(light: fill, dark: fill),
-            fontSize: effectiveFontSize,
+            fontSize: settings.effectiveMenuBarFontSize,
             isMonochrome: settings.isMonochrome,
-            scale: layoutDraft.iconAndGraphScale,
+            scale: settings.menuBarScale,
             horizontalSpacing: 1,
             graphOpacity: settings.graphOpacity,
-            fontWeight: layoutDraft.fontWeight,
-            usesCompactLayout: layoutDraft.usesCompactLayout
+            fontWeight: settings.fontWeight,
+            usesCompactLayout: settings.usesCompactLayout
         )
         return CombinedRenderer(renderers: [
             StackedLabelRenderer(label: "CPU", value: "42%"),
@@ -578,54 +497,16 @@ private struct GeneralSettingsView: View {
         }
     }
 
-    private func applyMenuBarLayout() {
-        guard !isApplyingLayout, hasPendingLayoutChanges else { return }
-        let bundleURL = Bundle.main.bundleURL
-        guard bundleURL.pathExtension.caseInsensitiveCompare("app") == .orderedSame else {
-            layoutError = "Install Barometer as an application before applying menu bar layout changes."
-            return
-        }
-        isApplyingLayout = true
-        var settings = settingsStore.settings
-        layoutDraft.apply(to: &settings)
-        settingsStore.settings = settings
-        StatusItemRendering.clearCommittedLengths()
-        NotificationCenter.default.post(name: .barometerStageItemWidths, object: nil)
-        settingsStore.saveNow()
-        UserDefaults.standard.synchronize()
-
-        let relaunch = Process()
-        relaunch.executableURL = URL(fileURLWithPath: "/bin/sh")
-        relaunch.arguments = [
-            "-c",
-            "sleep 1; /usr/bin/open \"$1\"",
-            "barometer-relaunch",
-            bundleURL.path,
-        ]
-        do {
-            try relaunch.run()
-            layoutError = nil
-            NSApplication.shared.terminate(nil)
-        } catch {
-            isApplyingLayout = false
-            layoutError = "Unable to reopen Barometer automatically: \(error.localizedDescription)"
-        }
-    }
-
     private var fontSizeCaption: String {
         let settings = settingsStore.settings
         let thickness = NSStatusBar.system.thickness
-        let effectiveFontSize = min(
-            layoutDraft.fontSize,
-            AppSettings.maximumMenuBarFontSize(forItemCount: settings.enabledMenuBarItemCount)
-        )
         let context = RenderContext(
             thickness: thickness,
             appearance: .dark,
             palette: MenuBarPalette(light: .black, dark: .white),
-            fontSize: effectiveFontSize,
+            fontSize: settings.effectiveMenuBarFontSize,
             isMonochrome: true,
-            scale: layoutDraft.iconAndGraphScale
+            scale: settings.menuBarScale
         )
         let compact = MenuBarLayoutMetrics(context: context).compactPointSize
         let maximum = MenuBarLayoutMetrics.maximumCompactPointSize(thickness: thickness)
@@ -636,12 +517,12 @@ private struct GeneralSettingsView: View {
             compact,
             maximum
         )
-        guard effectiveFontSize < layoutDraft.fontSize else {
+        guard settings.effectiveMenuBarFontSize < settings.fontSize else {
             return base
         }
         return String(
             format: "Using %.1f pt with %d active widgets to preserve menu bar space. %@",
-            effectiveFontSize,
+            settings.effectiveMenuBarFontSize,
             settings.enabledMenuBarItemCount,
             base
         )

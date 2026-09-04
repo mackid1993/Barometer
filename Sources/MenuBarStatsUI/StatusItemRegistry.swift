@@ -46,9 +46,9 @@ public final class StatusItemRegistry: NSObject {
 
     private func makeItem(for identity: StatusItemIdentity) -> NSStatusItem {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        // NSStatusBar creates items visible. Hide synchronously, before identity setup or
-        // returning to the run loop, so a menu bar manager cannot catalog a placeholder.
-        statusItem.isVisible = false
+        // Attach the stable identity before the first visibility transition. Hiding an
+        // unnamed item first lets AppKit recycle its persistence slot and can make a menu
+        // bar manager pair another Barometer item's AX identity with this autosave name.
         statusItem.autosaveName = identity.autosaveName
         statusItem.behavior = []
 
@@ -60,6 +60,9 @@ public final class StatusItemRegistry: NSObject {
         button.imageScaling = .scaleNone
         button.setAccessibilityIdentifier(identity.autosaveName)
         button.setAccessibilityLabel(identity.displayName)
+        // Creation and identity setup are synchronous on the main actor. Hide before
+        // returning to the run loop, so managers never observe the placeholder.
+        statusItem.isVisible = false
         return statusItem
     }
 
@@ -72,18 +75,19 @@ public final class StatusItemRegistry: NSObject {
             }
 
             let windowTitle = button.window?.title ?? ""
+            let autosaveName = statusItem.autosaveName ?? ""
             let identifier = button.accessibilityIdentifier()
             let label = button.accessibilityLabel() ?? ""
             let title = button.accessibilityTitle() ?? ""
             let message =
-                "autosaveName=\(identity.autosaveName) window.title=\(windowTitle) "
+                "autosaveName=\(autosaveName) window.title=\(windowTitle) "
                 + "AXIdentifier=\(identifier) AXLabel=\(label) AXTitle=\(title)"
             Self.identityLogger.notice("\(message, privacy: .public)")
 
             records.append(
                 StatusItemDiagnosticRecord(
                     module: identity.displayName,
-                    autosaveName: identity.autosaveName,
+                    autosaveName: autosaveName,
                     isVisible: statusItem.isVisible,
                     statusItemLength: statusItem.length,
                     windowNumber: button.window?.windowNumber,
@@ -106,6 +110,7 @@ public final class StatusItemRegistry: NSObject {
             )
 
             assert(windowTitle == identity.autosaveName)
+            assert(autosaveName == identity.autosaveName)
             assert(identifier == identity.autosaveName)
             assert(label == identity.displayName)
             assert(title.isEmpty)
