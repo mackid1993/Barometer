@@ -108,7 +108,7 @@ public actor CPUMonitor: Monitor {
                 }
                 return lhs.cpuPercent > rhs.cpuPercent
             }
-            .prefix(5)
+            .prefix(10)
             .map { process in
                 CPUProcessSample(
                     processIdentifier: process.processIdentifier,

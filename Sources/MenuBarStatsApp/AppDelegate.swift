@@ -82,7 +82,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showSettings() {
         if settingsWindowController == nil {
-            settingsWindowController = SettingsWindowController()
+            guard let settingsStore else {
+                return
+            }
+            settingsWindowController = SettingsWindowController(settingsStore: settingsStore)
         }
         settingsWindowController?.show()
     }

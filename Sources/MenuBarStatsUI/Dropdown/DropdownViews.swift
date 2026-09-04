@@ -26,11 +26,13 @@ private enum HistoryRange: String, CaseIterable, Identifiable {
 /// Live CPU details shown inside the CPU status-item menu.
 public struct CPUDropdownView: View {
     private let store: ModuleStore<CPUSample>
+    private let settingsStore: SettingsStore
     @State private var range: HistoryRange = .fiveMinutes
 
     /// Creates a CPU dropdown backed by the supplied observable store.
-    public init(store: ModuleStore<CPUSample>) {
+    public init(store: ModuleStore<CPUSample>, settingsStore: SettingsStore) {
         self.store = store
+        self.settingsStore = settingsStore
     }
 
     public var body: some View {
@@ -40,6 +42,7 @@ public struct CPUDropdownView: View {
             .filter { $0.timestamp >= cutoff }
             .map { $0.value.totalPercent / 100 }
         let _ = store.revision
+        let settings = settingsStore.settings.modules[.cpu] ?? ModuleSettings()
 
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -80,9 +83,9 @@ public struct CPUDropdownView: View {
                     MetricRow(label: "Uptime", value: Self.uptime(sample.uptime))
                     MetricRow(label: "Processes", value: "\(sample.processCount)  ·  \(sample.threadCount) threads")
 
-                    if !sample.topProcesses.isEmpty {
+                    if settings.showsProcesses, !sample.topProcesses.isEmpty {
                         Text("TOP PROCESSES").sectionLabel()
-                        ForEach(sample.topProcesses, id: \.processIdentifier) { process in
+                        ForEach(sample.topProcesses.prefix(settings.processCount), id: \.processIdentifier) { process in
                             CPUProcessRow(process: process)
                         }
                     }
@@ -105,16 +108,19 @@ public struct CPUDropdownView: View {
 /// Live memory details shown inside the Memory status-item menu.
 public struct MemoryDropdownView: View {
     private let store: ModuleStore<MemorySample>
+    private let settingsStore: SettingsStore
 
     /// Creates a Memory dropdown backed by the supplied observable store.
-    public init(store: ModuleStore<MemorySample>) {
+    public init(store: ModuleStore<MemorySample>, settingsStore: SettingsStore) {
         self.store = store
+        self.settingsStore = settingsStore
     }
 
     public var body: some View {
         let sample = store.latestSample
         let values = store.history.entries.map { $0.value.pressurePercent / 100 }
         let _ = store.revision
+        let settings = settingsStore.settings.modules[.memory] ?? ModuleSettings()
 
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -145,9 +151,9 @@ public struct MemoryDropdownView: View {
                     )
                     MetricRow(label: "Swap", value: "\(Self.bytes(sample.swapUsed)) of \(Self.bytes(sample.swapTotal))")
 
-                    if !sample.topProcesses.isEmpty {
+                    if settings.showsProcesses, !sample.topProcesses.isEmpty {
                         Text("TOP PROCESSES").sectionLabel()
-                        ForEach(sample.topProcesses, id: \.processIdentifier) { process in
+                        ForEach(sample.topProcesses.prefix(settings.processCount), id: \.processIdentifier) { process in
                             MemoryProcessRow(process: process)
                         }
                     }

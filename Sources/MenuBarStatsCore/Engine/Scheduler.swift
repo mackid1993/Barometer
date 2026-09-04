@@ -15,6 +15,7 @@ public actor Scheduler<Source: Monitor> {
     private var runTask: Task<Void, Never>?
     private var generation = 0
     private var intervalMultiplier = 1
+    private var intervalOverride: Duration?
 
     /// Creates a scheduler for one monitor.
     public init(monitor: Source, clock: any SampleClock = ContinuousSampleClock()) {
@@ -65,6 +66,11 @@ public actor Scheduler<Source: Monitor> {
         intervalMultiplier = max(1, multiplier)
     }
 
+    /// Overrides the monitor's normal interval, or restores it when passed `nil`.
+    public func setInterval(_ interval: Duration?) {
+        intervalOverride = interval
+    }
+
     private func runLoop(generation currentGeneration: Int) async {
         var errorDelaySeconds = 1
 
@@ -78,7 +84,8 @@ public actor Scheduler<Source: Monitor> {
                 let sample = try await monitor.sample()
                 continuation.yield(sample)
                 errorDelaySeconds = 1
-                let interval = await monitor.interval
+                let monitorInterval = await monitor.interval
+                let interval = intervalOverride ?? monitorInterval
                 try await clock.sleep(for: interval * intervalMultiplier)
             } catch is CancellationError {
                 break

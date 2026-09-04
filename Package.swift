@@ -62,6 +62,7 @@ let package = Package(
             swiftSettings: strictConcurrency,
             linkerSettings: [
                 .linkedFramework("AppKit"),
+                .linkedFramework("ServiceManagement"),
             ]
         ),
         .executableTarget(

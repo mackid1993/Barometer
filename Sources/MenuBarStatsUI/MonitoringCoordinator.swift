@@ -54,7 +54,7 @@ public final class MonitoringCoordinator {
         cpuDropdown = DropdownController(
             moduleName: ModuleID.cpu.displayName,
             statusItem: registry.item(for: .cpu),
-            rootView: AnyView(CPUDropdownView(store: cpuStore)),
+            rootView: AnyView(CPUDropdownView(store: cpuStore, settingsStore: settingsStore)),
             contentHeight: 438,
             tickAction: { [weak cpuStore] in cpuStore?.tick() },
             settingsAction: settingsAction,
@@ -63,7 +63,7 @@ public final class MonitoringCoordinator {
         memoryDropdown = DropdownController(
             moduleName: ModuleID.memory.displayName,
             statusItem: registry.item(for: .memory),
-            rootView: AnyView(MemoryDropdownView(store: memoryStore)),
+            rootView: AnyView(MemoryDropdownView(store: memoryStore, settingsStore: settingsStore)),
             contentHeight: 386,
             tickAction: { [weak memoryStore] in memoryStore?.tick() },
             settingsAction: settingsAction,
@@ -153,14 +153,27 @@ public final class MonitoringCoordinator {
     private func observeSettings() {
         withObservationTracking {
             _ = settingsStore.settings.reducesSamplingOnBattery
+            _ = settingsStore.settings.modules[.cpu]?.interval
+            _ = settingsStore.settings.modules[.memory]?.interval
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else {
                     return
                 }
                 self.applyPowerState(self.powerStateObserver.currentState)
+                self.applySamplingIntervals()
                 self.observeSettings()
             }
+        }
+        applySamplingIntervals()
+    }
+
+    private func applySamplingIntervals() {
+        let cpuSeconds = settingsStore.settings.modules[.cpu]?.interval ?? 1
+        let memorySeconds = settingsStore.settings.modules[.memory]?.interval ?? 2
+        Task {
+            await cpuScheduler.setInterval(.milliseconds(Int64(max(0.25, cpuSeconds) * 1_000)))
+            await memoryScheduler.setInterval(.milliseconds(Int64(max(0.25, memorySeconds) * 1_000)))
         }
     }
 

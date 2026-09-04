@@ -84,7 +84,7 @@ public actor MemoryMonitor: Monitor {
         let processes = processSource.readProcesses(logicalCPUCount: ProcessInfo.processInfo.processorCount)
         let topProcesses = processes.processes
             .sorted { $0.physicalFootprint > $1.physicalFootprint }
-            .prefix(5)
+            .prefix(10)
             .map { process in
                 MemoryProcessSample(
                     processIdentifier: process.processIdentifier,

@@ -1,19 +1,20 @@
 import AppKit
 import MenuBarStatsCore
+import ServiceManagement
 import SwiftUI
 
 /// Owns and presents the MenuBarStats settings window.
 @MainActor
 public final class SettingsWindowController: NSWindowController {
     /// Creates the settings window controller.
-    public convenience init() {
-        let rootView = SettingsRootView()
+    public convenience init(settingsStore: SettingsStore) {
+        let rootView = SettingsRootView(settingsStore: settingsStore)
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "MenuBarStats Settings"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 680, height: 440))
-        window.minSize = NSSize(width: 580, height: 360)
+        window.setContentSize(NSSize(width: 720, height: 520))
+        window.minSize = NSSize(width: 640, height: 440)
         window.isReleasedWhenClosed = false
         window.center()
         self.init(window: window)
@@ -40,33 +41,321 @@ private enum SettingsSelection: Hashable {
 }
 
 private struct SettingsRootView: View {
+    let settingsStore: SettingsStore
     @State private var selection: SettingsSelection? = .general
 
     var body: some View {
         NavigationSplitView {
             List(selection: $selection) {
-                Text("General")
+                Label("General", systemImage: "gearshape")
                     .tag(SettingsSelection.general)
 
                 Section("Modules") {
                     ForEach(ModuleID.allCases, id: \.self) { module in
-                        Text(module.displayName)
+                        Label(module.displayName, systemImage: module.symbolName)
                             .tag(SettingsSelection.module(module))
                     }
                 }
             }
             .navigationTitle("Settings")
-            .navigationSplitViewColumnWidth(min: 170, ideal: 190)
+            .navigationSplitViewColumnWidth(min: 175, ideal: 195)
         } detail: {
-            VStack(alignment: .leading, spacing: 12) {
-                Text((selection ?? .general).title)
-                    .font(.title2.weight(.semibold))
-                Text("Settings for this section will be added in a later phase.")
-                    .foregroundStyle(.secondary)
-                Spacer()
+            switch selection ?? .general {
+            case .general:
+                GeneralSettingsView(settingsStore: settingsStore)
+            case let .module(module) where module == .cpu || module == .memory:
+                ModuleSettingsView(module: module, settingsStore: settingsStore)
+            case let .module(module):
+                FutureModuleSettingsView(module: module)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(24)
         }
+    }
+}
+
+private struct GeneralSettingsView: View {
+    let settingsStore: SettingsStore
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var serviceError: String?
+
+    var body: some View {
+        Form {
+            Section("Application") {
+                LabeledContent("Launch MenuBarStats at login") {
+                    Button(launchAtLogin ? "Disable" : "Enable") {
+                        updateLaunchAtLogin(!launchAtLogin)
+                    }
+                }
+                if let serviceError {
+                    Text(serviceError).font(.caption).foregroundStyle(.red)
+                }
+                Toggle("Reduce sampling rate on battery", isOn: appBinding(\.reducesSamplingOnBattery))
+                    .help("Doubles sampling intervals while the Mac is running on battery power.")
+            }
+
+            Section("Appearance") {
+                Toggle("Monochrome menu bar", isOn: appBinding(\.isMonochrome))
+                HStack {
+                    Text("Font size")
+                    Slider(value: appBinding(\.fontSize), in: 9...14, step: 0.5)
+                    Text(String(format: "%.1f pt", settingsStore.settings.fontSize))
+                        .monospacedDigit()
+                        .frame(width: 50, alignment: .trailing)
+                }
+            }
+
+            Section("Settings File") {
+                HStack {
+                    Button("Export Settings…", action: exportSettings)
+                    Button("Import Settings…", action: importSettings)
+                    Spacer()
+                }
+                Text("Exported files contain display and sampling preferences, but no system data.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("General")
+    }
+
+    private func appBinding<Value>(_ keyPath: WritableKeyPath<AppSettings, Value>) -> Binding<Value> {
+        Binding(
+            get: { settingsStore.settings[keyPath: keyPath] },
+            set: { value in
+                var settings = settingsStore.settings
+                settings[keyPath: keyPath] = value
+                settingsStore.settings = settings
+            }
+        )
+    }
+
+    private func updateLaunchAtLogin(_ shouldLaunch: Bool) {
+        do {
+            if shouldLaunch {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            launchAtLogin = shouldLaunch
+            serviceError = nil
+        } catch {
+            launchAtLogin = SMAppService.mainApp.status == .enabled
+            serviceError = error.localizedDescription
+        }
+    }
+
+    private func exportSettings() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "MenuBarStats Settings.json"
+        panel.allowedContentTypes = [.json]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try settingsStore.exportJSON().write(to: url, options: .atomic)
+        } catch {
+            showError("Unable to export settings", error: error)
+        }
+    }
+
+    private func importSettings() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try settingsStore.importJSON(Data(contentsOf: url))
+        } catch {
+            showError("Unable to import settings", error: error)
+        }
+    }
+
+    private func showError(_ message: String, error: Error) {
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.informativeText = error.localizedDescription
+        alert.runModal()
+    }
+}
+
+private struct ModuleSettingsView: View {
+    let module: ModuleID
+    let settingsStore: SettingsStore
+
+    private var settings: ModuleSettings {
+        settingsStore.settings.modules[module] ?? ModuleSettings()
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Show in menu bar", isOn: moduleBinding(\.isEnabled))
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Live Preview").font(.caption).foregroundStyle(.secondary)
+                    Image(nsImage: previewImage)
+                        .padding(.horizontal, 12)
+                        .frame(height: 34)
+                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                }
+            }
+
+            Section("Menu Bar") {
+                Picker("Display", selection: moduleBinding(\.mode)) {
+                    ForEach(modeOptions, id: \.value) { option in
+                        Text(option.label).tag(option.value)
+                    }
+                }
+                Toggle("Use fixed-width numbers", isOn: moduleBinding(\.usesFixedWidth))
+                Picker("Graph style", selection: moduleBinding(\.graphStyle)) {
+                    ForEach(GraphStyle.allCases, id: \.self) { style in
+                        Text(style.rawValue.capitalized).tag(style)
+                    }
+                }
+                HStack {
+                    ColorPicker("Light", selection: colorBinding(\.lightColor), supportsOpacity: false)
+                    ColorPicker("Dark", selection: colorBinding(\.darkColor), supportsOpacity: false)
+                }
+            }
+
+            Section("Sampling") {
+                HStack {
+                    Text("Interval")
+                    Slider(value: moduleBinding(\.interval), in: 0.5...10, step: 0.5)
+                    Text(String(format: "%.1f s", settings.interval))
+                        .monospacedDigit()
+                        .frame(width: 42, alignment: .trailing)
+                }
+            }
+
+            Section("Dropdown") {
+                Toggle("Show top processes", isOn: moduleBinding(\.showsProcesses))
+                Stepper(value: moduleBinding(\.processCount), in: 1...10) {
+                    Text("Process count: \(settings.processCount)")
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle(module.displayName)
+    }
+
+    private var modeOptions: [(value: String, label: String)] {
+        if module == .cpu {
+            return [
+                ("stacked", "CPU label + percentage"),
+                ("percentage", "Percentage"),
+                ("graph", "History graph"),
+                ("perCore", "Per-core bars"),
+                ("iconText", "Icon + percentage"),
+            ]
+        }
+        return [
+            ("stacked", "MEM label + percentage"),
+            ("usedPercentage", "Used percentage"),
+            ("pressurePercentage", "Pressure percentage"),
+            ("graph", "History graph"),
+            ("bar", "Usage bar"),
+        ]
+    }
+
+    private var previewImage: NSImage {
+        let color = NSColor(hexString: settings.darkColor) ?? .controlAccentColor
+        let context = RenderContext(
+            thickness: NSStatusBar.system.thickness,
+            appearance: .dark,
+            palette: MenuBarPalette(light: color, dark: color),
+            fontSize: settingsStore.settings.fontSize,
+            isMonochrome: settingsStore.settings.isMonochrome
+        )
+        let value = module == .cpu ? "42%" : "68%"
+        let renderer: any MenuBarRenderer
+        switch settings.mode {
+        case "stacked":
+            renderer = StackedLabelRenderer(label: module == .cpu ? "CPU" : "MEM", value: value)
+        case "graph":
+            renderer = GraphRenderer(values: [0.2, 0.35, 0.28, 0.7, 0.48, 0.62], style: settings.graphStyle)
+        case "perCore":
+            renderer = GraphRenderer(values: [0.2, 0.8, 0.45, 0.62, 0.25, 0.7], style: .bars, width: 34)
+        case "bar":
+            renderer = GraphRenderer(values: [0.68], style: .bars, width: 14)
+        case "iconText":
+            renderer = IconTextRenderer(symbolName: "cpu", text: value)
+        default:
+            renderer = TextRenderer(text: value, reservedText: settings.usesFixedWidth ? "100%" : nil)
+        }
+        return renderer.render(in: context)
+    }
+
+    private func moduleBinding<Value>(_ keyPath: WritableKeyPath<ModuleSettings, Value>) -> Binding<Value> {
+        Binding(
+            get: { settings[keyPath: keyPath] },
+            set: { value in
+                var appSettings = settingsStore.settings
+                var moduleSettings = appSettings.modules[module] ?? ModuleSettings()
+                moduleSettings[keyPath: keyPath] = value
+                appSettings.modules[module] = moduleSettings
+                settingsStore.settings = appSettings
+            }
+        )
+    }
+
+    private func colorBinding(_ keyPath: WritableKeyPath<ModuleSettings, String>) -> Binding<Color> {
+        Binding(
+            get: { Color(nsColor: NSColor(hexString: settings[keyPath: keyPath]) ?? .controlAccentColor) },
+            set: { color in
+                guard let components = NSColor(color).usingColorSpace(.sRGB) else { return }
+                let hex = String(
+                    format: "#%02X%02X%02X",
+                    Int(components.redComponent * 255),
+                    Int(components.greenComponent * 255),
+                    Int(components.blueComponent * 255)
+                )
+                var appSettings = settingsStore.settings
+                var moduleSettings = appSettings.modules[module] ?? ModuleSettings()
+                moduleSettings[keyPath: keyPath] = hex
+                appSettings.modules[module] = moduleSettings
+                settingsStore.settings = appSettings
+            }
+        )
+    }
+}
+
+private struct FutureModuleSettingsView: View {
+    let module: ModuleID
+
+    var body: some View {
+        ContentUnavailableView(
+            "\(module.displayName) arrives in a later phase",
+            systemImage: module.symbolName,
+            description: Text("Its permanent menu-bar identity is already reserved.")
+        )
+        .navigationTitle(module.displayName)
+    }
+}
+
+private extension ModuleID {
+    var symbolName: String {
+        switch self {
+        case .cpu: "cpu"
+        case .gpu: "square.stack.3d.up"
+        case .memory: "memorychip"
+        case .disks: "internaldrive"
+        case .network: "network"
+        case .sensors: "thermometer.medium"
+        case .battery: "battery.75percent"
+        case .weather: "cloud.sun"
+        case .time: "clock"
+        case .combined: "rectangle.3.group"
+        }
+    }
+}
+
+private extension NSColor {
+    convenience init?(hexString: String) {
+        let value = hexString.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        guard value.count == 6, let integer = UInt64(value, radix: 16) else { return nil }
+        self.init(
+            red: CGFloat((integer >> 16) & 0xFF) / 255,
+            green: CGFloat((integer >> 8) & 0xFF) / 255,
+            blue: CGFloat(integer & 0xFF) / 255,
+            alpha: 1
+        )
     }
 }

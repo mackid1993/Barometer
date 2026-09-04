@@ -311,3 +311,38 @@ Build complete! (1.42s)
 The required interactive 10-second open-menu check and corresponding live `log stream` capture remain for David's
 review because they require holding the actual CPU menu open. If the graph does not advance during that check, P1-T5
 must be reopened to add the `NSPanel` fallback before Phase 1 is accepted.
+
+## P1-T6 Settings panes for General, CPU, and Memory
+
+Replaced the placeholder settings window with working General, CPU, and Memory panes. General settings now control
+launch at login through `SMAppService`, reduced sampling on battery, monochrome rendering, font size, and JSON import
+and export. CPU and Memory settings now provide enabled toggles, labeled display-mode choices, a renderer-backed live
+preview image, fixed-width digits, graph style, separate light/dark colors, live sampling intervals, process-list
+visibility, and a configurable 1-to-10 row count.
+
+Sampling interval changes now flow from the persisted module settings into each scheduler. Dropdown process controls
+are live, and both monitors retain enough candidates to honor the 10-row maximum.
+
+`swift build` (exit 0):
+
+```text
+[3/7] Compiling MenuBarStatsUI SettingsWindowController.swift
+[4/7] Emitting module MenuBarStatsUI
+[12/14] Linking MenuBarStatsApp
+Build complete! (2.31s)
+```
+
+The first build exposed a Swift 6.2.3 compiler crash while emitting a `Binding<Bool>` whose setter directly
+referenced the main-actor login-service method. Replacing that one control with an equivalent state-labeled
+Enable/Disable button avoided the compiler defect without relaxing concurrency checks.
+
+`make app`, `make run`, and a second `open -n dist/MenuBarStats.app` all exited 0. The second launch opened the
+settings handoff and terminated, leaving exactly one owner process:
+
+```text
+20031 /Users/david/MenuBarStats/dist/MenuBarStats.app/Contents/MacOS/MenuBarStats
+```
+
+`swift test --filter Settings` exited 0 after compiling and linking the test bundle; the previously documented silent
+Swift Testing runner behavior remains. The interactive CPU hide/show check against Thaw remains for David's review;
+Thaw was not launched or modified, as required by the repository rules.
