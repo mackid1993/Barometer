@@ -327,7 +327,7 @@ End of Phase 6: stop for review.
 ### P7-T5 Install target and README
 
 - `make install` copies to `/Applications`, re-registers launch at login if it was on, and relaunches. README documents building, installing, permissions, and the identity contract for other developers.
-- Verify: `make install && pgrep -x MenuBarStats`.
+- Verify: `make install && pgrep -x Barometer`.
 
 ### P7-T6 Developer ID signing and notarized release
 

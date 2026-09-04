@@ -18,6 +18,7 @@ binary_directory=$(swift build -c release --show-bin-path)
 rm -rf "$application_directory"
 mkdir -p "$macos_directory" "$resources_directory"
 cp "$binary_directory/Barometer" "$macos_directory/Barometer"
+cp Resources/Barometer.icns "$resources_directory/Barometer.icns"
 
 sed \
     -e "s/__VERSION__/$version/g" \

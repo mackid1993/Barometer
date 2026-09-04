@@ -1360,3 +1360,22 @@ Verification:
   atomically, while complete appearance settings still round trip without loss.
 - `swift build` completed successfully.
 - `git diff --check` and the 120-column check passed.
+
+## P7-T5 Install target and README
+
+Completed local app packaging with the selected minimal Barometer icon in PNG and ICNS form. `make app` produces one
+ad hoc-signed `Barometer.app`, `make dmg` produces a compressed DMG with an Applications shortcut, and `make install`
+replaces and relaunches `/Applications/Barometer.app`. The stop/install sequence now waits for the previous process
+to terminate before asking Launch Services to open the replacement, eliminating intermittent `-600` relaunch errors.
+
+The README now documents the complete monitor set, DMG installation, source builds, optional Location and Calendar
+permissions, graceful unavailable behavior, and the single-bundle status-item identity contract for contributors.
+
+Verification:
+
+- `make dmg` created `dist/Barometer-0.1.0.dmg`; `hdiutil verify` reported a valid checksum.
+- A read-only mount contained only `Barometer.app` and the Applications shortcut. Strict code-signature verification
+  passed for the mounted app, and its bundle identifier was `com.barometer.app`.
+- `make install` completed and `pgrep -x Barometer` found the relaunched executable in `/Applications/Barometer.app`.
+- Ten consecutive waited quit/relaunch cycles succeeded. Every identity report contained the same 11 autosave names
+  with SHA-256 identity-set hash `1d15dbbc3486dc45e732dac3bcecdabfd5ca7df81158a53d0253aa12aaaed68f`.
