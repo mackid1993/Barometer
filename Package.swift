@@ -8,7 +8,10 @@ let strictConcurrency: [SwiftSetting] = [
 
 let commandLineToolsFrameworks = "/Library/Developer/CommandLineTools/Library/Developer/Frameworks"
 let testSwiftSettings = strictConcurrency + [
-    .unsafeFlags(["-F", commandLineToolsFrameworks]),
+    .unsafeFlags([
+        "-F", commandLineToolsFrameworks,
+        "-Xfrontend", "-disable-cross-import-overlays",
+    ]),
 ]
 let testLinkerSettings: [LinkerSetting] = [
     .unsafeFlags([

@@ -1,5 +1,5 @@
 /// Stable identities for every MenuBarStats module.
-public enum ModuleID: String, CaseIterable, Hashable, Sendable {
+public enum ModuleID: String, CaseIterable, Codable, Hashable, Sendable {
     case cpu
     case gpu
     case memory

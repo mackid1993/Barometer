@@ -154,3 +154,37 @@ Identity contract check passed for 10 modules
 
 The test source remains in the normal SwiftPM test target. Recheck the runner behavior after the next Command Line
 Tools update.
+
+## P1-T1 Core engine
+
+Implemented the monitor protocol, continuous and injectable sample clocks, per-monitor scheduler with pause/resume
+and 1-to-60-second exponential error backoff, fixed-capacity history ring buffer, downsampling, and main-actor
+observable module stores. Added versioned settings, version 0 migration, debounced `UserDefaults` persistence, JSON
+import/export primitives, IOKit power-source notifications, and workspace display sleep/wake notifications.
+
+Added focused tests for history wraparound, time filtering, downsampling, scheduler backoff with a fake clock, settings
+round-trip, version 0 migration, and immediate settings-store persistence.
+
+`swift test --filter 'History|Scheduler|Settings'` (exit 0):
+
+```text
+[0/1] Planning build
+Building for debugging...
+[0/7] Write swift-version--1AB21518FC5DEDBE.txt
+[2/11] Compiling SystemSourcesTests SystemSourcesTests.swift
+[3/11] Emitting module SystemSourcesTests
+[4/11] Compiling MenuBarStatsCoreTests SettingsTests.swift
+[5/11] Compiling MenuBarStatsCoreTests SchedulerTests.swift
+[6/11] Compiling MenuBarStatsCoreTests HistoryTests.swift
+[7/11] Emitting module MenuBarStatsCoreTests
+[8/11] Compiling MenuBarStatsCoreTests IdentityContractTests.swift
+[9/11] Compiling MenuBarStatsCoreTests MenuBarStatsCoreTests.swift
+[9/11] Write Objects.LinkFileList
+[10/11] Linking MenuBarStatsPackageTests
+Build complete! (1.15s)
+```
+
+Command Line Tools deviation: importing both Foundation and Testing activates a `Testing` cross-import overlay for
+`_Testing_Foundation`, but that framework has no module interface in this installation. Test compilation uses the
+compiler's `-disable-cross-import-overlays` option. The previously documented silent Swift Testing runner behavior
+remains: the required command compiles and links successfully but prints no execution summary.
