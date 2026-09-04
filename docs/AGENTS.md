@@ -167,10 +167,10 @@ automatic tiers are 115 percent for 1–3 items, 100 for 4–6, 90 for 7–8, 85
 
 Every item has the common app owner `com.barometer.app`, while its autosave name, AX identifier, and static
 accessibility label remain unique child keys. The bundle is the common source-app identity; the child keys keep each
-item independently movable. Prepare every standard identity and every saved
-extra Sensors identity before any item becomes visible, then set each `autosaveName` and AX identity synchronously
-before its first `isVisible` transition. Do not create another item beside the live set; newly added Sensors identities
-join on the next normal launch. Never delete or rewrite AppKit's `NSStatusItem Visible`, preferred-position, or
+item independently movable. Prepare exactly the enabled, non-Combined-hidden identities before any item becomes
+visible, then set each `autosaveName` and AX identity synchronously before its first `isVisible` transition. Creating
+disabled hidden AppKit items gives managers persistence slots with no AX children and corrupts their ordinal pairing.
+Newly enabled identities join on the next normal launch. Never delete or rewrite AppKit's preferred-position or
 restore-position defaults. Doing so recycles persistence slots and can make managers pair one Barometer child's
 identity with another.
 

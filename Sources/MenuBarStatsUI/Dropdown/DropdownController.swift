@@ -21,7 +21,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     /// Creates and installs a hosted menu for one permanent status item.
     public init(
         moduleName: String,
-        statusItem: NSStatusItem,
+        statusItem: NSStatusItem?,
         rootView: AnyView,
         contentHeight: CGFloat,
         contentWidth: CGFloat = 320,
@@ -55,7 +55,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         let quitItem = NSMenuItem(title: "Quit Barometer", action: #selector(quitApplication), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
-        statusItem.menu = menu
+        statusItem?.menu = menu
     }
 
     public func menuNeedsUpdate(_ menu: NSMenu) {

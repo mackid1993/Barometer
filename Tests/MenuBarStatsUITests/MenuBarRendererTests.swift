@@ -795,6 +795,42 @@ struct StableCanvasTests {
 @MainActor
 struct StableGeometryTests {
     @Test
+    func registryPreparesOnlyLaunchVisibleIdentitiesInModuleOrder() {
+        var settings = AppSettings()
+        for module in ModuleID.allCases {
+            settings.modules[module]?.isEnabled = false
+        }
+        for module in [ModuleID.cpu, .gpu, .network, .sensors, .weather] {
+            settings.modules[module]?.isEnabled = true
+        }
+        settings.sensors.widgets = [SensorWidgetSettings(id: 1), SensorWidgetSettings(id: 2)]
+
+        #expect(
+            StatusItemRegistry.launchIdentities(settings: settings).map(\.autosaveName) == [
+                "Barometer.CPU",
+                "Barometer.GPU",
+                "Barometer.Network",
+                "Barometer.Sensors",
+                "Barometer.Sensors.2",
+                "Barometer.Weather",
+            ]
+        )
+
+        settings.modules[.combined]?.isEnabled = true
+        settings.combined.hidesIndividualMembers = true
+        settings.combined.members = [.gpu, .weather]
+        #expect(
+            StatusItemRegistry.launchIdentities(settings: settings).map(\.autosaveName) == [
+                "Barometer.CPU",
+                "Barometer.Network",
+                "Barometer.Sensors",
+                "Barometer.Sensors.2",
+                "Barometer.Combined",
+            ]
+        )
+    }
+
+    @Test
     func widthsRoundToTheTwoPointGrid() {
         #expect(StatusItemRendering.roundedLength(29) == 30)
         #expect(StatusItemRendering.roundedLength(32) == 32)

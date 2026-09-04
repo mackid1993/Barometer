@@ -34,7 +34,7 @@ public final class StatusItemController<Sample: Sendable> {
     public typealias IsEnabled = @MainActor (AppSettings, ModuleSettings) -> Bool
 
     private let module: ModuleID
-    private let statusItem: NSStatusItem
+    private let statusItem: NSStatusItem?
     private let store: ModuleStore<Sample>
     private let settingsStore: SettingsStore
     private let renderContent: Render
@@ -47,7 +47,7 @@ public final class StatusItemController<Sample: Sendable> {
     /// Creates and begins observing a status item controller.
     public init(
         module: ModuleID,
-        statusItem: NSStatusItem,
+        statusItem: NSStatusItem?,
         store: ModuleStore<Sample>,
         settingsStore: SettingsStore,
         isEnabled: @escaping IsEnabled = { _, moduleSettings in moduleSettings.isEnabled },
@@ -58,7 +58,7 @@ public final class StatusItemController<Sample: Sendable> {
         self.store = store
         self.settingsStore = settingsStore
         self.isEnabled = isEnabled
-        accessibilityLabel = statusItem.button?.accessibilityLabel() ?? module.displayName
+        accessibilityLabel = statusItem?.button?.accessibilityLabel() ?? module.displayName
         renderContent = render
         observeChanges()
         update()
@@ -77,12 +77,12 @@ public final class StatusItemController<Sample: Sendable> {
         )
         let isHiddenInCombined = StatusItemRendering.isHiddenByCombined(module: module, settings: appSettings)
         guard isEnabled(appSettings, moduleSettings), !isHiddenInCombined else {
-            if statusItem.isVisible {
+            if let statusItem, statusItem.isVisible {
                 statusItem.isVisible = false
             }
             return
         }
-        guard let button = statusItem.button else {
+        guard let statusItem, let button = statusItem.button else {
             return
         }
 

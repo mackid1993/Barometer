@@ -1771,3 +1771,29 @@ Verification:
   is labeled `Sensors 2` with `Barometer.Sensors.2`.
 - A desktop capture confirmed the active widgets are visible after installation. Barometer did not modify or automate
   Bartender, Thaw, or their preferences.
+
+### P7-T4 align persistence slots with visible children
+
+David's immediate movement test showed that unique labels alone did not make Weather retain its position. A read-only
+decode of Bartender's current cold-start catalog identified the actual mismatch: the persistence slot
+`Barometer.Weather` was paired with GPU's AX identifier, CPU's slot was paired with Memory, and Battery's slot was
+paired with Sensors. Dropbox retained its position because its single persistence slot had one matching AX child.
+
+The registry had created all standard items and hidden the disabled ones. On macOS 27 those hidden AppKit objects
+still contributed persistence slots but had no visible AX children. A manager enumerating both lists received
+conflicting ordinals and joined unrelated Barometer children. `StatusItemRegistry` now creates exactly the complete
+launch-visible set: enabled modules that are not hidden by Combined, plus enabled Sensors instances. It creates the
+set in deterministic `ModuleID` order and assigns every identity synchronously before any controller makes an item
+visible. Disabled modules no longer create unmatched hidden AppKit slots. A module that was disabled when the process
+started joins on the next normal launch; an item created in the current process is still never removed.
+
+Verification:
+
+- `swift test` exited 0 and built and linked every test target. New regression coverage checks the exact ordered
+  launch-visible set, enabled Sensors instances, and exclusion of members hidden by Combined.
+- `swift build -c release`, `git diff --check`, and `make install` completed successfully.
+- The installed Developer ID build launched as the single `com.barometer.app` process. Its identity report contains
+  exactly the six current visible children instead of eleven standard and disabled slots.
+- Bartender's read-only fresh catalog records now pair all six current persistence and AX identities exactly:
+  CPU→CPU, GPU→GPU, Memory→Memory, Network→Network, Sensors→Sensors, and Weather→Weather. The manager and its
+  preferences were not modified or automated.

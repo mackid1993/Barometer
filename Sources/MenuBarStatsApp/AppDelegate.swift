@@ -35,9 +35,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         let settingsStore = SettingsStore()
-        // Register every saved child identity before any controller makes one visible.
-        // Menu bar managers can otherwise catalog a partially constructed set and pair
-        // an inactive autosave slot with a different visible Barometer item.
+        // Register the complete launch-visible child set before any controller shows it.
+        // Hidden AppKit slots have no AX counterpart and make managers pair an inactive
+        // autosave name with a different visible Barometer item.
         let registry = StatusItemRegistry(settings: settingsStore.settings)
         statusItemRegistry = registry
         self.settingsStore = settingsStore

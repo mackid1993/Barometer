@@ -80,11 +80,12 @@ in a manager. Each movable child still requires a unique autosave name, matching
 as `Barometer.CPU` and `CPU`; giving all children the same child identity would create a collision rather than a
 common owner.
 
-Prepare every standard identity and every saved extra Sensors identity before allowing any item to become visible.
-Assign each autosave name and AX identity synchronously before its first `isVisible` transition. Do not create another
-identity beside the live set; newly added Sensors widgets join on the next normal launch. Do not manually delete
-AppKit's visibility or position defaults for inactive children. On macOS 27, any of these mistakes can produce a
-mismatched manager catalog, such as a CPU autosave record carrying Sensors' AX identifier.
+Prepare exactly the enabled, non-Combined-hidden identities before allowing any item to become visible. Assign each
+autosave name and AX identity synchronously before its first `isVisible` transition. Do not create disabled hidden
+items: their persistence slots have no visible AX counterparts, so macOS 27 managers can pair the slots and children
+by conflicting ordinals. Newly enabled widgets join on the next normal launch. Do not manually delete AppKit's
+position defaults. An incomplete first snapshot can also pair one child's autosave slot with another child's AX
+identity.
 
 ## Why the width is explicit
 

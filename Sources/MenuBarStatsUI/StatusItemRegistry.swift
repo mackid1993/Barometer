@@ -9,36 +9,43 @@ public final class StatusItemRegistry: NSObject {
 
     private var items: [StatusItemIdentity: NSStatusItem] = [:]
 
-    /// Creates every saved status-item identity before any one item becomes visible.
+    /// Creates the complete launch-visible identity set before any one item becomes visible.
     public init(settings: AppSettings) {
         super.init()
-        for module in ModuleID.allCases {
-            let identity = StatusItemIdentity(module: module)
-            items[identity] = makeItem(for: identity)
-        }
-        for widget in settings.sensors.widgets where widget.id > 1 {
-            let identity = StatusItemIdentity(module: .sensors, instance: widget.id)
+        for identity in Self.launchIdentities(settings: settings) {
             items[identity] = makeItem(for: identity)
         }
         perform(#selector(runIdentitySelfTest), with: nil, afterDelay: 1)
     }
 
+    /// Returns the deterministic identity set whose persistence slots have matching visible children at launch.
+    static func launchIdentities(settings: AppSettings) -> [StatusItemIdentity] {
+        ModuleID.allCases.flatMap { module -> [StatusItemIdentity] in
+            guard isLaunchVisible(module, settings: settings) else {
+                return []
+            }
+            if module == .sensors {
+                return settings.sensors.widgets
+                    .filter(\.isEnabled)
+                    .map { StatusItemIdentity(module: .sensors, instance: $0.id) }
+            }
+            return [StatusItemIdentity(module: module)]
+        }
+    }
+
     /// Returns the stable status item prepared for a module at process launch.
-    public func item(for module: ModuleID) -> NSStatusItem {
+    public func item(for module: ModuleID) -> NSStatusItem? {
         item(for: StatusItemIdentity(module: module))
     }
 
     /// Returns the stable status item prepared for a numbered module instance.
-    public func item(for module: ModuleID, instance: Int) -> NSStatusItem {
+    public func item(for module: ModuleID, instance: Int) -> NSStatusItem? {
         item(for: StatusItemIdentity(module: module, instance: instance))
     }
 
-    /// Returns a stable status item from the complete launch-time identity set.
-    public func item(for identity: StatusItemIdentity) -> NSStatusItem {
-        guard let statusItem = items[identity] else {
-            preconditionFailure("Status item identity was not prepared at launch: \(identity.autosaveName)")
-        }
-        return statusItem
+    /// Returns a stable status item from the complete launch-visible identity set.
+    public func item(for identity: StatusItemIdentity) -> NSStatusItem? {
+        items[identity]
     }
 
     /// Returns a saved numbered identity, or nil when it was added after this process launched.
@@ -48,10 +55,23 @@ public final class StatusItemRegistry: NSObject {
 
     /// Changes a status item's visibility without changing its identity or lifetime.
     public func setVisible(_ isVisible: Bool, for module: ModuleID) {
-        let statusItem = item(for: module)
+        guard let statusItem = item(for: module) else {
+            return
+        }
         if statusItem.isVisible != isVisible {
             statusItem.isVisible = isVisible
         }
+    }
+
+    private static func isLaunchVisible(_ module: ModuleID, settings: AppSettings) -> Bool {
+        guard settings.modules[module]?.isEnabled == true else {
+            return false
+        }
+        let combinedEnabled = settings.modules[.combined]?.isEnabled == true
+        return module == .combined
+            || !combinedEnabled
+            || !settings.combined.hidesIndividualMembers
+            || !settings.combined.members.contains(module)
     }
 
     private func makeItem(for identity: StatusItemIdentity) -> NSStatusItem {
