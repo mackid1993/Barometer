@@ -259,11 +259,7 @@ struct MenuBarLayoutMetrics {
     var compactSymbolVisibleHeight: CGFloat {
         let rowHeight = context.thickness / 2
         let unscaledHeight = (rowHeight - 1) / RenderContext.referenceScale
-        // The icon scale drops automatically as items are added, which shrank the weather glyph
-        // until it read as microscopic beside its temperature. The floor keeps the glyph within a
-        // point of filling its row at every automatic scale; the ceiling still leaves the top of
-        // the icon scale slider room to grow it.
-        return min(rowHeight - 0.5, max(rowHeight - 1, unscaledHeight * context.scale))
+        return min(rowHeight - 0.5, max(5.5, unscaledHeight * context.scale))
     }
 
     /// Image box whose alignment rect matches `compactSymbolVisibleHeight`.
@@ -982,8 +978,10 @@ public struct IconTextRenderer: MenuBarRenderer {
         // Centered on what is drawn: the glyph's ink, the gap, and the value. The remaining point
         // of asymmetry is the trailing side bearing of the degree sign, which cannot be removed
         // without moving the value closer to the icon than the rest of the bar's spacing.
-        let drawnIconWidth = placement?.inkSize.width ?? (hasIcon ? symbolFieldWidth : 0)
-        let groupWidth = drawnIconWidth + gap + ceil(textSize.width)
+        // The group is measured from the icon's fixed field, not from the current glyph's ink.
+        // Ink widths differ between conditions, so measuring from them moved the whole item by a
+        // point as the weather changed, which is worse than being a point off center.
+        let groupWidth = symbolFieldWidth + gap + ceil(textSize.width)
         return makeImage(width: width, context: context) { rect in
             var x = MenuBarLayoutMetrics.contentInset
                 + TextRenderer.centeringOffset(contentWidth: groupWidth, canvasWidth: rect.width)
@@ -994,7 +992,7 @@ public struct IconTextRenderer: MenuBarRenderer {
                 // widest one around the icon: a round symbol like sun.max is far narrower than
                 // cloud.sun once both are normalized to the same height, so it would sit in a pocket
                 // of empty space that changed size with the weather.
-                let inkOrigin = x
+                let inkOrigin = x + (symbolFieldWidth - placement.inkSize.width) / 2
                 let symbolRect = NSRect(
                     x: inkOrigin - (placement.inkCenter.x - placement.inkSize.width / 2),
                     y: rect.height / 2 - placement.inkCenter.y,
@@ -1004,7 +1002,7 @@ public struct IconTextRenderer: MenuBarRenderer {
                 symbol.draw(in: symbolRect)
             }
             if hasIcon {
-                x += drawnIconWidth + gap
+                x += symbolFieldWidth + gap
             }
             textValue.draw(
                 at: NSPoint(

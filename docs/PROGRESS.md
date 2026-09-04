@@ -2512,3 +2512,34 @@ Verification:
 - Ink margins were measured per item before and after, and the icon-to-value gap stayed at 5 points across every
   condition glyph with item widths unchanged.
 - `make install` replaced and relaunched `/Applications/Barometer.app`.
+
+### P8-T20 fix the remaining test failures
+
+The first push to run the suite automatically reported five failing tests, fourteen issues. An earlier reading of a
+failing run had been taken from the tail of the log, which showed only the renderer suite; the settings failures had
+been there all along and were missed.
+
+Three were fixtures that still drove the old Combined model: the automatic sizing count, the staged topology test,
+and the migration test. They now build the same situations from stacks, and the migration test enables Combined
+first, because a stack is only created for an item that was actually on.
+
+One was an assertion of mine that condition glyphs sit flush with the leading edge, which centering deliberately
+changed. Glyphs of different widths centered in one field legitimately start at slightly different offsets, so the
+test now pins what matters: identical item widths, and offsets within a point of each other.
+
+The last was `iconScaleResizesCompactSymbolsAndGraphs`, a pre-existing contract that the icon scale changes a
+compact symbol's height. The glyph floor added for the stacked weather presentation had made that height constant.
+`IconStackRenderer` is now used only by the Settings preview, since Weather draws inline, so the floor was serving
+nothing and has been reverted rather than the test rewritten. That is the second contract broken by a change left
+behind from an approach that was later replaced.
+
+The icon group is also measured from the icon's fixed field again rather than the current glyph's ink. Measuring
+from the ink centered the item one point better but moved the whole item as the weather changed, which is worse.
+
+Verification:
+
+- `swift build`, `swift build -c release`, and `git diff --check` completed successfully; `swift test` built every
+  target.
+- Every corrected assertion was recomputed against the real modules first, including the sizing ladder from one to
+  twenty items, each module adding exactly one item, and stacks adding one item and removing the sources they
+  replace.

@@ -955,7 +955,12 @@ struct MenuBarRendererTests {
             leadingMargins.insert(Self.leadingInkMargin(image).rounded())
         }
         #expect(widths.count == 1, "condition glyphs produced widths \(widths.sorted())")
-        #expect(leadingMargins == [0], "icon is not flush with the leading edge: \(leadingMargins)")
+        // Content is centered in the item so the hover highlight sits over it, and each glyph is
+        // centered in a field of fixed width. Glyphs differ in width, so a narrower one starts
+        // slightly further in; what must not happen is the item shifting as the weather changes,
+        // which the identical widths above already pin.
+        let spread = (leadingMargins.max() ?? 0) - (leadingMargins.min() ?? 0)
+        #expect(spread <= 1, "condition glyphs start \(spread) pt apart: \(leadingMargins.sorted())")
     }
 
     /// Blank columns before the first inked column.

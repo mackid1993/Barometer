@@ -362,9 +362,16 @@ struct SettingsTests {
         #expect(settings.effectiveMenuBarFontSize == 10)
         #expect(settings.effectiveMenuBarScale == 0.8)
 
+        // One stack replacing CPU, Memory, and every Sensors widget: eleven items collapse to the
+        // six that remain plus the stack itself.
         settings.modules[.combined]?.isEnabled = true
-        settings.combined.members = [.cpu, .memory, .sensors]
-        settings.combined.hidesIndividualMembers = true
+        settings.stacks = StacksSettings(stacks: [
+            StackSettings(
+                id: 1,
+                metrics: [.cpuTotal, .memoryUsedPercent, .sensorsHottest],
+                hidesSourceItems: true
+            )
+        ])
         #expect(settings.enabledMenuBarItemCount == 7)
         #expect(settings.effectiveMenuBarFontSize == 12)
         #expect(settings.effectiveMenuBarScale == 0.9)
@@ -486,6 +493,10 @@ struct SettingsTests {
         }
 
         let store = SettingsStore(defaults: defaults)
+        // Stacks start empty, so the one being staged has to exist first.
+        var initial = store.settings
+        initial.stacks = StacksSettings(stacks: [StackSettings(id: 1, metrics: [.cpuTotal])])
+        store.settings = initial
         let savedMetrics = store.settings.stacks.stack(id: 1)?.metrics
         store.stageStackMetrics([.cpuTotal, .batteryTime], for: 1)
         store.stageStackHidesSourceItems(true, for: 1)
@@ -510,6 +521,9 @@ struct SettingsTests {
     func migratesCombinedSettingsIntoStacks() throws {
         var settings = AppSettings()
         settings.combined = CombinedSettings(members: [.cpu, .gpu], hidesIndividualMembers: true)
+        // Only an item that was actually on migrates; someone who never enabled Combined gets no
+        // stacks rather than one they never asked for.
+        settings.modules[.combined]?.isEnabled = true
         var object = try JSONSerialization.jsonObject(
             with: try JSONEncoder().encode(settings)
         ) as! [String: Any]
