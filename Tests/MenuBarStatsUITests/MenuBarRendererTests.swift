@@ -416,11 +416,12 @@ struct MenuBarRendererTests {
     func statusItemLengthMatchesRenderedCanvasWithoutAppKitInsets() {
         let image = TextRenderer(text: "CPU").render(in: context)
         let target = StatusItemRendering.itemLength(for: image)
+        var latch = StatusItemLengthLatch()
 
         #expect(target == ceil(image.size.width))
-        #expect(StatusItemRendering.shouldAssignInitialLength(current: nil))
-        #expect(!StatusItemRendering.shouldAssignInitialLength(current: target))
-        #expect(!StatusItemRendering.shouldAssignInitialLength(current: target + 1))
+        #expect(latch.resolve(target).shouldAssign)
+        #expect(!latch.resolve(target).shouldAssign)
+        #expect(!latch.resolve(target + 1).shouldAssign)
     }
 
     @Test
@@ -912,10 +913,19 @@ struct RecordedWidthTests {
     }
 
     @Test
-    func liveLengthAlwaysWinsOverStagedFontAndGlyphWidths() {
-        #expect(StatusItemRendering.activeLength(applied: nil, proposed: 40) == 40)
-        #expect(StatusItemRendering.activeLength(applied: 32, proposed: 40) == 32)
-        #expect(StatusItemRendering.activeLength(applied: 32, proposed: 20) == 32)
+    func liveLengthLatchRejectsEveryLaterWidthProposal() {
+        var latch = StatusItemLengthLatch()
+        let initial = latch.resolve(32)
+        let wider = latch.resolve(40)
+        let narrower = latch.resolve(20)
+
+        #expect(initial.length == 32)
+        #expect(initial.shouldAssign)
+        #expect(wider.length == 32)
+        #expect(!wider.shouldAssign)
+        #expect(narrower.length == 32)
+        #expect(!narrower.shouldAssign)
+        #expect(latch.length == 32)
         #expect(StatusItemRendering.roundedLength(33) == 36)
 
         let narrowContext = RenderContext(
@@ -938,38 +948,21 @@ struct RecordedWidthTests {
         let applied = StatusItemRendering.roundedLength(renderer.render(in: narrowContext).size.width)
         let staged = StatusItemRendering.roundedLength(renderer.render(in: wideContext).size.width)
         #expect(staged > applied)
-        #expect(StatusItemRendering.activeLength(applied: applied, proposed: staged) == applied)
+        var renderedWidth = StatusItemLengthLatch()
+        #expect(renderedWidth.resolve(applied).shouldAssign)
+        #expect(renderedWidth.resolve(staged).length == applied)
     }
 
     @Test
-    func fittedImagesKeepCanvasHeightAndTemplateFlag() {
+    func framedImagesKeepFullScaleCanvasHeightAndTemplateFlag() {
         let image = NSImage(size: NSSize(width: 29, height: 22), flipped: false) { _ in true }
         image.isTemplate = true
-        let padded = StatusItemRendering.image(image, fittedTo: 32)
+        let padded = StatusItemRendering.image(image, framedTo: 32)
         #expect(padded.size == NSSize(width: 32, height: 22))
         #expect(padded.isTemplate)
-        let shrunk = StatusItemRendering.image(image, fittedTo: 24)
-        #expect(shrunk.size == NSSize(width: 24, height: 22))
-        #expect(StatusItemRendering.image(image, fittedTo: 29) === image)
+        let clipped = StatusItemRendering.image(image, framedTo: 24)
+        #expect(clipped.size == NSSize(width: 24, height: 22))
+        #expect(StatusItemRendering.image(image, framedTo: 29) === image)
     }
 
-    @Test
-    func appliedGeometryDoesNotFollowLiveCompactOrSizingChanges() {
-        var settings = AppSettings(fontSize: 12, menuBarScale: 1.15, menuBarSpacing: 3)
-        let applied = StatusItemGeometry(settings: settings)
-
-        settings.fontSize = 9
-        settings.menuBarScale = 0.75
-        settings.menuBarSpacing = 0
-        settings.fontWeight = .regular
-        settings.usesCompactLayout = true
-        let proposed = StatusItemGeometry(settings: settings)
-
-        #expect(proposed != applied)
-        #expect(applied.fontSize == 12)
-        #expect(applied.scale == 1.15)
-        #expect(applied.horizontalSpacing == 3)
-        #expect(applied.fontWeight == .medium)
-        #expect(!applied.usesCompactLayout)
-    }
 }

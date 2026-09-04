@@ -105,7 +105,10 @@ public final class SettingsStore {
         guard AppSettings.menuBarScaleRange.contains(settings.menuBarScale) else {
             throw SettingsImportError.valueOutOfRange("icon and graph size")
         }
-        guard (0...12).contains(settings.menuBarSpacing) else {
+        guard
+            [AppSettings.compactMenuBarSpacing, AppSettings.regularMenuBarSpacing]
+                .contains(settings.menuBarSpacing)
+        else {
             throw SettingsImportError.valueOutOfRange("item spacing")
         }
         guard (0.1...1).contains(settings.graphOpacity) else {

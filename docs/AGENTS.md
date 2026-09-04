@@ -145,16 +145,19 @@ The rule is absolute: each controller may assign `statusItem.length` at most onc
 the item visible. There is no exception for a user-initiated layout change, a debounced update, a manual recompute
 command, or assigning the same numeric value. `StatusItemController` must remain the only production writer.
 
-Settings previews render new typography and glyph geometry immediately, but a live status item continues rendering
-with the geometry it first applied. Its readings continue to refresh. Barometer separately calculates the new
-natural width, rounds it to the four-point grid, and records it under
-`Barometer.CommittedWidth.v3.<autosaveName>`, but must not apply it to the live AppKit item. On the next app launch,
-the controller reads that committed width and assigns it before the item becomes visible. The active image canvas
-always uses the applied live width and geometry, never the pending values.
+Width-affecting controls edit a `MenuBarLayoutDraft`; they must not mutate settings observed by live status items.
+The prominent Apply & Relaunch action commits the draft as one transaction, stages exact widths, and reopens the app.
+If another code path proposes different geometry while the app is running, content retains its true point size and
+clips at the trailing edge of the applied frame. Barometer records the new natural width under
+`Barometer.CommittedWidth.v4.<autosaveName>`, but must not apply it to the live AppKit item. On the next app launch,
+the controller reads that committed width and assigns it before the item becomes visible.
 
 The complete decision, algorithm, prohibited alternatives, and regression checks are in
 [`MACOS27_STATUS_ITEM_SIZING.md`](MACOS27_STATUS_ITEM_SIZING.md). Read it before changing menu bar typography,
 rendered widths, or status-item lifecycle code.
+
+Expose spacing only as Regular (3 points per side) and Compact (zero app-controlled points). Applying an exact outer
+spacing change requires the prominent controlled Barometer relaunch; never bring back a continuous live-width slider.
 
 AppKit's variable-length image presentation also introduced its standard eight-point image inset on each side. An
 explicit status-item length equal to the rendered image width is what makes zero user spacing possible while keeping

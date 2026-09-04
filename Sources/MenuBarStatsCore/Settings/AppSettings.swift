@@ -158,6 +158,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Supported scale range for menu bar icons and graphs.
     public static let menuBarScaleRange = 0.75...1.15
 
+    /// Horizontal padding used by the two supported spacing presets.
+    public static let compactMenuBarSpacing = 0.0
+    public static let regularMenuBarSpacing = 3.0
+
     /// Schema version encoded in this value.
     public var schemaVersion: Int
 
@@ -213,7 +217,11 @@ public struct AppSettings: Codable, Equatable, Sendable {
     }
 
     /// Horizontal padding on each side of every menu bar item, in points.
-    public var menuBarSpacing: Double
+    public var menuBarSpacing: Double {
+        didSet {
+            menuBarSpacing = Self.normalizedMenuBarSpacing(menuBarSpacing)
+        }
+    }
 
     /// Per-module settings keyed by stable module identity.
     public var modules: [ModuleID: ModuleSettings]
@@ -298,7 +306,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.usesCompactLayout = usesCompactLayout
         self.fontSize = Self.clampedMenuBarFontSize(fontSize)
         self.menuBarScale = Self.clampedMenuBarScale(menuBarScale)
-        self.menuBarSpacing = menuBarSpacing
+        self.menuBarSpacing = Self.normalizedMenuBarSpacing(menuBarSpacing)
         self.modules = modules
         self.weather = weather
         self.sensorTemperatureUnit = sensorTemperatureUnit
@@ -540,6 +548,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         }
         fontSize = Self.clampedMenuBarFontSize(fontSize)
         menuBarScale = Self.clampedMenuBarScale(menuBarScale)
+        menuBarSpacing = Self.normalizedMenuBarSpacing(menuBarSpacing)
     }
 
     /// Clamps a font size to the range that fits Barometer's fixed-height menu bar canvases.
@@ -550,6 +559,11 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Clamps icon and graph scaling to the range that fits the menu bar canvas.
     public static func clampedMenuBarScale(_ value: Double) -> Double {
         min(menuBarScaleRange.upperBound, max(menuBarScaleRange.lowerBound, value))
+    }
+
+    /// Maps legacy arbitrary spacing values onto Compact or Regular.
+    public static func normalizedMenuBarSpacing(_ value: Double) -> Double {
+        value < regularMenuBarSpacing / 2 ? compactMenuBarSpacing : regularMenuBarSpacing
     }
 
     /// Number of independently movable Barometer items requested by the current settings.
@@ -580,9 +594,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Density ceiling used for a given number of independently movable items.
     public static func maximumMenuBarFontSize(forItemCount count: Int) -> Double {
         switch count {
-        case ...4: 12
-        case 5...6: 11
-        case 7...8: 10
+        case ...8: 12
+        case 9...11: 11
+        case 12...14: 10
         default: 9
         }
     }

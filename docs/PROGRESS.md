@@ -1551,12 +1551,11 @@ The settings UI refactor had reintroduced a macOS 27 placement failure by allowi
 whenever application settings changed. Font size, font weight, compact layout, glyph scale, and spacing could
 therefore cause independently movable items to lose their established Bartender positions after reassessment.
 
-Status-item length and rendering geometry are now immutable after each controller's first enabled render. Live
-readings continue to refresh, but typography and spacing changes remain in Settings previews while staging a
-four-point-rounded width for the next launch. The next process applies that geometry before visibility. The manual
-width action was renamed to describe this staging behavior, and the sole production length assignment carries a
-source-level contract warning. The cache key
-uses a `v3` schema so widths staged under the former font and glyph limits cannot survive the new geometry caps.
+Status-item outer length is now immutable after each controller's first enabled render. Live readings and layout
+controls redraw inside that fixed canvas while staging a four-point-rounded width for the next launch. The next
+process applies that outer width before visibility. The sole production length assignment carries a source-level
+contract warning. The cache key uses a `v4` schema so widths staged under the former font and glyph limits cannot
+survive the new geometry caps.
 
 Added `docs/MACOS27_STATUS_ITEM_SIZING.md` as the durable decision record. It documents the failure signature,
 one-assignment invariant, width lifecycle, prohibited live-resize exceptions, and required regression procedure.
@@ -1566,26 +1565,40 @@ The global font-size maximum is now 12 points, the largest size that fits the fi
 The 9–12 point range is centralized in `AppSettings`, used by the slider, settings validation, previews, and live
 rendering, and applied when old persisted settings contain a larger value.
 
-Icon and graph scaling is similarly capped at 115 percent. Barometer automatically caps the effective font at 11
-points for five or six independently movable items, 10 points for seven or eight, and 9 points for nine or more.
-The selected font remains unchanged, allowing it to return when the user disables items. The count includes every
-enabled Sensors instance and accounts for members hidden by Combined.
+Icon and graph scaling is similarly capped at 115 percent. Barometer keeps the selected 12-point font for up to eight
+independently movable items, then caps it at 11 points for nine through eleven items, 10 points for twelve through
+fourteen, and 9 points for fifteen or more. The selected font remains unchanged, allowing it to return when the user
+disables items. The count includes every enabled Sensors instance and accounts for members hidden by Combined.
 
-The first guard still allowed compact-layout ink to shift inside an unchanged frame, which David observed as another
-movement regression. Controllers now freeze font size, weight, compact layout, icon/graph scale, and spacing after
-their first visible render. The registry also hides every AppKit item synchronously at creation so no manager can
-catalog a visible placeholder before its fixed identity, rendered image, and initial length are ready. These are
-AppKit-level rules with no manager detection or manager-specific runtime behavior.
+Centering a narrower live rendering inside the immutable frame still made its ink visibly shift when Compact changed.
+An initial attempt to freeze all live geometry prevented Compact and Spacing from appearing to turn off, while a
+second attempt that redrew inside the old canvas could shrink typography until it was unreadable. Both approaches
+were rejected. Width-affecting controls now edit a local draft and cannot touch live widgets. The registry also hides
+every AppKit item synchronously at creation so no manager can catalog a visible placeholder before its fixed identity,
+rendered image, and initial length are ready. These are AppKit-level rules with no manager detection or manager-specific
+runtime behavior.
+
+Replaced the 0–12 point spacing slider with two intentional presets: Regular at 3 points per side and Compact at
+zero. Legacy arbitrary values normalize to the nearest preset. A prominent Apply & Relaunch button becomes active
+when the draft differs, saves all layout settings together, stages every width, and safely reopens the same Barometer
+bundle. A one-way length latch rejects every later proposal during the process lifetime. The apply action also
+rejects repeated activation and bare development executables.
+
+The prior fixed-canvas fallback proportionally shrank any rendering wider than its live frame. This compounded the
+density ceiling and made a saved 12-point setting appear extremely small. Live rendering now always preserves the
+selected font and glyph sizes: a wider proposal clips at the trailing edge until Apply Menu Bar Layout safely
+relaunches. The cache schema advanced to `v4` because widths recorded for the scaling fallback are structurally stale.
 
 Verification:
 
 - `swift test` exited 0 and built and linked every test target. Command Line Tools did not print a test-execution
   summary, matching the environment limitation already documented above. Renderer coverage explicitly verifies that
-  both typography and icon/graph-scale width changes leave an already-applied live length unchanged.
+  typography, icon/graph-scale, narrower, and wider proposals leave an already-applied live length unchanged.
 - `swift build -c release` completed successfully.
 - `rg -n 'statusItem\\.length\\s*=' Sources` found exactly one production assignment, in
   `StatusItemController`'s guarded initial-layout branch.
 - `git diff --check` passed, and the new sizing documentation has no line longer than 120 columns.
 - `make install` built, signed, installed, and launched `/Applications/Barometer.app`. The bundle identifier remained
-  `com.barometer.app`, and strict code-signature verification passed. With six active compact items, the fixed image
-  canvases totaled 192 points: CPU, GPU, and Memory at 24 each, Network at 44, Sensors at 56, and Weather at 20.
+  `com.barometer.app`, and strict code-signature verification passed. With six active items at the saved 12-point
+  selection, the `v4` canvases totaled 252 points: CPU, GPU, and Memory at 32 each, Network at 56, Sensors at 76, and
+  Weather at 24. Every active image width exactly matched its latched status-item length.

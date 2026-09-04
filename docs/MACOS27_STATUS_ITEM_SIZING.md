@@ -8,10 +8,14 @@ The supported menu bar font-size range is 9–12 points. Twelve points is the la
 the fixed-height canvases consistently. The icon and graph scale is 75–115 percent. Keep both ranges centralized in
 `AppSettings`; settings, previews, and production rendering must not define separate limits.
 
-Barometer also applies a deterministic density ceiling to the effective font size: up to four enabled independent
-items may use 12 points, five or six use at most 11, seven or eight use at most 10, and nine or more use 9. The user's
-selection is retained, so disabling items can restore the larger effective size. Count sensor-widget instances and
-respect Combined's hide-members behavior when calculating the enabled item count.
+Spacing is intentionally a two-state choice, not a continuous slider: Regular adds 3 points on each side and Compact
+adds zero app-controlled points. Legacy values normalize to the nearest preset. The exact outer gap is applied by the
+controlled Apply Menu Bar Layout relaunch; the live frame must not resize when the picker changes.
+
+Barometer also applies a deterministic density ceiling to the effective font size: up to eight enabled independent
+items may use 12 points, nine through eleven use at most 11, twelve through fourteen use at most 10, and fifteen or
+more use 9. The user's selection is retained, so disabling items can restore the larger effective size. Count
+sensor-widget instances and respect Combined's hide-members behavior when calculating the enabled item count.
 
 ## Problem
 
@@ -29,7 +33,8 @@ length write followed by one or more independently movable items losing their es
 
 ## Decision
 
-An individual `StatusItemController` may assign `statusItem.length` exactly once per process lifetime. That assignment
+An individual `StatusItemController` may assign `statusItem.length` exactly once per process lifetime. A one-way
+`StatusItemLengthLatch` enforces that invariant even when later renderings propose different widths. The assignment
 must happen during the controller's first enabled render and before `statusItem.isVisible` becomes true.
 
 `StatusItemController` is the only production type allowed to assign `statusItem.length`. A repository search should
@@ -56,16 +61,22 @@ There are no live-resize exceptions. In particular, do not add an exception for:
    into that canvas, assigns the AppKit length once, and only then makes the item visible.
    A controller records geometry settings while hidden; when the user enables it later, its first render uses current
    geometry instead of a stale committed width.
-4. During the same process lifetime, settings may change the renderer's natural width. Barometer records the new
-   rounded width under `Barometer.CommittedWidth.v3.<autosaveName>` but keeps the applied AppKit length unchanged.
-5. Until restart, the item continues using its initially applied font size, font weight, condensed-layout flag,
-   icon/graph scale, and spacing. Live readings and non-geometric styles still refresh. This prevents both outer-frame
-   reassessment and visible ink shifts inside an unchanged frame.
-6. After the user quits and reopens Barometer, the controller applies the staged width before the item appears.
+4. Width-affecting controls edit a local draft. They do not change the settings observed by live status items.
+5. Apply & Relaunch commits every draft value together, clears stale recorded widths, renders the new natural widths,
+   saves settings, and starts a controlled relaunch. The old process never changes its AppKit lengths.
+6. If another code path proposes geometry while the process remains live, Barometer records its rounded width under
+   `Barometer.CommittedWidth.v4.<autosaveName>`. The rendering retains its true font and glyph sizes and clips at the
+   trailing edge of the applied frame. It is never recentered or proportionally miniaturized.
+7. After the user quits and reopens Barometer, the controller applies the staged width before the item appears.
 
-This preserves stable positions while keeping settings previews responsive. The menu bar geometry itself takes
-effect on the next launch because macOS 27 does not provide a verified way to mutate a live item's geometry without
-risking reassessment by at least one manager.
+The Settings action named Apply Menu Bar Layout stages every width, saves settings, and reopens the same application
+bundle after the current process exits. Its short-lived shell process launches the main bundle only; it never owns or
+creates a status item and therefore does not violate the single-bundle identity contract. The action is guarded
+against repeated activation and refuses to relaunch a bare development executable that is not inside an app bundle.
+
+This preserves stable outer positions while keeping draft previews responsive. The exact outer width takes effect on
+the next launch because macOS 27 does not provide a verified way to resize a live item without risking reassessment
+by at least one manager.
 
 ## Why the width is explicit
 
@@ -95,6 +106,6 @@ Before accepting a change to menu bar geometry or status-item lifecycle:
 If an operating-system update appears to permit safe live resizing, treat that as a new investigation. Preserve this
 contract until the alternative is reproduced, documented, and explicitly approved.
 
-The `v3` component is an intentional cache-schema version. Increment it when a future rendering constraint makes old
+The `v4` component is an intentional cache-schema version. Increment it when a future rendering constraint makes old
 committed widths structurally invalid. Do not increment it merely to force arbitrary movement or bypass the staged
 width lifecycle.

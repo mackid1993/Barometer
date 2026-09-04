@@ -322,6 +322,16 @@ struct SettingsTests {
         #expect(settings.menuBarScale == 0.75)
     }
 
+    @Test("item spacing uses only regular and compact presets")
+    func normalizesMenuBarSpacing() {
+        var settings = AppSettings(menuBarSpacing: 12)
+        #expect(settings.menuBarSpacing == AppSettings.regularMenuBarSpacing)
+        settings.menuBarSpacing = 1
+        #expect(settings.menuBarSpacing == AppSettings.compactMenuBarSpacing)
+        settings.menuBarSpacing = 2
+        #expect(settings.menuBarSpacing == AppSettings.regularMenuBarSpacing)
+    }
+
     @Test("active widget count automatically limits effective font size")
     func limitsFontSizeForDensity() {
         var settings = AppSettings(fontSize: 12)
@@ -332,6 +342,12 @@ struct SettingsTests {
             settings.modules[module]?.isEnabled = true
         }
         #expect(settings.enabledMenuBarItemCount == 6)
+        #expect(settings.effectiveMenuBarFontSize == 12)
+
+        settings.modules[.battery]?.isEnabled = true
+        settings.modules[.time]?.isEnabled = true
+        settings.modules[.disks]?.isEnabled = true
+        #expect(settings.enabledMenuBarItemCount == 9)
         #expect(settings.effectiveMenuBarFontSize == 11)
 
         settings.sensors.widgets.append(SensorWidgetSettings(id: 2))
