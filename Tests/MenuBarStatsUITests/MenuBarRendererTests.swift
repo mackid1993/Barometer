@@ -913,6 +913,62 @@ struct MenuBarRendererTests {
         return origins
     }
 
+    @Test("an icon beside a value is spaced like every other multi-part item")
+    func inlineIconSpacingMatchesTheRestOfTheBar() {
+        // The gap is measured from the rendered ink, not from the layout constants, because the
+        // constants differ: this renderer positions the icon by its ink and has no side bearing to
+        // contribute, while a label-and-value pair does.
+        let weather = Self.widestInteriorGap(
+            IconTextRenderer(
+                symbolName: "cloud.sun",
+                text: "81°",
+                reservedText: "-99°",
+                reservedSymbolNames: ["cloud.sun", "sun.max", "cloud.bolt.rain", "questionmark.circle"]
+            ).render(in: context)
+        )
+        let network = Self.widestInteriorGap(
+            NetworkRateStackRenderer(download: "1.2M", upload: "15K", reservedValue: "999MB/s")
+                .render(in: context)
+        )
+        let sensors = Self.widestInteriorGap(
+            SensorStackRenderer(values: [
+                SensorStackValue(label: "CPU", value: "12%", reservedValue: "100%", reservedLabel: "CPU")
+            ]).render(in: context)
+        )
+
+        #expect(network == sensors, "reference items disagree: \(network) and \(sensors)")
+        #expect(
+            abs(weather - network) <= 0.5,
+            "icon spacing is \(weather) where the rest of the bar uses \(network)"
+        )
+    }
+
+    /// Widest run of blank columns between the first and last inked column.
+    private static func widestInteriorGap(_ image: NSImage) -> CGFloat {
+        guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff) else {
+            return 0
+        }
+        var inked: [Bool] = []
+        for x in 0..<bitmap.pixelsWide {
+            var hasInk = false
+            for y in 0..<bitmap.pixelsHigh where (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.05 {
+                hasInk = true
+                break
+            }
+            inked.append(hasInk)
+        }
+        guard let first = inked.firstIndex(of: true), let last = inked.lastIndex(of: true) else {
+            return 0
+        }
+        var widest = 0
+        var run = 0
+        for x in first...last {
+            run = inked[x] ? 0 : run + 1
+            widest = max(widest, run)
+        }
+        return CGFloat(widest) / (CGFloat(bitmap.pixelsWide) / image.size.width)
+    }
+
     @Test("the weather glyph stays legible at every automatic icon scale")
     func weatherGlyphIsGatedAtALegibleSize() {
         // The icon scale drops as items are added, which had shrunk the glyph until it read as

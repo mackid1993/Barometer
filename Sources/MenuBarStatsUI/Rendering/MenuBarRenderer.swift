@@ -147,6 +147,16 @@ struct MenuBarLayoutMetrics {
         max(3, round(3.5 * context.scale))
     }
 
+    /// Visible separation between a glyph and the value beside it.
+    ///
+    /// Every other multi-part item ends up with five points of blank space between its label and
+    /// its value: `densePairGap` plus the side bearing the label's last glyph carries. This
+    /// renderer positions the icon by its measured ink, which has no bearing to contribute, so the
+    /// constant has to be the visible gap itself for the spacing to match the rest of the bar.
+    var inlineIconTextGap: CGFloat {
+        densePairGap + 2
+    }
+
     /// Dense blocks use the same edge contract as every other status-item renderer.
     var denseTextPadding: CGFloat {
         0
@@ -932,16 +942,32 @@ public struct IconTextRenderer: MenuBarRenderer {
         let textSize = textValue.size()
         let reservedTextSize = NSAttributedString(string: reservedText, attributes: attributes).size()
         let metrics = MenuBarLayoutMetrics(context: context)
-        let symbolSize = symbol.map { metrics.symbolSize(nativeSize: $0.size, font: font) } ?? .zero
+        // Measure the glyph by its ink, not its image box. An SF Symbol carries transparent optical
+        // padding on every side, and reserving the box put that padding between the icon and the
+        // text on top of the gap, which read as a large unexplained hole.
+        let visibleHeight = symbol.map { metrics.symbolSize(nativeSize: $0.size, font: font).height } ?? 0
+        let inkKey = "\(symbolName)|\(symbolPointSize)|\(context.fontWeight)|inline"
+        let placement = symbol.map {
+            SymbolInkMeasurer.placement(of: $0, key: inkKey, visibleHeight: visibleHeight)
+        }
         let reservedSymbolWidth =
-            reservedSymbolNames.compactMap { name in
-                NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-                    .withSymbolConfiguration(configuration)
-            }.map { metrics.symbolSize(nativeSize: $0.size, font: font).width }.max() ?? 0
+            reservedSymbolNames.compactMap { name -> CGFloat? in
+                guard
+                    let reservedImage = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+                        .withSymbolConfiguration(configuration)
+                else {
+                    return nil
+                }
+                return SymbolInkMeasurer.placement(
+                    of: reservedImage,
+                    key: "\(name)|\(symbolPointSize)|\(context.fontWeight)|inline",
+                    visibleHeight: visibleHeight
+                ).inkSize.width
+            }.max() ?? 0
         // A renderer that reserves symbol width keeps the gap even when the current symbol fails to
         // resolve, so one missing glyph cannot change the item's width.
-        let gap = symbol == nil && reservedSymbolWidth == 0 ? 0 : metrics.iconTextGap
-        let symbolFieldWidth = max(symbolSize.width, reservedSymbolWidth)
+        let gap = symbol == nil && reservedSymbolWidth == 0 ? 0 : metrics.inlineIconTextGap
+        let symbolFieldWidth = max(placement?.inkSize.width ?? 0, reservedSymbolWidth)
         let textFieldWidth = ceil(max(textSize.width, reservedTextSize.width))
         let width =
             MenuBarLayoutMetrics.contentInset * 2
@@ -950,23 +976,27 @@ public struct IconTextRenderer: MenuBarRenderer {
             + textFieldWidth
         return makeImage(width: width, context: context) { rect in
             var x = MenuBarLayoutMetrics.contentInset
-            if let symbol {
+            if let symbol, let placement {
+                // The ink sits against the trailing edge of its reserved field, so the separation
+                // from the value is always exactly the gap. Centering it here put half the width
+                // reserved for a wider condition glyph between the icon and the temperature, which
+                // read as a hole that changed size with the weather.
+                let inkOrigin = x + (symbolFieldWidth - placement.inkSize.width)
                 let symbolRect = NSRect(
-                    x: x + floor((symbolFieldWidth - symbolSize.width) / 2),
-                    y: metrics.symbolY(
-                        for: symbolSize,
-                        nativeSize: symbol.size,
-                        alignmentRect: symbol.alignmentRect
-                    ),
-                    width: symbolSize.width,
-                    height: symbolSize.height
+                    x: inkOrigin - (placement.inkCenter.x - placement.inkSize.width / 2),
+                    y: rect.height / 2 - placement.inkCenter.y,
+                    width: placement.boxSize.width,
+                    height: placement.boxSize.height
                 )
                 symbol.draw(in: symbolRect)
                 x += symbolFieldWidth + gap
             }
             textValue.draw(
                 at: NSPoint(
-                    x: x + max(0, textFieldWidth - textSize.width),
+                    // Against the icon, not against the trailing edge. The field is as wide as the
+                    // widest value this item can ever show, and right-aligning put that spare width
+                    // between the icon and the value, which is what made the gap read as a hole.
+                    x: x,
                     y: metrics.centeredY(for: textSize.height)
                 )
             )

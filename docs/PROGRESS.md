@@ -2339,3 +2339,35 @@ Verification:
 - Rendering the item beside CPU, Battery, and a stack confirmed the glyph and temperature read at the same weight as
   their neighbors. All direct checks still pass.
 - `make install` replaced and relaunched `/Applications/Barometer.app`.
+
+### P8-T14 tighten the spacing between an icon and its value
+
+David said the gap between the weather glyph and its temperature was far too large, and asked for the same spacing
+the rest of the bar uses. Measuring the rendered ink confirmed it: nine points between the glyph and the value,
+where a Network arrow and its rate, and a Sensors label and its value, both leave five.
+
+Three separate causes, each found by measurement rather than by reading the layout code:
+
+`IconTextRenderer` sized the glyph from the symbol's image box. SF Symbols carry transparent optical padding, so
+part of that box was invisible margin sitting between the icon and the value. The glyph is now measured and placed
+by its ink, as the stacked renderer already did.
+
+The glyph was centered inside a field reserved for the widest condition symbol, so half of that reservation fell
+between the icon and the value and changed size with the weather. The ink now sits against the trailing edge of its
+field, leaving the spare width on the outside where it reads as margin.
+
+The value was right-aligned inside a field reserved for `-99°`, which put the difference between the live value and
+the reservation into the same gap. That was the largest of the three. The value is now drawn against the icon.
+
+With those fixed the gap was three points, which is `densePairGap` but two points tighter than the rest of the bar,
+because the other items gain the side bearing of their label's last glyph and an ink-placed icon has none. The
+inline gap constant is therefore the visible gap itself, and all three items now measure five points.
+
+Verification:
+
+- `swift build`, `swift build -c release`, and `git diff --check` completed successfully; `swift test` built every
+  target, and the runner remains unavailable on this machine.
+- Ink-gap measurement across the weather, network, and sensor items: 5.00 pt each, from 9.00, 5.00, and 5.00 before.
+  A test now pins the weather item to whatever the reference items measure, comparing rendered ink rather than
+  layout constants, since the constants legitimately differ.
+- `make install` replaced and relaunched `/Applications/Barometer.app`.
