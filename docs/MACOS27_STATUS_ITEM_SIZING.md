@@ -16,8 +16,8 @@ icon-and-text rows, symbols, and vertical icon stacks. Do not reintroduce either
 
 AppKit also reads `NSStatusItemSpacing` and `NSStatusItemSelectionPadding` from the defaults search list and wraps
 each explicit canvas in that spacing. Barometer sets both keys to one only in its own `com.barometer.app` defaults
-domain before constructing `StatusItemRegistry`. Zero makes adjacent text collide; the host default of four is too
-loose for dense monitoring. Never write or delete the by-host global values: Barometer's compact spacing must not
+domain before constructing `StatusItemRegistry`. Never write or delete the by-host global values: Barometer's compact
+spacing must not
 change spacing for the rest of the user's menu bar.
 
 Barometer also applies deterministic density tiers. Up to eight enabled independent items may use 12-point text,

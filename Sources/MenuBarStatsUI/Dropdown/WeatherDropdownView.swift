@@ -179,48 +179,49 @@ private struct CurrentWeatherCard: View {
                     endPoint: .bottom
                 )
             )
-            HStack(alignment: .center, spacing: 14) {
-                Image(systemName: current.code.symbolName(isDay: current.isDay))
-                    .symbolRenderingMode(.multicolor)
-                    .font(.system(size: 46, weight: .medium))
-                    .frame(width: 60)
-                    .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 7) {
-                        Text(forecast.location.name)
-                            .font(.system(.title3, design: .rounded).weight(.semibold))
-                            .lineLimit(1)
-                        if sample.isStale {
-                            Chip(text: "Stale", color: .orange, symbol: "exclamationmark.triangle.fill")
+            VStack(alignment: .leading, spacing: 9) {
+                HStack(alignment: .center, spacing: 14) {
+                    Image(systemName: current.code.symbolName(isDay: current.isDay))
+                        .symbolRenderingMode(.multicolor)
+                        .font(.system(size: 46, weight: .medium))
+                        .frame(width: 60)
+                        .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 7) {
+                            Text(forecast.location.name)
+                                .font(.system(.title3, design: .rounded).weight(.semibold))
+                                .lineLimit(1)
+                            if sample.isStale {
+                                Chip(text: "Stale", color: .orange, symbol: "exclamationmark.triangle.fill")
+                            }
+                        }
+                        Text(current.code.description)
+                            .font(.callout)
+                            .opacity(0.9)
+                        if let apparent = current.apparentTemperature {
+                            Text("Feels like \(WeatherValue.temperature(apparent, units: forecast.units))")
+                                .font(.caption)
+                                .opacity(0.8)
                         }
                     }
-                    Text(current.code.description)
-                        .font(.callout)
-                        .opacity(0.9)
-                    if let apparent = current.apparentTemperature {
-                        Text("Feels like \(WeatherValue.temperature(apparent, units: forecast.units))")
-                            .font(.caption)
-                            .opacity(0.8)
-                    }
-                    TimelineView(.periodic(from: .now, by: 60)) { context in
-                        Label(
-                            WeatherDropdownView.updatedText(
-                                fetchedAt: forecast.fetchedAt,
-                                now: context.date
-                            ),
-                            systemImage: "clock.arrow.circlepath"
-                        )
-                        .font(.caption2)
-                        .opacity(0.78)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    }
+                    Spacer(minLength: 6)
+                    Text(WeatherValue.temperature(current.temperature, units: forecast.units))
+                        .font(.system(size: 40, weight: .semibold, design: .rounded).monospacedDigit())
+                        .contentTransition(.numericText())
+                        .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
                 }
-                Spacer(minLength: 6)
-                Text(WeatherValue.temperature(current.temperature, units: forecast.units))
-                    .font(.system(size: 40, weight: .semibold, design: .rounded).monospacedDigit())
-                    .contentTransition(.numericText())
-                    .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
+                TimelineView(.periodic(from: .now, by: 60)) { context in
+                    Label(
+                        WeatherDropdownView.updatedText(
+                            fetchedAt: forecast.fetchedAt,
+                            now: context.date
+                        ),
+                        systemImage: "clock.arrow.circlepath"
+                    )
+                    .font(.caption2.weight(.medium))
+                    .opacity(0.82)
+                    .lineLimit(1)
+                }
             }
             .foregroundStyle(.white)
             .padding(14)

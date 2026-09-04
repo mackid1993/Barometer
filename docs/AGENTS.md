@@ -169,10 +169,9 @@ label's typography and makes the rows look misaligned even when their outer canv
 
 AppKit's host-wide `NSStatusItemSpacing` and `NSStatusItemSelectionPadding` values can still wrap every explicit
 canvas in unwanted width. Set both keys to one in Barometer's own `com.barometer.app` defaults domain before
-constructing `StatusItemRegistry`. Never change the by-host global values or another application's preferences. Zero
-makes adjacent text collide; four is too loose for this dense monitor. The installed identity report must show every
-Barometer window exactly one point wider than its button, image, and fixed `statusItem.length`, which must match one
-another regardless of the by-host global value.
+constructing `StatusItemRegistry`. Never change the by-host global values or another application's preferences. The
+installed identity report must show every Barometer window exactly one point wider than its button, image, and fixed
+`statusItem.length`, which must match one another regardless of the by-host global value.
 Never bring back a live-width slider. Show/hide controls are the deliberate exception to otherwise-live settings:
 stage those choices until the user selects **Apply Changes**, persist the complete set once, and perform a controlled
 application reopen. The reopen is required so automatic sizing is calculated from the final enabled-item count before

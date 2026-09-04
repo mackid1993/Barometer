@@ -1943,9 +1943,10 @@ global `NSStatusItemSpacing` and `NSStatusItemSelectionPadding` values had retur
 every Barometer window four points wider than its explicit item length and centered the image inside that shell.
 
 An application-domain experiment established that AppKit honors the same keys in `com.barometer.app` before
-status-item creation. Zero removed the shell completely but made neighboring labels and readings collide. One point
-provides the smallest clear visual boundary. Barometer now applies that value only to its own
-defaults domain after validating and claiming the single app instance, but before constructing `StatusItemRegistry`.
+status-item creation. One point provides the requested dense outer boundary. The Sensors renderer separately keeps
+its full-width temperature one point inside the existing canvas so it cannot run directly into `MEM`; this does not
+widen either status item. Barometer applies the outer value only to its own defaults domain after validating and
+claiming the single app instance, but before constructing `StatusItemRegistry`.
 Other menu bar applications and the by-host global preference remain untouched.
 
 The Sensors renderer also stopped using a calculated `.kern` value on the colon to push each live temperature across
@@ -1966,8 +1967,9 @@ Verification:
 
 The Weather dropdown already carried the successful forecast fetch time in `Forecast.fetchedAt`, but the only age
 indicator was buried in the bottom actions card and showed no clock time. The current-conditions card now displays a
-prominent clock row such as `Updated 7:14 AM · 2 min ago`. Cached fallback samples retain the last successful fetch
-time, so a failed refresh cannot misleadingly reset the label to the current time. A minute-based timeline keeps the
+full-width footer such as `Updated 7:14 AM · 2 min ago`. It sits below the icon/location/temperature row instead of
+competing with the large temperature and truncating. Cached fallback samples retain the last successful fetch time,
+so a failed refresh cannot misleadingly reset the label to the current time. A minute-based timeline keeps the
 relative age current while the dropdown remains open, and older updates include the date.
 
 Verification:

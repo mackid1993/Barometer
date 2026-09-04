@@ -543,6 +543,7 @@ struct MenuBarRendererTests {
         let bottomOrigins = SensorStackRenderer.rowOrigins(columnX: 3, columnWidth: 68, valueWidth: 34)
         #expect(topOrigins.label == bottomOrigins.label)
         #expect(topOrigins.value == bottomOrigins.value)
+        #expect(topOrigins.value == 36)
 
         let cool = SensorStackRenderer(values: [
             SensorStackValue(label: "CPU", value: "39.1°C", reservedValue: "999.9°C"),

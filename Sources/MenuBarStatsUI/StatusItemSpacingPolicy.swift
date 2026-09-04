@@ -5,7 +5,7 @@ public enum StatusItemSpacingPolicy {
     static let spacingKey = "NSStatusItemSpacing"
     static let selectionPaddingKey = "NSStatusItemSelectionPadding"
 
-    /// One point preserves a readable boundary while avoiding the loose AppKit default.
+    /// One point keeps independently movable items dense without allowing their canvases to touch.
     static let compactValue = 1
 
     /// Applies the AppKit status-item spacing override before any status item is created.
