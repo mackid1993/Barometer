@@ -30,7 +30,9 @@ Consequences:
 
 - Everything must build with `swift build` from a Swift package. There is no `.xcodeproj`, no `xcodebuild`, and no Xcode-only features (no entitlements, no WeatherKit, no storyboards). The `.app` bundle is assembled by a script.
 - The SDK is 26.2, so the code compiles against macOS 26 headers and runs on 27. Do not depend on any macOS 27-only API.
-- Ad-hoc code signing only. TCC grants keyed to the signature (Location, Calendars) reset on every rebuild, so those permissions are optional paths, never required paths.
+- Development builds use ad-hoc signing. The v1 release uses Developer ID Application signing, the hardened runtime,
+  and Apple notarization. TCC grants can still reset during ad-hoc development, so Location and Calendars remain
+  optional paths with saved-data fallbacks.
 
 ## 3. The macOS 27 menu bar problem and the identity contract
 

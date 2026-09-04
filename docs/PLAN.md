@@ -29,7 +29,11 @@ screencapture -x -R0,0,1728,30 dist/menubar.png                                 
 
 ### Definition of done for v1.0
 
-All of Phases 0 through 7 complete, every module from `docs/DESIGN.md` section 4 present with at least two menu bar modes and a dropdown, the Thaw identity check stable across ten relaunches and one hour of running, CPU and memory budgets from design section 11 met, `swift test` green, and `make install` producing a working `/Applications/Barometer.app`.
+All of Phases 0 through 7 complete, every module from `docs/DESIGN.md` section 4 present with at least two menu bar
+modes and a dropdown, the Thaw identity check stable across ten relaunches and one hour of running, CPU and memory
+budgets from design section 11 met, `swift test` green, `make install` producing a working
+`/Applications/Barometer.app`, and the release archive passing Developer ID signature, hardened-runtime, Gatekeeper,
+and Apple notarization checks.
 
 ---
 
@@ -310,6 +314,16 @@ End of Phase 6: stop for review.
 - `make install` copies to `/Applications`, re-registers launch at login if it was on, and relaunches. README documents building, installing, permissions, and the identity contract for other developers.
 - Verify: `make install && pgrep -x MenuBarStats`.
 
+### P7-T6 Developer ID signing and notarized release
+
+- Add a release-only packaging path that signs the single Barometer app bundle with Developer ID Application,
+  enables the hardened runtime with the minimum required entitlements, creates a distributable archive, submits it
+  through `notarytool`, staples the accepted ticket, and preserves ad-hoc signing for local development builds.
+- Document required Apple Developer credentials without storing secrets in the repository. Do not begin release
+  submission until David selects the signing identity and provides or configures the notarization credentials.
+- Verify: `codesign --verify --deep --strict --verbose=2`, `codesign -d --entitlements :-`,
+  `spctl --assess --type execute --verbose=4`, `xcrun stapler validate`, and a clean-machine launch check.
+
 End of Phase 7: v1.0 tag candidate. Stop for review.
 
 ---
@@ -320,7 +334,7 @@ Only after David asks:
 
 - Alerts with threshold rules and UserNotifications.
 - Per-process network usage (private NetworkStatistics framework) and SMART data.
-- Sparkle updates, Developer ID signing, notarization, Homebrew cask.
+- Sparkle updates and a Homebrew cask.
 - WeatherKit as an alternative provider once Xcode and a developer account are available.
 - Fan control through a privileged helper (separate design review required).
 
