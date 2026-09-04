@@ -92,6 +92,12 @@ let package = Package(
             dependencies: ["SystemSources"],
             swiftSettings: testSwiftSettings
         ),
+        .testTarget(
+            name: "MenuBarStatsUITests",
+            dependencies: ["MenuBarStatsUI"],
+            swiftSettings: testSwiftSettings,
+            linkerSettings: testLinkerSettings
+        ),
     ],
     swiftLanguageModes: [.v6]
 )

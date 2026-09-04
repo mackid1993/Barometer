@@ -236,7 +236,7 @@ End of Phase 3: stop for review.
 
 ### P4-T5 Sensors module
 
-- `SensorsMonitor` merging IOHID, SMC, and IOReport into a `SensorSample` with groups; renderer modes (chosen sensors as text, mini graph, fan RPM); dropdown with grouped sparklines; settings (which sensors in the menu bar, units, show raw names, hide duplicates).
+- `SensorsMonitor` merging IOHID, SMC, and IOReport into a `SensorSample` with groups; renderer modes (chosen sensors as text, compact multi-temperature stack, mini graph, fan RPM); dropdown with grouped sparklines; settings (which sensors in the menu bar, units, show raw names, hide duplicates). The compact stack uses one `Barometer.Sensors` status item and supports multiple ordered rows such as CPU and GPU temperature so users do not spend one menu-bar item per sensor.
 - Verify: Thaw identity check unchanged; the menu bar shows the hottest die and the fan RPM.
 
 ### P4-T6 GPU source and module

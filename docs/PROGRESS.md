@@ -727,3 +727,22 @@ Verification:
 - `swift build --disable-sandbox` completed with zero warnings from Barometer sources.
 - `make run` release-built, signed, installed, and launched the adjusted app from `/Applications/Barometer.app` for
   David's live visual check.
+
+## P1-F4 Standardized menu bar typography
+
+Replaced module-specific text placement with canonical menu bar layout metrics. Stacked labels and values now share
+one leading edge and fixed row geometry, so CPU and Memory no longer shift horizontally according to the width of
+each line. Icon-and-text renderers use the configured font size, one shared gap, and a font-descender-based optical
+lift that aligns the visible SF Symbol with digits and capital letters without changing the status-item identity.
+
+Added a dedicated `MenuBarStatsUITests` target covering leading edges, stacked row positions, symbol sizing, the
+canonical icon gap, and optical vertical placement. Phase 4 now explicitly requires a compact, ordered
+multi-temperature mode that places CPU, GPU, and other selected readings inside the single Sensors status item.
+
+Verification:
+
+- `swift test --disable-sandbox` built and linked all application and test targets, including the new UI tests, and
+  exited 0.
+- `make run` release-built, signed, installed, and launched `/Applications/Barometer.app`.
+- Tight Retina screenshot review measured the Weather cloud and `77°F` visible centers within one pixel.
+- David approved the installed result during live review: "That is sexy."

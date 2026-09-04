@@ -75,6 +75,47 @@ public struct RenderContext {
     }
 }
 
+/// Canonical geometry for every text-based menu bar renderer.
+///
+/// Keeping these calculations in one place prevents modules from acquiring subtly
+/// different baselines, insets, and gaps as their renderers evolve.
+struct MenuBarLayoutMetrics {
+    static let contentInset: CGFloat = 2
+
+    let context: RenderContext
+
+    var iconTextGap: CGFloat {
+        max(3, round(3.5 * context.scale))
+    }
+
+    func centeredY(for height: CGFloat) -> CGFloat {
+        floor((context.thickness - height) / 2)
+    }
+
+    func symbolY(for height: CGFloat, font: NSFont) -> CGFloat {
+        // Text line boxes reserve space below the baseline for descenders, while
+        // weather symbols do not. Lift symbols by half that reserved depth so
+        // their visible center matches digits and capital letters.
+        centeredY(for: height) + ceil(abs(font.descender) / 2)
+    }
+
+    func stackedOrigins(labelHeight: CGFloat, valueHeight: CGFloat) -> (label: NSPoint, value: NSPoint) {
+        let rowGap: CGFloat = 0
+        let contentHeight = labelHeight + rowGap + valueHeight
+        let bottom = floor((context.thickness - contentHeight) / 2)
+        return (
+            label: NSPoint(x: Self.contentInset, y: bottom + valueHeight + rowGap),
+            value: NSPoint(x: Self.contentInset, y: bottom)
+        )
+    }
+
+    func symbolSize(nativeSize: NSSize, font: NSFont) -> NSSize {
+        let height = min(font.pointSize, context.thickness - 6)
+        let aspectRatio = max(0.5, nativeSize.width / max(1, nativeSize.height))
+        return NSSize(width: ceil(height * aspectRatio), height: height)
+    }
+}
+
 /// Produces one resolution-independent menu bar image.
 @MainActor
 public protocol MenuBarRenderer {
@@ -194,12 +235,15 @@ public struct StackedLabelRenderer: MenuBarRenderer {
         ]
         let labelText = NSAttributedString(string: label, attributes: labelAttributes)
         let valueText = NSAttributedString(string: value, attributes: valueAttributes)
-        let width = ceil(max(labelText.size().width, valueText.size().width)) + 4
+        let metrics = MenuBarLayoutMetrics(context: context)
+        let width = ceil(max(labelText.size().width, valueText.size().width))
+            + MenuBarLayoutMetrics.contentInset * 2
         return makeImage(width: width, context: context) { rect in
             let labelSize = labelText.size()
             let valueSize = valueText.size()
-            labelText.draw(at: NSPoint(x: floor((rect.width - labelSize.width) / 2), y: rect.midY + 1))
-            valueText.draw(at: NSPoint(x: floor((rect.width - valueSize.width) / 2), y: rect.midY - valueSize.height))
+            let origins = metrics.stackedOrigins(labelHeight: labelSize.height, valueHeight: valueSize.height)
+            labelText.draw(at: origins.label)
+            valueText.draw(at: origins.value)
         }
     }
 }
@@ -218,38 +262,35 @@ public struct IconTextRenderer: MenuBarRenderer {
     /// Renders the icon and text image.
     @MainActor
     public func render(in context: RenderContext) -> NSImage {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: context.fontSize, weight: .medium)
         let baseConfiguration = NSImage.SymbolConfiguration(pointSize: context.fontSize, weight: .medium)
         let colorConfiguration = NSImage.SymbolConfiguration(paletteColors: [context.foregroundColor])
         let configuration = baseConfiguration.applying(colorConfiguration)
         let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
             .withSymbolConfiguration(configuration)
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: context.fontSize, weight: .medium),
+            .font: font,
             .foregroundColor: context.foregroundColor,
         ]
         let textValue = NSAttributedString(string: text, attributes: attributes)
-        let symbolHeight = min(context.fontSize, context.thickness - 6)
-        let symbolAspectRatio = symbol.map { max(0.5, $0.size.width / max(1, $0.size.height)) } ?? 0
-        let symbolWidth = symbolHeight * symbolAspectRatio
-        let spaceWidth = symbol == nil ? 0 : NSAttributedString(string: " ", attributes: attributes).size().width
-        let symbolOpticalOffset = max(1, context.fontSize * 0.12)
-        let width = symbolWidth + spaceWidth + ceil(textValue.size().width) + 4
+        let textSize = textValue.size()
+        let metrics = MenuBarLayoutMetrics(context: context)
+        let symbolSize = symbol.map { metrics.symbolSize(nativeSize: $0.size, font: font) } ?? .zero
+        let gap = symbol == nil ? 0 : metrics.iconTextGap
+        let width = MenuBarLayoutMetrics.contentInset * 2 + symbolSize.width + gap + ceil(textSize.width)
         return makeImage(width: width, context: context) { rect in
-            symbol?.draw(
-                in: NSRect(
-                    x: 2,
-                    y: floor((rect.height - symbolHeight) / 2 + symbolOpticalOffset),
-                    width: symbolWidth,
-                    height: symbolHeight
+            var x = MenuBarLayoutMetrics.contentInset
+            if let symbol {
+                let symbolRect = NSRect(
+                    x: x,
+                    y: metrics.symbolY(for: symbolSize.height, font: font),
+                    width: symbolSize.width,
+                    height: symbolSize.height
                 )
-            )
-            let size = textValue.size()
-            textValue.draw(
-                at: NSPoint(
-                    x: 2 + symbolWidth + spaceWidth,
-                    y: floor((rect.height - size.height) / 2)
-                )
-            )
+                symbol.draw(in: symbolRect)
+                x = symbolRect.maxX + gap
+            }
+            textValue.draw(at: NSPoint(x: x, y: metrics.centeredY(for: textSize.height)))
         }
     }
 }

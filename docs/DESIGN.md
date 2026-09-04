@@ -166,7 +166,7 @@ Parity target is iStat Menus 7. Each module has a menu bar representation (sever
 ### 4.6 Sensors
 
 - Metrics: every temperature sensor exposed by IOHID (die temperatures, battery, NAND, PMU calibration), SMC temperatures, fans (RPM, min, max, target), power rails (CPU, GPU, ANE, system total, adapter), voltages and currents where the SMC exposes them. Raw sensor names are mapped to friendly labels through a table; unknown names are shown raw.
-- Menu bar modes: one or more chosen sensors as text, a mini graph, a fan RPM readout.
+- Menu bar modes: one or more chosen sensors as text, a compact multi-temperature stack, a mini graph, a fan RPM readout. The stack renders multiple user-selected, user-ordered readings (for example CPU and GPU temperature) inside the single `Barometer.Sensors` status item, with abbreviated labels and a shared unit, rather than allocating one status item per reading.
 - Dropdown: grouped list (temperatures, fans, power, voltage, current) with sparkline per sensor, hottest sensor summary.
 - Read-only. No fan control.
 
