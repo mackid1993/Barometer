@@ -4,6 +4,7 @@ import MenuBarStatsCore
 
 private enum ProbeCommand: String {
     case cpu
+    case disks
     case geocode
     case identity
     case memory
@@ -98,6 +99,46 @@ private func runNetworkProbe(watch: Bool) async throws {
         let sample = try await monitor.sample()
         printNetworkSample(sample)
     } while watch
+}
+
+private func runDiskProbe(watch: Bool) async throws {
+    let monitor = DiskMonitor()
+    _ = try await monitor.sample()
+    repeat {
+        try await Task.sleep(for: .seconds(1))
+        let sample = try await monitor.sample()
+        printDiskSample(sample)
+    } while watch
+}
+
+private func printDiskSample(_ sample: DiskSample) {
+    print("Volumes:")
+    for volume in sample.volumes where volume.totalBytes > 0 {
+        let attachment = volume.kind.rawValue
+        let device = volume.physicalBSDName ?? volume.bsdName ?? "unmapped"
+        print(
+            String(
+                format: "  %@ (%@): %.1f%% used, %@ free of %@ [%@, %@]",
+                volume.name,
+                volume.mountPoint,
+                volume.usedPercent,
+                formatBytes(volume.availableBytes),
+                formatBytes(volume.totalBytes),
+                attachment,
+                device
+            )
+        )
+    }
+    print("Physical disks:")
+    for device in sample.devices {
+        print(
+            "  \(device.bsdName) \(device.model ?? "Unknown"): "
+                + "read \(formatRate(device.readBytesPerSecond)), "
+                + "write \(formatRate(device.writeBytesPerSecond)), "
+                + String(format: "%.1f/%.1f ops/s", device.readOperationsPerSecond, device.writeOperationsPerSecond)
+        )
+        print("    lifetime read \(formatBytes(device.bytesRead)), write \(formatBytes(device.bytesWritten))")
+    }
 }
 
 private func printNetworkSample(_ sample: NetworkSample) {
@@ -245,7 +286,7 @@ private enum ProbeMain {
         let arguments = Array(CommandLine.arguments.dropFirst())
         guard let commandName = arguments.first, let command = ProbeCommand(rawValue: commandName) else {
             writeError(
-                "usage: mbs-probe <cpu [--watch]|geocode QUERY|identity|memory|net [--watch]|version|"
+                "usage: mbs-probe <cpu [--watch]|disks [--watch]|geocode QUERY|identity|memory|net [--watch]|version|"
                     + "weather --lat N --lon N|wifi>"
             )
             exit(EXIT_FAILURE)
@@ -259,6 +300,12 @@ private enum ProbeMain {
                     exit(EXIT_FAILURE)
                 }
                 try await runCPUProbe(watch: arguments.count == 2)
+            case .disks:
+                guard arguments.count == 1 || arguments == ["disks", "--watch"] else {
+                    writeError("usage: mbs-probe disks [--watch]")
+                    exit(EXIT_FAILURE)
+                }
+                try await runDiskProbe(watch: arguments.count == 2)
             case .geocode:
                 guard arguments.count >= 2 else {
                     writeError("usage: mbs-probe geocode QUERY")

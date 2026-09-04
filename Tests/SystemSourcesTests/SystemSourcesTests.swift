@@ -45,3 +45,19 @@ import Testing
     #expect(PublicIPSource.isValid(address: "2001:db8::1", family: AF_INET6))
     #expect(!PublicIPSource.isValid(address: "not-an-address", family: AF_INET))
 }
+
+@Test func diskSourceReadsMountedVolumesAndPhysicalCounters() throws {
+    let snapshot = try DiskSource().read()
+
+    #expect(snapshot.volumes.contains { $0.mountPoint == "/" && $0.totalBytes > 0 })
+    #expect(snapshot.volumes.allSatisfy { $0.usedBytes + $0.availableBytes == $0.totalBytes })
+    #expect(snapshot.devices.allSatisfy { !$0.bsdName.isEmpty })
+}
+
+@Test func diskVolumeClassificationKeepsNetworkVolumesDistinct() {
+    #expect(DiskSource.volumeKind(isLocal: false, isInternal: false) == .network)
+    #expect(DiskSource.volumeKind(isLocal: true, isInternal: true) == .internalDisk)
+    #expect(DiskSource.volumeKind(isLocal: true, isInternal: false) == .externalDisk)
+    #expect(DiskSource.bsdName(fromMountSource: "/dev/disk3s3s1") == "disk3s3s1")
+    #expect(DiskSource.bsdName(fromMountSource: "map auto_home") == nil)
+}

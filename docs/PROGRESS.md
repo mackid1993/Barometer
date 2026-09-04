@@ -856,3 +856,28 @@ Verification:
   permanent identities. The read-only Thaw defaults query returned no stored Barometer identifier because Thaw was
   not running; Barometer did not launch or modify Thaw.
 - `git diff --check` passed, and the changed Swift files contain no lines longer than 120 columns.
+
+## P3-T3 Disk source
+
+Added a read-only Disk source that enumerates mounted volumes with `FileManager`, reports total/used/available
+capacity, classifies internal/external/network attachment, and records removable, ejectable, and read-only state.
+Mount sources are resolved with `statfs`. APFS synthetic volume names are walked through the IOKit service plane to
+their physical `IOBlockStorageDriver`, so the root volume's `disk3s3s1` mapping correctly resolves to physical
+`disk0` rather than relying on an invalid string-prefix assumption.
+
+Physical-device sampling reads cumulative bytes, operations, and errors from the block driver's `Statistics`
+dictionary and resolves the hardware product name from its parent Device Characteristics. The initial `DiskMonitor`
+turns those counters into read/write bytes per second and operations per second, rejects counter resets, and keeps
+volume and physical-device state in one timestamped sample. `mbs-probe disks [--watch]` exposes all of this without
+creating status items or writing benchmark data.
+
+Verification:
+
+- `swift test --filter 'Disk|disk'` rebuilt the source, monitor, probes, and tests and exited 0. Coverage includes
+  mounted root-volume capacity invariants, volume classification, mount-source parsing, elapsed-time rates, first
+  samples, and counter resets.
+- `swift run mbs-probe disks` reported the 926.35 GiB Macintosh HD with 321.04 GiB available, mapped its APFS root
+  volume to `disk0`, and identified the physical device as `APPLE SSD AP1024Z`.
+- A short `swift run mbs-probe disks --watch` observation showed ordinary background rates changing across samples,
+  including 294.0 KiB/s read and 640.0 KiB/s write. No `dd`, benchmark, speed test, or temporary payload was used.
+- `git diff --check` passed, and all changed Swift files stay within 120 columns.
