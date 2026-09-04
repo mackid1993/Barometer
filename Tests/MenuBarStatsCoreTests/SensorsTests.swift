@@ -69,7 +69,8 @@ struct SensorsTests {
         let sample = SensorSample(timestamp: .now, readings: [raw, distinct, summary], sessionEnergy: [])
 
         #expect(sample.displayReadings(hidesDuplicates: true).map(\.id) == [summary.id, distinct.id])
-        #expect(sample.displayReadings(hidesDuplicates: false).count == 3)
+        #expect(sample.displayReadings(hidesDuplicates: false).count == 2)
+        #expect(sample.displayReadings(hidesDuplicates: false, showsRawNames: true).count == 3)
     }
 
     @Test("widget identities are normalized and never reused")

@@ -98,13 +98,14 @@ public struct SensorSample: Equatable, Sendable {
         readings.first { $0.id == id }
     }
 
-    /// Returns user-facing readings with equivalent friendly values collapsed if requested.
-    public func displayReadings(hidesDuplicates: Bool) -> [SensorReading] {
+    /// Returns user-facing readings, keeping firmware identifiers behind the explicit raw-name option.
+    public func displayReadings(hidesDuplicates: Bool, showsRawNames: Bool = false) -> [SensorReading] {
+        let visible = showsRawNames ? readings : readings.filter(\.isFriendly)
         guard hidesDuplicates else {
-            return readings
+            return visible
         }
         var seen: Set<String> = []
-        return readings.sorted { $0.source.priority < $1.source.priority }.filter { reading in
+        return visible.sorted { $0.source.priority < $1.source.priority }.filter { reading in
             let key = "\(reading.kind.rawValue):\(reading.name.lowercased())"
             return seen.insert(key).inserted
         }
@@ -312,7 +313,14 @@ public actor SensorsMonitor: Monitor {
         var result = readings
         let temperatures = readings.filter { $0.kind == .temperature }
         if let hottest = temperatures.max(by: { $0.value < $1.value }) {
-            result.append(derivedTemperature(id: "hottest", name: "Hottest", shortName: "HOT", value: hottest.value))
+            result.append(
+                derivedTemperature(
+                    id: "hottest",
+                    name: "Hottest Temperature",
+                    shortName: "HOT",
+                    value: hottest.value
+                )
+            )
         }
         for domain in ["CPU", "GPU"] {
             let matches = temperatures.filter { $0.name.hasPrefix(domain + " ") || $0.name == domain }
@@ -524,6 +532,20 @@ private extension SensorKind {
         case .power: 2
         case .voltage: 3
         case .current: 4
+        }
+    }
+}
+
+private extension SensorReading {
+    var isFriendly: Bool {
+        switch source {
+        case .derived, .hid, .ioReport:
+            return true
+        case .smc:
+            if kind == .fan {
+                return true
+            }
+            return ["PSTR", "PDTR", "PPBR"].contains(rawName)
         }
     }
 }

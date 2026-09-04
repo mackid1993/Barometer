@@ -58,7 +58,7 @@ public struct SensorSettings: Codable, Equatable, Sendable {
     /// Number of fractional digits used for temperatures, watts, volts, and amps.
     public var decimalPlaces: Int
 
-    /// Whether friendly labels also show the data source's raw name.
+    /// Whether advanced firmware readings and their raw names are exposed.
     public var showsRawNames: Bool
 
     /// Whether equivalent friendly readings from lower-priority sources are hidden.

@@ -21,7 +21,10 @@ public struct SensorsDropdownView: View {
     public var body: some View {
         let sample = store.latestSample
         let settings = settingsStore.settings.sensors
-        let readings = sample?.displayReadings(hidesDuplicates: settings.hidesDuplicates) ?? []
+        let readings = sample?.displayReadings(
+            hidesDuplicates: settings.hidesDuplicates,
+            showsRawNames: settings.showsRawNames
+        ) ?? []
         let _ = store.revision
 
         ScrollView {

@@ -34,7 +34,12 @@ public struct SensorSettingsView: View {
                 Stepper(value: sensorBinding(\.decimalPlaces), in: 0...2) {
                     Text("Decimal places: \(settingsStore.settings.sensors.decimalPlaces)")
                 }
-                Toggle("Show raw sensor names", isOn: sensorBinding(\.showsRawNames))
+                Toggle("Show advanced firmware sensors", isOn: sensorBinding(\.showsRawNames))
+                if settingsStore.settings.sensors.showsRawNames {
+                    Text("Includes undocumented SMC identifiers intended for diagnostics and hardware reports.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Toggle("Hide equivalent readings", isOn: sensorBinding(\.hidesDuplicates))
             }
 
@@ -140,7 +145,11 @@ public struct SensorSettingsView: View {
     }
 
     private var availableReadings: [SensorReading] {
-        store.latestSample?.displayReadings(hidesDuplicates: settingsStore.settings.sensors.hidesDuplicates) ?? []
+        let settings = settingsStore.settings.sensors
+        return store.latestSample?.displayReadings(
+            hidesDuplicates: settings.hidesDuplicates,
+            showsRawNames: settings.showsRawNames
+        ) ?? []
     }
 
     private func readingName(_ id: String) -> String {

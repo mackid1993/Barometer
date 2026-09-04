@@ -22,7 +22,7 @@ public enum SensorsMenuBarPresenter {
             )
         }
 
-        let readings = selectedReadings(sample: sample, widget: widget)
+        let readings = selectedReadings(sample: sample, settings: sensorSettings, widget: widget)
         let renderer: any MenuBarRenderer
         switch widget.mode {
         case .compactStack:
@@ -112,9 +112,18 @@ public enum SensorsMenuBarPresenter {
 
     private static func selectedReadings(
         sample: SensorSample,
+        settings: SensorSettings,
         widget: SensorWidgetSettings
     ) -> [SensorReading] {
-        let selected = widget.sensorIDs.compactMap(sample.reading(id:))
+        let visibleIDs = Set(
+            sample.displayReadings(
+                hidesDuplicates: settings.hidesDuplicates,
+                showsRawNames: settings.showsRawNames
+            ).map(\.id)
+        )
+        let selected = widget.sensorIDs.compactMap { id in
+            visibleIDs.contains(id) ? sample.reading(id: id) : nil
+        }
         if !selected.isEmpty {
             return selected
         }
