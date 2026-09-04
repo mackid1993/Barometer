@@ -569,3 +569,32 @@ Verification:
   application or API failure.
 - `git diff --check` reported no whitespace errors, and the weather sources and tests contain no lines longer than
   120 columns.
+
+## P2-T2 Weather monitor and cache
+
+Added a per-location `WeatherMonitor`, a `WeatherMonitoringSession`, network-path observation, scheduler-triggered
+manual refresh, and an atomic on-disk last-known-good cache. Production cache files live under
+`~/Library/Application Support/MenuBarStats/weather/` and use stable hashed filenames so a location identifier
+cannot escape the cache directory. A failed forecast refresh returns cached data, marks it stale once its fetch time
+is at least two configured refresh intervals old, and retries after 1, 2, 4, and up to 60 seconds. Successful
+forecast refreshes restore the normal 15-minute interval. Air-quality failure does not discard a usable forecast;
+the most recent cached air-quality reading remains available.
+
+The monitoring session interrupts the current 15-minute wait when the network transitions from unavailable to
+available. Its resume operation also samples immediately after display wake. Tests inject path events and wall-clock
+dates, allowing reconnect, cache-age, and backoff behavior to be verified without turning off the Mac's active
+network connection.
+
+Verification:
+
+- `swift build --disable-sandbox` completed successfully with task-local Swift and Clang module caches.
+- `swift test --disable-sandbox --filter 'WeatherMonitor|Scheduler'` rebuilt and linked the test bundle and exited 0.
+- `swift test --disable-sandbox` rebuilt all application and test targets and exited 0. As previously recorded, this
+  Command Line Tools runner emits no test execution summary.
+- The weather-monitor tests verified a fresh write, cached fallback, the stale transition after two shortened
+  intervals, exponential retry reset, failure propagation without a cache, safe cache filenames, and immediate
+  refresh after an injected offline-to-online transition.
+- The scheduler test verified that manual refresh cancels its long interval wait and samples immediately.
+- A disruptive live Wi-Fi off/on test was not performed autonomously. The production observer uses the same
+  `NWPathMonitor` transition covered by the deterministic test and will be wired to the app's saved locations in
+  P2-T3.

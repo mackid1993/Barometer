@@ -55,6 +55,17 @@ public actor Scheduler<Source: Monitor> {
         start()
     }
 
+    /// Cancels the current wait and samples immediately when the scheduler is running.
+    public func refresh() {
+        guard runTask != nil else {
+            return
+        }
+        generation += 1
+        runTask?.cancel()
+        runTask = nil
+        start()
+    }
+
     /// Stops sampling permanently and finishes the sample stream.
     public func stop() {
         pause()

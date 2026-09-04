@@ -1,5 +1,17 @@
 import Foundation
 
+/// Weather service operations used by monitors and search interfaces.
+public protocol WeatherClient: Sendable {
+    /// Fetches a detailed forecast for one location.
+    func forecast(for location: Location, units: WeatherUnits) async throws -> Forecast
+
+    /// Searches for saved-location candidates.
+    func geocode(_ query: String) async throws -> [GeocodingResult]
+
+    /// Fetches current air quality for one location.
+    func airQuality(for location: Location) async throws -> AirQuality
+}
+
 /// Errors surfaced by the Open-Meteo HTTP client.
 public enum OpenMeteoError: Error, LocalizedError, Sendable {
     case invalidURL
@@ -18,7 +30,7 @@ public enum OpenMeteoError: Error, LocalizedError, Sendable {
 }
 
 /// Async client for Open-Meteo forecast, geocoding, and air-quality APIs.
-public actor OpenMeteoClient {
+public actor OpenMeteoClient: WeatherClient {
     private static let forecastURL = URL(string: "https://api.open-meteo.com/v1/forecast")
     private static let geocodingURL = URL(string: "https://geocoding-api.open-meteo.com/v1/search")
     private static let airQualityURL = URL(string: "https://air-quality-api.open-meteo.com/v1/air-quality")

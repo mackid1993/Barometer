@@ -17,6 +17,29 @@ struct SchedulerTests {
         #expect(sample == 3)
         #expect(await clock.recordedDurations() == [.seconds(1), .seconds(2), .seconds(5)])
     }
+
+    @Test("manual refresh interrupts the current wait and samples immediately")
+    func manualRefresh() async {
+        let monitor = CountingMonitor()
+        let scheduler = Scheduler(monitor: monitor)
+
+        await scheduler.start()
+        await waitForSamples(1, from: monitor)
+        await scheduler.refresh()
+        await waitForSamples(2, from: monitor)
+        await scheduler.stop()
+
+        #expect(await monitor.sampleCount() == 2)
+    }
+
+    private func waitForSamples(_ count: Int, from monitor: CountingMonitor) async {
+        for _ in 0..<10_000 {
+            if await monitor.sampleCount() >= count {
+                return
+            }
+            await Task.yield()
+        }
+    }
 }
 
 private enum ExpectedFailure: Error {
@@ -54,5 +77,20 @@ private actor RecordingClock: SampleClock {
 
     func recordedDurations() -> [Duration] {
         durations
+    }
+}
+
+private actor CountingMonitor: Monitor {
+    nonisolated let interval: Duration = .seconds(3_600)
+    nonisolated let isAvailable = true
+    private var count = 0
+
+    func sample() -> Int {
+        count += 1
+        return count
+    }
+
+    func sampleCount() -> Int {
+        count
     }
 }

@@ -48,6 +48,7 @@ let package = Package(
             linkerSettings: [
                 .linkedFramework("CoreWLAN"),
                 .linkedFramework("IOKit"),
+                .linkedFramework("Network"),
                 .linkedFramework("SystemConfiguration"),
             ]
         ),
