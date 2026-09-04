@@ -1957,7 +1957,9 @@ The same internal-spacing rule now applies to Network: one device pixel separate
 Sensor labels and separate sensor columns use the same pixel-based gap. `RenderContext` carries the destination
 display's backing scale, so this is 0.5 logical points on a Retina display and one point on a 1× display. Unused
 stability width is balanced on both sides of each visible pair instead of collecting entirely inside the pair or
-before the widget. These internal rules do not change AppKit's spacing between independently movable items.
+before the widget. Prefix edges are snapped upward to the device-pixel grid before the separator is added, preventing
+fractional text advances from consuming the intended visible pixel. These internal rules do not change AppKit's
+spacing between independently movable items.
 
 Verification:
 

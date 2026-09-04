@@ -524,13 +524,15 @@ struct MenuBarRendererTests {
             containerWidth: 50.5,
             markerWidth: 8,
             valueWidth: 24,
-            gap: 0.5
+            gap: 0.5,
+            backingScaleFactor: 2
         )
         let longOrigins = NetworkRateStackRenderer.rowOrigins(
             containerWidth: 50.5,
             markerWidth: 8,
             valueWidth: 34,
-            gap: 0.5
+            gap: 0.5,
+            backingScaleFactor: 2
         )
         #expect(shortOrigins.marker == 9)
         #expect(shortOrigins.value == 17.5)
@@ -540,6 +542,15 @@ struct MenuBarRendererTests {
         #expect(longOrigins.value - longOrigins.marker == 8.5)
         #expect(50.5 - (shortOrigins.value + 24) == 9)
         #expect(50.5 - (longOrigins.value + 34) == 4)
+
+        let fractionalMarker = NetworkRateStackRenderer.rowOrigins(
+            containerWidth: 50.5,
+            markerWidth: 8.2,
+            valueWidth: 24,
+            gap: 0.5,
+            backingScaleFactor: 2
+        )
+        #expect(fractionalMarker.value - (fractionalMarker.marker + 8.2) >= 0.5)
     }
 
     @Test
@@ -553,19 +564,31 @@ struct MenuBarRendererTests {
             columnWidth: 68.5,
             labelWidth: 22,
             valueWidth: 34,
-            gap: 0.5
+            gap: 0.5,
+            backingScaleFactor: 2
         )
         let bottomOrigins = SensorStackRenderer.rowOrigins(
             columnX: 3,
             columnWidth: 68.5,
             labelWidth: 22,
             valueWidth: 34,
-            gap: 0.5
+            gap: 0.5,
+            backingScaleFactor: 2
         )
         #expect(topOrigins == bottomOrigins)
         #expect(topOrigins.label == 9)
         #expect(topOrigins.value == 31.5)
         #expect(topOrigins.value - topOrigins.label == 22.5)
+
+        let fractionalLabel = SensorStackRenderer.rowOrigins(
+            columnX: 3,
+            columnWidth: 68.5,
+            labelWidth: 22.2,
+            valueWidth: 34,
+            gap: 0.5,
+            backingScaleFactor: 2
+        )
+        #expect(fractionalLabel.value - (fractionalLabel.label + 22.2) >= 0.5)
 
         let cool = SensorStackRenderer(values: [
             SensorStackValue(label: "CPU", value: "39.1°C", reservedValue: "999.9°C"),

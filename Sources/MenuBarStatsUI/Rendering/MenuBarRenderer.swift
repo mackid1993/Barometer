@@ -670,13 +670,15 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
                 containerWidth: markerWidth + pairGap + valueWidth,
                 markerWidth: topMarker.size().width,
                 valueWidth: topValue.size().width,
-                gap: pairGap
+                gap: pairGap,
+                backingScaleFactor: context.backingScaleFactor
             )
             let bottomOrigins = Self.rowOrigins(
                 containerWidth: markerWidth + pairGap + valueWidth,
                 markerWidth: bottomMarker.size().width,
                 valueWidth: bottomValue.size().width,
-                gap: pairGap
+                gap: pairGap,
+                backingScaleFactor: context.backingScaleFactor
             )
             topMarker.draw(
                 at: NSPoint(
@@ -717,11 +719,14 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
         containerWidth: CGFloat,
         markerWidth: CGFloat,
         valueWidth: CGFloat,
-        gap: CGFloat
+        gap: CGFloat,
+        backingScaleFactor: CGFloat
     ) -> (marker: CGFloat, value: CGFloat) {
         let unusedWidth = max(0, containerWidth - markerWidth - gap - valueWidth)
-        let marker = floor(unusedWidth / 2)
-        return (marker, marker + markerWidth + gap)
+        let scale = max(1, backingScaleFactor)
+        let marker = floor(unusedWidth / 2 * scale) / scale
+        let markerEdge = ceil((marker + markerWidth) * scale) / scale
+        return (marker, markerEdge + gap)
     }
 }
 
@@ -826,7 +831,8 @@ public struct SensorStackRenderer: MenuBarRenderer {
                         columnWidth: columnWidth,
                         labelWidth: label.size().width,
                         valueWidth: value.size().width,
-                        gap: labelGap
+                        gap: labelGap,
+                        backingScaleFactor: context.backingScaleFactor
                     )
                     let combinedHeight = max(label.size().height, value.size().height)
                     let y =
@@ -847,11 +853,14 @@ public struct SensorStackRenderer: MenuBarRenderer {
         columnWidth: CGFloat,
         labelWidth: CGFloat,
         valueWidth: CGFloat,
-        gap: CGFloat
+        gap: CGFloat,
+        backingScaleFactor: CGFloat
     ) -> (label: CGFloat, value: CGFloat) {
         let unusedWidth = max(0, columnWidth - labelWidth - gap - valueWidth)
-        let label = columnX + floor(unusedWidth / 2)
-        return (label, label + labelWidth + gap)
+        let scale = max(1, backingScaleFactor)
+        let label = columnX + floor(unusedWidth / 2 * scale) / scale
+        let labelEdge = ceil((label + labelWidth) * scale) / scale
+        return (label, labelEdge + gap)
     }
 }
 

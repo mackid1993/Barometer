@@ -116,8 +116,10 @@ label/value pair from the other. This preserves the one-time outer length withou
 
 Multi-reading sensor stacks use explicit stable-width columns. One device pixel separates each label from its live
 reading, based on the destination screen's backing scale, and unused stable-width reservation is balanced on both
-sides of the pair. Network arrows use the same rule. Never collect the reserve entirely before or inside the visible
-pair, add a trailing exception based on the following widget, or create spacing with kerning.
+sides of the pair. Network arrows use the same rule. Snap the prefix's trailing edge upward to the device-pixel grid
+before adding the gap; otherwise a fractional glyph advance can make the nominal pixel disappear. Never collect the
+reserve entirely before or inside the visible pair, add a trailing exception based on the following widget, or create
+spacing with kerning.
 
 Do not replace the separate items with one combined status item as a sizing workaround. Combined is an optional
 module, not the implementation of density.
