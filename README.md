@@ -94,12 +94,4 @@ an item changes `isVisible`; it is never removed and recreated. Contributors mus
 a helper, XPC service, command-line tool, or second app bundle. This is the contract that lets Bartender and Thaw
 associate each item with `com.barometer.app` on macOS 27.
 
-## Project documentation
-
-- [Design](docs/DESIGN.md)
-- [Execution plan](docs/PLAN.md)
-- [Progress log](docs/PROGRESS.md)
-- [Release workflow and secrets](docs/RELEASING.md)
-- [Codex prompts](docs/CODEX_PROMPT.md)
-
 Barometer is available under the [MIT License](LICENSE).
