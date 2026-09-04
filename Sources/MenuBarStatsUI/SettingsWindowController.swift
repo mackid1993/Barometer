@@ -17,7 +17,8 @@ public final class SettingsWindowController: NSWindowController {
         timeStore: ModuleStore<TimeSample>,
         networkStore: ModuleStore<NetworkSample>,
         diskStore: ModuleStore<DiskSample>,
-        sensorStore: ModuleStore<SensorSample>
+        sensorStore: ModuleStore<SensorSample>,
+        calendarAccessAction: @escaping @MainActor () -> Void
     ) {
         let navigationModel = SettingsNavigationModel()
         let rootView = SettingsRootView(
@@ -28,6 +29,7 @@ public final class SettingsWindowController: NSWindowController {
             networkStore: networkStore,
             diskStore: diskStore,
             sensorStore: sensorStore,
+            calendarAccessAction: calendarAccessAction,
             navigationModel: navigationModel
         )
         let hostingController = NSHostingController(rootView: rootView)
@@ -77,6 +79,7 @@ private struct SettingsRootView: View {
     let networkStore: ModuleStore<NetworkSample>
     let diskStore: ModuleStore<DiskSample>
     let sensorStore: ModuleStore<SensorSample>
+    let calendarAccessAction: @MainActor () -> Void
     @Bindable var navigationModel: SettingsNavigationModel
 
     var body: some View {
@@ -105,7 +108,11 @@ private struct SettingsRootView: View {
             case let .module(module) where module == .battery:
                 BatterySettingsView(store: batteryStore, settingsStore: settingsStore)
             case let .module(module) where module == .time:
-                TimeSettingsView(store: timeStore, settingsStore: settingsStore)
+                TimeSettingsView(
+                    store: timeStore,
+                    settingsStore: settingsStore,
+                    requestCalendarAccess: calendarAccessAction
+                )
             case let .module(module) where module == .weather:
                 WeatherSettingsView(settingsStore: settingsStore)
             case let .module(module) where module == .network:

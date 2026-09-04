@@ -1290,3 +1290,19 @@ Verification:
 - The power observer now refreshes Battery immediately on AC/battery transitions in addition to changing sampling
   multipliers. Physical unplug/replug confirmation remains a live installation check.
 - `git diff --check` passed, and the changed Swift files contain no lines longer than 120 columns.
+
+## P6-T2 Calendar events
+
+Added one actor-isolated EventKit source with immutable event snapshots and explicit not-requested, restricted,
+denied, write-only, full-access, and unavailable states. The Time monitor queries events only when the feature is
+enabled and full access already exists. It never requests permission while launching or sampling. The Settings pane
+and Time dropdown explain every authorization state, list up to ten events over the next fourteen days, and expose
+an “Allow Calendar Access” action only as a direct user choice.
+
+Verification:
+
+- `swift test` exited 0. Calendar source coverage inspected the live authorization state without prompting and
+  verified that event reads degrade to an empty list without full access.
+- The committed application property list already contains `NSCalendarsFullAccessUsageDescription`; no new TCC
+  category was requested during implementation or verification.
+- `swift build -c release`, `git diff --check`, and the 120-column check passed.

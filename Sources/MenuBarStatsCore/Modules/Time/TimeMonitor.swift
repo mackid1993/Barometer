@@ -1,27 +1,41 @@
 import Foundation
+import SystemSources
 
 /// Current wall-clock state and system time zone.
 public struct TimeSample: Equatable, Sendable {
     public let timestamp: Date
     public let systemTimeZoneIdentifier: String
+    public let calendarAuthorization: CalendarAuthorizationState
+    public let upcomingEvents: [CalendarEventSnapshot]
 
     /// Creates one wall-clock sample.
-    public init(timestamp: Date = Date(), systemTimeZoneIdentifier: String = TimeZone.current.identifier) {
+    public init(
+        timestamp: Date = Date(),
+        systemTimeZoneIdentifier: String = TimeZone.current.identifier,
+        calendarAuthorization: CalendarAuthorizationState = .notDetermined,
+        upcomingEvents: [CalendarEventSnapshot] = []
+    ) {
         self.timestamp = timestamp
         self.systemTimeZoneIdentifier = systemTimeZoneIdentifier
+        self.calendarAuthorization = calendarAuthorization
+        self.upcomingEvents = upcomingEvents
     }
 }
 
 /// Lightweight monitor for wall-clock status items.
 public actor TimeMonitor: Monitor {
     private var showsSeconds: Bool
+    private var includesCalendarEvents = false
+    private var calendarEventCount = 5
+    private let calendarSource: CalendarEventSource
 
     /// Wall-clock time is available on every supported Mac.
     public var isAvailable: Bool { true }
 
     /// Creates a time monitor. The coordinator selects a one- or sixty-second scheduler interval.
-    public init(showsSeconds: Bool = false) {
+    public init(showsSeconds: Bool = false, calendarSource: CalendarEventSource = CalendarEventSource()) {
         self.showsSeconds = showsSeconds
+        self.calendarSource = calendarSource
     }
 
     /// Uses one-second ticks only when seconds are visible; otherwise aligns to the next minute.
@@ -30,13 +44,33 @@ public actor TimeMonitor: Monitor {
     }
 
     /// Reads the current time and dynamic system time zone.
-    public func sample() -> TimeSample {
-        TimeSample()
+    public func sample() async -> TimeSample {
+        let now = Date()
+        let authorization = await calendarSource.authorizationState
+        let events = includesCalendarEvents && authorization == .fullAccess
+            ? await calendarSource.events(from: now, limit: calendarEventCount)
+            : []
+        return TimeSample(
+            timestamp: now,
+            calendarAuthorization: authorization,
+            upcomingEvents: events
+        )
     }
 
     /// Changes tick precision for the selected format.
     public func setShowsSeconds(_ value: Bool) {
         showsSeconds = value
+    }
+
+    /// Enables or disables event queries without requesting authorization.
+    public func setCalendarConfiguration(isEnabled: Bool, count: Int) {
+        includesCalendarEvents = isEnabled
+        calendarEventCount = min(10, max(1, count))
+    }
+
+    /// Requests Calendar access. Call only from a user-initiated action.
+    public func requestCalendarAccess() async -> CalendarAuthorizationState {
+        await calendarSource.requestFullAccess()
     }
 
     static func secondsUntilNextMinute(date: Date) -> Double {

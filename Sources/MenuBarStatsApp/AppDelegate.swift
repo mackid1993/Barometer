@@ -113,7 +113,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 timeStore: monitoringCoordinator.timeStore,
                 networkStore: monitoringCoordinator.networkStore,
                 diskStore: monitoringCoordinator.diskStore,
-                sensorStore: monitoringCoordinator.sensorStore
+                sensorStore: monitoringCoordinator.sensorStore,
+                calendarAccessAction: { [weak monitoringCoordinator] in
+                    monitoringCoordinator?.requestCalendarAccess()
+                }
             )
         }
         settingsWindowController?.show(module: module)

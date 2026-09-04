@@ -47,6 +47,7 @@ let package = Package(
             swiftSettings: strictConcurrency,
             linkerSettings: [
                 .linkedFramework("CoreWLAN"),
+                .linkedFramework("EventKit"),
                 .linkedFramework("IOKit"),
                 .linkedFramework("Network"),
                 .linkedFramework("SystemConfiguration"),

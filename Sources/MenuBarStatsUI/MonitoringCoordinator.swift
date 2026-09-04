@@ -308,7 +308,12 @@ public final class MonitoringCoordinator {
             moduleName: ModuleID.time.displayName,
             statusItem: registry.item(for: .time),
             rootView: AnyView(
-                TimeDropdownView(store: timeStore, weatherStore: weatherStore, settingsStore: settingsStore)
+                TimeDropdownView(
+                    store: timeStore,
+                    weatherStore: weatherStore,
+                    settingsStore: settingsStore,
+                    requestCalendarAccess: { [weak self] in self?.requestCalendarAccess() }
+                )
             ),
             contentHeight: 540,
             contentWidth: 360,
@@ -363,6 +368,14 @@ public final class MonitoringCoordinator {
             await batteryScheduler.stop()
             await timeScheduler.stop()
             await weatherSession?.stop()
+        }
+    }
+
+    /// Requests full Calendar access after an explicit user action, then refreshes Time.
+    public func requestCalendarAccess() {
+        Task {
+            _ = await timeMonitor.requestCalendarAccess()
+            await timeScheduler.refresh()
         }
     }
 
@@ -554,6 +567,8 @@ public final class MonitoringCoordinator {
         let sensorSeconds = settingsStore.settings.modules[.sensors]?.interval ?? 2
         let batterySeconds = settingsStore.settings.modules[.battery]?.interval ?? 10
         let timeShowsSeconds = settingsStore.settings.time.showsSeconds
+        let timeShowsCalendarEvents = settingsStore.settings.time.showsCalendarEvents
+        let calendarEventCount = settingsStore.settings.time.calendarEventCount
         Task {
             await cpuScheduler.setInterval(.milliseconds(Int64(max(0.25, cpuSeconds) * 1_000)))
             await memoryScheduler.setInterval(.milliseconds(Int64(max(0.25, memorySeconds) * 1_000)))
@@ -563,6 +578,10 @@ public final class MonitoringCoordinator {
             await sensorsScheduler.setInterval(.milliseconds(Int64(max(1, sensorSeconds) * 1_000)))
             await batteryScheduler.setInterval(.milliseconds(Int64(max(2, batterySeconds) * 1_000)))
             await timeMonitor.setShowsSeconds(timeShowsSeconds)
+            await timeMonitor.setCalendarConfiguration(
+                isEnabled: timeShowsCalendarEvents,
+                count: calendarEventCount
+            )
             await timeScheduler.setInterval(nil)
             await timeScheduler.refresh()
         }

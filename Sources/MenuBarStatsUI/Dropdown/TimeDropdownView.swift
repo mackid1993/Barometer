@@ -1,22 +1,26 @@
 import Foundation
 import MenuBarStatsCore
 import SwiftUI
+import SystemSources
 
 /// Month calendar, world clocks, and primary-location solar times.
 public struct TimeDropdownView: View {
     private let store: ModuleStore<TimeSample>
     private let weatherStore: ModuleStore<WeatherSample>
     private let settingsStore: SettingsStore
+    private let requestCalendarAccess: @MainActor () -> Void
 
     /// Creates the Time dropdown.
     public init(
         store: ModuleStore<TimeSample>,
         weatherStore: ModuleStore<WeatherSample>,
-        settingsStore: SettingsStore
+        settingsStore: SettingsStore,
+        requestCalendarAccess: @escaping @MainActor () -> Void
     ) {
         self.store = store
         self.weatherStore = weatherStore
         self.settingsStore = settingsStore
+        self.requestCalendarAccess = requestCalendarAccess
     }
 
     public var body: some View {
@@ -60,6 +64,12 @@ public struct TimeDropdownView: View {
                         value: daily.sunset.map { Self.time($0, timeZone: weatherTimeZone) } ?? "Unavailable"
                     )
                 }
+
+                if settingsStore.settings.time.showsCalendarEvents {
+                    Divider()
+                    Text("UPCOMING EVENTS").timeSectionLabel()
+                    calendarContent(sample: store.latestSample)
+                }
             }
             .padding(14)
         }
@@ -68,6 +78,34 @@ public struct TimeDropdownView: View {
 
     private var weatherTimeZone: TimeZone {
         weatherStore.latestSample?.forecast.timeZone ?? .current
+    }
+
+    @ViewBuilder
+    private func calendarContent(sample: TimeSample?) -> some View {
+        switch sample?.calendarAuthorization ?? .notDetermined {
+        case .fullAccess:
+            if let events = sample?.upcomingEvents, !events.isEmpty {
+                ForEach(events) { event in
+                    CalendarEventRow(event: event)
+                }
+            } else {
+                Text("No events in the next 14 days.").font(.caption).foregroundStyle(.secondary)
+            }
+        case .notDetermined:
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Calendar access has not been requested.").font(.caption).foregroundStyle(.secondary)
+                Button("Allow Calendar Access…", action: requestCalendarAccess)
+            }
+        case .denied, .restricted, .writeOnly:
+            Text(
+                "Calendar events are unavailable. Allow full access in "
+                    + "System Settings > Privacy & Security > Calendars."
+            )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .unavailable:
+            Text("Calendar events are unavailable on this system.").font(.caption).foregroundStyle(.secondary)
+        }
     }
 
     private static func time(_ date: Date, timeZone: TimeZone) -> String {
@@ -81,6 +119,32 @@ public struct TimeDropdownView: View {
         let formatter = DateFormatter()
         formatter.dateStyle = .full
         formatter.timeZone = .current
+        return formatter.string(from: date)
+    }
+}
+
+private struct CalendarEventRow: View {
+    let event: CalendarEventSnapshot
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "calendar").foregroundStyle(.secondary).frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(event.title).lineLimit(1)
+                Text(event.isAllDay ? "All day" : Self.time(event.startDate))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text(event.calendarTitle).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+        }
+        .font(.subheadline)
+    }
+
+    private static func time(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
         return formatter.string(from: date)
     }
 }

@@ -1,11 +1,13 @@
 import AppKit
 import MenuBarStatsCore
 import SwiftUI
+import SystemSources
 
 /// Time format, world-clock, sampling, and color preferences.
 struct TimeSettingsView: View {
     let store: ModuleStore<TimeSample>
     let settingsStore: SettingsStore
+    let requestCalendarAccess: @MainActor () -> Void
     @State private var timeZoneSearch = ""
 
     private var moduleSettings: ModuleSettings {
@@ -46,9 +48,32 @@ struct TimeSettingsView: View {
                         .buttonStyle(.borderless)
                 }
             }
+            Section("Calendar") {
+                Toggle("Show upcoming events", isOn: timeBinding(\.showsCalendarEvents))
+                Stepper(value: timeBinding(\.calendarEventCount), in: 1...10) {
+                    Text("Event count: \(settingsStore.settings.time.calendarEventCount)")
+                }
+                calendarAuthorizationView
+            }
         }
         .formStyle(.grouped)
         .navigationTitle("Time")
+    }
+
+    @ViewBuilder
+    private var calendarAuthorizationView: some View {
+        switch store.latestSample?.calendarAuthorization ?? .notDetermined {
+        case .notDetermined:
+            Button("Allow Calendar Access…", action: requestCalendarAccess)
+        case .fullAccess:
+            Label("Calendar access allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+        case .denied, .restricted, .writeOnly:
+            Text("Full Calendar access is not allowed. Change it in System Settings > Privacy & Security > Calendars.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .unavailable:
+            Text("Calendar events are unavailable.").font(.caption).foregroundStyle(.secondary)
+        }
     }
 
     private var searchResults: [String] {
