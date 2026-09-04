@@ -1961,3 +1961,17 @@ Verification:
   its matching button, image, and immutable item length. The live capture showed compact separation without
   collisions, plus aligned CPU/GPU temperature label and value columns.
 - Strict code-signature verification passed. No notarization or stapling command ran.
+
+### P7-T4 expose the last successful weather refresh
+
+The Weather dropdown already carried the successful forecast fetch time in `Forecast.fetchedAt`, but the only age
+indicator was buried in the bottom actions card and showed no clock time. The current-conditions card now displays a
+prominent clock row such as `Updated 7:14 AM · 2 min ago`. Cached fallback samples retain the last successful fetch
+time, so a failed refresh cannot misleadingly reset the label to the current time. A minute-based timeline keeps the
+relative age current while the dropdown remains open, and older updates include the date.
+
+Verification:
+
+- `swift test` exited 0 with deterministic coverage for both the absolute-time prefix and relative refresh age.
+- `swift build -c release`, `git diff --check`, and strict installed signature verification completed successfully.
+- `make install` replaced and relaunched `/Applications/Barometer.app`. No notarization or stapling command ran.

@@ -116,13 +116,23 @@ struct MenuBarRendererTests {
     @Test
     func weatherRefreshAgeMakesSuccessfulUpdatesVisible() {
         let now = Date(timeIntervalSince1970: 10_000)
+        let timeZone = TimeZone(secondsFromGMT: 0) ?? .current
 
-        #expect(
-            WeatherDropdownView.updatedText(fetchedAt: now.addingTimeInterval(-12), now: now)
-                == "Weather updated just now")
-        #expect(
-            WeatherDropdownView.updatedText(fetchedAt: now.addingTimeInterval(-125), now: now)
-                == "Weather updated 2 min ago")
+        let recent = WeatherDropdownView.updatedText(
+            fetchedAt: now.addingTimeInterval(-12),
+            now: now,
+            timeZone: timeZone
+        )
+        let older = WeatherDropdownView.updatedText(
+            fetchedAt: now.addingTimeInterval(-125),
+            now: now,
+            timeZone: timeZone
+        )
+
+        #expect(recent.hasPrefix("Updated "))
+        #expect(recent.hasSuffix(" · just now"))
+        #expect(older.hasPrefix("Updated "))
+        #expect(older.hasSuffix(" · 2 min ago"))
     }
 
     @Test

@@ -78,14 +78,6 @@ public struct WeatherDropdownView: View {
                     DropdownActionButton(
                         title: "Weather", symbol: "arrow.up.forward.app", action: openWeatherApplication)
                 }
-                HStack(spacing: 6) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text(Self.updatedText(fetchedAt: sample.forecast.fetchedAt, now: Date()))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
                 if let refreshError = sample.refreshError {
                     Label(
                         "Refresh failed; showing saved weather. \(refreshError)",
@@ -99,11 +91,30 @@ public struct WeatherDropdownView: View {
         }
     }
 
-    static func updatedText(fetchedAt: Date, now: Date) -> String {
+    static func updatedText(
+        fetchedAt: Date,
+        now: Date,
+        timeZone: TimeZone = .current
+    ) -> String {
+        var calendar = Calendar.current
+        calendar.timeZone = timeZone
+        let formatter = DateFormatter()
+        formatter.dateStyle = calendar.isDate(fetchedAt, inSameDayAs: now) ? .none : .medium
+        formatter.timeStyle = .short
+        formatter.timeZone = timeZone
+        let absoluteTime = formatter.string(from: fetchedAt)
         let age = max(0, now.timeIntervalSince(fetchedAt))
-        if age < 60 { return "Weather updated just now" }
-        if age < 3_600 { return "Weather updated \(Int(age / 60)) min ago" }
-        return "Weather updated \(Int(age / 3_600)) hr ago"
+        let relativeTime: String
+        if age < 60 {
+            relativeTime = "just now"
+        } else if age < 3_600 {
+            relativeTime = "\(Int(age / 60)) min ago"
+        } else if age < 86_400 {
+            relativeTime = "\(Int(age / 3_600)) hr ago"
+        } else {
+            relativeTime = "\(Int(age / 86_400)) days ago"
+        }
+        return "Updated \(absoluteTime) · \(relativeTime)"
     }
 
     private var primaryLocationBinding: Binding<String> {
@@ -190,6 +201,19 @@ private struct CurrentWeatherCard: View {
                         Text("Feels like \(WeatherValue.temperature(apparent, units: forecast.units))")
                             .font(.caption)
                             .opacity(0.8)
+                    }
+                    TimelineView(.periodic(from: .now, by: 60)) { context in
+                        Label(
+                            WeatherDropdownView.updatedText(
+                                fetchedAt: forecast.fetchedAt,
+                                now: context.date
+                            ),
+                            systemImage: "clock.arrow.circlepath"
+                        )
+                        .font(.caption2)
+                        .opacity(0.78)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                     }
                 }
                 Spacer(minLength: 6)
