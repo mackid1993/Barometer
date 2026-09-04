@@ -1,7 +1,10 @@
 import AppKit
+import Darwin
 import Foundation
+import MenuBarStatsCore
 
 private enum ProbeCommand: String {
+    case cpu
     case identity
     case version
 }
@@ -48,20 +51,96 @@ private func printVersion() {
     print(version)
 }
 
+private func runCPUProbe(watch: Bool) async throws {
+    let monitor = CPUMonitor()
+    _ = try await monitor.sample()
+
+    repeat {
+        try await Task.sleep(for: watch ? .seconds(1) : .milliseconds(250))
+        let sample = try await monitor.sample()
+        printCPUSample(sample)
+    } while watch
+}
+
+private func printCPUSample(_ sample: CPUSample) {
+    let load = sample.loadAverages.map { String(format: "%.2f", $0) }.joined(separator: ", ")
+    let uptime = sample.uptime.map { String(format: "%.0f s", $0) } ?? "unavailable"
+    print(
+        String(
+            format: "CPU %.1f%% (user %.1f%%, system %.1f%%, nice %.1f%%, idle %.1f%%)",
+            sample.totalPercent,
+            sample.userPercent,
+            sample.systemPercent,
+            sample.nicePercent,
+            sample.idlePercent
+        )
+    )
+    print("load averages: \(load); uptime: \(uptime)")
+    print("processes: \(sample.processCount); threads: \(sample.threadCount)")
+    let cores = sample.perCore.map { core in
+        let prefix: String
+        switch core.kind {
+        case .efficiency: prefix = "E"
+        case .performance: prefix = "P"
+        case .unknown: prefix = "C"
+        }
+        return String(format: "%@%d %.1f%%", prefix, core.index, core.usagePercent)
+    }
+    print("cores: \(cores.joined(separator: ", "))")
+    if !sample.topProcesses.isEmpty {
+        print("top processes:")
+        for process in sample.topProcesses {
+            print(
+                String(
+                    format: "  %6d  %6.2f%%  %@",
+                    process.processIdentifier,
+                    process.cpuPercent,
+                    process.name
+                )
+            )
+        }
+    }
+}
+
 private func writeError(_ message: String) {
     let data = Data("mbs-probe: \(message)\n".utf8)
     FileHandle.standardError.write(data)
 }
 
-let arguments = Array(CommandLine.arguments.dropFirst())
-guard arguments.count == 1, let command = ProbeCommand(rawValue: arguments[0]) else {
-    writeError("usage: mbs-probe <identity|version>")
-    exit(EXIT_FAILURE)
-}
+@main
+private enum ProbeMain {
+    static func main() async {
+        setbuf(stdout, nil)
+        let arguments = Array(CommandLine.arguments.dropFirst())
+        guard let commandName = arguments.first, let command = ProbeCommand(rawValue: commandName) else {
+            writeError("usage: mbs-probe <cpu [--watch]|identity|version>")
+            exit(EXIT_FAILURE)
+        }
 
-switch command {
-case .identity:
-    runIdentityProbe()
-case .version:
-    printVersion()
+        do {
+            switch command {
+            case .cpu:
+                guard arguments.count == 1 || arguments == ["cpu", "--watch"] else {
+                    writeError("usage: mbs-probe cpu [--watch]")
+                    exit(EXIT_FAILURE)
+                }
+                try await runCPUProbe(watch: arguments.count == 2)
+            case .identity:
+                guard arguments.count == 1 else {
+                    writeError("usage: mbs-probe identity")
+                    exit(EXIT_FAILURE)
+                }
+                runIdentityProbe()
+            case .version:
+                guard arguments.count == 1 else {
+                    writeError("usage: mbs-probe version")
+                    exit(EXIT_FAILURE)
+                }
+                printVersion()
+            }
+        } catch {
+            writeError(String(describing: error))
+            exit(EXIT_FAILURE)
+        }
+    }
 }

@@ -188,3 +188,42 @@ Command Line Tools deviation: importing both Foundation and Testing activates a 
 `_Testing_Foundation`, but that framework has no module interface in this installation. Test compilation uses the
 compiler's `-disable-cross-import-overlays` option. The previously documented silent Swift Testing runner behavior
 remains: the required command compiles and links successfully but prints no execution summary.
+
+## P1-T2 CPU source and monitor
+
+Implemented Mach per-core tick collection with correct buffer deallocation, Apple Silicon performance/efficiency
+topology, load averages, uptime, libproc process enumeration, PID/start-time metadata caching, physical footprints,
+thread counts, and timebase-corrected process CPU deltas. Added `CPUMonitor`, complete CPU samples, top-process
+selection, and the `mbs-probe cpu [--watch]` command.
+
+`swift run mbs-probe cpu` under normal interactive load (exit 0, selected output):
+
+```text
+CPU 15.4% (user 9.7%, system 5.7%, nice 0.0%, idle 84.6%)
+load averages: 7.41, 5.85, 4.15; uptime: 179742 s
+processes: 805; threads: 4765
+cores: E0 48.1%, E1 44.4%, E2 33.3%, E3 33.3%, P4 0.0%, P5 0.0%, P6 0.0%, P7 0.0%, P8 0.0%, P9 17.9%, P10 11.1%, P11 14.8%, P12 6.9%, P13 7.1%
+```
+
+`swift run mbs-probe cpu --watch` printed fresh CPU, core, load, uptime, process, and thread values once per second.
+
+Controlled-load verification used one `yes` process. `ps` reported:
+
+```text
+PID    %CPU      TIME COMM
+17403  99.9   0:13.45 yes
+```
+
+The probe reported the process at 7.10% of total machine capacity, which is the expected normalized value for one
+fully occupied logical CPU on this 14-core machine. Total CPU rose, but the scheduler migrated the process across
+performance cores during the sampling interval, so no single per-core counter remained near 100%. This is a
+verification-assumption deviation rather than a data-source failure; per-core values remained internally consistent
+with the total.
+
+`swift build 2>&1 | tail -3` (exit 0):
+
+```text
+[2/4] Linking MenuBarStatsApp
+[3/4] Applying MenuBarStatsApp
+Build complete! (0.66s)
+```

@@ -1,0 +1,188 @@
+import Darwin
+import Foundation
+
+/// One process observation derived from libproc.
+public struct ProcessSnapshot: Sendable {
+    /// Process identifier.
+    public let processIdentifier: pid_t
+
+    /// Cached process name.
+    public let name: String
+
+    /// Cached executable path when available.
+    public let path: String?
+
+    /// CPU use as a percentage of total machine capacity since the previous observation.
+    public let cpuPercent: Double
+
+    /// Physical memory footprint in bytes.
+    public let physicalFootprint: UInt64
+
+    /// Current thread count reported by libproc.
+    public let threadCount: Int
+}
+
+/// Aggregate process-list observation.
+public struct ProcessListSnapshot: Sendable {
+    /// Every process whose resource usage could be read.
+    public let processes: [ProcessSnapshot]
+
+    /// Number of process identifiers returned by libproc.
+    public let processCount: Int
+
+    /// Sum of readable per-process thread counts.
+    public let threadCount: Int
+}
+
+/// Reads and caches process metadata and resource usage through libproc.
+public final class ProcessSource {
+    private struct CacheEntry {
+        let startTime: UInt64
+        let name: String
+        let path: String?
+        let cpuTime: UInt64
+        let observedAt: ContinuousClock.Instant
+    }
+
+    private var cache: [pid_t: CacheEntry] = [:]
+    private let timebaseScale: Double
+
+    /// Whether libproc returns at least one process identifier.
+    public var isAvailable: Bool {
+        !processIdentifiers().isEmpty
+    }
+
+    /// Creates a process source with an empty metadata cache.
+    public init() {
+        var timebase = mach_timebase_info_data_t()
+        if mach_timebase_info(&timebase) == KERN_SUCCESS, timebase.denom != 0 {
+            timebaseScale = Double(timebase.numer) / Double(timebase.denom)
+        } else {
+            timebaseScale = 1
+        }
+    }
+
+    /// Reads processes, calculating CPU deltas against the previous call.
+    public func readProcesses(logicalCPUCount: Int) -> ProcessListSnapshot {
+        let processIdentifiers = processIdentifiers()
+        let now = ContinuousClock().now
+        let divisor = Double(max(1, logicalCPUCount))
+        var nextCache: [pid_t: CacheEntry] = [:]
+        var snapshots: [ProcessSnapshot] = []
+        var totalThreads = 0
+
+        for processIdentifier in processIdentifiers {
+            guard let usage = resourceUsage(for: processIdentifier) else {
+                continue
+            }
+            let startTime = usage.ri_proc_start_abstime
+            let cpuTime = usage.ri_user_time &+ usage.ri_system_time
+            let cached = cache[processIdentifier]
+            let metadataMatches = cached?.startTime == startTime
+            let name = metadataMatches ? cached?.name ?? "" : processName(for: processIdentifier)
+            let path = metadataMatches ? cached?.path : processPath(for: processIdentifier)
+
+            let cpuPercent: Double
+            if let cached, cached.startTime == startTime, cpuTime >= cached.cpuTime {
+                let wallSeconds = cached.observedAt.duration(to: now).timeInterval
+                let cpuSeconds = Double(cpuTime - cached.cpuTime) * timebaseScale / 1_000_000_000
+                cpuPercent = wallSeconds > 0 ? min(100, cpuSeconds / wallSeconds * 100 / divisor) : 0
+            } else {
+                cpuPercent = 0
+            }
+
+            let threadCount = processThreadCount(for: processIdentifier)
+            totalThreads += threadCount
+            snapshots.append(
+                ProcessSnapshot(
+                    processIdentifier: processIdentifier,
+                    name: name.isEmpty ? "PID \(processIdentifier)" : name,
+                    path: path,
+                    cpuPercent: cpuPercent,
+                    physicalFootprint: usage.ri_phys_footprint,
+                    threadCount: threadCount
+                )
+            )
+            nextCache[processIdentifier] = CacheEntry(
+                startTime: startTime,
+                name: name,
+                path: path,
+                cpuTime: cpuTime,
+                observedAt: now
+            )
+        }
+
+        cache = nextCache
+        return ProcessListSnapshot(
+            processes: snapshots,
+            processCount: processIdentifiers.count,
+            threadCount: totalThreads
+        )
+    }
+
+    private func processIdentifiers() -> [pid_t] {
+        let requiredBytes = proc_listpids(UInt32(PROC_ALL_PIDS), 0, nil, 0)
+        guard requiredBytes > 0 else {
+            return []
+        }
+
+        let capacity = Int(requiredBytes) / MemoryLayout<pid_t>.stride + 32
+        var values = [pid_t](repeating: 0, count: capacity)
+        let actualBytes = values.withUnsafeMutableBytes { buffer in
+            proc_listpids(UInt32(PROC_ALL_PIDS), 0, buffer.baseAddress, Int32(buffer.count))
+        }
+        guard actualBytes > 0 else {
+            return []
+        }
+        return values.prefix(Int(actualBytes) / MemoryLayout<pid_t>.stride).filter { $0 > 0 }
+    }
+
+    private func resourceUsage(for processIdentifier: pid_t) -> rusage_info_v4? {
+        var usage = rusage_info_v4()
+        let result = withUnsafeMutablePointer(to: &usage) { usagePointer in
+            let reboundPointer = UnsafeMutableRawPointer(usagePointer)
+                .assumingMemoryBound(to: rusage_info_t?.self)
+            return proc_pid_rusage(processIdentifier, RUSAGE_INFO_V4, reboundPointer)
+        }
+        return result == 0 ? usage : nil
+    }
+
+    private func processName(for processIdentifier: pid_t) -> String {
+        var buffer = [CChar](repeating: 0, count: 1_024)
+        let result = proc_name(processIdentifier, &buffer, UInt32(buffer.count))
+        guard result > 0 else {
+            return ""
+        }
+        return Self.string(from: buffer, byteCount: Int(result))
+    }
+
+    private func processPath(for processIdentifier: pid_t) -> String? {
+        var buffer = [CChar](repeating: 0, count: 4_096)
+        let result = proc_pidpath(processIdentifier, &buffer, UInt32(buffer.count))
+        guard result > 0 else {
+            return nil
+        }
+        return Self.string(from: buffer, byteCount: Int(result))
+    }
+
+    private func processThreadCount(for processIdentifier: pid_t) -> Int {
+        var info = proc_taskinfo()
+        let size = Int32(MemoryLayout<proc_taskinfo>.stride)
+        let result = withUnsafeMutablePointer(to: &info) { pointer in
+            proc_pidinfo(processIdentifier, PROC_PIDTASKINFO, 0, pointer, size)
+        }
+        return result == size ? Int(info.pti_threadnum) : 0
+    }
+
+    private static func string(from buffer: [CChar], byteCount: Int) -> String {
+        let bytes = buffer.prefix(byteCount).map { UInt8(bitPattern: $0) }
+        return String(decoding: bytes, as: UTF8.self)
+    }
+}
+
+private extension Duration {
+    var timeInterval: TimeInterval {
+        let value = components
+        return TimeInterval(value.seconds) + TimeInterval(value.attoseconds) / 1e18
+    }
+}
