@@ -2484,3 +2484,31 @@ Verification:
 - Every changed assertion was recomputed outside the test runner first, against the real modules, since the runner
   cannot execute here. All of them pass, including the arithmetic behind the restored `symbolSize` contract.
 - `make install` replaced and relaunched `/Applications/Barometer.app`.
+
+### P8-T19 center menu bar content under the hover highlight
+
+David reported the hover highlight sitting off the content on every item. Measuring the ink margins confirmed it and
+showed why: renderers size their canvas from the widest value an item can ever show, then drew the live value flush
+against one edge, so the unused reservation collected on the other side. `TextRenderer` pinned to the trailing edge
+while the stacked renderers pinned to the leading edge, so the items did not even lean the same way.
+
+All of them now center the live content in the reserved canvas. Weather went from 0 and 6 points of margin to 1 and
+4, Network from 0 and 6 to 2 and 4, and the CPU stack from 0 and 8 to 3 and 5.
+
+The remainder cannot be removed. His `NSStatusItemSelectionPadding` is 0 by host, so the highlight is exactly the
+item's frame with no inset, and `NSStatusItemSpacing` is 0, so items sit flush. Any item whose value is narrower
+than its reservation therefore shows a highlight reaching past the value. Barometer already removes both keys from
+its own domain so it never overrides that choice.
+
+Positioning the value by its ink rather than its advance box removed the last point of asymmetry but pulled the
+value two points closer to the icon, breaking the spacing that matches the rest of the bar. That was reverted: the
+alternatives are clipping temperatures at three characters or letting the item resize, and resizing is what the
+identity contract exists to prevent.
+
+Verification:
+
+- `swift build`, `swift build -c release`, and `git diff --check` completed successfully; `swift test` built every
+  target.
+- Ink margins were measured per item before and after, and the icon-to-value gap stayed at 5 points across every
+  condition glyph with item widths unchanged.
+- `make install` replaced and relaunched `/Applications/Barometer.app`.

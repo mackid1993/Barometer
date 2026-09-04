@@ -333,7 +333,7 @@ public struct TextRenderer: MenuBarRenderer {
             let size = value.size()
             value.draw(
                 at: NSPoint(
-                    x: Self.trailingOffset(valueWidth: size.width, reservedWidth: rect.width),
+                    x: Self.centeringOffset(contentWidth: size.width, canvasWidth: rect.width),
                     y: floor((rect.height - size.height) / 2)
                 )
             )
@@ -341,8 +341,14 @@ public struct TextRenderer: MenuBarRenderer {
     }
 
     /// Keeps a changing reading adjacent to the following status-item frame.
-    static func trailingOffset(valueWidth: CGFloat, reservedWidth: CGFloat) -> CGFloat {
-        max(0, reservedWidth - valueWidth)
+    /// Leading offset that centers live content inside a canvas sized for the reserved value.
+    ///
+    /// A canvas is as wide as the widest value an item can ever show, so a shorter live value leaves
+    /// spare width. Pinning content to either edge collects all of it on the other side, and the
+    /// hover highlight covers the whole item, so the highlight then reads as offset from what it is
+    /// highlighting. Renderers disagreed about which edge to pin to, which made it worse.
+    static func centeringOffset(contentWidth: CGFloat, canvasWidth: CGFloat) -> CGFloat {
+        max(0, ((canvasWidth - contentWidth) / 2).rounded(.down))
     }
 }
 
@@ -609,17 +615,22 @@ public struct StackedLabelRenderer: MenuBarRenderer {
         )
         let width =
             contentWidth + MenuBarLayoutMetrics.contentInset * 2
-        let xOrigins = Self.rowXOrigins
-        return makeImage(width: width, context: context) { _ in
+        return makeImage(width: width, context: context) { rect in
             labelText.draw(
                 at: NSPoint(
-                    x: xOrigins.label,
+                    x: TextRenderer.centeringOffset(
+                        contentWidth: labelText.size().width,
+                        canvasWidth: rect.width
+                    ),
                     y: metrics.compactRowY(0, textHeight: labelText.size().height)
                 )
             )
             valueText.draw(
                 at: NSPoint(
-                    x: xOrigins.value,
+                    x: TextRenderer.centeringOffset(
+                        contentWidth: valueText.size().width,
+                        canvasWidth: rect.width
+                    ),
                     y: metrics.compactRowY(1, textHeight: valueText.size().height)
                 )
             )
@@ -711,7 +722,9 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
         let bottomTextHeight = bottomParts.marker.isEmpty
             ? bottomValue.size().height
             : max(bottomMarker.size().height, bottomValue.size().height)
-        return makeImage(width: width, context: context) { _ in
+        let groupWidth = markerWidth + pairGap + max(ceil(topValue.size().width), ceil(bottomValue.size().width))
+        return makeImage(width: width, context: context) { rect in
+            let groupOffset = TextRenderer.centeringOffset(contentWidth: groupWidth, canvasWidth: rect.width)
             let topOrigins = Self.rowOrigins(
                 markerFieldWidth: markerWidth,
                 gap: pairGap,
@@ -724,25 +737,25 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
             )
             topMarker.draw(
                 at: NSPoint(
-                    x: MenuBarLayoutMetrics.contentInset + topOrigins.marker,
+                    x: MenuBarLayoutMetrics.contentInset + groupOffset + topOrigins.marker,
                     y: metrics.compactRowY(0, textHeight: topTextHeight)
                 )
             )
             topValue.draw(
                 at: NSPoint(
-                    x: MenuBarLayoutMetrics.contentInset + topOrigins.value + topValueOffset,
+                    x: MenuBarLayoutMetrics.contentInset + groupOffset + topOrigins.value + topValueOffset,
                     y: metrics.compactRowY(0, textHeight: topTextHeight)
                 )
             )
             bottomMarker.draw(
                 at: NSPoint(
-                    x: MenuBarLayoutMetrics.contentInset + bottomOrigins.marker,
+                    x: MenuBarLayoutMetrics.contentInset + groupOffset + bottomOrigins.marker,
                     y: metrics.compactRowY(1, textHeight: bottomTextHeight)
                 )
             )
             bottomValue.draw(
                 at: NSPoint(
-                    x: MenuBarLayoutMetrics.contentInset + bottomOrigins.value + bottomValueOffset,
+                    x: MenuBarLayoutMetrics.contentInset + groupOffset + bottomOrigins.value + bottomValueOffset,
                     y: metrics.compactRowY(1, textHeight: bottomTextHeight)
                 )
             )
@@ -966,8 +979,14 @@ public struct IconTextRenderer: MenuBarRenderer {
             + symbolFieldWidth
             + gap
             + textFieldWidth
+        // Centered on what is drawn: the glyph's ink, the gap, and the value. The remaining point
+        // of asymmetry is the trailing side bearing of the degree sign, which cannot be removed
+        // without moving the value closer to the icon than the rest of the bar's spacing.
+        let drawnIconWidth = placement?.inkSize.width ?? (hasIcon ? symbolFieldWidth : 0)
+        let groupWidth = drawnIconWidth + gap + ceil(textSize.width)
         return makeImage(width: width, context: context) { rect in
             var x = MenuBarLayoutMetrics.contentInset
+                + TextRenderer.centeringOffset(contentWidth: groupWidth, canvasWidth: rect.width)
             if let symbol, let placement {
                 // Icon, gap, and value are laid out as one group against the leading edge, and the
                 // canvas is sized for the worst case so all the spare width collects at the trailing
@@ -975,7 +994,7 @@ public struct IconTextRenderer: MenuBarRenderer {
                 // widest one around the icon: a round symbol like sun.max is far narrower than
                 // cloud.sun once both are normalized to the same height, so it would sit in a pocket
                 // of empty space that changed size with the weather.
-                let inkOrigin = x + (symbolFieldWidth - placement.inkSize.width) / 2
+                let inkOrigin = x
                 let symbolRect = NSRect(
                     x: inkOrigin - (placement.inkCenter.x - placement.inkSize.width / 2),
                     y: rect.height / 2 - placement.inkCenter.y,
@@ -985,13 +1004,13 @@ public struct IconTextRenderer: MenuBarRenderer {
                 symbol.draw(in: symbolRect)
             }
             if hasIcon {
-                x += symbolFieldWidth + gap
+                x += drawnIconWidth + gap
             }
             textValue.draw(
                 at: NSPoint(
-                    // Against the icon, not against the trailing edge. The field is as wide as the
-                    // widest value this item can ever show, and right-aligning put that spare width
-                    // between the icon and the value, which is what made the gap read as a hole.
+                    // Against the icon, not against the trailing edge. Positioned by the string's
+                    // advance rather than its ink: shifting by the left bearing centers the item
+                    // one point better but visibly tightens the gap to the icon, which matters more.
                     x: x,
                     y: metrics.centeredY(for: textSize.height)
                 )

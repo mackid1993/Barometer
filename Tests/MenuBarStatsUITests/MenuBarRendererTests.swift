@@ -243,7 +243,11 @@ struct MenuBarRendererTests {
         let reservedWidth = NSAttributedString(string: text, attributes: attributes).size().width
 
         #expect(image.size.width == ceil(reservedWidth))
-        #expect(TextRenderer.trailingOffset(valueWidth: 12, reservedWidth: 20) == 8)
+        // Live content is centered in the reserved canvas, so the hover highlight sits over it
+        // rather than beside it.
+        #expect(TextRenderer.centeringOffset(contentWidth: 12, canvasWidth: 20) == 4)
+        #expect(TextRenderer.centeringOffset(contentWidth: 20, canvasWidth: 20) == 0)
+        #expect(TextRenderer.centeringOffset(contentWidth: 24, canvasWidth: 20) == 0)
     }
 
     @Test
