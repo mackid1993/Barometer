@@ -1,0 +1,144 @@
+name: Build macOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build, for example 0.1.0"
+        required: true
+        type: string
+      notarize:
+        description: "Notarize and staple the DMG"
+        required: false
+        default: false
+        type: boolean
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      notarize:
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate and stamp version
+        env:
+          RAW_VERSION: ${{ inputs.version }}
+        run: |
+          VERSION=$(printf '%s' "$RAW_VERSION" | xargs)
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Version '$VERSION' is not major.minor.patch" >&2
+            exit 1
+          fi
+          printf '%s\n' "$VERSION" > VERSION
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Test and build app
+        run: |
+          swift --version
+          swift test
+          make app
+
+      - name: Import Developer ID certificate
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          if [ -z "$MACOS_CERTIFICATE" ]; then
+            echo "::error::MACOS_CERTIFICATE is not set" >&2
+            exit 1
+          fi
+          PASSWORD=$(printf '%s' "$MACOS_CERTIFICATE_PASSWORD" | tr -d '\r\n')
+          KEYCHAIN="$RUNNER_TEMP/barometer-build.keychain-db"
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          printf '%s' "$MACOS_CERTIFICATE" | tr -d '\r\n' | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" \
+            -k "$KEYCHAIN" \
+            -P "$PASSWORD" \
+            -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+          rm "$RUNNER_TEMP/cert.p12"
+          security find-identity -v -p codesigning "$KEYCHAIN"
+
+      - name: Sign app and build DMG
+        run: |
+          IDENTITY=$(security find-identity -v -p codesigning \
+            | grep -m1 "Developer ID Application" \
+            | sed 's/.*"\(.*\)"/\1/')
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::No Developer ID Application identity was imported" >&2
+            exit 1
+          fi
+          codesign --force --options runtime --timestamp \
+            --sign "$IDENTITY" \
+            dist/Barometer.app
+          codesign --verify --deep --strict --verbose=2 dist/Barometer.app
+          ./Scripts/create-dmg.sh \
+            dist/Barometer.app \
+            "dist/Barometer-${VERSION}.dmg"
+          codesign --force --timestamp \
+            --sign "$IDENTITY" \
+            "dist/Barometer-${VERSION}.dmg"
+          codesign --verify --verbose=2 "dist/Barometer-${VERSION}.dmg"
+
+      - name: Store notarization credentials
+        if: inputs.notarize
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          for NAME in APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD; do
+            if [ -z "${!NAME}" ]; then
+              echo "::error::$NAME is not set" >&2
+              exit 1
+            fi
+          done
+          xcrun notarytool store-credentials barometer-notary \
+            --apple-id "$(printf '%s' "$APPLE_ID" | tr -d '\r\n')" \
+            --team-id "$(printf '%s' "$APPLE_TEAM_ID" | tr -d '\r\n')" \
+            --password "$(printf '%s' "$APPLE_APP_PASSWORD" | tr -d '\r\n')"
+
+      - name: Notarize and staple DMG
+        if: inputs.notarize
+        run: |
+          DMG="dist/Barometer-${VERSION}.dmg"
+          xcrun notarytool submit "$DMG" \
+            --keychain-profile barometer-notary \
+            --wait \
+            --timeout 30m
+          xcrun stapler staple "$DMG"
+          xcrun stapler validate "$DMG"
+          spctl --assess --type open \
+            --context context:primary-signature \
+            --verbose=2 \
+            "$DMG"
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: barometer-dmg
+          path: dist/Barometer-${{ env.VERSION }}.dmg
+          if-no-files-found: error
+          retention-days: 30

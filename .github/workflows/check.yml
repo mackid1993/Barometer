@@ -1,0 +1,31 @@
+name: Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
+
+jobs:
+  test:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Report toolchain
+        run: swift --version
+
+      - name: Test
+        run: swift test
+
+      - name: Build app and DMG
+        run: make dmg
+
+      - name: Verify development package
+        run: |
+          codesign --verify --deep --strict --verbose=2 dist/Barometer.app
+          hdiutil verify "dist/Barometer-$(tr -d '[:space:]' < VERSION).dmg"

@@ -1379,3 +1379,23 @@ Verification:
 - `make install` completed and `pgrep -x Barometer` found the relaunched executable in `/Applications/Barometer.app`.
 - Ten consecutive waited quit/relaunch cycles succeeded. Every identity report contained the same 11 autosave names
   with SHA-256 identity-set hash `1d15dbbc3486dc45e732dac3bcecdabfd5ca7df81158a53d0253aa12aaaed68f`.
+
+## P7-T6 Developer ID signing and release workflow
+
+Added three manual-dispatch GitHub workflows: Check, Build macOS, and Release. The build workflow validates a semantic
+version, runs tests, imports the Developer ID Application certificate into an ephemeral keychain, signs the single
+app executable with the hardened runtime and timestamp, builds and signs a DMG, and uploads only that DMG. Release
+creates or updates a draft GitHub release rather than publishing automatically.
+
+Notarization remains implemented for a future release but is off by default in both dispatch forms. No notarization
+submission was made. The release guide documents all five possible secrets, identifies the three needed only for
+notarization, and explains safe `.p12` encoding without committing credentials.
+
+Verification:
+
+- Ruby's YAML parser loaded all three workflow files successfully, and a trigger scan found no push, pull-request,
+  or schedule trigger.
+- The Release workflow passes its explicit, default-false notarization input to the reusable macOS workflow.
+- Local strict signature verification and DMG checksum verification passed. The local bundle is intentionally ad hoc
+  signed; Developer ID, hardened-runtime timestamping, Gatekeeper assessment, and optional stapling run only in CI.
+- `xcrun notarytool` and `xcrun stapler` were not invoked, honoring the request not to notarize.
