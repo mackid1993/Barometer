@@ -119,9 +119,9 @@ Settings can be exported to a JSON file and imported on another Mac.
 
 ## Questions
 
-**Why does a layout change take effect after reopening Barometer?** Menu bar managers can lose an item's position if
-its width changes while it is visible. Barometer keeps every live width fixed and applies the new layout on the next
-normal launch.
+**Why does Barometer reopen when I apply visibility changes?** Menu bar managers can lose an item's position if its
+width changes while it is visible. Barometer keeps every live width fixed, then reopens once to build and size the
+complete selection safely.
 
 **Why is a reading missing?** Some values depend on the hardware and on macOS. A Mac without fans shows no fan
 readout. Readings that the system stops reporting show as unavailable instead of old numbers.
