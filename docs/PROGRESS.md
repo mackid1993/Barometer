@@ -616,3 +616,36 @@ Verification:
 - `swift run --disable-sandbox mbs-probe memory` reported PID 1102 as `Parallels Desktop` instead of `prl_vm_app`.
 - `make app` completed a release build and strict ad hoc signature verification.
 - `make run` installed and launched the corrected single-bundle app from `/Applications/Barometer.app`.
+
+## P2-T3 Weather settings pane
+
+Added schema-2 weather settings with ordered saved locations, a stable primary location, optional automatic current
+location, independent temperature/wind/pressure/precipitation units, a 5–60 minute refresh interval, renderer mode,
+and custom token template. Schema-0 and schema-1 settings migrate without losing CPU, Memory, appearance, or module
+preferences. New and migrated Weather modules default to icon plus temperature.
+
+The Weather settings pane searches Open-Meteo after a short debounce, displays location context, prevents duplicate
+locations, and supports add, remove, reorder, and primary-location selection. Enabling current location starts a
+low-power Core Location watch with three-kilometer accuracy and a five-kilometer distance filter. Coordinate changes
+replace the stable `current-location` entry and restart that location's monitor; denied or unavailable location access
+falls back to saved locations without making Weather unusable.
+
+Weather monitoring is now wired into the main single-bundle process. Enabling Weather with a primary location starts
+one cached monitoring session, changing the location, units, or interval replaces it, network reconnect and display
+wake refresh it, and disabling Weather hides its existing permanent status item without removing it. The first menu
+bar presentation supports temperature, icon plus temperature, conditions, high/low, precipitation, and template
+modes while preserving the static Weather accessibility identity.
+
+Both temperature systems are explicit: Weather independently offers Fahrenheit and Celsius, while General settings
+provide a separate Celsius/Fahrenheit preference for Sensors, GPU, and Battery hardware temperatures.
+
+Verification:
+
+- `swift test --disable-sandbox --filter Settings` built all affected targets and exited 0.
+- `swift test --disable-sandbox` rebuilt and linked all app and test targets and exited 0.
+- Settings tests cover schema-0 and schema-1 migration, Fahrenheit/Celsius round trips, Weather defaults, ordered
+  primary-location fallback, and the independent hardware-temperature unit.
+- `swift build --disable-sandbox` compiled Core Location, Weather settings, monitoring-session replacement, and all
+  six initial Weather menu bar modes under Swift 6 strict concurrency.
+- Core Location permission was not requested during automated verification; it remains an explicit user action from
+  the Weather settings pane.

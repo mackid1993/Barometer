@@ -65,6 +65,8 @@ private struct SettingsRootView: View {
                 GeneralSettingsView(settingsStore: settingsStore)
             case let .module(module) where module == .cpu || module == .memory:
                 ModuleSettingsView(module: module, settingsStore: settingsStore)
+            case let .module(module) where module == .weather:
+                WeatherSettingsView(settingsStore: settingsStore)
             case let .module(module):
                 FutureModuleSettingsView(module: module)
             }
@@ -115,6 +117,16 @@ private struct GeneralSettingsView: View {
                         .monospacedDigit()
                         .frame(width: 42, alignment: .trailing)
                 }
+            }
+
+            Section("Measurement Units") {
+                Picker("Hardware temperatures", selection: appBinding(\.sensorTemperatureUnit)) {
+                    Text("Celsius (°C)").tag(TemperatureUnit.celsius)
+                    Text("Fahrenheit (°F)").tag(TemperatureUnit.fahrenheit)
+                }
+                Text("Used by Sensors, GPU, and Battery temperature readouts.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Settings File") {

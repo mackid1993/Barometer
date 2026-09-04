@@ -7,6 +7,49 @@ public enum GraphStyle: String, Codable, CaseIterable, Sendable {
     case bars
 }
 
+/// Persisted choices for the Weather module.
+public struct WeatherSettings: Codable, Equatable, Sendable {
+    /// Saved locations in user-selected display order.
+    public var locations: [Location]
+
+    /// Stable identifier of the location shown in the menu bar.
+    public var primaryLocationID: String?
+
+    /// Whether Barometer should request the Mac's current location.
+    public var usesCurrentLocation: Bool
+
+    /// Independent weather measurement units.
+    public var units: WeatherUnits
+
+    /// Forecast refresh interval, constrained by the UI to 5 through 60 minutes.
+    public var refreshIntervalMinutes: Int
+
+    /// User-editable menu bar token template.
+    public var menuBarTemplate: String
+
+    /// Creates Weather settings.
+    public init(
+        locations: [Location] = [],
+        primaryLocationID: String? = nil,
+        usesCurrentLocation: Bool = false,
+        units: WeatherUnits = .imperial,
+        refreshIntervalMinutes: Int = 15,
+        menuBarTemplate: String = "{temp} {cond}"
+    ) {
+        self.locations = locations
+        self.primaryLocationID = primaryLocationID
+        self.usesCurrentLocation = usesCurrentLocation
+        self.units = units
+        self.refreshIntervalMinutes = refreshIntervalMinutes
+        self.menuBarTemplate = menuBarTemplate
+    }
+
+    /// The selected location, falling back to the first saved location.
+    public var primaryLocation: Location? {
+        locations.first { $0.id == primaryLocationID } ?? locations.first
+    }
+}
+
 /// Persisted settings common to every module.
 public struct ModuleSettings: Codable, Equatable, Sendable {
     /// Whether the module's individual status item is visible.
@@ -63,7 +106,7 @@ public struct ModuleSettings: Codable, Equatable, Sendable {
 /// Versioned application settings persisted as JSON in the app defaults domain.
 public struct AppSettings: Codable, Equatable, Sendable {
     /// Current settings schema version.
-    public static let currentSchemaVersion = 1
+    public static let currentSchemaVersion = 2
 
     /// Schema version encoded in this value.
     public var schemaVersion: Int
@@ -86,6 +129,12 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Per-module settings keyed by stable module identity.
     public var modules: [ModuleID: ModuleSettings]
 
+    /// Weather locations, units, refresh, and template preferences.
+    public var weather: WeatherSettings
+
+    /// Temperature unit used by hardware sensor readouts.
+    public var sensorTemperatureUnit: TemperatureUnit
+
     /// Version of one-time default presentation migrations already applied.
     public private(set) var presentationDefaultsVersion: Int
 
@@ -97,7 +146,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         fontSize: Double = 11,
         menuBarScale: Double = 1.15,
         menuBarSpacing: Double = 3,
-        modules: [ModuleID: ModuleSettings] = AppSettings.defaultModules
+        modules: [ModuleID: ModuleSettings] = AppSettings.defaultModules,
+        weather: WeatherSettings = WeatherSettings(),
+        sensorTemperatureUnit: TemperatureUnit = .celsius
     ) {
         self.schemaVersion = schemaVersion
         self.reducesSamplingOnBattery = reducesSamplingOnBattery
@@ -106,6 +157,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.menuBarScale = menuBarScale
         self.menuBarSpacing = menuBarSpacing
         self.modules = modules
+        self.weather = weather
+        self.sensorTemperatureUnit = sensorTemperatureUnit
         presentationDefaultsVersion = 2
     }
 
@@ -116,6 +169,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         })
         values[.cpu] = ModuleSettings(isEnabled: true, mode: "stacked", interval: 1)
         values[.memory] = ModuleSettings(isEnabled: true, mode: "stacked", interval: 2)
+        values[.weather] = ModuleSettings(isEnabled: false, mode: "iconTemperature", interval: 900)
         return values
     }
 
@@ -127,6 +181,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case menuBarScale
         case menuBarSpacing
         case modules
+        case weather
+        case sensorTemperatureUnit
         case presentationDefaultsVersion
     }
 
@@ -147,15 +203,22 @@ public struct AppSettings: Codable, Equatable, Sendable {
             menuBarScale = 1.15
             menuBarSpacing = 3
             modules = Self.defaultModules
+            weather = WeatherSettings()
+            sensorTemperatureUnit = .celsius
             presentationDefaultsVersion = 2
-        case Self.currentSchemaVersion:
-            schemaVersion = version
+        case 1...Self.currentSchemaVersion:
+            schemaVersion = Self.currentSchemaVersion
             reducesSamplingOnBattery = try container.decode(Bool.self, forKey: .reducesSamplingOnBattery)
             isMonochrome = try container.decode(Bool.self, forKey: .isMonochrome)
             fontSize = try container.decode(Double.self, forKey: .fontSize)
             menuBarScale = try container.decodeIfPresent(Double.self, forKey: .menuBarScale) ?? 1.15
             menuBarSpacing = try container.decodeIfPresent(Double.self, forKey: .menuBarSpacing) ?? 3
             modules = try container.decode([ModuleID: ModuleSettings].self, forKey: .modules)
+            weather = try container.decodeIfPresent(WeatherSettings.self, forKey: .weather) ?? WeatherSettings()
+            sensorTemperatureUnit = try container.decodeIfPresent(
+                TemperatureUnit.self,
+                forKey: .sensorTemperatureUnit
+            ) ?? .celsius
             presentationDefaultsVersion = try container.decodeIfPresent(
                 Int.self,
                 forKey: .presentationDefaultsVersion
@@ -173,6 +236,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
                 menuBarScale = 1.15
                 menuBarSpacing = 3
                 presentationDefaultsVersion = 2
+            }
+            if modules[.weather]?.mode == "percentage" {
+                modules[.weather]?.mode = "iconTemperature"
             }
         default:
             throw DecodingError.dataCorruptedError(

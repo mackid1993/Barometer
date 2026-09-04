@@ -1,4 +1,5 @@
 import AppKit
+import CoreLocation
 import MenuBarStatsCore
 import Observation
 import SwiftUI
@@ -12,6 +13,9 @@ public final class MonitoringCoordinator {
     /// Observable Memory state used by status items and dropdowns.
     public let memoryStore = ModuleStore<MemorySample>(historyCapacity: 43_200)
 
+    /// Observable Weather state used by its status item and dropdown.
+    public let weatherStore = ModuleStore<WeatherSample>(historyCapacity: 192)
+
     /// Shared application settings.
     public let settingsStore: SettingsStore
 
@@ -19,12 +23,18 @@ public final class MonitoringCoordinator {
     private let memoryScheduler: Scheduler<MemoryMonitor>
     private let powerStateObserver = PowerStateObserver()
     private let displaySleepWatcher = DisplaySleepWatcher()
+    private var weatherSession: WeatherMonitoringSession?
+    private var weatherConfiguration: WeatherConfiguration?
     private var cpuController: StatusItemController<CPUSample>?
     private var memoryController: StatusItemController<MemorySample>?
+    private var weatherController: StatusItemController<WeatherSample>?
     private var cpuDropdown: DropdownController?
     private var memoryDropdown: DropdownController?
     private var cpuSampleTask: Task<Void, Never>?
     private var memorySampleTask: Task<Void, Never>?
+    private var weatherSampleTask: Task<Void, Never>?
+    private var weatherGeneration = 0
+    private var isTrackingCurrentLocation = false
 
     /// Creates and starts Phase 1 monitoring.
     public init(
@@ -51,6 +61,21 @@ public final class MonitoringCoordinator {
             settingsStore: settingsStore,
             render: Self.renderMemory
         )
+        weatherController = StatusItemController(
+            module: .weather,
+            statusItem: registry.item(for: .weather),
+            store: weatherStore,
+            settingsStore: settingsStore,
+            render: { sample, history, settings, context in
+                Self.renderWeather(
+                    sample: sample,
+                    history: history,
+                    settings: settings,
+                    context: context,
+                    template: settingsStore.settings.weather.menuBarTemplate
+                )
+            }
+        )
         cpuDropdown = DropdownController(
             moduleName: ModuleID.cpu.displayName,
             statusItem: registry.item(for: .cpu),
@@ -74,6 +99,8 @@ public final class MonitoringCoordinator {
         configurePowerAwareness()
         configureDisplaySleepAwareness()
         observeSettings()
+        configureWeatherMonitoring()
+        configureCurrentLocation()
 
         Task {
             await cpuScheduler.start()
@@ -85,9 +112,12 @@ public final class MonitoringCoordinator {
     public func stop() {
         cpuSampleTask?.cancel()
         memorySampleTask?.cancel()
+        weatherSampleTask?.cancel()
+        CurrentLocationProvider.shared.stop()
         Task {
             await cpuScheduler.stop()
             await memoryScheduler.stop()
+            await weatherSession?.stop()
         }
     }
 
@@ -128,6 +158,7 @@ public final class MonitoringCoordinator {
             Task {
                 await self.cpuScheduler.pause()
                 await self.memoryScheduler.pause()
+                await self.weatherSession?.pause()
             }
         }
         displaySleepWatcher.onWake = { [weak self] in
@@ -137,6 +168,7 @@ public final class MonitoringCoordinator {
             Task {
                 await self.cpuScheduler.resume()
                 await self.memoryScheduler.resume()
+                await self.weatherSession?.resume()
             }
         }
     }
@@ -155,6 +187,8 @@ public final class MonitoringCoordinator {
             _ = settingsStore.settings.reducesSamplingOnBattery
             _ = settingsStore.settings.modules[.cpu]?.interval
             _ = settingsStore.settings.modules[.memory]?.interval
+            _ = settingsStore.settings.modules[.weather]?.isEnabled
+            _ = settingsStore.settings.weather
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else {
@@ -162,6 +196,8 @@ public final class MonitoringCoordinator {
                 }
                 self.applyPowerState(self.powerStateObserver.currentState)
                 self.applySamplingIntervals()
+                self.configureWeatherMonitoring()
+                self.configureCurrentLocation()
                 self.observeSettings()
             }
         }
@@ -175,6 +211,97 @@ public final class MonitoringCoordinator {
             await cpuScheduler.setInterval(.milliseconds(Int64(max(0.25, cpuSeconds) * 1_000)))
             await memoryScheduler.setInterval(.milliseconds(Int64(max(0.25, memorySeconds) * 1_000)))
         }
+    }
+
+    private func configureWeatherMonitoring() {
+        let appSettings = settingsStore.settings
+        let isEnabled = appSettings.modules[.weather]?.isEnabled == true
+        guard isEnabled, let location = appSettings.weather.primaryLocation else {
+            stopWeatherMonitoring()
+            return
+        }
+        let configuration = WeatherConfiguration(
+            location: location,
+            units: appSettings.weather.units,
+            refreshIntervalMinutes: max(5, min(60, appSettings.weather.refreshIntervalMinutes))
+        )
+        guard configuration != weatherConfiguration else {
+            return
+        }
+
+        stopWeatherMonitoring()
+        weatherConfiguration = configuration
+        weatherGeneration += 1
+        let generation = weatherGeneration
+        let monitor = WeatherMonitor(
+            location: location,
+            units: configuration.units,
+            refreshInterval: .seconds(configuration.refreshIntervalMinutes * 60)
+        )
+        let session = WeatherMonitoringSession(monitor: monitor)
+        weatherSession = session
+        let samples = session.samples
+        weatherSampleTask = Task { [weak self] in
+            await session.start()
+            for await sample in samples {
+                guard !Task.isCancelled, let self, self.weatherGeneration == generation else {
+                    break
+                }
+                self.weatherStore.receive(sample, at: sample.timestamp)
+            }
+        }
+    }
+
+    private func stopWeatherMonitoring() {
+        weatherGeneration += 1
+        weatherConfiguration = nil
+        weatherSampleTask?.cancel()
+        weatherSampleTask = nil
+        let previousSession = weatherSession
+        weatherSession = nil
+        weatherStore.reset()
+        Task {
+            await previousSession?.stop()
+        }
+    }
+
+    private func configureCurrentLocation() {
+        let shouldTrack = settingsStore.settings.weather.usesCurrentLocation
+        guard shouldTrack != isTrackingCurrentLocation else {
+            return
+        }
+        isTrackingCurrentLocation = shouldTrack
+        guard shouldTrack else {
+            CurrentLocationProvider.shared.stop()
+            return
+        }
+        CurrentLocationProvider.shared.start { [weak self] location in
+            self?.updateCurrentLocation(location)
+        } failure: { [weak self] _ in
+            guard let self else {
+                return
+            }
+            var appSettings = self.settingsStore.settings
+            appSettings.weather.usesCurrentLocation = false
+            self.settingsStore.settings = appSettings
+        }
+    }
+
+    private func updateCurrentLocation(_ value: CLLocation) {
+        let location = Location(
+            id: "current-location",
+            name: "Current Location",
+            admin: nil,
+            country: "",
+            latitude: value.coordinate.latitude,
+            longitude: value.coordinate.longitude,
+            timeZone: TimeZone.current.identifier
+        )
+        var appSettings = settingsStore.settings
+        appSettings.weather.locations.removeAll { $0.id == location.id }
+        appSettings.weather.locations.insert(location, at: 0)
+        appSettings.weather.primaryLocationID = location.id
+        settingsStore.settings = appSettings
     }
 
     private static func renderCPU(
@@ -277,4 +404,85 @@ public final class MonitoringCoordinator {
             )
         )
     }
+
+    private static func renderWeather(
+        sample: WeatherSample?,
+        history: [HistoryEntry<WeatherSample>],
+        settings: ModuleSettings,
+        context: RenderContext,
+        template: String
+    ) -> StatusItemContent {
+        guard let sample else {
+            return StatusItemContent(
+                image: IconTextRenderer(symbolName: "cloud.sun", text: "—").render(in: context),
+                accessibilityValue: "Weather unavailable"
+            )
+        }
+        let forecast = sample.forecast
+        let temperature = String(format: "%.0f%@", forecast.current.temperature, forecast.units.temperature.symbol)
+        let staleMarker = sample.isStale ? " ⚠︎" : ""
+        let renderer: any MenuBarRenderer
+        switch settings.mode {
+        case "temperature":
+            renderer = TextRenderer(text: temperature + staleMarker)
+        case "conditions":
+            renderer = IconTextRenderer(
+                symbolName: forecast.current.code.symbolName(isDay: forecast.current.isDay),
+                text: "\(temperature) \(forecast.current.code.description)\(staleMarker)"
+            )
+        case "highLow":
+            let today = forecast.daily.first
+            let high = today?.high.map { String(format: "%.0f°", $0) } ?? "—"
+            let low = today?.low.map { String(format: "%.0f°", $0) } ?? "—"
+            renderer = TextRenderer(text: "H \(high)  L \(low)\(staleMarker)")
+        case "precipitation":
+            let probability = forecast.hourly.first?.precipitationProbability
+                ?? forecast.daily.first?.precipitationProbability
+            let value = probability.map { String(format: "%.0f%%", $0) } ?? "—"
+            renderer = IconTextRenderer(symbolName: "drop", text: value + staleMarker)
+        case "template":
+            renderer = TextRenderer(
+                text: weatherTemplate(sample: sample, template: template) + staleMarker
+            )
+        default:
+            renderer = IconTextRenderer(
+                symbolName: forecast.current.code.symbolName(isDay: forecast.current.isDay),
+                text: temperature + staleMarker
+            )
+        }
+        let staleDescription = sample.isStale ? ", stale" : ""
+        return StatusItemContent(
+            image: renderer.render(in: context),
+            accessibilityValue: "Weather in \(forecast.location.name), \(temperature), "
+                + "\(forecast.current.code.description)\(staleDescription)"
+        )
+    }
+
+    private static func weatherTemplate(sample: WeatherSample, template: String) -> String {
+        let forecast = sample.forecast
+        let today = forecast.daily.first
+        let pop = forecast.hourly.first?.precipitationProbability ?? today?.precipitationProbability
+        return template
+            .replacingOccurrences(
+                of: "{temp}",
+                with: String(format: "%.0f%@", forecast.current.temperature, forecast.units.temperature.symbol)
+            )
+            .replacingOccurrences(of: "{cond}", with: forecast.current.code.description)
+            .replacingOccurrences(of: "{hi}", with: today?.high.map { String(format: "%.0f°", $0) } ?? "—")
+            .replacingOccurrences(of: "{lo}", with: today?.low.map { String(format: "%.0f°", $0) } ?? "—")
+            .replacingOccurrences(of: "{pop}", with: pop.map { String(format: "%.0f%%", $0) } ?? "—")
+            .replacingOccurrences(
+                of: "{wind}",
+                with: forecast.current.windSpeed.map {
+                    String(format: "%.0f %@", $0, forecast.units.windSpeed.symbol)
+                } ?? "—"
+            )
+            .replacingOccurrences(of: "{aqi}", with: sample.airQuality?.usAQI.map(String.init) ?? "—")
+    }
+}
+
+private struct WeatherConfiguration: Equatable {
+    let location: Location
+    let units: WeatherUnits
+    let refreshIntervalMinutes: Int
 }

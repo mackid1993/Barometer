@@ -29,4 +29,11 @@ public final class ModuleStore<Sample: Sendable> {
     public func tick() {
         revision &+= 1
     }
+
+    /// Clears the latest sample and history while preserving the configured capacity.
+    public func reset() {
+        latestSample = nil
+        history = History(capacity: history.capacity)
+        revision &+= 1
+    }
 }
