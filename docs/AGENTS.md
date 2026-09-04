@@ -164,9 +164,9 @@ label/value widgets share one leading edge; dense Sensors and Network pairs foll
 generic width allowances, half-point insets, or renderer-specific side padding.
 
 Sensor stacks use explicit stable-width columns. A single internal point separates each label from its live reading,
-and each label/reading pair remains trailing-aligned inside the reserved column. Network arrows follow the same rule. Never
-leave unused reservation width between a prefix and its value, add a trailing exception based on the following
-widget, or synthesize spacing with flexible kerning.
+and unused reservation width is balanced on both sides of the pair. Network arrows follow the same rule. Never place
+all unused width before or inside a prefix/value pair, add a trailing exception based on the following widget, or
+synthesize spacing with flexible kerning.
 
 Do not set `NSStatusItemSpacing` or `NSStatusItemSelectionPadding` in Barometer or in the by-host global defaults.
 Before constructing `StatusItemRegistry`, remove application-domain values left by older Barometer builds so AppKit

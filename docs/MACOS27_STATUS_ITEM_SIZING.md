@@ -115,9 +115,9 @@ Trailing-align a standalone changing value inside its stable numeric field, but 
 label/value pair from the other. This preserves the one-time outer length without breaking row alignment.
 
 Multi-reading sensor stacks use explicit stable-width columns. One internal point separates each label from its live
-reading while the pair's trailing edge stays fixed inside the reserved column. Network arrows use the same rule so
-unused stable-width reservation appears before the arrow/value pair rather than between them. Never add a trailing
-exception based on the following widget or create spacing with kerning.
+reading, and unused stable-width reservation is balanced on both sides of the pair. Network arrows use the same rule.
+Never collect the reserve entirely before or inside the visible pair, add a trailing exception based on the following
+widget, or create spacing with kerning.
 
 Do not replace the separate items with one combined status item as a sizing workaround. Combined is an optional
 module, not the implementation of density.

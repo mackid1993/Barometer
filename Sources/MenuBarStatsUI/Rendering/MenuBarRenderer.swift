@@ -702,14 +702,15 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
         return (String(first), String(text.dropFirst()))
     }
 
-    /// Keeps the arrow attached to its live value while the pair's trailing edge stays fixed.
+    /// Keeps the arrow attached to its live value and balances unused reserve around the pair.
     static func rowOrigins(
         containerWidth: CGFloat,
         markerWidth: CGFloat,
         valueWidth: CGFloat,
         gap: CGFloat
     ) -> (marker: CGFloat, value: CGFloat) {
-        let marker = max(0, containerWidth - markerWidth - gap - valueWidth)
+        let unusedWidth = max(0, containerWidth - markerWidth - gap - valueWidth)
+        let marker = floor(unusedWidth / 2)
         return (marker, marker + markerWidth + gap)
     }
 }
@@ -831,7 +832,7 @@ public struct SensorStackRenderer: MenuBarRenderer {
         }
     }
 
-    /// Keeps each label attached to its reading while the pair's trailing edge stays fixed.
+    /// Keeps each label attached to its reading and balances unused reserve around the pair.
     static func rowOrigins(
         columnX: CGFloat,
         columnWidth: CGFloat,
@@ -839,7 +840,8 @@ public struct SensorStackRenderer: MenuBarRenderer {
         valueWidth: CGFloat,
         gap: CGFloat
     ) -> (label: CGFloat, value: CGFloat) {
-        let label = columnX + max(0, columnWidth - labelWidth - gap - valueWidth)
+        let unusedWidth = max(0, columnWidth - labelWidth - gap - valueWidth)
+        let label = columnX + floor(unusedWidth / 2)
         return (label, label + labelWidth + gap)
     }
 }

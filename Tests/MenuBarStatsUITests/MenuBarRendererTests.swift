@@ -516,7 +516,7 @@ struct MenuBarRendererTests {
     }
 
     @Test
-    func networkRowsKeepMarkersAttachedAndPairsTrailingAligned() {
+    func networkRowsKeepMarkersAttachedAndBalanceReservedWidth() {
         #expect(NetworkRateStackRenderer.rowParts("↑1.2MB/s").marker == "↑")
         #expect(NetworkRateStackRenderer.rowParts("↑1.2MB/s").value == "1.2MB/s")
 
@@ -532,13 +532,14 @@ struct MenuBarRendererTests {
             valueWidth: 34,
             gap: 1
         )
-        #expect(shortOrigins.marker == 18)
-        #expect(shortOrigins.value == 27)
-        #expect(longOrigins.marker == 8)
-        #expect(longOrigins.value == 17)
+        #expect(shortOrigins.marker == 9)
+        #expect(shortOrigins.value == 18)
+        #expect(longOrigins.marker == 4)
+        #expect(longOrigins.value == 13)
         #expect(shortOrigins.value - shortOrigins.marker == 9)
         #expect(longOrigins.value - longOrigins.marker == 9)
-        #expect(shortOrigins.value + 24 == longOrigins.value + 34)
+        #expect(51 - (shortOrigins.value + 24) == 9)
+        #expect(51 - (longOrigins.value + 34) == 4)
     }
 
     @Test
@@ -561,8 +562,8 @@ struct MenuBarRendererTests {
             gap: 1
         )
         #expect(topOrigins == bottomOrigins)
-        #expect(topOrigins.label == 15)
-        #expect(topOrigins.value == 38)
+        #expect(topOrigins.label == 9)
+        #expect(topOrigins.value == 32)
         #expect(topOrigins.value - topOrigins.label == 23)
 
         let cool = SensorStackRenderer(values: [
