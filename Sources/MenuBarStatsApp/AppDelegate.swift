@@ -6,6 +6,7 @@ import OSLog
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let bundleIdentifier = "com.barometer.app"
+    private static let executableName = "Barometer"
     private static let openSettingsNotification = Notification.Name(
         "com.barometer.app.openSettings"
     )
@@ -17,6 +18,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsStore: SettingsStore?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard validateBundleIdentity() else {
+            NSApp.terminate(nil)
+            return
+        }
         guard claimSingleInstance() else {
             NSApp.terminate(nil)
             return
@@ -78,6 +83,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         existingApplication.activate()
         Self.logger.notice("Another Barometer instance is already running")
         return false
+    }
+
+    private func validateBundleIdentity() -> Bool {
+        let bundle = Bundle.main
+        let actualIdentifier = bundle.bundleIdentifier ?? "none"
+        let actualExecutable = bundle.executableURL?.lastPathComponent ?? "none"
+        let isApplicationBundle = bundle.bundleURL.pathExtension == "app"
+        guard actualIdentifier == Self.bundleIdentifier,
+              actualExecutable == Self.executableName,
+              isApplicationBundle
+        else {
+            let message = "Refusing unbundled launch: bundle=\(actualIdentifier) "
+                + "executable=\(actualExecutable) isAppBundle=\(isApplicationBundle)"
+            Self.logger.fault("\(message, privacy: .public)")
+            return false
+        }
+        let message = "Validated status-item owner bundle=\(actualIdentifier) executable=\(actualExecutable)"
+        Self.logger.info("\(message, privacy: .public)")
+        return true
     }
 
     private func showSettings() {

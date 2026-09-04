@@ -27,7 +27,7 @@ let package = Package(
         .macOS("26.0"),
     ],
     products: [
-        .executable(name: "MenuBarStatsApp", targets: ["MenuBarStatsApp"]),
+        .executable(name: "Barometer", targets: ["Barometer"]),
         .executable(name: "mbs-probe", targets: ["mbs-probe"]),
         .library(name: "MenuBarStatsCore", targets: ["MenuBarStatsCore"]),
         .library(name: "MenuBarStatsUI", targets: ["MenuBarStatsUI"]),
@@ -66,17 +66,15 @@ let package = Package(
             ]
         ),
         .executableTarget(
-            name: "MenuBarStatsApp",
+            name: "Barometer",
             dependencies: ["MenuBarStatsUI"],
+            path: "Sources/MenuBarStatsApp",
             swiftSettings: strictConcurrency
         ),
         .executableTarget(
             name: "mbs-probe",
             dependencies: ["MenuBarStatsCore"],
-            swiftSettings: strictConcurrency,
-            linkerSettings: [
-                .linkedFramework("AppKit"),
-            ]
+            swiftSettings: strictConcurrency
         ),
         .testTarget(
             name: "MenuBarStatsCoreTests",

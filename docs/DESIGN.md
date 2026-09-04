@@ -83,7 +83,10 @@ So: the window name is the autosave name and nothing else. The button title flow
 
 These rules are part of the public contract of the app. Changing any of them after the first release is a breaking change that scrambles every user's menu bar layout.
 
-1. One process. All status items are created by the main app process. No helper app, no XPC service, no login-item bundle owns a status item.
+1. One bundled process. All status items are created by the main `Barometer.app` process. No command-line executable,
+   helper app, XPC service, or login-item bundle creates or owns a status item. Before constructing the status-item
+   registry, the process validates that `Bundle.main` is an application bundle with identifier `com.barometer.app`
+   and executable name `Barometer`; an unbundled launch exits without touching `NSStatusBar`.
 2. One bundle identifier, forever: `com.barometer.app`. (David: change this before the first launch if you want a different one, never after.)
 3. Fixed autosave names, one per module, never renamed:
 
@@ -112,12 +115,13 @@ These rules are part of the public contract of the app. Changing any of them aft
 
 ### 3.6 Verifying the contract
 
-- `Tools/probes/statusitem.swift` is the reference probe. Re-run it on every new macOS beta.
+- The packaged app's debug identity self-test is the reference probe. Command-line diagnostics never create an
+  `NSStatusItem`, including during OS-upgrade checks.
 - Debug builds log each item's `autosaveName`, `window.title`, AX identifier, AX label, and AX title at launch, and assert that the label and identifier match the table above.
 - With Thaw running, after the app has been up for a minute:
 
   ```sh
-  defaults read com.stonerl.Thaw | grep -o 'net\.brustein\.MenuBarStats:[^"]*' | sort -u
+  defaults read com.stonerl.Thaw | grep -o 'com\.barometer\.app:[^"]*' | sort -u
   ```
 
   must print exactly one line per visible item, each ending in an autosave name from the table, and the set must not change across app relaunches or value changes.
@@ -232,7 +236,7 @@ MenuBarStats/
   Tools/probes/                      standalone swiftc scripts kept for OS-upgrade checks
 ```
 
-Targets and dependencies: `MenuBarStatsApp` depends on `MenuBarStatsUI`, which depends on `MenuBarStatsCore`, which depends on `SystemSources`, which depends on `CSystemSources`. `mbs-probe` depends on `MenuBarStatsCore` only. Nothing below `MenuBarStatsUI` imports AppKit or SwiftUI.
+Targets and dependencies: `Barometer` depends on `MenuBarStatsUI`, which depends on `MenuBarStatsCore`, which depends on `SystemSources`, which depends on `CSystemSources`. `mbs-probe` depends on `MenuBarStatsCore` only. Nothing below `MenuBarStatsUI` imports AppKit or SwiftUI.
 
 ### 5.3 Data flow
 
@@ -368,7 +372,7 @@ Every source below has been checked on the target machine unless marked "expecte
 
 ## 10. Build, packaging, signing, permissions
 
-- `swift build -c release` produces `.build/release/MenuBarStatsApp`. `Scripts/make-app.sh` creates `dist/Barometer.app/Contents/{MacOS,Resources}`, copies the binary as `Barometer`, writes `Info.plist` with version substitution, copies resources, and runs `codesign --force --sign - --identifier com.barometer.app dist/Barometer.app`.
+- `swift build -c release --product Barometer` produces `.build/release/Barometer`. `Scripts/make-app.sh` creates `dist/Barometer.app/Contents/{MacOS,Resources}`, copies that binary without renaming it, writes `Info.plist` with version substitution, copies resources, verifies there is exactly one executable in the bundle, and runs `codesign --force --sign - --identifier com.barometer.app dist/Barometer.app`.
 - `Info.plist` keys: `CFBundleIdentifier`, `CFBundleName`, `CFBundleDisplayName`, `CFBundleExecutable`, `CFBundlePackageType=APPL`, `CFBundleShortVersionString`, `CFBundleVersion`, `LSMinimumSystemVersion=26.0`, `LSUIElement=true`, `NSHumanReadableCopyright`, `NSLocationUsageDescription`, `NSCalendarsFullAccessUsageDescription`, `NSSupportsAutomaticTermination=false`, `NSSupportsSuddenTermination=false`.
 - `make run` kills any running instance, rebuilds, and opens the app with `open dist/Barometer.app`. `make install` copies to `/Applications`.
 - Launch at login uses `SMAppService.mainApp.register()`; it requires the app to be in a stable location, so Settings warns when running from `dist/`.
@@ -378,7 +382,7 @@ Every source below has been checked on the target machine unless marked "expecte
 ## 11. Logging, diagnostics, performance
 
 - `os.Logger` with subsystem `com.barometer.app` and one category per module plus `identity`, `scheduler`, `render`, `weather`. Stream with `log stream --level debug --predicate 'subsystem == "com.barometer.app"'`.
-- `mbs-probe` prints any source as text or JSON: `mbs-probe cpu`, `mbs-probe temps`, `mbs-probe smc --list`, `mbs-probe gpu`, `mbs-probe battery`, `mbs-probe disks`, `mbs-probe net`, `mbs-probe weather --lat 42.36 --lon -71.06`, `mbs-probe identity` (launches a temporary status item and prints its identity strings).
+- `mbs-probe` prints any source as text or JSON: `mbs-probe cpu`, `mbs-probe temps`, `mbs-probe smc --list`, `mbs-probe gpu`, `mbs-probe battery`, `mbs-probe disks`, `mbs-probe net`, `mbs-probe weather --lat 42.36 --lon -71.06`, `mbs-probe identity` (prints the identity table without creating a status item). Command-line probes never create menu bar items because an unbundled process has no application bundle identity.
 - Budgets on the M4 Pro with all modules enabled at default intervals: under 0.7% average CPU measured over five minutes with `top -pid`, under 80 MB resident, zero energy impact rating of "High" in Activity Monitor. Sampling threads must not spin; the scheduler sleeps between samples.
 
 ## 12. Testing

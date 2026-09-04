@@ -1,4 +1,3 @@
-import AppKit
 import Darwin
 import Foundation
 import MenuBarStatsCore
@@ -10,34 +9,12 @@ private enum ProbeCommand: String {
     case version
 }
 
-@MainActor
 private func runIdentityProbe() {
-    let application = NSApplication.shared
-    application.setActivationPolicy(.accessory)
-
-    let autosaveName = "MenuBarStats.Probe"
-    let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    statusItem.autosaveName = autosaveName
-    statusItem.behavior = []
-
-    guard let button = statusItem.button else {
-        writeError("AppKit did not create a status item button")
-        exit(EXIT_FAILURE)
+    print("statusItemCreation=disabled")
+    print("probeBundleIdentifier=\(Bundle.main.bundleIdentifier ?? "none")")
+    for module in ModuleID.allCases {
+        print("\(module.displayName)=\(module.autosaveName)")
     }
-
-    button.title = ""
-    button.setAccessibilityIdentifier(autosaveName)
-    button.setAccessibilityLabel("Probe")
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
-
-    print("autosaveName=\(autosaveName)")
-    print("window.title=\(button.window?.title ?? "")")
-    print("AXIdentifier=\(button.accessibilityIdentifier())")
-    print("AXLabel=\(button.accessibilityLabel() ?? "")")
-    print("AXTitle=\(button.accessibilityTitle() ?? "")")
-    print("button.title=\(button.title)")
-
-    NSStatusBar.system.removeStatusItem(statusItem)
 }
 
 private func printVersion() {

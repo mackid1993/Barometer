@@ -452,3 +452,35 @@ Bartender itself is configured with `GoldenGateNewItemsPlacement` set to `sectio
 routes newly discovered menu bar items into its hidden section. A screen capture confirmed that this policy was in
 effect after the successful identity migration. Barometer did not change Bartender's preferences; the new stable
 identities now give Bartender and the user distinct items that can be moved to the visible section.
+
+## Bundled status-item ownership correction
+
+Feedback from the Thaw developer clarified the macOS 27 compatibility requirement: a menu bar item created by an
+unbundled helper or command-line process has no application bundle identity for a menu bar manager to associate with
+it. The production Barometer registry was already created by the main app process, but the `mbs-probe identity`
+diagnostic violated the same architectural rule by creating a temporary AppKit status item from a naked SwiftPM
+executable.
+
+Removed all `NSStatusItem` creation and the AppKit dependency from `mbs-probe`, and removed the standalone
+status-item probe. The identity command now prints constants only. Renamed the SwiftPM application product and
+binary to `Barometer` so the product, `CFBundleExecutable`, on-disk executable, application name, and signing
+identifier no longer rely on a copied binary rename. `AppDelegate` now validates the `Barometer.app` suffix,
+`com.barometer.app` bundle identifier, and `Barometer` executable name before constructing `StatusItemRegistry`; a
+naked `swift run Barometer` exits without touching `NSStatusBar`. The bundle assembly script also fails unless the
+finished app contains exactly one executable and passes strict code-signature verification.
+
+Verification:
+
+- `swift build` built the renamed `Barometer` and dependency-free `mbs-probe` products successfully.
+- `swift run --skip-build mbs-probe identity` printed `statusItemCreation=disabled`,
+  `probeBundleIdentifier=none`, and the ten production `Barometer.*` constants.
+- `swift run --skip-build Barometer` exited 0 in under one second. The unified log recorded
+  `Refusing unbundled launch: bundle=none executable=Barometer isAppBundle=false`, and no Barometer process remained.
+- `swift test --filter IdentityContractTests` exited 0.
+- `make app` built and signed `dist/Barometer.app`; the new assembly validations passed.
+- Bundle inspection found exactly one executable, `Contents/MacOS/Barometer`. `Info.plist` and `codesign` both
+  reported `com.barometer.app`, with `CFBundleExecutable`, `CFBundleDisplayName`, and `CFBundleName` all set to
+  `Barometer`.
+- A controlled launch used only `open dist/Barometer.app`. The running process had bundle identifier
+  `com.barometer.app`, and Bartender's read-only catalog associated both `Barometer.CPU` and `Barometer.Memory` with
+  that bundle identifier. The app was stopped immediately after verification; Thaw was not launched or modified.

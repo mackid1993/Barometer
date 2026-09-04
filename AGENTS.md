@@ -17,7 +17,8 @@ Barometer: a free, open source (MIT) macOS menu bar system monitor that replaces
 
 Full text in `docs/DESIGN.md` section 3.5. Short form:
 
-1. One process owns every status item. No helper, no XPC, no second bundle.
+1. The packaged `Barometer.app` process owns every status item. No command-line executable, helper, XPC service, or
+   second bundle may create one. The app must validate its bundle identity before constructing `StatusItemRegistry`.
 2. Bundle identifier `com.barometer.app`. Never change it.
 3. Autosave names are fixed: `Barometer.CPU`, `Barometer.GPU`, `Barometer.Memory`, `Barometer.Disks`, `Barometer.Network`, `Barometer.Sensors`, `Barometer.Battery`, `Barometer.Weather`, `Barometer.Time`, `Barometer.Combined`. Extra instances are `Barometer.Weather.2` and so on. `ModuleID` in `MenuBarStatsCore` is the only place these strings live.
 4. `NSStatusBarButton.title` is always empty. Menu bar content is an `NSImage` in `button.image`.
@@ -28,7 +29,7 @@ Full text in `docs/DESIGN.md` section 3.5. Short form:
 ## Code rules
 
 - Swift 6 language mode with strict concurrency. No `@unchecked Sendable` without a comment explaining why. No `DispatchQueue.main.async` where `@MainActor` works.
-- Layering: `CSystemSources` <- `SystemSources` <- `MenuBarStatsCore` <- `MenuBarStatsUI` <- `MenuBarStatsApp`. Nothing below `MenuBarStatsUI` imports AppKit or SwiftUI.
+- Layering: `CSystemSources` <- `SystemSources` <- `MenuBarStatsCore` <- `MenuBarStatsUI` <- `Barometer`. Nothing below `MenuBarStatsUI` imports AppKit or SwiftUI.
 - Every system data source has an `isAvailable` check and degrades to "unavailable" in the UI. Private APIs (IOHID event client, IOReport, SMC) are wrapped in one type each in `SystemSources` and used nowhere else.
 - No force unwraps or `try!` outside tests. Errors are logged with `os.Logger`, subsystem `com.barometer.app`, one category per module.
 - Formatting: 4-space indent, 120 columns, `// MARK:` sections, doc comments on public API.

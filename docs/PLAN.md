@@ -50,7 +50,7 @@ Goal: a signed `.app` that shows one static status item with the correct identit
 ### P0-T2 Bundle assembly and Makefile
 
 - `Scripts/Info.plist` with the keys in design section 10, placeholders `__VERSION__` and `__BUILD__`.
-- `Scripts/make-app.sh`: build the `MenuBarStatsApp` product in release, create `dist/Barometer.app`, copy the binary as `Contents/MacOS/Barometer`, substitute the plist, copy any SwiftPM resource bundles (`.build/release/*.bundle`) into `Contents/Resources`, ad-hoc sign with identifier `com.barometer.app`.
+- `Scripts/make-app.sh`: build the `Barometer` product in release, create `dist/Barometer.app`, copy the `Barometer` binary as `Contents/MacOS/Barometer`, substitute the plist, copy any SwiftPM resource bundles (`.build/release/*.bundle`) into `Contents/Resources`, ad-hoc sign with identifier `com.barometer.app`.
 - `Makefile` targets: `build`, `test`, `app`, `run`, `stop`, `install`, `probe SRC=cpu`, `clean`. `stop` uses `osascript -e 'quit app id "com.barometer.app"'` with a `pkill -f Barometer.app/Contents/MacOS/Barometer` fallback.
 - Done when: `make app` produces a bundle that `codesign -dv` reports with the right identifier and `plutil -p dist/Barometer.app/Contents/Info.plist` shows `LSUIElement => true`.
 - Verify: `make app && codesign -dv --verbose=2 dist/Barometer.app 2>&1 | grep -E 'Identifier|Signature'`.
@@ -69,8 +69,8 @@ Goal: a signed `.app` that shows one static status item with the correct identit
 
 ### P0-T4 Probe executable and identity probe
 
-- `mbs-probe` target with a tiny argument parser (no dependencies). Subcommands in P0: `identity` (creates a temporary status item named `MenuBarStats.Probe`, prints the same identity lines as the self-test, exits) and `version`.
-- Done when: `swift run mbs-probe identity` prints `window.title=MenuBarStats.Probe`.
+- `mbs-probe` target with a tiny argument parser (no dependencies). Subcommands in P0: `identity` (prints the production status-item identity table without creating a status item) and `version`. Only the packaged Barometer application may create status items so menu bar managers always receive the owner bundle identity.
+- Done when: `swift run mbs-probe identity` prints `statusItemCreation=disabled` and the production identity table without importing AppKit.
 - Verify: `swift run mbs-probe identity`.
 
 ### P0-T5 Unit test for the identity table
