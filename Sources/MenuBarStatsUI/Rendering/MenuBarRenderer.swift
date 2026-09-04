@@ -228,19 +228,27 @@ public struct IconTextRenderer: MenuBarRenderer {
             .foregroundColor: context.foregroundColor,
         ]
         let textValue = NSAttributedString(string: text, attributes: attributes)
-        let symbolWidth: CGFloat = symbol == nil ? 0 : context.fontSize + 3
-        let width = symbolWidth + ceil(textValue.size().width) + 4
+        let symbolHeight = min(context.fontSize, context.thickness - 6)
+        let symbolAspectRatio = symbol.map { max(0.5, $0.size.width / max(1, $0.size.height)) } ?? 0
+        let symbolWidth = symbolHeight * symbolAspectRatio
+        let spaceWidth = symbol == nil ? 0 : NSAttributedString(string: " ", attributes: attributes).size().width
+        let width = symbolWidth + spaceWidth + ceil(textValue.size().width) + 4
         return makeImage(width: width, context: context) { rect in
             symbol?.draw(
                 in: NSRect(
                     x: 2,
-                    y: floor((rect.height - context.fontSize) / 2),
-                    width: context.fontSize,
-                    height: context.fontSize
+                    y: floor((rect.height - symbolHeight) / 2),
+                    width: symbolWidth,
+                    height: symbolHeight
                 )
             )
             let size = textValue.size()
-            textValue.draw(at: NSPoint(x: 2 + symbolWidth, y: floor((rect.height - size.height) / 2)))
+            textValue.draw(
+                at: NSPoint(
+                    x: 2 + symbolWidth + spaceWidth,
+                    y: floor((rect.height - size.height) / 2)
+                )
+            )
         }
     }
 }

@@ -697,3 +697,20 @@ Verification:
   remains open.
 - A populated visual review requires a saved Weather location and remains for David's/Fable's UI pass; automated
   verification did not alter David's Barometer preferences to inject a test city.
+
+## P1-F2 Icon-and-text optical spacing correction
+
+Compared Barometer's Weather status item with David's installed Kelvin Shift source. Kelvin Shift places its glyph,
+one text space, and value in a single AppKit title. Barometer cannot use a changing button title without violating the
+macOS 27 status-item identity contract, so `IconTextRenderer` now reproduces that geometry inside its stable image:
+the SF Symbol keeps its native aspect ratio, uses a vertically centered cap-height-sized box, and is separated from
+the value by the measured width of one space in the actual menu bar font. This replaces the fixed square symbol box
+and arbitrary three-point gap that made the cloud and temperature look disconnected.
+
+Verification:
+
+- Kelvin Shift was inspected read-only at `/Users/david/KelvinShift`; its app, preferences, and running state were
+  not modified.
+- `swift build --disable-sandbox` compiled the aspect-ratio and font-metric layout under Swift 6 strict concurrency.
+- The implementation remains image-only: `NSStatusBarButton.title` stays empty, and the fixed Weather identity is
+  unchanged.
