@@ -65,7 +65,7 @@ Goal: a signed `.app` that shows one static status item with the correct identit
 - Menu: the CPU item gets an `NSMenu` with "Settings…" and "Quit Barometer".
 - Settings window: `NSWindow` hosting a SwiftUI `SettingsRootView` with a sidebar listing General plus every module (content can be placeholders). Opening it activates the app; closing it does not quit.
 - Done when: `make run` shows a "CPU" item, its menu opens, Settings opens and closes, Quit works, and relaunching keeps the item where the user dragged it.
-- Verify: `make run`; `log stream` shows the identity lines with `window.title == MenuBarStats.CPU`; `defaults read com.barometer.app | grep 'NSStatusItem Preferred Position MenuBarStats.CPU'` after dragging the item once; with Thaw running, the Thaw identity check prints `com.barometer.app:...` ending in `MenuBarStats.CPU` and nothing else.
+- Verify: `make run`; the accessibility identifier is `Barometer.CPU`; `defaults read com.barometer.app | grep 'NSStatusItem Preferred Position Barometer.CPU'` after dragging the item once; with a menu bar manager running, its identity check prints `com.barometer.app:...` ending in `Barometer.CPU` and nothing else.
 
 ### P0-T4 Probe executable and identity probe
 
@@ -287,8 +287,8 @@ End of Phase 6: stop for review.
 
 ### P7-T1 Combined item
 
-- `MenuBarStats.Combined` item that hosts any subset of modules with separators; tabbed dropdown; settings to choose members and order; members can be shown in Combined and hidden individually.
-- Verify: Thaw identity check shows `MenuBarStats.Combined` and the members that are still individually visible; hide members and confirm only Combined remains.
+- `Barometer.Combined` item that hosts any subset of modules with separators; tabbed dropdown; settings to choose members and order; members can be shown in Combined and hidden individually.
+- Verify: Thaw identity check shows `Barometer.Combined` and the members that are still individually visible; hide members and confirm only Combined remains.
 
 ### P7-T2 Appearance system
 

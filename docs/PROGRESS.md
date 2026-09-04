@@ -425,3 +425,30 @@ Final regression verification:
   uptime, and nonzero top-process CPU values.
 - `swift run mbs-probe memory` reported 39.34 GiB used of 48.00 GiB, 51% normal pressure, swap, and top-process
   footprints.
+
+## Barometer status-item identity migration
+
+David explicitly authorized the one-time replacement of the pre-release `MenuBarStats.*` status-item autosave names
+after Bartender matched and hid those legacy identities. The fixed production names are now `Barometer.CPU`,
+`Barometer.GPU`, `Barometer.Memory`, `Barometer.Disks`, `Barometer.Network`, `Barometer.Sensors`,
+`Barometer.Battery`, `Barometer.Weather`, `Barometer.Time`, and `Barometer.Combined`. The source table, focused
+contract test, design, plan, and repository instructions were updated together. Earlier progress entries retain the
+old names as historical evidence.
+
+Verification:
+
+- `swift test --filter IdentityContractTests` built every affected target and exited 0.
+- `make run` rebuilt, signed, and launched `dist/Barometer.app` successfully.
+- Bundle inspection still reported `CFBundleIdentifier = com.barometer.app`, `CFBundleName = Barometer`, and the
+  ad hoc signature identifier `com.barometer.app`.
+- Process inspection showed exactly one owner at
+  `/Users/david/MenuBarStats/dist/Barometer.app/Contents/MacOS/Barometer`.
+- Bartender's read-only cold-start catalog showed the current stable identities
+  `axid:com.barometer.app:com.barometer.app:Barometer.CPU` and
+  `axid:com.barometer.app:com.barometer.app:Barometer.Memory`. The prior `MenuBarStats.*` records remained only as
+  older catalog history.
+
+Bartender itself is configured with `GoldenGateNewItemsPlacement` set to `section = hidden`, so it intentionally
+routes newly discovered menu bar items into its hidden section. A screen capture confirmed that this policy was in
+effect after the successful identity migration. Barometer did not change Bartender's preferences; the new stable
+identities now give Bartender and the user distinct items that can be moved to the visible section.

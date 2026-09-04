@@ -89,18 +89,18 @@ These rules are part of the public contract of the app. Changing any of them aft
 
    | Module | `autosaveName` |
    | --- | --- |
-   | CPU | `MenuBarStats.CPU` |
-   | GPU | `MenuBarStats.GPU` |
-   | Memory | `MenuBarStats.Memory` |
-   | Disks | `MenuBarStats.Disks` |
-   | Network | `MenuBarStats.Network` |
-   | Sensors | `MenuBarStats.Sensors` |
-   | Battery | `MenuBarStats.Battery` |
-   | Weather | `MenuBarStats.Weather` |
-   | Time | `MenuBarStats.Time` |
-   | Combined | `MenuBarStats.Combined` |
+   | CPU | `Barometer.CPU` |
+   | GPU | `Barometer.GPU` |
+   | Memory | `Barometer.Memory` |
+   | Disks | `Barometer.Disks` |
+   | Network | `Barometer.Network` |
+   | Sensors | `Barometer.Sensors` |
+   | Battery | `Barometer.Battery` |
+   | Weather | `Barometer.Weather` |
+   | Time | `Barometer.Time` |
+   | Combined | `Barometer.Combined` |
 
-   Multiple instances of one module (two weather locations, two sensor items) use `MenuBarStats.Weather.2`, `MenuBarStats.Weather.3`, and so on, allocated once and stored in settings so the numbering is stable.
+   Multiple instances of one module (two weather locations, two sensor items) use `Barometer.Weather.2`, `Barometer.Weather.3`, and so on, allocated once and stored in settings so the numbering is stable.
 4. `button.title` is always the empty string. All menu bar content is rendered into an `NSImage` and assigned to `button.image`. Text in the menu bar is drawn text, not a title.
 5. `button.setAccessibilityIdentifier(autosaveName)` and `button.setAccessibilityLabel(staticHumanName)` where the human name is the module name ("CPU", "Weather"). Both are set once and never changed.
 6. The live reading goes into `button.setAccessibilityValue(...)` only. This is what Control Center does for its Battery module, which Thaw identifies as `com.apple.controlcenter:Battery` regardless of the percentage.
@@ -187,7 +187,7 @@ Parity target is iStat Menus 7. Each module has a menu bar representation (sever
 
 ### 4.10 Combined item
 
-- One status item that shows any subset of modules side by side with separators. Uses the `MenuBarStats.Combined` autosave name. The dropdown shows tabs or stacked sections for the included modules.
+- One status item that shows any subset of modules side by side with separators. Uses the `Barometer.Combined` autosave name. The dropdown shows tabs or stacked sections for the included modules.
 
 ### 4.11 Global
 

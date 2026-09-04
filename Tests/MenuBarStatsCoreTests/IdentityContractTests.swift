@@ -6,16 +6,16 @@ struct IdentityContractTests {
     @Test("module autosave names remain fixed")
     func moduleAutosaveNamesRemainFixed() {
         let expectedAutosaveNames = [
-            "MenuBarStats.CPU",
-            "MenuBarStats.GPU",
-            "MenuBarStats.Memory",
-            "MenuBarStats.Disks",
-            "MenuBarStats.Network",
-            "MenuBarStats.Sensors",
-            "MenuBarStats.Battery",
-            "MenuBarStats.Weather",
-            "MenuBarStats.Time",
-            "MenuBarStats.Combined",
+            "Barometer.CPU",
+            "Barometer.GPU",
+            "Barometer.Memory",
+            "Barometer.Disks",
+            "Barometer.Network",
+            "Barometer.Sensors",
+            "Barometer.Battery",
+            "Barometer.Weather",
+            "Barometer.Time",
+            "Barometer.Combined",
         ]
 
         #expect(ModuleID.allCases.map(\.autosaveName) == expectedAutosaveNames)

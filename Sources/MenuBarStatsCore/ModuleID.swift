@@ -1,4 +1,4 @@
-/// Stable identities for every MenuBarStats module.
+/// Stable identities for every Barometer module.
 public enum ModuleID: String, CaseIterable, Codable, Hashable, Sendable {
     case cpu
     case gpu
@@ -14,16 +14,16 @@ public enum ModuleID: String, CaseIterable, Codable, Hashable, Sendable {
     /// The permanent status-item autosave name.
     public var autosaveName: String {
         switch self {
-        case .cpu: "MenuBarStats.CPU"
-        case .gpu: "MenuBarStats.GPU"
-        case .memory: "MenuBarStats.Memory"
-        case .disks: "MenuBarStats.Disks"
-        case .network: "MenuBarStats.Network"
-        case .sensors: "MenuBarStats.Sensors"
-        case .battery: "MenuBarStats.Battery"
-        case .weather: "MenuBarStats.Weather"
-        case .time: "MenuBarStats.Time"
-        case .combined: "MenuBarStats.Combined"
+        case .cpu: "Barometer.CPU"
+        case .gpu: "Barometer.GPU"
+        case .memory: "Barometer.Memory"
+        case .disks: "Barometer.Disks"
+        case .network: "Barometer.Network"
+        case .sensors: "Barometer.Sensors"
+        case .battery: "Barometer.Battery"
+        case .weather: "Barometer.Weather"
+        case .time: "Barometer.Time"
+        case .combined: "Barometer.Combined"
         }
     }
 
