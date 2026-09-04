@@ -6,6 +6,7 @@ import MenuBarStatsCore
 private enum ProbeCommand: String {
     case cpu
     case identity
+    case memory
     case version
 }
 
@@ -102,6 +103,51 @@ private func printCPUSample(_ sample: CPUSample) {
     }
 }
 
+private func runMemoryProbe() async throws {
+    let monitor = MemoryMonitor()
+    let sample = try await monitor.sample()
+    printMemorySample(sample)
+}
+
+private func printMemorySample(_ sample: MemorySample) {
+    print("Memory \(formatBytes(sample.used)) used of \(formatBytes(sample.total))")
+    print(
+        "app \(formatBytes(sample.app)); wired \(formatBytes(sample.wired)); "
+            + "compressed \(formatBytes(sample.compressed)); cached \(formatBytes(sample.cached)); "
+            + "free \(formatBytes(sample.free))"
+    )
+    print(
+        String(
+            format: "pressure %.1f%% (%@); swap %@ of %@",
+            sample.pressurePercent,
+            sample.pressureLevel.rawValue,
+            formatBytes(sample.swapUsed),
+            formatBytes(sample.swapTotal)
+        )
+    )
+    if !sample.topProcesses.isEmpty {
+        print("top processes:")
+        for process in sample.topProcesses {
+            print(
+                String(
+                    format: "  %6d  %8@  %@",
+                    process.processIdentifier,
+                    formatBytes(process.physicalFootprint),
+                    process.name
+                )
+            )
+        }
+    }
+}
+
+private func formatBytes(_ bytes: UInt64) -> String {
+    let gibibytes = Double(bytes) / 1_073_741_824
+    if gibibytes >= 1 {
+        return String(format: "%.2f GiB", gibibytes)
+    }
+    return String(format: "%.1f MiB", Double(bytes) / 1_048_576)
+}
+
 private func writeError(_ message: String) {
     let data = Data("mbs-probe: \(message)\n".utf8)
     FileHandle.standardError.write(data)
@@ -113,7 +159,7 @@ private enum ProbeMain {
         setbuf(stdout, nil)
         let arguments = Array(CommandLine.arguments.dropFirst())
         guard let commandName = arguments.first, let command = ProbeCommand(rawValue: commandName) else {
-            writeError("usage: mbs-probe <cpu [--watch]|identity|version>")
+            writeError("usage: mbs-probe <cpu [--watch]|identity|memory|version>")
             exit(EXIT_FAILURE)
         }
 
@@ -131,6 +177,12 @@ private enum ProbeMain {
                     exit(EXIT_FAILURE)
                 }
                 runIdentityProbe()
+            case .memory:
+                guard arguments.count == 1 else {
+                    writeError("usage: mbs-probe memory")
+                    exit(EXIT_FAILURE)
+                }
+                try await runMemoryProbe()
             case .version:
                 guard arguments.count == 1 else {
                     writeError("usage: mbs-probe version")

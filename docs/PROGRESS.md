@@ -227,3 +227,25 @@ with the total.
 [3/4] Applying MenuBarStatsApp
 Build complete! (0.66s)
 ```
+
+## P1-T3 Memory source and monitor
+
+Implemented Mach `HOST_VM_INFO64` statistics, host page-size and physical-memory queries, Activity Monitor-style
+memory categories, memorystatus pressure, swap usage, kernel pressure notifications, top processes by physical
+footprint, `MemoryMonitor`, and `mbs-probe memory`.
+
+`swift run mbs-probe memory` (exit 0):
+
+```text
+Memory 36.50 GiB used of 48.00 GiB
+app 16.65 GiB; wired 5.15 GiB; compressed 14.70 GiB; cached 9.20 GiB; free 11.50 GiB
+pressure 43.0% (normal); swap 0.0 MiB of 0.0 MiB
+top processes:
+    1102  8.64 GiB  prl_vm_app
+   93467  6.25 GiB  com.apple.Virtualization.Virtua
+    2968  1.50 GiB  iTerm2
+```
+
+The independent `memory_pressure` tool reported `System-wide memory free percentage: 57%`, exactly matching the
+probe's derived 43% pressure. `sysctl vm.swapusage` independently reported total and used swap of 0.00 MiB, matching
+the probe. Direct Activity Monitor visual comparison remains part of manual review.
