@@ -1953,7 +1953,7 @@ the row. It now measures an explicit stable column for each two-row pair. Each l
 temperature, and the pair's trailing edge remains fixed. It has no order-specific trailing exception. Reading changes
 cannot resize the outer canvas or distort label typography.
 
-The same internal-spacing rule now applies to Network: two logical points separate each arrow from its live rate so
+The same internal-spacing rule now applies to Network: three logical points separate each arrow from its live rate so
 the gap remains optically visible after AppKit antialiasing. Sensor labels use the same gap. Separate sensor columns
 retain a one-device-pixel separator based on `RenderContext`'s destination display scale. Unused stability width is
 balanced on both sides of each visible pair instead of collecting entirely inside the pair or before the widget.
@@ -1963,7 +1963,7 @@ change AppKit's spacing between independently movable items.
 Verification:
 
 - An isolated defaults-suite test verifies both legacy Barometer application-domain values are removed.
-- `swift test`, including geometry checks for the two-point dense-pair gap, pixel-snapped prefix edges, balanced
+- `swift test`, including geometry checks for the three-point dense-pair gap, pixel-snapped prefix edges, balanced
   reservation, and the one-device-pixel sensor-column separator, completed successfully.
 - `swift build -c release` and `git diff --check` completed successfully.
 - The installed application uses AppKit's current spacing without writing a Barometer override. CPU/GPU temperature
@@ -1976,8 +1976,11 @@ The Weather dropdown already carried the successful forecast fetch time in `Fore
 indicator was buried in the bottom actions card and showed no clock time. The current-conditions card now displays a
 full-width footer such as `Updated 7:14 AM · 2 min ago`. It sits below the icon/location/temperature row instead of
 competing with the large temperature and truncating. Cached fallback samples retain the last successful fetch time,
-so a failed refresh cannot misleadingly reset the label to the current time. A minute-based timeline keeps the
-relative age current while the dropdown remains open, and older updates include the date.
+so a failed refresh cannot misleadingly reset the label to the current time, and older updates include the date.
+
+The original periodic `TimelineView` could freeze at the age calculated when macOS began tracking the status-item
+menu. The card now resets a task-backed clock whenever it appears and advances it every 15 seconds. The displayed age
+therefore follows wall-clock time even while the menu remains open.
 
 Verification:
 

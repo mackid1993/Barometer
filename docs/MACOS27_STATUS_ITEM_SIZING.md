@@ -114,11 +114,15 @@ insets, or renderer-specific side padding. Center a symbol only inside a symbol 
 Trailing-align a standalone changing value inside its stable numeric field, but never offset one row of a stacked
 label/value pair from the other. This preserves the one-time outer length without breaking row alignment.
 
-Multi-reading sensor stacks use explicit stable-width columns. Two logical points separate each label from its live
+Multi-reading sensor stacks use explicit stable-width columns. Three logical points separate each label from its live
 reading so the gap remains optically visible after AppKit antialiasing, and unused stable-width reservation is
 balanced on both sides of the pair. Network arrows use the same rule. Snap the prefix's trailing edge upward to the
 device-pixel grid before adding the gap. Never collect the reserve entirely before or inside the visible pair, add a
 trailing exception based on the following widget, or create spacing with kerning.
+
+Weather refresh ages must use a task-backed clock that resets when the dropdown appears and advances every 15
+seconds. Do not use `TimelineView` for this label; its periodic schedule can remain frozen while macOS tracks a
+status-item menu.
 
 Do not replace the separate items with one combined status item as a sizing workaround. Combined is an optional
 module, not the implementation of density.

@@ -164,6 +164,7 @@ public struct WeatherDropdownView: View {
 /// Sky-tinted hero card with the current conditions.
 private struct CurrentWeatherCard: View {
     let sample: WeatherSample
+    @State private var now = Date()
 
     var body: some View {
         let forecast = sample.forecast
@@ -210,24 +211,32 @@ private struct CurrentWeatherCard: View {
                         .contentTransition(.numericText())
                         .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
                 }
-                TimelineView(.periodic(from: .now, by: 60)) { context in
-                    Label(
-                        WeatherDropdownView.updatedText(
-                            fetchedAt: forecast.fetchedAt,
-                            now: context.date
-                        ),
-                        systemImage: "clock.arrow.circlepath"
-                    )
-                    .font(.caption2.weight(.medium))
-                    .opacity(0.82)
-                    .lineLimit(1)
-                }
+                Label(
+                    WeatherDropdownView.updatedText(
+                        fetchedAt: forecast.fetchedAt,
+                        now: now
+                    ),
+                    systemImage: "clock.arrow.circlepath"
+                )
+                .font(.caption2.weight(.medium))
+                .opacity(0.82)
+                .lineLimit(1)
             }
             .foregroundStyle(.white)
             .padding(14)
         }
         .overlay(shape.strokeBorder(.white.opacity(0.22), lineWidth: 0.75))
         .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
+        .task {
+            while !Task.isCancelled {
+                now = Date()
+                do {
+                    try await Task.sleep(for: .seconds(15))
+                } catch {
+                    return
+                }
+            }
+        }
     }
 }
 

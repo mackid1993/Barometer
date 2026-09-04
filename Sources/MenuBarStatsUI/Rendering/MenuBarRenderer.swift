@@ -164,7 +164,7 @@ struct MenuBarLayoutMetrics {
 
     /// Smallest prefix/value gap that remains optically visible after AppKit antialiasing.
     var densePairGap: CGFloat {
-        2
+        3
     }
 
     func centeredY(for height: CGFloat) -> CGFloat {
