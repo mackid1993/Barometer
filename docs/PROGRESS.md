@@ -2834,3 +2834,21 @@ Verification before packaging:
 - git diff --check passed. Logs: dist/weather-hover-exit-tests.log and dist/weather-hover-exit-memory.log.
 - After the clean checks, signed make app passed, copied the bundle to Applications, verified its strict signature,
   and relaunched /Applications/Barometer.app. This correction remains local.
+
+### P8-T30: Check steady CPU usage
+
+David reported approximately 3% CPU and requested measurement. Read-only audit of installed PID 85254:
+
+- Initial top capture: 15 interval samples after discarding initialization, mean 4.11%, median 3.7%, range 2.2–6.7%.
+  An eight-second sample profiler overlapped this first capture, so repeated the measurement without profiling.
+- Unprofiled top capture: 15 one-second interval samples, mean 4.37%, median 3.6%, range 2.2–8.1%.
+  These short runs establish current behavior, not an energy or long-duration CPU benchmark.
+- On-screen window enumeration for this process returned none; no Weather/Combined/day popover was visible.
+- Sample stacks show recurring menu-bar rendering, SMC and HID sensor reads, network counters, and process polling.
+  No weather hover timer stack appeared. This does not prove it can never contribute while a popover is open.
+- Specific optimization candidate: GPUMonitor's temperature fallback calls SMCClient.sensorValues(), reading every
+  cached sensor key before filtering GPU temperatures, while SensorsMonitor independently reads SMC sensors.
+  Sampling identifies this repeated work but does not quantify its exclusive CPU cost; IOKit stacks include waits.
+- No production code, settings, sampling intervals, or installed binary changed. The recorded earlier baseline was
+  3.75%, but different workloads prevent interpreting that as a controlled before/after comparison.
+- Evidence: dist/cpu-review-top.txt, dist/cpu-review-unprofiled.txt, dist/cpu-review-sample.txt.
