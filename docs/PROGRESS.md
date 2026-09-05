@@ -2912,3 +2912,32 @@ Verification:
 - swift build completed with zero warnings; git diff --check completed successfully.
 - swift test: 29 tests in 3 suites, 58 in 6, and 108 in 19 all passed.
 - make lint exited 0.
+
+### P8-T34: Lower resident memory after dropdown and Settings use
+
+Build 129 after a tour of three dropdowns and Settings sat at 84 to 89 MB with a 307 MB peak, and heap showed
+45 MB of live objects, of which about 15,000 SwiftUI property list nodes belonged to hosting views that every
+DropdownController built at init and kept for the life of the process. Four changes, each on its own commit:
+the pressure relief helper MemoryReclaim asks libmalloc to return free pages shortly after a transient surface
+closes; DropdownController builds its NSHostingView in menuWillOpen and releases it 400 ms after close, with
+a reopen canceling the teardown; AppDelegate drops the SettingsWindowController when its window closes, and
+the controller logs its own deinit so the release is observable; and StatusItemController fingerprints the
+rendered image by hashing bitmap bytes in one reused NSBitmapImageRep instead of encoding a TIFF every tick.
+
+Measuring build 133 showed live objects down to 21 MB and the SwiftUI node count at one, yet the footprint
+stayed at 90 MB because libmalloc kept 74 MB of dirty small-zone pages that pressure relief could not release
+(fragmented, not free). Relaunching the same build with MallocSpaceEfficient set in the environment brought
+the same tour to an 11 MB launch, a 106 MB peak, and 50 MB afterward with identical live objects, so the
+variable now ships in Scripts/Info.plist under LSEnvironment.
+
+Verification:
+
+- swift build completed with zero warnings; make lint exited 0; git diff --check completed successfully.
+- swift test: 29 tests in 3 suites, 61 in 7, and 108 in 19 all passed (three new fingerprint tests).
+- Debug log during a tour on build 133: built hosting view and released hosting view for GPU, CPU, and
+  Memory in order, Settings window controller deallocated on close, pressure relief ran after each close.
+- Footprint, same tour, three dropdowns plus Settings: build 129 launch 25 MB, peak 307 MB, after 84 to
+  89 MB; build 133 launch 18 MB, peak 244 MB, after 90 MB; build 133 with MallocSpaceEfficient launch
+  11 MB, peak 106 MB, after 50 MB. Live heap objects: 45 MB, 21 MB, 22 MB.
+- Installed build 134 through LaunchServices reports MallocSpaceEfficient=1 in its environment and 15 MB at
+  launch.

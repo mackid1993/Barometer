@@ -1,11 +1,25 @@
 import AppKit
 import MenuBarStatsCore
+import OSLog
 import Observation
 import SwiftUI
 
 /// Owns and presents the MenuBarStats settings window.
+///
+/// The controller is meant to live only while its window is open. When the window closes the
+/// controller invokes ``windowCloseHandler`` so the owner can drop its reference, which releases
+/// the window, the hosting view, and the SwiftUI tree behind it, and then schedules a malloc
+/// pressure relief pass so the freed pages leave the process footprint.
 @MainActor
 public final class SettingsWindowController: NSWindowController {
+    private nonisolated static let logger = Logger(subsystem: "com.barometer.app", category: "settings")
+
+    /// Called from the window's will-close notification, before the controller is released.
+    ///
+    /// Owners should use this to drop their strong reference to the controller. Store only weak
+    /// captures in the closure; the controller keeps it for its whole lifetime.
+    public var windowCloseHandler: (@MainActor () -> Void)?
+
     private var navigationModel: SettingsNavigationModel?
 
     /// Creates the settings window controller.
@@ -44,8 +58,15 @@ public final class SettingsWindowController: NSWindowController {
         window.minSize = NSSize(width: 700, height: 480)
         window.isReleasedWhenClosed = false
         window.center()
+        // Restore the last saved frame so a reopened window lands where the user left it.
+        window.setFrameAutosaveName("BarometerSettings")
         self.init(window: window)
         self.navigationModel = navigationModel
+        window.delegate = self
+    }
+
+    deinit {
+        Self.logger.debug("Settings window controller deallocated")
     }
 
     /// Brings the settings window to the front.
@@ -54,6 +75,18 @@ public final class SettingsWindowController: NSWindowController {
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate()
+    }
+}
+
+// MARK: - NSWindowDelegate
+
+extension SettingsWindowController: NSWindowDelegate {
+    /// Lets the owner drop the controller, then asks libmalloc to return the freed pages.
+    public func windowWillClose(_ notification: Notification) {
+        Self.logger.debug("Settings window closing; releasing controller")
+        windowCloseHandler?()
+        windowCloseHandler = nil
+        MemoryReclaim.scheduleRelief()
     }
 }
 

@@ -8,6 +8,12 @@ import SwiftUI
 /// on each tracking tick, so panels never clip. Menus taller than the screen scroll through
 /// AppKit's own menu scrolling. Status-item identity and menu attachment are unchanged.
 ///
+/// The hosting view is built on demand. Ten controllers exist from launch, and keeping a
+/// SwiftUI hierarchy alive in each one held tens of thousands of attribute graph nodes
+/// resident while every panel was closed. The controller keeps only the root view and
+/// creates the NSHostingView in menuWillOpen or when the popover opens, then releases it
+/// shortly after the panel closes and asks libmalloc to return the freed pages.
+///
 /// macOS also populates closed menus when accessibility clients such as menu bar managers
 /// inspect them, and each of those calls previously forced a full SwiftUI layout pass. The
 /// hosted content stays current on its own through the observable stores, so closed menus
@@ -19,7 +25,11 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
     private let settingsAction: @MainActor () -> Void
     private let quitAction: @MainActor () -> Void
     private let logger = Logger(subsystem: "com.barometer.app", category: "dropdown")
-    private let hostingView: NSHostingView<AnyView>
+    private let rootView: AnyView
+    private let contentHeight: CGFloat
+    private var hostingView: NSHostingView<AnyView>?
+    private let contentItem = NSMenuItem()
+    private var teardownTask: Task<Void, Never>?
     private let contentWidth: CGFloat
     private let menu: NSMenu
     private var trackingTimer: Timer?
@@ -48,28 +58,14 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
         self.contentWidth = contentWidth
         self.usesPopover = usesPopover
         self.detailAnchor = statusItem?.button
+        self.rootView = rootView
+        self.contentHeight = contentHeight
         menu = NSMenu()
-        hostingView = NSHostingView(rootView: rootView)
-        hostingView.sizingOptions = [.intrinsicContentSize]
-        hostingView.frame = NSRect(x: 0, y: 0, width: contentWidth, height: contentHeight)
         super.init()
 
-        hostingView.rootView = AnyView(
-            rootView.environment(
-                \.showMenuDetail,
-                { [weak self] content, rowAnchor in
-                    guard let self else { return }
-                    if self.usesPopover {
-                        self.detailPresenter.present(content, anchoredTo: rowAnchor, edge: .maxX)
-                    } else if let anchor = self.detailAnchor {
-                        self.detailPresenter.show(content, from: self.menu, anchoredTo: anchor)
-                    }
-                }))
         menu.delegate = self
         menu.minimumWidth = contentWidth
 
-        let contentItem = NSMenuItem()
-        contentItem.view = hostingView
         menu.addItem(contentItem)
         menu.addItem(.separator())
 
@@ -101,6 +97,7 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
             return
         }
         guard let anchor = detailAnchor else { return }
+        cancelTeardown()
         tickAction()
         let popover = NSPopover()
         popover.behavior = .transient
@@ -108,7 +105,7 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
         popover.delegate = self
         let height = min(720, (anchor.window?.screen?.visibleFrame.height ?? 900) - 100)
         let content = VStack(spacing: 0) {
-            hostingView.rootView
+            wiredRootView()
             Divider()
             HStack {
                 Button("Settings…") { [weak self] in
@@ -134,8 +131,11 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
         detailPresenter.close()
         trackingTimer?.invalidate()
         trackingTimer = nil
-        rootPopover?.contentViewController = nil
+        let closingPopover = rootPopover
         rootPopover = nil
+        scheduleTeardown {
+            closingPopover?.contentViewController = nil
+        }
     }
 
     public func menuNeedsUpdate(_ menu: NSMenu) {
@@ -152,6 +152,8 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
 
     public func menuWillOpen(_ menu: NSMenu) {
         detailPresenter.close()
+        cancelTeardown()
+        installHostingViewIfNeeded()
         isTracking = true
         fitContent()
         trackingTimer?.invalidate()
@@ -166,12 +168,74 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
         isTracking = false
         trackingTimer?.invalidate()
         trackingTimer = nil
+        scheduleTeardown()
         logger.debug("closed module=\(self.moduleName, privacy: .public)")
     }
 
+    // MARK: - Hosting view lifecycle
+
+    /// The root view with the detail presenter wired into its environment.
+    private func wiredRootView() -> AnyView {
+        AnyView(
+            rootView.environment(
+                \.showMenuDetail,
+                { [weak self] content, rowAnchor in
+                    guard let self else { return }
+                    if self.usesPopover {
+                        self.detailPresenter.present(content, anchoredTo: rowAnchor, edge: .maxX)
+                    } else if let anchor = self.detailAnchor {
+                        self.detailPresenter.show(content, from: self.menu, anchoredTo: anchor)
+                    }
+                }))
+    }
+
+    /// Builds the hosting view and installs it into the content item if the menu has none.
+    ///
+    /// This runs from menuWillOpen, which AppKit sends before the menu is visible, so the view
+    /// exists and is fitted by the time the menu draws. Closed-menu accessibility polls never
+    /// reach this path and therefore never construct a hierarchy.
+    private func installHostingViewIfNeeded() {
+        guard !usesPopover, hostingView == nil else { return }
+        let view = NSHostingView(rootView: wiredRootView())
+        view.sizingOptions = [.intrinsicContentSize]
+        view.frame = NSRect(x: 0, y: 0, width: contentWidth, height: contentHeight)
+        hostingView = view
+        contentItem.view = view
+        logger.debug("built hosting view module=\(self.moduleName, privacy: .public)")
+    }
+
+    /// Releases the hosted hierarchy once AppKit has finished its close animation.
+    ///
+    /// The delay is canceled if the panel reopens first. The optional extra step lets popover
+    /// mode drop its content view controller in the same pass.
+    private func scheduleTeardown(extra: (@MainActor () -> Void)? = nil) {
+        teardownTask?.cancel()
+        teardownTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(400))
+            } catch {
+                return
+            }
+            guard let self else { return }
+            self.teardownTask = nil
+            self.contentItem.view = nil
+            self.hostingView = nil
+            extra?()
+            MemoryReclaim.scheduleRelief()
+            self.logger.debug("released hosting view module=\(self.moduleName, privacy: .public)")
+        }
+    }
+
+    private func cancelTeardown() {
+        teardownTask?.cancel()
+        teardownTask = nil
+    }
+
+    // MARK: - Sizing
+
     /// Resizes the hosted view to the ideal height of its SwiftUI content.
     private func fitContent() {
-        guard !usesPopover else { return }
+        guard !usesPopover, let hostingView else { return }
         let maximumHeight = min(BarometerDesign.maximumPanelHeight, (NSScreen.main?.visibleFrame.height ?? 900) - 120)
         var measured = hostingView.intrinsicContentSize.height
         if !measured.isFinite || measured <= 0 {

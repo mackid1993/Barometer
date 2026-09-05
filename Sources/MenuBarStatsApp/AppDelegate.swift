@@ -110,12 +110,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    /// Shows the settings window, creating a fresh controller when none is open.
+    ///
+    /// The controller is released when its window closes so the SwiftUI settings hierarchy does
+    /// not stay resident for the life of the process.
     private func showSettings(module: ModuleID? = nil) {
         if settingsWindowController == nil {
             guard let settingsStore, let monitoringCoordinator else {
                 return
             }
-            settingsWindowController = SettingsWindowController(
+            let controller = SettingsWindowController(
                 settingsStore: settingsStore,
                 gpuStore: monitoringCoordinator.gpuStore,
                 batteryStore: monitoringCoordinator.batteryStore,
@@ -130,6 +134,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self?.applyMenuBarChangesAndReopen()
                 }
             )
+            controller.windowCloseHandler = { [weak self] in
+                self?.settingsWindowController = nil
+            }
+            settingsWindowController = controller
         }
         settingsWindowController?.show(module: module)
     }
