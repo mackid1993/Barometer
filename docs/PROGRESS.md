@@ -2719,3 +2719,36 @@ Verification on 2026-09-04:
 - git diff --check passed. User interaction and macOS compositor halo verification remain for local review;
   programmatic window cleanup tests do not prove the compositor's visual result.
 - No push or GitHub build.
+
+### P8-T26: Keep daily weather open through menu dismissal
+
+David reported the P8-T25 panel disappeared immediately when selecting a day. Task.yield did not guarantee that
+AppKit had left its menu-tracking loop, and closing on key-window resignation made the handoff fragile. Schedule
+presentation exclusively in the default run-loop mode, use a nonactivating panel, and dismiss on explicit outside
+mouse clicks, Escape, or close instead of transient focus changes. Remove both event monitors and cancel pending
+presentation timers during cleanup.
+
+Verification before building on 2026-09-04:
+
+- make test: 194 tests, 193 passed; the only failure remains the previously reproduced baseline glyph margin test.
+  The five detail tests pass, including default-versus-menu-tracking run-loop presentation, real weather scrolling,
+  replacement, Escape, and 100 open/close cycles. Weak references confirm panel, hosting view, and presenter release,
+  including cancellation of a pending timer. Output: dist/weather-handoff-tests.log.
+- Reexecuted all memory tests as part of the full suite and reran Scripts/benchmark-memory.py dist/memory-baseline.
+  One simulated hour: baseline 136,856,200 bytes versus current 9,929,256 bytes, a 92.7% reduction.
+  Current footprint at simulated hours 24 and 48: 12,042,816 bytes, zero growth. Both benchmark thresholds passed.
+  This remains an isolated storage workload; it does not prove the entire UI is leak-free.
+- git diff --check passed. No push or GitHub build.
+
+David required fixing the existing test failure before presenting another build. The renderer centers symbols of
+different aspect ratios in a fixed field, as required by the sizing contract; equal leading ink margins were an
+incorrect assertion. Replaced that assertion with measured visible-ink centers, retaining the one-point tolerance,
+stable weather canvas width check, and explicit nonempty-glyph checks. No production glyph geometry changed.
+
+Final verification:
+
+- make test: all 194 tests in 28 suites passed, including memory and all five detail lifecycle tests.
+- Only after this clean test run, make app passed; copied to /Applications/Barometer.app, verified its strict signature,
+  stopped the previous process, and launched the Applications copy.
+- Automated tests cover the run-loop handoff and cleanup, but do not constitute a manual end-to-end menu interaction
+  or compositor inspection on this macOS beta.

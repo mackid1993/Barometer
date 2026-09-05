@@ -948,13 +948,10 @@ struct MenuBarRendererTests {
         return origins
     }
 
-    @Test("every condition glyph occupies the same field with no padding around it")
-    func inlineIconsShareOneField() {
-        // Normalizing glyphs to a common height makes a round symbol far narrower than a wide one,
-        // so reserving the widest left the narrow ones sitting in a pocket of empty space that
-        // changed size with the weather. One fixed field removes the reservation entirely.
+    @Test("condition glyphs keep a stable field and center their visible artwork")
+    func inlineIconsShareOneField() throws {
         var widths: Set<Double> = []
-        var leadingMargins: Set<CGFloat> = []
+        var centers: [CGFloat] = []
         for name in ["sun.max", "cloud.sun", "cloud", "cloud.bolt.rain", "moon.stars", "snowflake"] {
             let image = IconTextRenderer(
                 symbolName: name,
@@ -963,15 +960,24 @@ struct MenuBarRendererTests {
                 reservedSymbolNames: ["sun.max", "cloud.sun", "cloud.bolt.rain"]
             ).render(in: context)
             widths.insert(image.size.width)
-            leadingMargins.insert(Self.leadingInkMargin(image).rounded())
+            // Inspect only the symbol's ink. Different aspect ratios must share a center, not
+            // a left edge: requiring equal left margins incorrectly rejects centered narrow glyphs.
+            let symbol = IconTextRenderer(symbolName: name, text: "").render(in: context)
+            let tiff = try #require(symbol.tiffRepresentation)
+            let bitmap = try #require(NSBitmapImageRep(data: tiff))
+            let columns = (0..<bitmap.pixelsWide).filter { x in
+                (0..<bitmap.pixelsHigh).contains { y in
+                    (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.05
+                }
+            }
+            let first = try #require(columns.first, "Missing glyph \(name)")
+            let last = try #require(columns.last)
+            let pixelScale = CGFloat(bitmap.pixelsWide) / symbol.size.width
+            centers.append(CGFloat(first + last + 1) / (2 * pixelScale))
         }
         #expect(widths.count == 1, "condition glyphs produced widths \(widths.sorted())")
-        // Content is centered in the item so the hover highlight sits over it, and each glyph is
-        // centered in a field of fixed width. Glyphs differ in width, so a narrower one starts
-        // slightly further in; what must not happen is the item shifting as the weather changes,
-        // which the identical widths above already pin.
-        let spread = (leadingMargins.max() ?? 0) - (leadingMargins.min() ?? 0)
-        #expect(spread <= 1, "condition glyphs start \(spread) pt apart: \(leadingMargins.sorted())")
+        let spread = (centers.max() ?? 0) - (centers.min() ?? 0)
+        #expect(spread <= 1, "condition glyph centers vary by \(spread) pt: \(centers)")
     }
 
     /// Blank columns before the first inked column.
