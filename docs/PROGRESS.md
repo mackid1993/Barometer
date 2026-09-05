@@ -3330,3 +3330,15 @@ Verification before pushing:
 - Confirmed the release notes contain zero em dashes, en dashes, or semicolons.
 - The GitHub Build macOS workflow with notarization disabled will provide the requested remote test and compilation
   check after this commit reaches `master`.
+
+GitHub Build macOS run 33947069838 completed successfully against commit `d0a7c95` with notarization disabled. The
+source invariant check passed, all 242 tests in 34 suites passed, and the panel and graph benchmark peaked at
+37.8 MiB against its 128 MiB limit. The dependent build then compiled the production app, imported the Developer ID
+certificate, signed the app and DMG, and uploaded `Barometer-1.0.2.dmg`. The credential and notarization steps were
+skipped as requested.
+
+Downloaded the workflow artifact and independently verified the DMG checksum, DMG signature, nested application
+signature, version 1.0.2, bundle identifier `com.barometer.app`, and Developer ID team `BQNYYA2UND`. The downloaded
+DMG SHA-256 is `61fde3429c4dea53604386f9920b7f000662faa1651d65a56a786b94901ed133`. The release notes now call out the
+replacement of Canvas-backed graphs as the largest memory fix and explain the measured retained allocation it
+removed. No release workflow was run and no release was created.

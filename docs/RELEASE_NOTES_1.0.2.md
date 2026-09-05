@@ -99,12 +99,15 @@ usual.
 
 ## Memory and CPU use
 
-A few different problems were contributing to the high memory reports:
+The biggest memory fix was getting SwiftUI Canvas out of the graphs. In testing, opening one Canvas-backed panel
+could leave more than 160 MiB of rendering data behind after the panel closed. Every graph was rebuilt with normal
+SwiftUI shape paths. The lines, fills, markers, card shapes, and glow still look the same. This was the main change
+that stopped opening a graph-heavy panel from causing a huge memory spike that never came back down.
+
+A few other problems were contributing to the high memory reports:
 
 - Graph history used to preallocate and retain much larger samples than the graphs needed. History now stores small
   graph-specific values and grows as samples arrive.
-- SwiftUI Canvas graphs could leave more than 160 MiB of rendering data behind after a panel closed. The graphs now
-  use shape paths while keeping the same lines, fills, markers, card shapes, and glow.
 - Weather, Combined, Network, CPU, and Settings release their SwiftUI content after closing.
 - Attached panels no longer run an unnecessary half-second redraw loop.
 - Closed menus do not build hidden views when Accessibility tools inspect them.
