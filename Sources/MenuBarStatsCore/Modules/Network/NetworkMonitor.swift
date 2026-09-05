@@ -130,6 +130,7 @@ public actor NetworkMonitor: Monitor {
     private var previousCounters: [String: PreviousCounter] = [:]
     private var previousProcessCounters: [pid_t: ProcessNetworkCounter] = [:]
     private var lastProcessRefresh: Date?
+    private var collectsProcessDetails: Bool
     private var isProcessActivityAvailable = false
     private var cachedTopProcesses: [NetworkProcessSample] = []
     private var isPublicIPEnabled = false
@@ -204,14 +205,24 @@ public actor NetworkMonitor: Monitor {
         networkSource: NetworkSource = NetworkSource(),
         wiFiSource: WiFiSource = WiFiSource(),
         publicIPSource: PublicIPSource = PublicIPSource(),
-        processNetworkSource: ProcessNetworkSource = ProcessNetworkSource()
+        processNetworkSource: ProcessNetworkSource = ProcessNetworkSource(),
+        collectsProcessDetails: Bool = true
     ) {
         self.interval = interval
         self.networkSource = networkSource
         self.wiFiSource = wiFiSource
         self.publicIPSource = publicIPSource
         self.processNetworkSource = processNetworkSource
+        self.collectsProcessDetails = collectsProcessDetails
         processSource = ProcessSource()
+    }
+
+    /// Pauses per-process accounting while the Network details are closed.
+    public func setProcessDetailsEnabled(_ enabled: Bool) {
+        guard collectsProcessDetails != enabled else { return }
+        collectsProcessDetails = enabled
+        lastProcessRefresh = nil
+        previousProcessCounters.removeAll(keepingCapacity: true)
     }
 
     /// Enables or disables the explicit external public-address lookup.
@@ -332,6 +343,7 @@ public actor NetworkMonitor: Monitor {
     }
 
     private func refreshProcessActivityIfNeeded(at timestamp: Date) {
+        guard collectsProcessDetails else { return }
         if let lastProcessRefresh, timestamp.timeIntervalSince(lastProcessRefresh) < 10 {
             return
         }

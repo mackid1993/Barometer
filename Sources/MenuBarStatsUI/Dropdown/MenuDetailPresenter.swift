@@ -21,6 +21,7 @@ final class MenuDetailPresenter: NSObject, NSPopoverDelegate {
     private weak var pendingAnchor: NSView?
     private weak var hoverAnchor: NSView?
     private var hoverTimer: Timer?
+    private let dismissalMonitor = PopoverDismissalMonitor()
     private var lastHoverTime: TimeInterval = 0
     private let pointerLocation: @MainActor () -> NSPoint
 
@@ -61,6 +62,9 @@ final class MenuDetailPresenter: NSObject, NSPopoverDelegate {
         popover = detail
         detail.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: edge)
         PopoverPlacement.constrain(detail, to: anchor.window?.screen)
+        dismissalMonitor.start(containsPoint: { [weak self] point in
+            self?.popover?.contentViewController?.view.window?.frame.contains(point) == true
+        }, tracksHover: false, dismiss: { [weak self] in self?.close() })
         hoverAnchor = anchor
         lastHoverTime = ProcessInfo.processInfo.systemUptime
         let timer = Timer(timeInterval: 0.05, target: self, selector: #selector(checkHover),
@@ -90,6 +94,7 @@ final class MenuDetailPresenter: NSObject, NSPopoverDelegate {
     }
 
     func close() {
+        dismissalMonitor.stop()
         hoverTimer?.invalidate()
         hoverTimer = nil
         hoverAnchor = nil

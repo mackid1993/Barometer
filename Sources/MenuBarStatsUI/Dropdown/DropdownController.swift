@@ -10,6 +10,7 @@ import SwiftUI
 @MainActor
 public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     private let moduleName: String
+    private let visibilityAction: @MainActor (Bool) -> Void
     private let tickAction: @MainActor () -> Void
     private let settingsAction: @MainActor () -> Void
     private let quitAction: @MainActor () -> Void
@@ -22,6 +23,7 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
     private weak var detailAnchor: NSView?
     private let usesPopover: Bool
     private var rootPopover: NSPopover?
+    private let dismissalMonitor = PopoverDismissalMonitor()
 
     /// Creates and installs a hosted menu for one permanent status item.
     public init(
@@ -31,11 +33,13 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
         contentHeight: CGFloat,
         contentWidth: CGFloat = 320,
         usesPopover: Bool = false,
+        visibilityAction: @escaping @MainActor (Bool) -> Void = { _ in },
         tickAction: @escaping @MainActor () -> Void,
         settingsAction: @escaping @MainActor () -> Void,
         quitAction: @escaping @MainActor () -> Void
     ) {
         self.moduleName = moduleName
+        self.visibilityAction = visibilityAction
         self.tickAction = tickAction
         self.settingsAction = settingsAction
         self.quitAction = quitAction
@@ -95,6 +99,7 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
             return
         }
         guard let anchor = detailAnchor else { return }
+        visibilityAction(true)
         tickAction()
         let popover = NSPopover()
         popover.behavior = .transient
@@ -117,6 +122,7 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
         rootPopover = popover
         popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
         PopoverPlacement.constrain(popover, to: anchor.window?.screen)
+        startDismissalMonitoring()
         trackingTimer?.invalidate()
         let timer = Timer(timeInterval: 0.5, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
         RunLoop.main.add(timer, forMode: .common)
@@ -126,6 +132,8 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
     public func popoverShouldDetach(_ popover: NSPopover) -> Bool { false }
 
     public func popoverDidClose(_ notification: Notification) {
+        dismissalMonitor.stop()
+        visibilityAction(false)
         detailPresenter.close()
         trackingTimer?.invalidate()
         trackingTimer = nil
@@ -139,6 +147,7 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
     }
 
     public func menuWillOpen(_ menu: NSMenu) {
+        visibilityAction(true)
         detailPresenter.close()
         fitContent()
         trackingTimer?.invalidate()
@@ -146,13 +155,32 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
         RunLoop.main.add(timer, forMode: .common)
         trackingTimer = timer
         tick()
+        startDismissalMonitoring()
         logger.debug("opened module=\(self.moduleName, privacy: .public)")
     }
 
     public func menuDidClose(_ menu: NSMenu) {
+        dismissalMonitor.stop()
+        visibilityAction(false)
         trackingTimer?.invalidate()
         trackingTimer = nil
         logger.debug("closed module=\(self.moduleName, privacy: .public)")
+    }
+
+    private func startDismissalMonitoring() {
+        dismissalMonitor.start(containsPoint: { [weak self] point in
+            guard let self else { return false }
+            let rootWindow = self.usesPopover
+                ? self.rootPopover?.contentViewController?.view.window : self.hostingView.window
+            return rootWindow?.frame.contains(point) == true
+                || self.detailPresenter.popover?.contentViewController?.view.window?.frame.contains(point) == true
+                || self.detailAnchor.map { anchor in
+                    anchor.window?.convertToScreen(anchor.convert(anchor.bounds, to: nil)).contains(point) == true
+                } == true
+        }, dismiss: { [weak self] in
+            guard let self else { return }
+            if self.usesPopover { self.rootPopover?.performClose(nil) } else { self.menu.cancelTracking() }
+        })
     }
 
     /// Resizes the hosted view to the ideal height of its SwiftUI content.

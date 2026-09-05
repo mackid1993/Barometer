@@ -79,6 +79,7 @@ public actor CPUMonitor: Monitor {
     private let processSource: ProcessSource
     private let topology: CoreTopology
     private let processRefreshInterval: TimeInterval
+    private var collectsProcessDetails: Bool
     private var previousTicks: CPUTickSnapshot?
     private var lastProcessRefresh: Date?
     private var cachedProcessCount = 0
@@ -91,13 +92,25 @@ public actor CPUMonitor: Monitor {
     }
 
     /// Creates a CPU monitor.
-    public init(interval: Duration = .seconds(1), processRefreshInterval: TimeInterval = 5) {
+    public init(
+        interval: Duration = .seconds(1),
+        processRefreshInterval: TimeInterval = 5,
+        collectsProcessDetails: Bool = true
+    ) {
         self.interval = interval
         self.processRefreshInterval = processRefreshInterval
+        self.collectsProcessDetails = collectsProcessDetails
         let source = CPUSource()
         cpuSource = source
         processSource = ProcessSource()
         topology = source.topology()
+    }
+
+    /// Enables expensive process enumeration only while its details are visible.
+    public func setProcessDetailsEnabled(_ enabled: Bool) {
+        guard collectsProcessDetails != enabled else { return }
+        collectsProcessDetails = enabled
+        lastProcessRefresh = nil
     }
 
     /// Collects and calculates one CPU sample.
@@ -126,6 +139,7 @@ public actor CPUMonitor: Monitor {
     }
 
     private func refreshProcessesIfNeeded(at timestamp: Date, logicalCPUCount: Int) {
+        guard collectsProcessDetails else { return }
         if let lastProcessRefresh,
            timestamp.timeIntervalSince(lastProcessRefresh) < processRefreshInterval {
             return

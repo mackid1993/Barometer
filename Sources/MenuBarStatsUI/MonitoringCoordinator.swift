@@ -63,6 +63,10 @@ public final class MonitoringCoordinator {
     /// Shared application settings.
     public let settingsStore: SettingsStore
 
+    private let cpuMonitor: CPUMonitor
+    private let memoryMonitor: MemoryMonitor
+    private var detailRequests: [String: Set<ModuleID>] = [:]
+    private var detailSamplingTask: Task<Void, Never>?
     private let cpuScheduler: Scheduler<CPUMonitor>
     private let memoryScheduler: Scheduler<MemoryMonitor>
     private let gpuScheduler: Scheduler<GPUMonitor>
@@ -130,10 +134,14 @@ public final class MonitoringCoordinator {
         self.settingsStore = settingsStore
         self.settingsAction = settingsAction
         self.quitAction = quitAction
-        cpuScheduler = Scheduler(monitor: CPUMonitor())
-        memoryScheduler = Scheduler(monitor: MemoryMonitor())
+        let cpuMonitor = CPUMonitor(collectsProcessDetails: false)
+        self.cpuMonitor = cpuMonitor
+        cpuScheduler = Scheduler(monitor: cpuMonitor)
+        let memoryMonitor = MemoryMonitor(collectsProcessDetails: false)
+        self.memoryMonitor = memoryMonitor
+        memoryScheduler = Scheduler(monitor: memoryMonitor)
         gpuScheduler = Scheduler(monitor: GPUMonitor())
-        let networkMonitor = NetworkMonitor()
+        let networkMonitor = NetworkMonitor(collectsProcessDetails: false)
         self.networkMonitor = networkMonitor
         networkScheduler = Scheduler(monitor: networkMonitor)
         diskScheduler = Scheduler(monitor: DiskMonitor())
@@ -259,6 +267,9 @@ public final class MonitoringCoordinator {
             rootView: AnyView(CPUDropdownView(store: cpuStore, settingsStore: settingsStore)),
             contentHeight: CPUDropdownView.contentSize.height,
             contentWidth: CPUDropdownView.contentSize.width,
+            visibilityAction: { [weak self] visible in
+                self?.setDetailVisibility(owner: "cpu", modules: [.cpu], visible: visible)
+            },
             tickAction: { [weak cpuStore] in cpuStore?.tick() },
             settingsAction: { settingsAction(.cpu) },
             quitAction: quitAction
@@ -269,6 +280,9 @@ public final class MonitoringCoordinator {
             rootView: AnyView(MemoryDropdownView(store: memoryStore, settingsStore: settingsStore)),
             contentHeight: MemoryDropdownView.contentSize.height,
             contentWidth: MemoryDropdownView.contentSize.width,
+            visibilityAction: { [weak self] visible in
+                self?.setDetailVisibility(owner: "memory", modules: [.memory], visible: visible)
+            },
             tickAction: { [weak memoryStore] in memoryStore?.tick() },
             settingsAction: { settingsAction(.memory) },
             quitAction: quitAction
@@ -320,6 +334,9 @@ public final class MonitoringCoordinator {
             ),
             contentHeight: NetworkDropdownView.contentSize.height,
             contentWidth: NetworkDropdownView.contentSize.width,
+            visibilityAction: { [weak self] visible in
+                self?.setDetailVisibility(owner: "network", modules: [.network], visible: visible)
+            },
             tickAction: { [weak networkStore] in networkStore?.tick() },
             settingsAction: { settingsAction(.network) },
             quitAction: quitAction
@@ -425,6 +442,24 @@ public final class MonitoringCoordinator {
                 alert.addButton(withTitle: "OK")
                 alert.runModal()
             }
+        }
+    }
+
+    private func setDetailVisibility(owner: String, modules: Set<ModuleID>, visible: Bool) {
+        if visible { detailRequests[owner] = modules } else { detailRequests.removeValue(forKey: owner) }
+        let needed = detailRequests.values.reduce(into: Set<ModuleID>()) { $0.formUnion($1) }
+        detailSamplingTask?.cancel()
+        detailSamplingTask = Task { [weak self] in
+            guard let self, !Task.isCancelled else { return }
+            await cpuMonitor.setProcessDetailsEnabled(needed.contains(.cpu))
+            guard !Task.isCancelled else { return }
+            await memoryMonitor.setProcessDetailsEnabled(needed.contains(.memory))
+            guard !Task.isCancelled else { return }
+            await networkMonitor.setProcessDetailsEnabled(needed.contains(.network))
+            guard !Task.isCancelled, visible else { return }
+            if modules.contains(.cpu) { await cpuScheduler.refresh() }
+            if modules.contains(.memory) { await memoryScheduler.refresh() }
+            if modules.contains(.network) { await networkScheduler.refresh() }
         }
     }
 
@@ -812,6 +847,11 @@ public final class MonitoringCoordinator {
                 contentHeight: CombinedDropdownView.contentSize.height,
                 contentWidth: CombinedDropdownView.contentSize.width,
                 usesPopover: true,
+                visibilityAction: { [weak self] visible in
+                    guard let self else { return }
+                    let modules = self.settingsStore.settings.stacks.stack(id: instance)?.sourceModules ?? []
+                    self.setDetailVisibility(owner: "stack-\(instance)", modules: modules, visible: visible)
+                },
                 tickAction: { [weak combinedStore] in combinedStore?.tick() },
                 settingsAction: { self.settingsAction(.combined) },
                 quitAction: quitAction

@@ -66,6 +66,7 @@ public actor MemoryMonitor: Monitor {
     private let memorySource: MemorySource
     private let processSource: ProcessSource
     private let processRefreshInterval: TimeInterval
+    private var collectsProcessDetails: Bool
     private var lastProcessRefresh: Date?
     private var cachedTopProcesses: [MemoryProcessSample] = []
 
@@ -75,11 +76,23 @@ public actor MemoryMonitor: Monitor {
     }
 
     /// Creates a Memory monitor.
-    public init(interval: Duration = .seconds(2), processRefreshInterval: TimeInterval = 10) {
+    public init(
+        interval: Duration = .seconds(2),
+        processRefreshInterval: TimeInterval = 10,
+        collectsProcessDetails: Bool = true
+    ) {
         self.interval = interval
         self.processRefreshInterval = processRefreshInterval
+        self.collectsProcessDetails = collectsProcessDetails
         memorySource = MemorySource()
         processSource = ProcessSource()
+    }
+
+    /// Enables expensive process enumeration only while its details are visible.
+    public func setProcessDetailsEnabled(_ enabled: Bool) {
+        guard collectsProcessDetails != enabled else { return }
+        collectsProcessDetails = enabled
+        lastProcessRefresh = nil
     }
 
     /// Collects one complete Memory sample.
@@ -106,6 +119,7 @@ public actor MemoryMonitor: Monitor {
     }
 
     private func refreshProcessesIfNeeded(at timestamp: Date) {
+        guard collectsProcessDetails else { return }
         if let lastProcessRefresh,
            timestamp.timeIntervalSince(lastProcessRefresh) < processRefreshInterval {
             return

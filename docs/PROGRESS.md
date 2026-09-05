@@ -2902,3 +2902,30 @@ Installed and relaunched the final Applications binary (PID 89721). Final CPU ob
   reduction in short, separate runs, not proof of a precise percentage improvement or near-zero idle CPU.
   Evidence: dist/cpu-after-raster.txt. Further reduction would require additional profiling and demand-based detail
   collection; live menu-bar sampling continues while popovers are closed.
+
+### P8-T32 — Defer process details and dismiss every dropdown on hover exit
+
+CPU, Memory, and Network continue collecting menu-bar values, but skip process enumeration until a relevant
+module or stack dropdown opens. Opening requests an immediate sample; closing the last interested dropdown pauses
+process detail collection. This also preserves the existing Calendar entitlement fix.
+
+All module dropdowns now share an explicit pointer-exit and outside-click monitor, including native NSMenu
+panels and Weather/Combined NSPopovers. The root, status button, and attached detail form the navigable region;
+300 ms outside it closes the root. The weather detail keeps its existing 200 ms row-to-detail grace. Local and
+global mouse monitors catch outside clicks. Timers and monitors stop on dismissal, so closed panels add no polling.
+
+Verification:
+- `POPOVER_SNAPSHOT_DIRECTORY="$PWD/dist/popover-screens" make test`: 210 tests in 31 suites passed. Added
+  process-detail gating, every-module visibility lifecycle, hover grace/exit, and inside/outside click regressions.
+- Screen-placement tests captured 32 real popover windows at display corners in light/dark appearances. Inspected
+  the rendered weather detail. These exercise test windows; an end-to-end pointer interaction with the installed
+  menu-bar items remains unautomated because Accessibility access is unavailable.
+- `python3 Scripts/benchmark-memory.py dist/memory-baseline`: passed, 92.8% lower isolated one-hour history
+  footprint than the original baseline and zero growth between simulated hours 24 and 48.
+- `make app`: passed. Copied to `/Applications/Barometer.app`, verified strict signature, confirmed signed Calendar
+  entitlement, and relaunched PID 92066. On-screen window enumeration reported zero Barometer windows for idle CPU.
+- Logs: dist/on-demand-tests.log, dist/on-demand-memory.log, dist/on-demand-build.log, dist/cpu-on-demand.txt.
+- `git diff --check`: passed. No push.
+- Closed-dropdown CPU measurement: after discarding initialization and 30 startup intervals, the final 15 one-second
+  samples averaged 3.46%, median 3.0%, range 1.6–6.5%. Previous short run averaged 3.84%. This is a modest observed
+  change, not evidence of near-zero idle CPU; live sampling and rendering remain active.
