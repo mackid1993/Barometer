@@ -190,8 +190,10 @@ Parity target is iStat Menus 7. Each module has a menu bar representation (sever
 - Units: temperature (°F or °C), wind (mph, km/h, m/s, kn), pressure (inHg, hPa, mmHg), precipitation (in, mm), independent of locale with locale-based defaults.
 - Menu bar modes: temperature only, icon plus temperature, icon plus temperature plus condition text, high/low, precipitation probability, custom template string built from tokens (`{temp}`, `{cond}`, `{hi}`, `{lo}`, `{pop}`, `{wind}`, `{aqi}`).
 - Dropdown: current conditions header, hourly strip with temperature curve and precipitation bars, daily rows with temperature ranges, sun and moon, air quality, details grid, location switcher, "Open in Weather app" and "Refresh" actions, attribution.
-  Each daily row opens a scrollable detail fly-out. Immediate weather (conditions, precipitation, temperature,
-  wind, hourly outlook, and comfort) leads; lunar and advanced details use collapsed chevrons. Weather settings
+  Hovering a daily row opens a scrollable, non-detachable popover beside it. Weather and Combined use native
+  popovers so hover and scroll events do not compete with menu tracking. Enabled detail sections appear directly,
+  without expansion chevrons. Immediate weather (conditions, precipitation, temperature,
+  wind, hourly outlook, and comfort) leads; enabled lunar and advanced details appear farther down the scroll view. Weather settings
   offer All details or Custom with remembered section selections. Rich daily/hourly values come from the existing
   Open-Meteo forecast request; unavailable fields remain unavailable. Lunar phase and rise/set prefer provider
   data, with the local mean-cycle calculation clearly identified when used as a fallback.

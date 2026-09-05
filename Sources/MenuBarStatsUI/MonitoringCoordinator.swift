@@ -301,6 +301,7 @@ public final class MonitoringCoordinator {
             ),
             contentHeight: WeatherDropdownView.contentSize.height,
             contentWidth: WeatherDropdownView.contentSize.width,
+            usesPopover: true,
             tickAction: { [weak weatherStore] in weatherStore?.tick() },
             settingsAction: { settingsAction(.weather) },
             quitAction: quitAction
@@ -790,6 +791,7 @@ public final class MonitoringCoordinator {
                 ),
                 contentHeight: CombinedDropdownView.contentSize.height,
                 contentWidth: CombinedDropdownView.contentSize.width,
+                usesPopover: true,
                 tickAction: { [weak combinedStore] in combinedStore?.tick() },
                 settingsAction: { self.settingsAction(.combined) },
                 quitAction: quitAction

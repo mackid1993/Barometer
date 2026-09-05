@@ -47,14 +47,15 @@ struct WeatherDetailSettingsTests {
         #expect(preferences.isVisible(.hourlyPrecipitation))
     }
 
-    @Test("Practical weather starts expanded and advanced groups start collapsed")
-    func expandedDefaults() {
-        for section in [WeatherDetailSection.dayMetrics, .precipitation, .airComfort, .hourly, .sunMoon] {
-            #expect(section.isExpandedByDefault)
-        }
-        for section in [WeatherDetailSection.atmosphere, .hourlyGround, .hourlyAtmosphere] {
-            #expect(!section.isExpandedByDefault)
-        }
+    @Test("All details reveals every section even when every custom choice is hidden")
+    func allDetailsOverridesHiddenSections() {
+        var preferences = WeatherDetailSettings(showsAll: false)
+        for section in WeatherDetailSection.allCases { preferences.setSelected(false, for: section) }
+        #expect(WeatherDetailSection.allCases.allSatisfy { !preferences.isVisible($0) })
+        preferences.showsAll = true
+        #expect(WeatherDetailSection.allCases.allSatisfy(preferences.isVisible))
+        preferences.showsAll = false
+        #expect(WeatherDetailSection.allCases.allSatisfy { !preferences.isVisible($0) })
     }
 
     @Test("New section keys and partial preferences do not erase saved settings")

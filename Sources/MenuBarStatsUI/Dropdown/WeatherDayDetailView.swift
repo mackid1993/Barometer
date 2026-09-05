@@ -92,7 +92,7 @@ struct WeatherDayDetailView: View {
     }
 
     private var dailyMetrics: some View {
-        WeatherDisclosureCard(section: .dayMetrics, preferences: detailSettings) {
+        WeatherDetailCard(section: .dayMetrics, preferences: detailSettings) {
             VStack(alignment: .leading, spacing: 8) {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                     tile("thermometer.medium", "Feels like high / low",
@@ -109,7 +109,7 @@ struct WeatherDayDetailView: View {
     }
 
     private func sunAndMoon(_ details: WeatherDayDetails) -> some View {
-        WeatherDisclosureCard(section: .sunMoon, preferences: detailSettings, tint: .indigo) {
+        WeatherDetailCard(section: .sunMoon, preferences: detailSettings, tint: .indigo) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Label(WeatherValue.time(day.sunrise, timeZone: forecast.timeZone), systemImage: "sunrise.fill")
@@ -125,7 +125,8 @@ struct WeatherDayDetailView: View {
                     Text("Daylight duration unavailable").font(.caption).foregroundStyle(.secondary)
                 }
                 Divider()
-                DisclosureGroup("Moon") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Moon").fontWeight(.semibold)
                     HStack(spacing: 14) {
                         Image(systemName: details.moonPhase.symbolName)
                             .symbolRenderingMode(.palette)
@@ -166,7 +167,7 @@ struct WeatherDayDetailView: View {
     // MARK: - Hourly forecast
 
     private func hourlyForecast(_ points: [HourlyPoint]) -> some View {
-        WeatherDisclosureCard(section: .hourly, preferences: detailSettings, tint: accent.primary) {
+        WeatherDetailCard(section: .hourly, preferences: detailSettings, tint: accent.primary) {
             VStack(alignment: .leading, spacing: 10) {
                 if points.isEmpty {
                     Text("Hourly details are unavailable for this day.")
@@ -177,28 +178,28 @@ struct WeatherDayDetailView: View {
                             .frame(width: max(336, CGFloat(points.count) * 28), height: 150)
                     }
                     .insetPlate()
-                    Text("Expand an hour for more details. Blue bars show precipitation chance.")
+                    Text("Blue bars show precipitation chance.")
                         .font(.caption2).foregroundStyle(.secondary)
-                    ForEach(points) { point in
-                        DisclosureGroup {
-                            hourlyMetrics(point)
-                                .padding(.vertical, 8)
-                        } label: {
-                            HStack(spacing: 8) {
-                                Text(hourLabel(point.time)).frame(width: 76, alignment: .leading)
-                                Image(systemName: point.code?.symbolName(isDay: point.isDay ?? true)
-                                      ?? "questionmark.circle")
-                                    .symbolRenderingMode(.multicolor).frame(width: 20)
-                                Text(temperature(point.temperature)).fontWeight(.semibold)
-                                Spacer(minLength: 0)
-                                Label(percent(point.precipitationProbability), systemImage: "drop.fill")
-                                    .foregroundStyle(.blue)
+                    LazyVStack(alignment: .leading, spacing: 8) {
+                        ForEach(points) { point in
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(spacing: 8) {
+                                    Text(hourLabel(point.time)).frame(width: 76, alignment: .leading)
+                                    Image(systemName: point.code?.symbolName(isDay: point.isDay ?? true)
+                                          ?? "questionmark.circle")
+                                        .symbolRenderingMode(.multicolor).frame(width: 20)
+                                    Text(temperature(point.temperature)).fontWeight(.semibold)
+                                    Spacer(minLength: 0)
+                                    Label(percent(point.precipitationProbability), systemImage: "drop.fill")
+                                        .foregroundStyle(.blue)
+                                }
+                                .font(.caption.monospacedDigit())
+                                .padding(.vertical, 3)
+                                hourlyMetrics(point).padding(.vertical, 8)
                             }
-                            .font(.caption.monospacedDigit())
-                            .padding(.vertical, 3)
+                            .tint(accent.primary)
+                            Divider()
                         }
-                        .tint(accent.primary)
-                        Divider()
                     }
                 }
             }

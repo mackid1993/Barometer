@@ -7,42 +7,84 @@ import Testing
 @Suite("Menu detail lifecycle", .serialized)
 @MainActor
 struct MenuDetailPresenterTests {
-    @Test("Presentation waits until the menu tracking run loop ends")
-    func menuHandoff() throws {
-        let presenter = MenuDetailPresenter()
-        defer { presenter.close() }
-        presenter.show(AnyView(Text("Day forecast")), from: NSMenu())
-        RunLoop.main.run(mode: .eventTracking, before: Date(timeIntervalSinceNow: 0.02))
-        #expect(presenter.panel == nil)
-        let deadline = Date(timeIntervalSinceNow: 1)
-        while presenter.panel == nil && Date() < deadline {
-            RunLoop.main.run(mode: .default, before: deadline)
-        }
-        let panel = try #require(presenter.panel)
-        #expect(panel.isVisible)
-        panel.resignKey()
-        #expect(panel.isVisible)
-        panel.cancelOperation(nil)
-        #expect(presenter.panel == nil)
+    private func makeAnchor() -> NSWindow {
+        let window = NSWindow(contentRect: NSRect(x: 100, y: 700, width: 100, height: 30),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = NSView(frame: NSRect(x: 0, y: 0, width: 100, height: 30))
+        window.orderFront(nil)
+        return window
     }
 
-    @Test("Repeated presentation releases panels, hosts, and canceled presentation timers")
+    private func weatherContent() throws -> WeatherDayDetailView {
+        let location = Location(id: "boston", name: "Boston", admin: nil, country: "US",
+                                latitude: 42.36, longitude: -71.05, timeZone: "America/New_York")
+        let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("MenuBarStatsCoreTests/Fixtures/forecast-rich-imperial.json")
+        let forecast = try OpenMeteoClient.decodeForecast(Data(contentsOf: fixture), for: location, units: .imperial)
+        let sample = WeatherSample(timestamp: forecast.fetchedAt, forecast: forecast, airQuality: nil,
+                                   isStale: false, refreshError: nil)
+        let day = try #require(forecast.daily.first)
+        return WeatherDayDetailView(day: day, sample: sample, accent: .signature(for: .weather))
+    }
+
+    @Test("Hover enters a day without requiring a mouse click")
+    func hoverOpensDetail() throws {
+        let view = WeatherHoverAnchor.HoverView()
+        var entered = false
+        view.show = { anchor in entered = anchor === view }
+        let event = try #require(NSEvent.enterExitEvent(with: .mouseEntered, location: .zero,
+            modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+            eventNumber: 1, trackingNumber: 1, userData: nil))
+        view.mouseEntered(with: event)
+        #expect(entered)
+        view.show = nil
+    }
+
+    @Test("Presentation waits until the menu tracking run loop ends")
+    func menuHandoff() throws {
+        let anchorWindow = makeAnchor()
+        defer { anchorWindow.close() }
+        let anchor = try #require(anchorWindow.contentView)
+        let presenter = MenuDetailPresenter()
+        defer { presenter.close() }
+        presenter.show(AnyView(Text("Day forecast")), from: NSMenu(), anchoredTo: anchor)
+        RunLoop.main.run(mode: .eventTracking, before: Date(timeIntervalSinceNow: 0.02))
+        #expect(presenter.popover == nil)
+        let deadline = Date(timeIntervalSinceNow: 1)
+        while presenter.popover == nil && Date() < deadline {
+            RunLoop.main.run(mode: .default, before: deadline)
+        }
+        let panel = try #require(presenter.popover)
+        #expect(panel.isShown)
+        panel.contentViewController?.view.window?.resignKey()
+        #expect(panel.isShown)
+        panel.performClose(nil)
+        #expect(presenter.popover == nil)
+    }
+
+    @Test("Repeated presentation releases popovers, hosts, and canceled presentation timers")
     func repeatedPresentationReleasesMemory() async throws {
-        weak var lastPanel: NSPanel?
+        let content = try weatherContent()
+        weak var lastPanel: NSPopover?
         weak var lastHost: NSView?
         weak var releasedPresenter: MenuDetailPresenter?
+        let anchorWindow = makeAnchor()
+        defer { anchorWindow.close() }
+        let anchor = try #require(anchorWindow.contentView)
         autoreleasepool {
             let presenter = MenuDetailPresenter()
             releasedPresenter = presenter
             for _ in 0..<100 {
                 autoreleasepool {
-                    presenter.present(AnyView(Text("Daily weather")), at: NSPoint(x: 100, y: 500))
-                    lastPanel = presenter.panel
-                    lastHost = presenter.panel?.contentView
+                    presenter.present(AnyView(content), anchoredTo: anchor)
+                    lastPanel = presenter.popover
+                    lastHost = presenter.popover?.contentViewController?.view
                     presenter.close()
                 }
             }
-            presenter.show(AnyView(Text("Canceled day")), from: NSMenu())
+            presenter.show(AnyView(Text("Canceled day")), from: NSMenu(), anchoredTo: anchor)
             presenter.close()
         }
         for _ in 0..<10 { await Task.yield() }
@@ -53,29 +95,34 @@ struct MenuDetailPresenterTests {
 
     @Test("Detail content scrolls beyond its visible window")
     func scrolling() async throws {
+        let anchorWindow = makeAnchor()
+        defer { anchorWindow.close() }
+        let anchor = try #require(anchorWindow.contentView)
         let presenter = MenuDetailPresenter()
-        let location = Location(id: "boston", name: "Boston", admin: nil, country: "US",
-                                latitude: 42.36, longitude: -71.05, timeZone: "America/New_York")
-        let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("MenuBarStatsCoreTests/Fixtures/forecast-rich-imperial.json")
-        let forecast = try OpenMeteoClient.decodeForecast(Data(contentsOf: fixture), for: location, units: .imperial)
-        let sample = WeatherSample(timestamp: forecast.fetchedAt, forecast: forecast, airQuality: nil,
-                                   isStale: false, refreshError: nil)
-        let day = try #require(forecast.daily.first)
-        let content = WeatherDayDetailView(day: day, sample: sample, accent: .signature(for: .weather))
-        presenter.present(AnyView(content), at: NSPoint(x: 100, y: 700))
+        let parent = NSPopover()
+        parent.behavior = .transient
+        parent.animates = false
+        let parentController = NSViewController()
+        parentController.view = NSView(frame: NSRect(x: 0, y: 0, width: 380, height: 500))
+        parent.contentViewController = parentController
+        parent.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
+        defer { parent.close() }
+        let content = try weatherContent()
+        presenter.present(AnyView(content), anchoredTo: parentController.view, edge: .maxX)
         defer { presenter.close() }
-        let panel = try #require(presenter.panel)
+        let panel = try #require(presenter.popover)
         for _ in 0..<5 {
             await Task.yield()
-            panel.contentView?.layoutSubtreeIfNeeded()
+            panel.contentViewController?.view.layoutSubtreeIfNeeded()
         }
         func findScroll(_ view: NSView) -> NSScrollView? {
             if let scroll = view as? NSScrollView { return scroll }
             return view.subviews.compactMap { findScroll($0) }.first
         }
-        let host = try #require(panel.contentView)
+        #expect(parent.isShown)
+        #expect(panel.isShown)
+        #expect(!panel.isDetached)
+        let host = try #require(panel.contentViewController?.view)
         let scroll = try #require(findScroll(host))
         let document = try #require(scroll.documentView)
         #expect(document.frame.height > scroll.contentView.bounds.height)
@@ -84,33 +131,40 @@ struct MenuDetailPresenterTests {
         #expect(scroll.contentView.bounds.origin.y > 0)
     }
 
-    @Test("Closing a detail removes its window and releases hosted content")
+    @Test("Closing a detail removes its popover and releases hosted content")
     func closeReleasesContent() throws {
+        let anchorWindow = makeAnchor()
+        defer { anchorWindow.close() }
+        let anchor = try #require(anchorWindow.contentView)
         let presenter = MenuDetailPresenter()
-        presenter.present(AnyView(Text("Detail")), at: NSPoint(x: 100, y: 500))
-        let panel = try #require(presenter.panel)
-        #expect(panel.isVisible)
-        #expect(panel.canBecomeKey)
+        presenter.present(AnyView(Text("Detail")), anchoredTo: anchor)
+        let panel = try #require(presenter.popover)
+        #expect(panel.isShown)
+        #expect(!panel.isDetached)
+        #expect(!presenter.popoverShouldDetach(panel))
         presenter.close()
-        #expect(!panel.isVisible)
-        #expect(panel.contentView == nil)
-        #expect(presenter.panel == nil)
+        #expect(!panel.isShown)
+        #expect(panel.contentViewController == nil)
+        #expect(presenter.popover == nil)
     }
 
     @Test("Replacement removes the old window and focus changes do not dismiss the new one")
     func replacementAndFocusLoss() throws {
+        let anchorWindow = makeAnchor()
+        defer { anchorWindow.close() }
+        let anchor = try #require(anchorWindow.contentView)
         let presenter = MenuDetailPresenter()
-        presenter.present(AnyView(Text("First")), at: NSPoint(x: 100, y: 500))
-        let old = try #require(presenter.panel)
-        presenter.present(AnyView(Text("Second")), at: NSPoint(x: 100, y: 500))
-        let current = try #require(presenter.panel)
+        presenter.present(AnyView(Text("First")), anchoredTo: anchor)
+        let old = try #require(presenter.popover)
+        presenter.present(AnyView(Text("Second")), anchoredTo: anchor)
+        let current = try #require(presenter.popover)
         #expect(old !== current)
-        #expect(!old.isVisible)
-        #expect(old.contentView == nil)
-        current.resignKey()
-        #expect(current.isVisible)
-        #expect(presenter.panel === current)
+        #expect(!old.isShown)
+        #expect(old.contentViewController == nil)
+        current.contentViewController?.view.window?.resignKey()
+        #expect(current.isShown)
+        #expect(presenter.popover === current)
         presenter.close()
-        #expect(!current.isVisible)
+        #expect(!current.isShown)
     }
 }

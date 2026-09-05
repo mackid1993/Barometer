@@ -12,7 +12,7 @@ struct WeatherDetailSettingsSection: View {
                 Text("Custom").tag(false)
             }
             .pickerStyle(.segmented)
-            Text("Click a forecast day to see its details. Expand each topic with its chevron.")
+            Text("Hover over a forecast day, then scroll through its details. Choose which sections appear.")
                 .font(.caption).foregroundStyle(.secondary)
             if !preferences.showsAll {
                 ForEach(WeatherDetailSection.allCases.filter { !$0.isHourlyGroup }, id: \.rawValue) { section in

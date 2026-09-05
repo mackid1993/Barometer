@@ -11,7 +11,7 @@ struct WeatherDayExtraSections: View {
 
     var body: some View {
         if let values = day.details {
-            WeatherDisclosureCard(section: section, preferences: preferences,
+            WeatherDetailCard(section: section, preferences: preferences,
                                   tint: section == .precipitation ? accent.primary : nil) {
                 WeatherDetailGrid(rows: rows(values), units: units)
             }
@@ -113,7 +113,8 @@ struct WeatherHourExtraSections: View {
     @ViewBuilder
     private func group(_ section: WeatherDetailSection, rows: [(String, Double?, WeatherDetailUnit)]) -> some View {
         if preferences.isVisible(section) {
-            DisclosureGroup(section.title) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(section.title).fontWeight(.semibold)
                 WeatherDetailGrid(rows: rows, units: units).padding(.top, 8)
             }
         }

@@ -463,14 +463,13 @@ private struct DailyForecastRow: View {
     @State private var isHovering = false
 
     var body: some View {
-        Button {
-            showDetail(AnyView(WeatherDayDetailView(
-                day: day, sample: sample, accent: accent, settingsStore: settingsStore)))
-        } label: { row }
-            .buttonStyle(.plain)
+        row
+            .background(WeatherHoverAnchor { anchor in
+                showDetail(AnyView(WeatherDayDetailView(
+                    day: day, sample: sample, accent: accent, settingsStore: settingsStore)), anchor)
+            })
             .accessibilityLabel("Details for \(WeatherDayDetailView.dateTitle(day.date, timeZone: timeZone))")
-            .help("Show daily and hourly forecast details")
-
+            .help("Hover to show daily and hourly forecast details")
     }
 
     private var row: some View {
@@ -503,11 +502,6 @@ private struct DailyForecastRow: View {
                 .font(.callout.monospacedDigit())
                 .frame(width: 32, alignment: .trailing)
         }
-        .overlay(alignment: .trailing) {
-            Image(systemName: "chevron.right").font(.system(size: 8, weight: .semibold))
-                .foregroundStyle(.tertiary).offset(x: 8)
-        }
-        .padding(.trailing, 8)
         .contentShape(Rectangle())
         .padding(.vertical, 3)
         .padding(.horizontal, 6)

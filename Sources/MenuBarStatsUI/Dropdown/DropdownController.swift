@@ -8,7 +8,7 @@ import SwiftUI
 /// on each tracking tick, so panels never clip. Menus taller than the screen scroll through
 /// AppKit's own menu scrolling. Status-item identity and menu attachment are unchanged.
 @MainActor
-public final class DropdownController: NSObject, NSMenuDelegate {
+public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     private let moduleName: String
     private let tickAction: @MainActor () -> Void
     private let settingsAction: @MainActor () -> Void
@@ -19,6 +19,9 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     private let menu: NSMenu
     private var trackingTimer: Timer?
     private let detailPresenter = MenuDetailPresenter()
+    private weak var detailAnchor: NSView?
+    private let usesPopover: Bool
+    private var rootPopover: NSPopover?
 
     /// Creates and installs a hosted menu for one permanent status item.
     public init(
@@ -27,6 +30,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         rootView: AnyView,
         contentHeight: CGFloat,
         contentWidth: CGFloat = 320,
+        usesPopover: Bool = false,
         tickAction: @escaping @MainActor () -> Void,
         settingsAction: @escaping @MainActor () -> Void,
         quitAction: @escaping @MainActor () -> Void
@@ -36,15 +40,21 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         self.settingsAction = settingsAction
         self.quitAction = quitAction
         self.contentWidth = contentWidth
+        self.usesPopover = usesPopover
+        self.detailAnchor = statusItem?.button
         menu = NSMenu()
         hostingView = NSHostingView(rootView: rootView)
         hostingView.sizingOptions = [.intrinsicContentSize]
         hostingView.frame = NSRect(x: 0, y: 0, width: contentWidth, height: contentHeight)
         super.init()
 
-        hostingView.rootView = AnyView(rootView.environment(\.showMenuDetail, { [weak self] content in
+        hostingView.rootView = AnyView(rootView.environment(\.showMenuDetail, { [weak self] content, rowAnchor in
             guard let self else { return }
-            self.detailPresenter.show(content, from: self.menu)
+            if self.usesPopover {
+                self.detailPresenter.present(content, anchoredTo: rowAnchor, edge: .maxX)
+            } else if let anchor = self.detailAnchor {
+                self.detailPresenter.show(content, from: self.menu, anchoredTo: anchor)
+            }
         }))
         menu.delegate = self
         menu.minimumWidth = contentWidth
@@ -61,12 +71,62 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         let quitItem = NSMenuItem(title: "Quit Barometer", action: #selector(quitApplication), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
-        statusItem?.menu = menu
+        if let statusItem { attach(statusItem: statusItem) }
     }
 
     /// Attaches this controller's permanent menu to a newly enabled status item.
     public func attach(statusItem: NSStatusItem) {
-        statusItem.menu = menu
+        detailAnchor = statusItem.button
+        if usesPopover {
+            statusItem.menu = nil
+            statusItem.button?.target = self
+            statusItem.button?.action = #selector(togglePopover)
+        } else {
+            statusItem.menu = menu
+        }
+    }
+
+    @objc private func togglePopover() {
+        if let rootPopover, rootPopover.isShown {
+            rootPopover.performClose(nil)
+            return
+        }
+        guard let anchor = detailAnchor else { return }
+        tickAction()
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = false
+        popover.delegate = self
+        let height = min(720, (anchor.window?.screen?.visibleFrame.height ?? 900) - 100)
+        let content = VStack(spacing: 0) {
+            hostingView.rootView
+            Divider()
+            HStack {
+                Button("Settings…") { [weak self] in
+                    self?.rootPopover?.performClose(nil)
+                    self?.settingsAction()
+                }
+                Spacer()
+                Button("Quit Barometer") { [weak self] in self?.quitAction() }
+            }.padding(12)
+        }.frame(width: contentWidth, height: height)
+        popover.contentViewController = NSHostingController(rootView: content)
+        rootPopover = popover
+        popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
+        trackingTimer?.invalidate()
+        let timer = Timer(timeInterval: 0.5, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
+        RunLoop.main.add(timer, forMode: .common)
+        trackingTimer = timer
+    }
+
+    public func popoverShouldDetach(_ popover: NSPopover) -> Bool { false }
+
+    public func popoverDidClose(_ notification: Notification) {
+        detailPresenter.close()
+        trackingTimer?.invalidate()
+        trackingTimer = nil
+        rootPopover?.contentViewController = nil
+        rootPopover = nil
     }
 
     public func menuNeedsUpdate(_ menu: NSMenu) {
@@ -93,6 +153,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
 
     /// Resizes the hosted view to the ideal height of its SwiftUI content.
     private func fitContent() {
+        guard !usesPopover else { return }
         let maximumHeight = min(BarometerDesign.maximumPanelHeight, (NSScreen.main?.visibleFrame.height ?? 900) - 120)
         var measured = hostingView.intrinsicContentSize.height
         if !measured.isFinite || measured <= 0 {

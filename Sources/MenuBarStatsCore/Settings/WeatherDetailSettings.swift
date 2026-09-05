@@ -21,14 +21,6 @@ public enum WeatherDetailSection: String, CaseIterable, Sendable {
         }
     }
 
-    /// Everyday weather starts expanded; advanced conditions stay behind a chevron.
-    public var isExpandedByDefault: Bool {
-        switch self {
-        case .sunMoon, .dayMetrics, .precipitation, .airComfort, .hourly: true
-        default: false
-        }
-    }
-
     /// Whether this section belongs inside an expanded forecast hour.
     public var isHourlyGroup: Bool {
         switch self {

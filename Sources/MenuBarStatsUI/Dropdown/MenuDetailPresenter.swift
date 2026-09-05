@@ -2,32 +2,29 @@ import AppKit
 import SwiftUI
 
 private struct ShowMenuDetailKey: EnvironmentKey {
-    static let defaultValue: @MainActor (AnyView) -> Void = { _ in }
+    static let defaultValue: @MainActor (AnyView, NSView) -> Void = { _, _ in }
 }
 
 extension EnvironmentValues {
-    var showMenuDetail: @MainActor (AnyView) -> Void {
+    var showMenuDetail: @MainActor (AnyView, NSView) -> Void {
         get { self[ShowMenuDetailKey.self] }
         set { self[ShowMenuDetailKey.self] = newValue }
     }
 }
 
-/// Ends menu tracking before presenting interactive content in a normal event-processing window.
+/// Presents an attached, non-detachable popover only after AppKit finishes tracking the menu.
 @MainActor
-final class MenuDetailPresenter: NSObject, NSWindowDelegate {
-    private(set) var panel: NSPanel?
+final class MenuDetailPresenter: NSObject, NSPopoverDelegate {
+    private(set) var popover: NSPopover?
     private var presentationTimer: Timer?
     private var pendingContent: AnyView?
-    private var pendingAnchor = NSPoint.zero
-    private var localClickMonitor: Any?
-    private var globalClickMonitor: Any?
+    private weak var pendingAnchor: NSView?
 
-    func show(_ content: AnyView, from menu: NSMenu) {
+    func show(_ content: AnyView, from menu: NSMenu, anchoredTo anchor: NSView) {
         close()
         pendingContent = content
-        pendingAnchor = NSEvent.mouseLocation
+        pendingAnchor = anchor
         // Default mode cannot run while AppKit is inside its menu-tracking loop.
-        // Task.yield() does not provide that guarantee.
         let timer = Timer(timeInterval: 0, target: self, selector: #selector(finishPresentation),
                           userInfo: nil, repeats: false)
         presentationTimer = timer
@@ -36,73 +33,47 @@ final class MenuDetailPresenter: NSObject, NSWindowDelegate {
     }
 
     @objc private func finishPresentation() {
-        guard let content = pendingContent else { return }
-        let anchor = pendingAnchor
-        present(content, at: anchor)
+        guard let content = pendingContent, let anchor = pendingAnchor else {
+            close()
+            return
+        }
+        present(content, anchoredTo: anchor)
     }
 
-    func present(_ content: AnyView, at anchor: NSPoint) {
+    func present(_ content: AnyView, anchoredTo anchor: NSView, edge: NSRectEdge = .minY) {
         close()
-        let screen = NSScreen.screens.first { $0.frame.contains(anchor) } ?? NSScreen.main
-        let visible = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 900, height: 900)
-        let size = NSSize(width: 380, height: min(640, max(300, visible.height - 100)))
-        let window = DetailPanel(contentRect: NSRect(origin: .zero, size: size),
-                                 styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel], backing: .buffered, defer: false)
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.isReleasedWhenClosed = false
-        window.hidesOnDeactivate = false
-        window.isMovableByWindowBackground = false
-        window.animationBehavior = .none
-        window.level = .popUpMenu
-        window.delegate = self
-        window.contentView = NSHostingView(rootView: content.environment(\.closeMenuDetail, { [weak self] in
-            self?.close()
+        guard anchor.window != nil else { return }
+        let detail = NSPopover()
+        detail.behavior = .semitransient
+        detail.animates = false
+        detail.delegate = self
+        detail.contentViewController = NSHostingController(rootView: content.environment(\.closeMenuDetail, {
+            [weak self] in self?.close()
         }))
-        window.setContentSize(size)
-        window.setFrameOrigin(NSPoint(
-            x: min(max(visible.minX, anchor.x), visible.maxX - window.frame.width),
-            y: min(max(visible.minY, anchor.y - window.frame.height), visible.maxY - window.frame.height)))
-        panel = window
-        window.makeKeyAndOrderFront(nil)
-        localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) {
-            [weak self] event in
-            // AppKit invokes event monitors on the main thread.
-            MainActor.assumeIsolated {
-                if let self, event.window !== self.panel { self.close() }
-            }
-            return event
-        }
-        globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) {
-            [weak self] _ in
-            MainActor.assumeIsolated { self?.close() }
-        }
+        let height = min(640, max(300, (anchor.window?.screen?.visibleFrame.height ?? 900) - 100))
+        detail.contentSize = NSSize(width: 380, height: height)
+        popover = detail
+        detail.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: edge)
     }
 
     func close() {
         presentationTimer?.invalidate()
         presentationTimer = nil
         pendingContent = nil
-        if let localClickMonitor { NSEvent.removeMonitor(localClickMonitor) }
-        if let globalClickMonitor { NSEvent.removeMonitor(globalClickMonitor) }
-        localClickMonitor = nil
-        globalClickMonitor = nil
-        guard let window = panel else { return }
-        panel = nil
-        window.delegate = nil
-        window.orderOut(nil)
-        window.close()
-        window.contentView = nil
+        pendingAnchor = nil
+        guard let detail = popover else { return }
+        popover = nil
+        detail.delegate = nil
+        detail.close()
+        detail.contentViewController = nil
     }
 
-    // Menu teardown can change key windows after presentation. Dismiss only for an actual
-    // outside click, Escape, the close button, or a replacement, not a focus notification.
-    func windowWillClose(_ notification: Notification) { close() }
-}
+    func popoverShouldDetach(_ popover: NSPopover) -> Bool { false }
 
-private final class DetailPanel: NSPanel {
-    override var canBecomeKey: Bool { true }
-    override func cancelOperation(_ sender: Any?) { close() }
+    func popoverDidClose(_ notification: Notification) {
+        guard let detail = notification.object as? NSPopover, detail === popover else { return }
+        close()
+    }
 }
 
 private struct CloseMenuDetailKey: EnvironmentKey {

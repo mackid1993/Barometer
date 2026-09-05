@@ -2752,3 +2752,29 @@ Final verification:
   stopped the previous process, and launched the Applications copy.
 - Automated tests cover the run-loop handoff and cleanup, but do not constitute a manual end-to-end menu interaction
   or compositor inspection on this macOS beta.
+
+### P8-T27: Attached hover weather popovers
+
+David rejected a movable detail window and requested hover-driven popovers with scrolling and no detail chevrons.
+Weather and Combined now open native NSPopovers from their existing status buttons. Other modules retain NSMenu.
+Hovering a forecast row presents a semitransient child popover anchored to that row; the parent remains available.
+Both popovers refuse detachment. Native popover dismissal replaces custom floating windows and mouse monitors.
+The status items, bundle identity, autosave names, and immutable widths are unchanged.
+
+Removed detail expansion controls, including Moon and hourly groups. Enabled sections are directly visible, with
+practical information first. Hourly rows use lazy layout; Settings still offers All details or remembered Custom
+section choices. Updated settings guidance for hover and removed obsolete expansion-default logic.
+
+Verification before packaging:
+
+- make test: all 195 tests in 28 suites passed. Native hover-event test invokes the detail action without a click.
+- Actual rich weather content scrolls in a child NSPopover while its parent remains shown. Tests verify detachment is
+  refused, close/replacement cleanup, and pending menu-handoff cancellation for the fallback path.
+- Repeated 100 real weather view presentations followed by closing release the tested popover, hosting view, and
+  presenter weak references. No standalone detail window or event monitor remains in production.
+- Scripts/benchmark-memory.py dist/memory-baseline passed: 92.8% reduction at one simulated hour and zero growth from
+  simulated hours 24 to 48 (12,616,256 bytes at both). This is an isolated history workload, not a whole-app footprint.
+- git diff --check passed. No push or GitHub build. Native pointer travel and compositor behavior still require
+  interactive review; automated event and lifecycle tests cannot establish those visual results.
+- After the clean suite, make app passed; copied to /Applications/Barometer.app, passed strict codesign verification,
+  stopped the previous process, and launched the Applications copy for local review.
