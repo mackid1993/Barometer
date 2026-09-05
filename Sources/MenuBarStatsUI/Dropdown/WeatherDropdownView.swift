@@ -457,20 +457,20 @@ private struct DailyForecastRow: View {
     let accent: ModuleAccent
     let settingsStore: SettingsStore
     private var timeZone: TimeZone { sample.forecast.timeZone }
-    @State private var showsDetails = false
+    @Environment(\.showMenuDetail) private var showDetail
     let overallMinimum: Double
     let overallMaximum: Double
     @State private var isHovering = false
 
     var body: some View {
-        Button { showsDetails.toggle() } label: { row }
+        Button {
+            showDetail(AnyView(WeatherDayDetailView(
+                day: day, sample: sample, accent: accent, settingsStore: settingsStore)))
+        } label: { row }
             .buttonStyle(.plain)
             .accessibilityLabel("Details for \(WeatherDayDetailView.dateTitle(day.date, timeZone: timeZone))")
             .help("Show daily and hourly forecast details")
-            .onChange(of: sample.forecast.location.id) { showsDetails = false }
-            .popover(isPresented: $showsDetails, arrowEdge: .trailing) {
-                WeatherDayDetailView(day: day, sample: sample, accent: accent, settingsStore: settingsStore)
-            }
+
     }
 
     private var row: some View {

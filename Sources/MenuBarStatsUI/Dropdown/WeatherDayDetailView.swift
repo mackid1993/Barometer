@@ -8,7 +8,7 @@ struct WeatherDayDetailView: View {
     let sample: WeatherSample
     let accent: ModuleAccent
     var settingsStore: SettingsStore? = nil
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.closeMenuDetail) private var dismiss
 
     private var forecast: Forecast { sample.forecast }
     private var detailSettings: WeatherDetailSettings {

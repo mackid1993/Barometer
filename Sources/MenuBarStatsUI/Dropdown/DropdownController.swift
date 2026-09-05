@@ -18,6 +18,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     private let contentWidth: CGFloat
     private let menu: NSMenu
     private var trackingTimer: Timer?
+    private let detailPresenter = MenuDetailPresenter()
 
     /// Creates and installs a hosted menu for one permanent status item.
     public init(
@@ -41,6 +42,10 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         hostingView.frame = NSRect(x: 0, y: 0, width: contentWidth, height: contentHeight)
         super.init()
 
+        hostingView.rootView = AnyView(rootView.environment(\.showMenuDetail, { [weak self] content in
+            guard let self else { return }
+            self.detailPresenter.show(content, from: self.menu)
+        }))
         menu.delegate = self
         menu.minimumWidth = contentWidth
 
@@ -70,6 +75,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     }
 
     public func menuWillOpen(_ menu: NSMenu) {
+        detailPresenter.close()
         fitContent()
         trackingTimer?.invalidate()
         let timer = Timer(timeInterval: 0.5, target: self, selector: #selector(tick), userInfo: nil, repeats: true)

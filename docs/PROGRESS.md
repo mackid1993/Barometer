@@ -2694,3 +2694,28 @@ Verification on 2026-09-04:
 - git diff --check passed.
 - Earlier memory-change GitHub Check run 33934059122 passed its test and package jobs. This weather change stays
   local pending David's review; no weather push or GitHub build was started.
+
+### P8-T25: Fix interactive daily weather presentation
+
+David reported that the nested SwiftUI day popover would not scroll, dismissed on interaction, and left a halo.
+The day popover was presented from a custom NSMenu view during menu tracking. Replaced this nested presentation
+with a key-capable detail panel opened after canceling menu tracking. Explicit close, Escape, loss of focus, and
+replacement remove the window and release its hosted content. Opening the parent menu closes any previous detail.
+Status-item identity and permanent menu attachment remain unchanged.
+
+Pinned day readings, precipitation, air/comfort, hourly forecasts, and Sun information now have plain section
+headers. Moon, advanced atmospheric measurements, and extra hourly readings remain expandable. Custom settings
+can still hide sections.
+
+Verification on 2026-09-04:
+
+- make test: 192 tests, 191 passed; only the previously reproduced baseline weather-glyph spacing test failed.
+- Three new AppKit integration tests passed: the actual fixture-backed weather view has a taller scroll document
+  than its viewport and scrolls; closing hides the window and clears hosted content; replacing a window or losing
+  focus cleans up the old presentation. Output: dist/weather-panel-tests.log.
+- make app: signed release build passed. ditto dist/Barometer.app /Applications/Barometer.app succeeded this time.
+  Stopped the previous process and opened /Applications/Barometer.app.
+- codesign --verify --deep --strict --verbose=2 /Applications/Barometer.app passed.
+- git diff --check passed. User interaction and macOS compositor halo verification remain for local review;
+  programmatic window cleanup tests do not prove the compositor's visual result.
+- No push or GitHub build.

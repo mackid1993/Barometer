@@ -1,7 +1,7 @@
 import MenuBarStatsCore
 import SwiftUI
 
-/// A compact chevron header that reveals one weather topic without filling the fly-out with every field.
+/// Keeps practical weather visible and reserves a disclosure control for advanced daily measurements.
 struct WeatherDisclosureCard<Content: View>: View {
     let section: WeatherDetailSection
     let preferences: WeatherDetailSettings
@@ -26,18 +26,22 @@ struct WeatherDisclosureCard<Content: View>: View {
         if preferences.isVisible(section) {
             GlassCard(tint: tint) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Button { isExpanded.toggle() } label: {
-                        HStack(spacing: 7) {
-                            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                                .font(.caption2.weight(.semibold)).frame(width: 10)
-                            Text(section.title).font(.caption.weight(.semibold))
-                            Spacer(minLength: 0)
+                    if section == .atmosphere {
+                        Button { isExpanded.toggle() } label: {
+                            HStack(spacing: 7) {
+                                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                                    .font(.caption2.weight(.semibold)).frame(width: 10)
+                                Text(section.title).font(.caption.weight(.semibold))
+                                Spacer(minLength: 0)
+                            }
+                            .contentShape(Rectangle())
                         }
-                        .contentShape(Rectangle())
+                        .buttonStyle(.plain)
+                        .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+                    } else {
+                        Text(section.title).font(.caption.weight(.semibold))
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
-                    if isExpanded { content() }
+                    if section != .atmosphere || isExpanded { content() }
                 }
             }
         }
