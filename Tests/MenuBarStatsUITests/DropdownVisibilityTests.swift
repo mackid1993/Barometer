@@ -8,16 +8,20 @@ import Testing
       arguments: ["CPU", "GPU", "Memory", "Disks", "Network", "Sensors", "Battery", "Weather", "Time", "Combined"])
 func dropdownVisibility(module: String) {
     var visibility: [Bool] = []
+    var ticks = 0
     let controller = DropdownController(
         moduleName: module, statusItem: nil, rootView: AnyView(Text("CPU")), contentHeight: 100,
-        visibilityAction: { visibility.append($0) }, tickAction: {}, settingsAction: {}, quitAction: {}
+        visibilityAction: { visibility.append($0) }, tickAction: { ticks += 1 }, settingsAction: {}, quitAction: {}
     )
     let menu = NSMenu()
     controller.menuNeedsUpdate(menu)
     #expect(visibility.isEmpty)
+    #expect(ticks == 0)
     controller.menuWillOpen(menu)
+    #expect(ticks == 1)
     controller.menuNeedsUpdate(menu)
     #expect(visibility == [true])
+    #expect(ticks == 2)
     controller.menuDidClose(menu)
     #expect(visibility == [true, false])
 }
@@ -67,4 +71,12 @@ func attachedDropdownDoesNotPoll() {
     #expect(!controller.hasActiveTrackingTimer)
     #expect(ticks == 0)
     controller.dismiss()
+}
+
+@MainActor
+@Test("Attached dropdowns preserve compact content heights and respect the display")
+func attachedDropdownHeight() {
+    #expect(DropdownController.attachedPanelHeight(contentHeight: 560, availableHeight: 800) == 616)
+    #expect(DropdownController.attachedPanelHeight(contentHeight: 720, availableHeight: 800) == 720)
+    #expect(DropdownController.attachedPanelHeight(contentHeight: 720, availableHeight: 500) == 500)
 }

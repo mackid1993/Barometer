@@ -566,6 +566,30 @@ struct MenuBarRendererTests {
     }
 
     @Test
+    func cpuHistoryRangesMapToDistinctWindows() {
+        #expect(HistoryRange.oneMinute.duration == 60)
+        #expect(HistoryRange.fiveMinutes.duration == 300)
+        #expect(HistoryRange.thirtyMinutes.duration == 1_800)
+        #expect(HistoryRange.threeHours.duration == 10_800)
+        #expect(HistoryRange.twentyFourHours.duration == 86_400)
+    }
+
+    @Test
+    func cpuHistoryUsesTimestampsWithinTheSelectedWindow() {
+        let cutoff = Date(timeIntervalSince1970: 10_000)
+        let history = [
+            HistoryEntry(timestamp: cutoff.addingTimeInterval(1_080), value: CPUHistoryValue(totalPercent: 25)),
+            HistoryEntry(timestamp: cutoff.addingTimeInterval(10_800), value: CPUHistoryValue(totalPercent: 50)),
+        ]
+
+        let threeHours = CPUDropdownView.historyPositions(history, cutoff: cutoff, duration: 10_800)
+        let twentyFourHours = CPUDropdownView.historyPositions(history, cutoff: cutoff, duration: 86_400)
+
+        #expect(threeHours == [0.1, 1])
+        #expect(twentyFourHours == [0.0125, 0.125])
+    }
+
+    @Test
     func peerRowsKeepTheSameGeometryWhenSwapped() {
         let first = NetworkRateStackRenderer(
             download: "1.2MB/s",

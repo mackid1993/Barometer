@@ -118,7 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let settingsStore, let monitoringCoordinator else {
                 return
             }
-            settingsWindowController = SettingsWindowController(
+            let controller = SettingsWindowController(
                 settingsStore: settingsStore,
                 gpuStore: monitoringCoordinator.gpuStore,
                 batteryStore: monitoringCoordinator.batteryStore,
@@ -133,6 +133,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self?.applyMenuBarChangesAndReopen()
                 }
             )
+            controller.windowCloseHandler = { [weak self] in
+                self?.settingsWindowController = nil
+            }
+            settingsWindowController = controller
         }
         settingsWindowController?.show(module: module)
     }

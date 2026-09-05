@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import Synchronization
 
 /// One process observation derived from libproc.
 public struct ProcessSnapshot: Sendable {
@@ -243,7 +244,24 @@ public final class ProcessSource {
         return nil
     }
 
+    private static let displayNameCache = Mutex<[String: String]>([:])
+    private static let displayNameCacheLimit = 512
+
     static func applicationDisplayName(forExecutablePath path: String) -> String? {
+        if let cached = displayNameCache.withLock({ $0[path] }) {
+            return cached.isEmpty ? nil : cached
+        }
+        let resolved = resolveApplicationDisplayName(forExecutablePath: path)
+        displayNameCache.withLock { cache in
+            if cache.count >= displayNameCacheLimit, let evicted = cache.keys.first {
+                cache.removeValue(forKey: evicted)
+            }
+            cache[path] = resolved ?? ""
+        }
+        return resolved
+    }
+
+    private static func resolveApplicationDisplayName(forExecutablePath path: String) -> String? {
         guard let applicationURL = applicationBundleURL(forExecutablePath: path),
               let bundle = Bundle(url: applicationURL)
         else {

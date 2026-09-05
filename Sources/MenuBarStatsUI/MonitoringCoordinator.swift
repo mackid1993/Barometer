@@ -336,6 +336,7 @@ public final class MonitoringCoordinator {
             ),
             contentHeight: NetworkDropdownView.contentSize.height,
             contentWidth: NetworkDropdownView.contentSize.width,
+            usesAttachedPanel: true,
             visibilityAction: { [weak self] visible in
                 self?.setDetailVisibility(owner: "network", modules: [.network], visible: visible)
             },

@@ -392,25 +392,27 @@ struct CapsulePicker<Option: Hashable>: View {
         HStack(spacing: 2) {
             ForEach(options, id: \.self) { option in
                 let isSelected = option == selection
-                Text(label(option))
-                    .font(.caption.weight(isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? Color.white : Color.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background {
-                        if isSelected {
-                            Capsule()
-                                .fill(accent.gradient)
-                                .shadow(color: accent.primary.opacity(0.45), radius: 5, y: 1)
-                                .matchedGeometryEffect(id: "selection", in: namespace)
-                        }
+                Button {
+                    withAnimation(.snappy(duration: 0.28)) {
+                        selection = option
                     }
-                    .contentShape(Capsule())
-                    .onTapGesture {
-                        withAnimation(.snappy(duration: 0.28)) {
-                            selection = option
+                } label: {
+                    Text(label(option))
+                        .font(.caption.weight(isSelected ? .semibold : .regular))
+                        .foregroundStyle(isSelected ? Color.white : Color.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background {
+                            if isSelected {
+                                Capsule()
+                                    .fill(accent.gradient)
+                                    .shadow(color: accent.primary.opacity(0.45), radius: 5, y: 1)
+                                    .matchedGeometryEffect(id: "selection", in: namespace)
+                            }
                         }
-                    }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(3)
@@ -478,19 +480,23 @@ struct ProgressRing<Label: View>: View {
 struct AreaGraph: View {
     let values: [Double]
     let accent: ModuleAccent
+    var positions: [CGFloat]? = nil
     var lineWidth: CGFloat = 1.75
     var showsGrid = true
     var showsMarker = true
 
     var body: some View {
-        Canvas { context, size in
+        ZStack {
             if showsGrid {
-                GraphDrawing.drawGrid(in: &context, size: size)
+                NormalizedGraphGrid()
+                    .stroke(
+                        Color.primary.opacity(0.09),
+                        style: StrokeStyle(lineWidth: 0.5, dash: [2, 3])
+                    )
             }
-            GraphDrawing.drawSeries(
-                values,
-                in: &context,
-                size: size,
+            NormalizedGraphSeries(
+                values: values,
+                positions: positions,
                 accent: accent,
                 lineWidth: lineWidth,
                 showsMarker: showsMarker
@@ -508,12 +514,16 @@ struct DualAreaGraph: View {
     let secondaryAccent: ModuleAccent
 
     var body: some View {
-        Canvas { context, size in
-            GraphDrawing.drawGrid(in: &context, size: size)
-            GraphDrawing.drawSeries(
-                primary, in: &context, size: size, accent: primaryAccent, lineWidth: 1.5, showsMarker: true)
-            GraphDrawing.drawSeries(
-                secondary, in: &context, size: size, accent: secondaryAccent, lineWidth: 1.5, showsMarker: true)
+        ZStack {
+            NormalizedGraphGrid()
+                .stroke(
+                    Color.primary.opacity(0.09),
+                    style: StrokeStyle(lineWidth: 0.5, dash: [2, 3])
+                )
+            NormalizedGraphSeries(
+                values: primary, accent: primaryAccent, lineWidth: 1.5, showsMarker: true)
+            NormalizedGraphSeries(
+                values: secondary, accent: secondaryAccent, lineWidth: 1.5, showsMarker: true)
         }
         .insetPlate()
     }
@@ -527,21 +537,22 @@ struct MirroredAreaGraph: View {
     let lowerAccent: ModuleAccent
 
     var body: some View {
-        Canvas { context, size in
-            let half = CGSize(width: size.width, height: size.height / 2)
-            var centerline = Path()
-            centerline.move(to: CGPoint(x: 0, y: half.height))
-            centerline.addLine(to: CGPoint(x: size.width, y: half.height))
-            context.stroke(centerline, with: .color(.primary.opacity(0.12)), lineWidth: 0.5)
-
-            GraphDrawing.drawSeries(
-                upper, in: &context, size: half, accent: upperAccent, lineWidth: 1.5, showsMarker: true)
-
-            var flipped = context
-            flipped.translateBy(x: 0, y: size.height)
-            flipped.scaleBy(x: 1, y: -1)
-            GraphDrawing.drawSeries(
-                lower, in: &flipped, size: half, accent: lowerAccent, lineWidth: 1.5, showsMarker: true)
+        GeometryReader { geometry in
+            let halfHeight = geometry.size.height / 2
+            ZStack {
+                Rectangle()
+                    .fill(Color.primary.opacity(0.12))
+                    .frame(height: 0.5)
+                VStack(spacing: 0) {
+                    NormalizedGraphSeries(
+                        values: upper, accent: upperAccent, lineWidth: 1.5, showsMarker: true)
+                        .frame(height: halfHeight)
+                    NormalizedGraphSeries(
+                        values: lower, accent: lowerAccent, lineWidth: 1.5, showsMarker: true)
+                        .frame(height: halfHeight)
+                        .scaleEffect(x: 1, y: -1)
+                }
+            }
         }
         .insetPlate()
     }
@@ -553,110 +564,179 @@ struct Sparkline: View {
     let color: Color
 
     var body: some View {
-        Canvas { context, size in
-            guard values.count > 1 else { return }
-            let inset: CGFloat = 1.5
-            var line = Path()
-            for (index, raw) in values.enumerated() {
-                let x = CGFloat(index) / CGFloat(values.count - 1) * size.width
-                let y = inset + (1 - CGFloat(min(1, max(0, raw)))) * (size.height - inset * 2)
-                index == 0 ? line.move(to: CGPoint(x: x, y: y)) : line.addLine(to: CGPoint(x: x, y: y))
-            }
-            var area = line
-            area.addLine(to: CGPoint(x: size.width, y: size.height))
-            area.addLine(to: CGPoint(x: 0, y: size.height))
-            area.closeSubpath()
-            context.fill(
-                area,
-                with: .linearGradient(
-                    Gradient(colors: [color.opacity(0.35), color.opacity(0.02)]),
-                    startPoint: .zero,
-                    endPoint: CGPoint(x: 0, y: size.height)
-                )
-            )
-            context.stroke(
-                line, with: .color(color), style: StrokeStyle(lineWidth: 1.25, lineCap: .round, lineJoin: .round))
-        }
+        NormalizedGraphSeries(
+            values: values,
+            accent: ModuleAccent(primary: color, secondary: color),
+            lineWidth: 1.25,
+            showsMarker: false,
+            showsGlow: false,
+            fillOpacity: (0.35, 0.02),
+            verticalInset: 1.5
+        )
         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
     }
 }
 
-enum GraphDrawing {
-    static func drawGrid(in context: inout GraphicsContext, size: CGSize) {
+private struct NormalizedGraphGrid: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
         for fraction in [0.25, 0.5, 0.75] {
-            var path = Path()
-            let y = size.height * (1 - fraction)
-            path.move(to: CGPoint(x: 0, y: y))
-            path.addLine(to: CGPoint(x: size.width, y: y))
-            context.stroke(
-                path,
-                with: .color(.primary.opacity(0.09)),
-                style: StrokeStyle(lineWidth: 0.5, dash: [2, 3])
+            let y = rect.height * (1 - fraction)
+            path.move(to: CGPoint(x: rect.minX, y: y))
+            path.addLine(to: CGPoint(x: rect.maxX, y: y))
+        }
+        return path
+    }
+}
+
+private struct NormalizedGraphSeries: View {
+    let values: [Double]
+    var positions: [CGFloat]? = nil
+    let accent: ModuleAccent
+    let lineWidth: CGFloat
+    let showsMarker: Bool
+    var showsGlow = true
+    var fillOpacity: (top: Double, bottom: Double) = (0.42, 0.03)
+    var verticalInset: CGFloat = 3
+
+    var body: some View {
+        GeometryReader { geometry in
+            let horizontalInset: CGFloat = showsMarker ? 4 : 0
+            let line = NormalizedGraphLine(
+                values: values,
+                positions: positions,
+                horizontalInset: horizontalInset,
+                verticalInset: verticalInset
             )
+            ZStack {
+                NormalizedGraphArea(
+                    values: values,
+                    positions: positions,
+                    horizontalInset: horizontalInset,
+                    verticalInset: verticalInset
+                )
+                .fill(
+                    LinearGradient(
+                        colors: [accent.primary.opacity(fillOpacity.top), accent.secondary.opacity(fillOpacity.bottom)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                if showsGlow {
+                    line
+                        .stroke(accent.primary.opacity(0.55), lineWidth: lineWidth + 1.5)
+                        .blur(radius: 3)
+                }
+                line.stroke(
+                    LinearGradient(
+                        colors: [accent.primary, accent.secondary],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
+                )
+                if showsMarker, values.count > 1,
+                   let point = NormalizedGraphGeometry.point(
+                    at: values.count - 1,
+                    values: values,
+                    positions: positions,
+                    size: geometry.size,
+                    horizontalInset: horizontalInset,
+                    verticalInset: verticalInset
+                   ) {
+                    Circle()
+                        .fill(accent.secondary.opacity(0.28))
+                        .frame(width: 10, height: 10)
+                        .position(point)
+                    Circle()
+                        .fill(accent.secondary)
+                        .frame(width: 5, height: 5)
+                        .position(point)
+                }
+            }
         }
     }
+}
 
-    static func drawSeries(
-        _ values: [Double],
-        in context: inout GraphicsContext,
-        size: CGSize,
-        accent: ModuleAccent,
-        lineWidth: CGFloat,
-        showsMarker: Bool
-    ) {
-        guard values.count > 1 else { return }
-        let verticalInset: CGFloat = 3
-        let horizontalInset: CGFloat = showsMarker ? 4 : 0
-        let plotHeight = size.height - verticalInset * 2
-        let plotWidth = size.width - horizontalInset * 2
+private struct NormalizedGraphLine: Shape {
+    let values: [Double]
+    let positions: [CGFloat]?
+    let horizontalInset: CGFloat
+    let verticalInset: CGFloat
 
-        func point(at index: Int) -> CGPoint {
-            let fraction = CGFloat(index) / CGFloat(values.count - 1)
-            let value = CGFloat(min(1, max(0, values[index])))
-            return CGPoint(x: horizontalInset + fraction * plotWidth, y: verticalInset + (1 - value) * plotHeight)
-        }
-
+    func path(in rect: CGRect) -> Path {
         var line = Path()
         for index in values.indices {
-            index == 0 ? line.move(to: point(at: index)) : line.addLine(to: point(at: index))
+            guard let point = NormalizedGraphGeometry.point(
+                at: index,
+                values: values,
+                positions: positions,
+                size: rect.size,
+                horizontalInset: horizontalInset,
+                verticalInset: verticalInset
+            ) else { continue }
+            index == 0 ? line.move(to: point) : line.addLine(to: point)
         }
-        var area = line
-        area.addLine(to: CGPoint(x: horizontalInset + plotWidth, y: size.height))
-        area.addLine(to: CGPoint(x: horizontalInset, y: size.height))
-        area.closeSubpath()
+        return line
+    }
+}
 
-        context.fill(
-            area,
-            with: .linearGradient(
-                Gradient(colors: [accent.primary.opacity(0.42), accent.secondary.opacity(0.03)]),
-                startPoint: .zero,
-                endPoint: CGPoint(x: 0, y: size.height)
-            )
+private struct NormalizedGraphArea: Shape {
+    let values: [Double]
+    let positions: [CGFloat]?
+    let horizontalInset: CGFloat
+    let verticalInset: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        guard values.count > 1,
+              let first = NormalizedGraphGeometry.point(
+                at: 0,
+                values: values,
+                positions: positions,
+                size: rect.size,
+                horizontalInset: horizontalInset,
+                verticalInset: verticalInset
+              ),
+              let last = NormalizedGraphGeometry.point(
+                at: values.count - 1,
+                values: values,
+                positions: positions,
+                size: rect.size,
+                horizontalInset: horizontalInset,
+                verticalInset: verticalInset
+              ) else { return Path() }
+        var area = NormalizedGraphLine(
+            values: values,
+            positions: positions,
+            horizontalInset: horizontalInset,
+            verticalInset: verticalInset
+        ).path(in: rect)
+        area.addLine(to: CGPoint(x: last.x, y: rect.maxY))
+        area.addLine(to: CGPoint(x: first.x, y: rect.maxY))
+        area.closeSubpath()
+        return area
+    }
+}
+
+private enum NormalizedGraphGeometry {
+    static func point(
+        at index: Int,
+        values: [Double],
+        positions: [CGFloat]?,
+        size: CGSize,
+        horizontalInset: CGFloat,
+        verticalInset: CGFloat
+    ) -> CGPoint? {
+        guard values.count > 1, values.indices.contains(index) else { return nil }
+        let fraction = positions.flatMap { $0.indices.contains(index) ? $0[index] : nil }
+            ?? CGFloat(index) / CGFloat(values.count - 1)
+        let value = CGFloat(min(1, max(0, values[index])))
+        let plotHeight = size.height - verticalInset * 2
+        let plotWidth = size.width - horizontalInset * 2
+        return CGPoint(
+            x: horizontalInset + min(1, max(0, fraction)) * plotWidth,
+            y: verticalInset + (1 - value) * plotHeight
         )
-        context.drawLayer { layer in
-            layer.addFilter(.blur(radius: 3))
-            layer.stroke(line, with: .color(accent.primary.opacity(0.55)), lineWidth: lineWidth + 1.5)
-        }
-        context.stroke(
-            line,
-            with: .linearGradient(
-                Gradient(colors: [accent.primary, accent.secondary]),
-                startPoint: .zero,
-                endPoint: CGPoint(x: size.width, y: 0)
-            ),
-            style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
-        )
-        if showsMarker {
-            let last = point(at: values.count - 1)
-            context.fill(
-                Path(ellipseIn: CGRect(x: last.x - 5, y: last.y - 5, width: 10, height: 10)),
-                with: .color(accent.secondary.opacity(0.28))
-            )
-            context.fill(
-                Path(ellipseIn: CGRect(x: last.x - 2.5, y: last.y - 2.5, width: 5, height: 5)),
-                with: .color(accent.secondary)
-            )
-        }
     }
 }
 

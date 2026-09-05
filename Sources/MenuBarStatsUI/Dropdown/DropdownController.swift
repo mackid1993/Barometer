@@ -20,6 +20,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     private var rootContent: AnyView
     private var hasHostedContent = false
     private let hostingView: NSHostingView<AnyView>
+    private let contentHeight: CGFloat
     private let contentWidth: CGFloat
     private let menu: NSMenu
     private var trackingTimer: Timer?
@@ -48,6 +49,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         self.tickAction = tickAction
         self.settingsAction = settingsAction
         self.quitAction = quitAction
+        self.contentHeight = contentHeight
         self.contentWidth = contentWidth
         self.usesAttachedPanel = usesAttachedPanel
         self.detailAnchor = statusItem?.button
@@ -113,7 +115,8 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         becomeActive()
         isOpen = true
         visibilityAction(true)
-        let height = min(720, (anchor.window?.screen?.visibleFrame.height ?? 900) - 100)
+        let availableHeight = (anchor.window?.screen?.visibleFrame.height ?? 900) - 100
+        let height = Self.attachedPanelHeight(contentHeight: contentHeight, availableHeight: availableHeight)
         let content = VStack(spacing: 0) {
             rootContent
             Divider()
@@ -137,6 +140,10 @@ public final class DropdownController: NSObject, NSMenuDelegate {
 
     var hasActiveTrackingTimer: Bool { trackingTimer != nil }
 
+    static func attachedPanelHeight(contentHeight: CGFloat, availableHeight: CGFloat) -> CGFloat {
+        min(BarometerDesign.maximumPanelHeight, contentHeight + 56, availableHeight)
+    }
+
     private func closeRootPanel() {
         let wasOpen = isOpen
         isOpen = false
@@ -148,9 +155,13 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         rootPanel?.releaseAndClose()
         rootPanel = nil
         resignActive()
+        MemoryReclaim.scheduleRelief()
     }
 
     public func menuNeedsUpdate(_ menu: NSMenu) {
+        // Accessibility clients populate closed status menus while discovering menu bar items.
+        // A real open is prepared in menuWillOpen, so avoid allocating a hidden SwiftUI tree here.
+        guard isOpen else { return }
         prepareContent()
         tickAction()
         fitContent()
@@ -186,6 +197,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         hostingView.rootView = AnyView(EmptyView())
         hasHostedContent = false
         resignActive()
+        MemoryReclaim.scheduleRelief()
         logger.debug("closed module=\(self.moduleName, privacy: .public)")
     }
 

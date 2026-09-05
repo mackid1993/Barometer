@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Build and run the weather-panel benchmark without creating any menu bar items.
+"""Build and run the rich-panel and shared-graph benchmark without creating menu bar items.
 
-Requires a completed debug build. The benchmark displays and scrolls test panels for about ten seconds.
+Requires a completed debug build. The benchmark displays and scrolls test panels for about twelve seconds.
 """
 import argparse
 import pathlib

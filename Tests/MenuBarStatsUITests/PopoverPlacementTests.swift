@@ -7,7 +7,7 @@ import Testing
 @Suite("Popover screen placement", .serialized)
 @MainActor
 struct PopoverPlacementTests {
-    @Test("Every weather and Combined panel fits at all four display corners in light and dark mode")
+    @Test("Every custom panel and changed dropdown view fits at all display corners")
     func everyPopoverOnScreen() throws {
         let suite = "PopoverScreenTests-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -25,19 +25,46 @@ struct PopoverPlacementTests {
                                    isStale: false, refreshError: nil)
         let store = ModuleStore<WeatherSample>(historyCapacity: 1)
         store.receive(sample)
-        var views: [(String, AnyView)] = [
-            ("weather", AnyView(WeatherDropdownView(store: store, settingsStore: settingsStore, refreshAction: {}))),
-            ("combined", AnyView(CombinedDropdownView(stackID: 1,
-                cpuStore: .init(historyCapacity: 1), memoryStore: .init(historyCapacity: 1),
+        let networkStore = ModuleStore<NetworkSample>(historyCapacity: 60)
+        let cpuStore = ModuleStore<CPUSample>(historyCapacity: 60)
+        for index in 0..<60 {
+            let timestamp = Date().addingTimeInterval(Double(index - 59))
+            networkStore.receive(NetworkSample(
+                timestamp: timestamp,
+                interfaces: [
+                    Self.networkInterface(
+                        "en0", download: Double(index + 1) * 20_000, upload: Double(60 - index) * 1_400),
+                    Self.networkInterface("utun3", isVPN: true, download: 20_000, upload: 10_000),
+                ],
+                primaryInterface: "en0",
+                router: "192.0.2.1",
+                dnsServers: ["192.0.2.53"],
+                wifi: nil,
+                publicIP: nil
+            ), at: timestamp)
+            cpuStore.receive(Self.cpuSample(timestamp: timestamp, percent: Double(index + 20)), at: timestamp)
+        }
+        var views: [(String, () -> AnyView, CGFloat)] = [
+            ("cpu", { AnyView(CPUDropdownView(store: cpuStore, settingsStore: settingsStore)) }, 500),
+            ("weather", { AnyView(WeatherDropdownView(
+                store: store, settingsStore: settingsStore, refreshAction: {})) }, 720),
+            ("network", { AnyView(NetworkDropdownView(
+                store: networkStore,
+                settingsStore: settingsStore,
+                locationAccess: { .authorized },
+                locationAction: {}
+            )) }, 560),
+            ("combined", { AnyView(CombinedDropdownView(stackID: 1,
+                cpuStore: cpuStore, memoryStore: .init(historyCapacity: 1),
                 gpuStore: .init(historyCapacity: 1), networkStore: .init(historyCapacity: 1),
                 diskStore: .init(historyCapacity: 1), sensorStore: .init(historyCapacity: 1),
                 batteryStore: .init(historyCapacity: 1), weatherStore: store, timeStore: .init(historyCapacity: 1),
                 settingsStore: settingsStore, locationAccess: { .unavailable }, locationAction: {},
-                weatherRefreshAction: {}, resetEnergyAction: {}, requestCalendarAccess: {})))
+                weatherRefreshAction: {}, resetEnergyAction: {}, requestCalendarAccess: {})) }, 720)
         ]
         for (index, day) in forecast.daily.enumerated() {
-            views.append(("day-\(index)", AnyView(WeatherDayDetailView(
-                day: day, sample: sample, accent: .signature(for: .weather)))))
+            views.append(("day-\(index)", { AnyView(WeatherDayDetailView(
+                day: day, sample: sample, accent: .signature(for: .weather))) }, 640))
         }
         for screen in NSScreen.screens {
             let visible = screen.visibleFrame
@@ -48,13 +75,13 @@ struct PopoverPlacementTests {
             let anchor = NSView(frame: NSRect(x: 0, y: 0, width: 24, height: 24))
             anchorWindow.contentView = anchor
             for appearance in [NSAppearance.Name.aqua, .darkAqua] {
-                for (name, view) in views {
+                for (name, makeView, requestedHeight) in views {
                     for x in [visible.minX, visible.maxX - 24] {
                         for y in [visible.minY, visible.maxY - 24] {
                             anchorWindow.setFrameOrigin(NSPoint(x: x, y: y))
                             anchorWindow.orderFront(nil)
-                            let height = min(name.hasPrefix("day") ? 640.0 : 720.0, visible.height - 100)
-                            let panel = AttachedPanel(content: AnyView(view.frame(width: 380, height: height)),
+                            let height = min(requestedHeight, visible.height - 100)
+                            let panel = AttachedPanel(content: AnyView(makeView().frame(width: 380, height: height)),
                                                       size: NSSize(width: 380, height: height))
                             panel.appearance = NSAppearance(named: appearance)
                             let anchorRect = anchorWindow.convertToScreen(anchor.bounds)
@@ -64,8 +91,11 @@ struct PopoverPlacementTests {
                             #expect(visible.contains(panel.frame), "\(name): \(panel.frame) outside \(visible)")
                             if let directory = ProcessInfo.processInfo.environment["POPOVER_SNAPSHOT_DIRECTORY"] {
                                 // Explicit opt-in only; screen-capture permission must already be granted.
-                                let corner = "\(x == visible.minX ? "left" : "right")-\(y == visible.minY ? "bottom" : "top")"
-                                RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.25))
+                                let horizontal = x == visible.minX ? "left" : "right"
+                                let vertical = y == visible.minY ? "bottom" : "top"
+                                let corner = "\(horizontal)-\(vertical)"
+                                RunLoop.main.run(until: Date(timeIntervalSinceNow: name == "cpu" ? 1 : 0.25))
+                                panel.displayIfNeeded()
                                 let baseName = "\(name)-\(appearance.rawValue)-\(corner)"
                                 try capture(panel, named: baseName, in: directory)
                                 if let scroll = Self.verticalScrollView(in: panel.contentView),
@@ -79,7 +109,9 @@ struct PopoverPlacementTests {
                                         Self.scrollToBottom(scroll)
                                         try capture(panel, named: "\(baseName)-bottom", in: directory)
                                         let finalMaximumY = max(
-                                            0, (scroll.documentView?.frame.height ?? 0) - scroll.contentView.bounds.height)
+                                            0,
+                                            (scroll.documentView?.frame.height ?? 0) - scroll.contentView.bounds.height
+                                        )
                                         #expect(abs(scroll.contentView.bounds.origin.y - finalMaximumY) <= 1,
                                                 "Did not reach the bottom of \(name)")
                                     }
@@ -94,6 +126,48 @@ struct PopoverPlacementTests {
         }
     }
 
+    private static func networkInterface(
+        _ name: String,
+        isVPN: Bool = false,
+        download: Double? = nil,
+        upload: Double? = nil
+    ) -> NetworkInterfaceSample {
+        NetworkInterfaceSample(
+            name: name,
+            isUp: true,
+            isLoopback: false,
+            isVPN: isVPN,
+            ipv4Addresses: name == "en0" ? ["192.0.2.10"] : [],
+            ipv6Addresses: [],
+            downloadBytesPerSecond: download ?? (name == "en0" ? 1_200_000 : 20_000),
+            uploadBytesPerSecond: upload ?? (name == "en0" ? 82_000 : 10_000),
+            receivedBytes: 10_000_000,
+            sentBytes: 2_000_000,
+            inputErrors: 0,
+            outputErrors: 0
+        )
+    }
+
+    private static func cpuSample(timestamp: Date, percent: Double) -> CPUSample {
+        CPUSample(
+            timestamp: timestamp,
+            totalPercent: percent,
+            userPercent: percent * 0.7,
+            systemPercent: percent * 0.3,
+            idlePercent: 100 - percent,
+            nicePercent: 0,
+            perCore: [
+                CPUCoreSample(index: 0, kind: .performance, usagePercent: percent),
+                CPUCoreSample(index: 1, kind: .efficiency, usagePercent: percent * 0.5),
+            ],
+            loadAverages: [1.2, 1.0, 0.8],
+            uptime: 86_400,
+            processCount: 420,
+            threadCount: 2_400,
+            topProcesses: []
+        )
+    }
+
     private func capture(_ panel: NSPanel, named name: String, in directory: String) throws {
         let path = URL(fileURLWithPath: directory).appendingPathComponent("\(name).png").path
         let capture = Process()
@@ -102,6 +176,12 @@ struct PopoverPlacementTests {
         try capture.run()
         capture.waitUntilExit()
         #expect(capture.terminationStatus == 0, "Window capture failed for \(name)")
+        let data = try Data(contentsOf: URL(fileURLWithPath: path))
+        let image = try #require(NSBitmapImageRep(data: data), "Unreadable window capture for \(name)")
+        let byteCount = image.bytesPerRow * image.pixelsHigh
+        let bitmapData = try #require(image.bitmapData, "Window capture for \(name) has no bitmap data")
+        let containsVisiblePixel = UnsafeBufferPointer(start: bitmapData, count: byteCount).contains { $0 != 0 }
+        #expect(containsVisiblePixel, "Window capture for \(name) was fully transparent")
     }
 
     private static func verticalScrollView(in view: NSView?) -> NSScrollView? {

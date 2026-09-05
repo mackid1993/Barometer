@@ -62,6 +62,25 @@ struct WeatherPanelMemoryBenchmark {
             }
             report(cycle)
         }
+
+        let graphController = DropdownController(
+            moduleName: "Graph regression",
+            statusItem: nil,
+            rootView: AnyView(GraphMemoryView()),
+            contentHeight: 560,
+            contentWidth: 380,
+            usesAttachedPanel: true,
+            tickAction: {},
+            settingsAction: {},
+            quitAction: {}
+        )
+        for cycle in 5..<10 {
+            graphController.presentAttachedPanel(anchoredTo: anchor)
+            try await Task.sleep(for: .milliseconds(200))
+            graphController.dismiss()
+            try await Task.sleep(for: .milliseconds(200))
+            report(cycle)
+        }
         anchorWindow.close()
     }
 
@@ -104,5 +123,36 @@ struct WeatherPanelMemoryBenchmark {
         }
         guard result == KERN_SUCCESS else { exit(2) }
         print("cycle=\(cycle) current=\(info.phys_footprint) peak=\(info.ledger_phys_footprint_peak)")
+    }
+}
+
+private struct GraphMemoryView: View {
+    private let rising = stride(from: 0.02, through: 0.98, by: 0.02).map { $0 }
+    private let falling = stride(from: 0.98, through: 0.02, by: -0.02).map { $0 }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            AreaGraph(values: rising, accent: .signature(for: .cpu))
+                .frame(height: 100)
+            DualAreaGraph(
+                primary: rising,
+                secondary: falling,
+                primaryAccent: .signature(for: .network),
+                secondaryAccent: .signature(for: .memory)
+            )
+            .frame(height: 100)
+            MirroredAreaGraph(
+                upper: rising,
+                lower: falling,
+                upperAccent: .signature(for: .disks),
+                lowerAccent: .signature(for: .gpu)
+            )
+            .frame(height: 100)
+            Sparkline(values: falling, color: .cyan)
+                .frame(height: 36)
+        }
+        .padding(18)
+        .frame(width: 380, height: 560)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }

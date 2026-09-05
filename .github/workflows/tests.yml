@@ -19,8 +19,11 @@ jobs:
       - name: Report toolchain
         run: swift --version
 
+      - name: Check source invariants
+        run: python3 Scripts/check-source-invariants.py
+
       - name: Run tests
         run: make test
 
-      - name: Run weather panel memory regression
+      - name: Run panel and graph memory regression
         run: python3 Scripts/benchmark-popover-memory.py

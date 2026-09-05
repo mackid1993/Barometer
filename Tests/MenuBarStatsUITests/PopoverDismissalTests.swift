@@ -25,6 +25,29 @@ func hoverDismissal() {
 }
 
 @MainActor
+@Test("Hovering the menu bar widget keeps its dropdown open")
+func widgetHoverKeepsDropdownOpen() {
+    let monitor = PopoverDismissalMonitor()
+    let widget = NSRect(x: 100, y: 700, width: 36, height: 24)
+    let dropdown = NSRect(x: 80, y: 200, width: 380, height: 500)
+    var dismissals = 0
+    monitor.start(
+        containsPoint: { widget.contains($0) || dropdown.contains($0) },
+        dismiss: { dismissals += 1 }
+    )
+    let start = ProcessInfo.processInfo.systemUptime
+
+    monitor.handleHover(at: NSPoint(x: 118, y: 712), time: start)
+    monitor.handleHover(at: NSPoint(x: 118, y: 712), time: start + 5)
+    #expect(dismissals == 0)
+
+    monitor.handleHover(at: .zero, time: start + 5.9)
+    #expect(dismissals == 0)
+    monitor.handleHover(at: .zero, time: start + 6.1)
+    #expect(dismissals == 1)
+}
+
+@MainActor
 @Test("Outside click dismisses immediately and inside clicks keep the popover open")
 func outsideClickDismissal() {
     let monitor = PopoverDismissalMonitor()

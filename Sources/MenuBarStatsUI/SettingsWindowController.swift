@@ -9,6 +9,9 @@ import SwiftUI
 public final class SettingsWindowController: NSWindowController {
     private var navigationModel: SettingsNavigationModel?
 
+    /// Invoked after the Settings window closes so the application can release its hosted SwiftUI tree.
+    public var windowCloseHandler: (@MainActor () -> Void)?
+
     /// Creates the settings window controller.
     public convenience init(
         settingsStore: SettingsStore,
@@ -44,9 +47,11 @@ public final class SettingsWindowController: NSWindowController {
         window.setContentSize(NSSize(width: 780, height: 580))
         window.minSize = NSSize(width: 700, height: 480)
         window.isReleasedWhenClosed = false
+        window.setFrameAutosaveName("Barometer.Settings")
         window.center()
         self.init(window: window)
         self.navigationModel = navigationModel
+        window.delegate = self
     }
 
     /// Brings the settings window to the front.
@@ -55,6 +60,19 @@ public final class SettingsWindowController: NSWindowController {
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate()
+    }
+}
+
+extension SettingsWindowController: NSWindowDelegate {
+    public func windowWillClose(_ notification: Notification) {
+        window?.contentViewController = nil
+        navigationModel = nil
+        window?.delegate = nil
+        window = nil
+        let handler = windowCloseHandler
+        windowCloseHandler = nil
+        handler?()
+        MemoryReclaim.scheduleRelief()
     }
 }
 

@@ -43,9 +43,11 @@ public struct CPUDropdownView: View {
 
     public var body: some View {
         let sample = store.latestSample
-        let cutoff = Date().addingTimeInterval(-range.duration)
-        let values = store.history.downsampled(to: 300, since: cutoff)
-            .map { $0.value.totalPercent / 100 }
+        let now = Date()
+        let cutoff = now.addingTimeInterval(-range.duration)
+        let history = store.history.downsampled(to: 300, since: cutoff)
+        let values = history.map { $0.value.totalPercent / 100 }
+        let positions = Self.historyPositions(history, cutoff: cutoff, duration: range.duration)
         let _ = store.revision
         let settings = settingsStore.settings.modules[.cpu] ?? ModuleSettings()
         let accent = ModuleAccent.resolve(settingsStore.settings, module: .cpu)
@@ -69,7 +71,7 @@ public struct CPUDropdownView: View {
                             accent: accent
                         )
                     }
-                    AreaGraph(values: values, accent: accent)
+                    AreaGraph(values: values, accent: accent, positions: positions)
                         .frame(height: 84)
                     if let sample {
                         HStack(spacing: 6) {
@@ -129,6 +131,16 @@ public struct CPUDropdownView: View {
                     }
                 }
             }
+        }
+    }
+
+    static func historyPositions(
+        _ history: [HistoryEntry<CPUSample.GraphValue>],
+        cutoff: Date,
+        duration: TimeInterval
+    ) -> [CGFloat] {
+        history.map { entry in
+            CGFloat(min(1, max(0, entry.timestamp.timeIntervalSince(cutoff) / duration)))
         }
     }
 

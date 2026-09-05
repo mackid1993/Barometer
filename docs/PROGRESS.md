@@ -3032,10 +3032,12 @@ every 500 ms. Removed that redundant initial refresh and repeating tracking time
 retain their tracking refresh because AppKit suspends ordinary view updates while a menu tracks. Panel placement,
 materials, cards, chart glow, hourly hover glow, and all status-item identity fields are unchanged.
 
-The Network interface picker opened an AppKit control menu outside the attached panel. Hover dismissal interpreted
-that menu as leaving Barometer and closed its parent before a selection could be made. The dismissal monitor now
-suspends its hover timer while any control menu tracks and restores the one-second exit grace after the menu closes.
-Active physical and VPN interfaces remain sorted beneath Automatic; down and loopback interfaces remain excluded.
+The Network interface Picker could not start its nested control menu while the entire dropdown was already inside
+an AppKit status-menu tracking loop. Network now uses the same fixed, non-draggable attached panel as Weather and
+Combined, sized to preserve its existing 560-point content area and footer. The Picker remains visually and
+functionally nested inside that panel, where it can track normally. The dismissal monitor suspends hover dismissal
+while its control menu tracks and restores the one-second exit grace after the menu closes. Active physical and VPN
+interfaces remain sorted beneath Automatic; down and loopback interfaces remain excluded.
 
 Verification before installation:
 
@@ -3052,3 +3054,50 @@ Verification before installation:
 - `python3 Scripts/benchmark-memory.py dist/memory-baseline`: passed with a 92.7% lower isolated one-hour footprint
   and zero growth from simulated hours 24 to 48 (`dist/p8-t36-history-memory.log`).
 - Installed-app memory, CPU, signature, entitlement, and interactive selector checks follow on build 132. No push.
+
+### P8-T37 — Remove shared graph backing spikes and repair CPU and Network controls
+
+Installed build 132 stayed near 56 MB before interaction, then opening Network and using its selector reached 207 MB
+current / 327 MB peak. The main thread returned to idle and `leaks` found no leaked blocks, so this was retained
+rendering allocation rather than an active loop. Network, CPU, Disks, Memory, and Sensors still used four shared
+SwiftUI `Canvas` graph implementations. The earlier isolated comparison had already shown that one Canvas-backed
+panel could retain more than 160 MiB. Replaced every shared graph with SwiftUI shape paths while preserving the
+dotted grid, gradient fill, two-series and mirrored layouts, live markers, line gradient, blur glow, corner shape,
+and dimensions. A pre-build source invariant rejects any reintroduction of SwiftUI Canvas in `MenuBarStatsUI`.
+
+Network now presents its existing nested interface Picker inside a fixed attached panel, where Automatic, physical
+interfaces, and VPN interfaces can open their own control menu and remain selectable. The panel preserves the
+existing 560-point content area and uses the same screen-constrained placement as Weather and Combined. CPU history
+range choices are real buttons, and the graph uses sample timestamps within the selected interval. A short history
+therefore occupies only the recent part of 3-hour and 24-hour ranges instead of stretching to look identical.
+
+Hover containment explicitly includes both the status-item widget and the dropdown. Remaining over either keeps the
+dropdown open indefinitely; leaving both starts the one-second dismissal grace. Closed native menus now ignore
+`menuNeedsUpdate` requests from accessibility discovery, avoiding hidden SwiftUI construction when Thaw, Bartender,
+or another manager inspects Barometer. Real openings still prepare and update in `menuWillOpen`.
+
+Additional bounded memory work manually adapted from René Jiménez's PR #2 caches application display-name lookups,
+enables `MallocSpaceEfficient` in the packaged launch environment, requests malloc pressure relief after transient
+UI teardown, and detaches the complete Settings hosting tree when its window closes. Release notes for this work
+must credit René Jiménez (`@diazdesandi`) and link https://github.com/mackid1993/Barometer/pull/2. The PR was not
+merged wholesale because it also contained broad architecture and formatting changes against an older code state.
+
+Verification before installation:
+
+- `python3 Scripts/check-source-invariants.py` passed before compilation. CI runs this step before `make test`, so a
+  prohibited rendering primitive fails before the build.
+- `POPOVER_SNAPSHOT_DIRECTORY="$PWD/dist/panel-screens-p8-t37-verified" make test`: all 223 tests in 32 suites passed
+  (`dist/p8-t37-verified-tests.log`). New regressions cover CPU timestamp placement, selectable Network interfaces,
+  compact attached-panel height, closed-menu update suppression, Settings host teardown, and pointer containment on
+  the menu bar widget.
+- The screen suite produced 96 nontransparent captures at every display corner in light and dark appearances. It now
+  renders populated CPU and Network graphs in addition to Weather, Combined, and all rich day details. Captures fail
+  if the window is off-screen, cannot scroll to its true bottom, or is fully transparent. Representative CPU,
+  Network, Weather, hourly, and bottom captures were inspected for alignment, clipping, materials, paths, gradients,
+  markers, card shapes, and glows.
+- The expanded panel benchmark opens and closes Weather, rich day details, and all four shared graph primitives for
+  ten cycles. It peaked at 48.0 MiB and stayed flat near 35.9 MiB through the final graph cycles, below the 128 MiB
+  gate (`dist/p8-t37-verified-popover-memory.log`).
+- `python3 Scripts/benchmark-memory.py dist/memory-baseline` passed with a 92.7% lower one-hour footprint than the
+  original history baseline and zero growth from simulated hours 24 to 48 (`dist/p8-t37-verified-history-memory.log`).
+- `git diff --check` passed. Packaging, installed-app measurements, and interactive selector checks follow. No push.

@@ -18,6 +18,8 @@ struct CalendarPackagingTests {
         let description = try #require(info["NSCalendarsFullAccessUsageDescription"] as? String)
         #expect(!description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         #expect(info["CFBundleIdentifier"] as? String == "com.barometer.app")
+        let environment = try #require(info["LSEnvironment"] as? [String: String])
+        #expect(environment["MallocSpaceEfficient"] == "1")
     }
 
     @Test("both distribution and development signatures include Calendar resource access")
