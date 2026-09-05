@@ -3607,3 +3607,23 @@ Verification:
 - `python3 Scripts/check-source-invariants.py`, `make security-audit`, and `git diff --check` passed.
 - `make dmg` rebuilt `dist/Barometer-1.0.4.dmg`; its nested app reports 1.0.4 and `hdiutil verify` validated the image.
   The local artifact is ad hoc signed; the restarted GitHub workflow performs distribution signing and notarization.
+
+## P8-T56 Add a configurable calendar week start
+
+Added a Time setting that lets the user begin the month calendar with the system default or any selected weekday.
+The calendar applies that choice consistently to both the seven headings and the leading empty cells. Existing settings
+decode to System Default, preserving their current calendar order. The previously corrected positional identities still
+keep repeated one-letter weekday abbreviations from disappearing.
+
+The second 1.0.4 workflow run was canceled before artifact upload when the missing preference was identified. David
+then verified the complete calendar behavior in the current source built and installed with a 1.0.2 updater-test stamp.
+
+Verification:
+
+- The focused calendar tests passed all three cases for repeated symbols, first-weekday rotation, and all seven
+  explicit start choices.
+- The focused Settings suite passed all 36 tests, including old-setting migration to System Default.
+- `make test` passed all 263 tests: 35 SystemSources, 96 UI, and 132 Core tests.
+- `python3 Scripts/check-source-invariants.py`, `make security-audit`, and `git diff --check` passed.
+- `BAROMETER_VERSION=1.0.4 make dmg` rebuilt `dist/Barometer-1.0.4.dmg`; its nested app reports 1.0.4 and
+  `hdiutil verify` validated the disk image.

@@ -16,6 +16,7 @@ Barometer 1.0.4 makes the built-in updater faster, clearer, and more reliable.
 
 - The Time calendar now shows all seven weekday headings, including localized headings that use the same abbreviation
   for more than one day.
+- Time settings now let the calendar start on the system default or any selected weekday.
 
 ## Reliable version information
 

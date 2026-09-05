@@ -43,7 +43,11 @@ public struct TimeDropdownView: View {
             )
 
             GlassCard(tint: accent.primary) {
-                MonthCalendar(date: now, accent: accent)
+                MonthCalendar(
+                    date: now,
+                    accent: accent,
+                    weekStart: settingsStore.settings.time.calendarWeekStart
+                )
             }
 
             if !settingsStore.settings.time.worldClockIdentifiers.isEmpty {
@@ -182,10 +186,11 @@ private struct CalendarEventRow: View {
 private struct MonthCalendar: View {
     let date: Date
     let accent: ModuleAccent
+    let weekStart: CalendarWeekStart
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 3), count: 7)
 
     var body: some View {
-        let calendar = Calendar.current
+        let calendar = configuredCalendar
         let month = calendar.dateInterval(of: .month, for: date)
         let first = month?.start ?? date
         let dayRange = calendar.range(of: .day, in: .month, for: date) ?? 1..<2
@@ -230,6 +235,13 @@ private struct MonthCalendar: View {
         return formatter.string(from: date)
     }
 
+    private var configuredCalendar: Calendar {
+        var calendar = Calendar.current
+        if let firstWeekday = weekStart.firstWeekday {
+            calendar.firstWeekday = firstWeekday
+        }
+        return calendar
+    }
 }
 
 struct CalendarWeekdayLabel: Identifiable, Equatable {

@@ -1,5 +1,45 @@
 import Foundation
 
+/// The weekday that begins the month-calendar grid.
+public enum CalendarWeekStart: String, Codable, CaseIterable, Sendable {
+    case systemDefault
+    case sunday
+    case monday
+    case tuesday
+    case wednesday
+    case thursday
+    case friday
+    case saturday
+
+    /// User-facing name shown in Time settings.
+    public var displayName: String {
+        switch self {
+        case .systemDefault: "System Default"
+        case .sunday: "Sunday"
+        case .monday: "Monday"
+        case .tuesday: "Tuesday"
+        case .wednesday: "Wednesday"
+        case .thursday: "Thursday"
+        case .friday: "Friday"
+        case .saturday: "Saturday"
+        }
+    }
+
+    /// Gregorian weekday index, or nil when the system preference should be used.
+    public var firstWeekday: Int? {
+        switch self {
+        case .systemDefault: nil
+        case .sunday: 1
+        case .monday: 2
+        case .tuesday: 3
+        case .wednesday: 4
+        case .thursday: 5
+        case .friday: 6
+        case .saturday: 7
+        }
+    }
+}
+
 /// Persisted choices for the Time module.
 public struct TimeSettings: Codable, Equatable, Sendable {
     /// Token template rendered in the menu bar.
@@ -17,19 +57,46 @@ public struct TimeSettings: Codable, Equatable, Sendable {
     /// Maximum number of upcoming events shown.
     public var calendarEventCount: Int
 
+    /// Weekday that begins the month calendar, or the system preference.
+    public var calendarWeekStart: CalendarWeekStart
+
     /// Creates Time settings.
     public init(
         menuBarTemplate: String = "{time}",
         showsSeconds: Bool = false,
         worldClockIdentifiers: [String] = ["UTC"],
         showsCalendarEvents: Bool = false,
-        calendarEventCount: Int = 5
+        calendarEventCount: Int = 5,
+        calendarWeekStart: CalendarWeekStart = .systemDefault
     ) {
         self.menuBarTemplate = menuBarTemplate
         self.showsSeconds = showsSeconds
         self.worldClockIdentifiers = worldClockIdentifiers
         self.showsCalendarEvents = showsCalendarEvents
         self.calendarEventCount = calendarEventCount
+        self.calendarWeekStart = calendarWeekStart
+        normalize()
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case menuBarTemplate
+        case showsSeconds
+        case worldClockIdentifiers
+        case showsCalendarEvents
+        case calendarEventCount
+        case calendarWeekStart
+    }
+
+    /// Decodes saved Time settings, defaulting older files to the system's week order.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        menuBarTemplate = try container.decode(String.self, forKey: .menuBarTemplate)
+        showsSeconds = try container.decode(Bool.self, forKey: .showsSeconds)
+        worldClockIdentifiers = try container.decode([String].self, forKey: .worldClockIdentifiers)
+        showsCalendarEvents = try container.decode(Bool.self, forKey: .showsCalendarEvents)
+        calendarEventCount = try container.decode(Int.self, forKey: .calendarEventCount)
+        calendarWeekStart =
+            try container.decodeIfPresent(CalendarWeekStart.self, forKey: .calendarWeekStart) ?? .systemDefault
         normalize()
     }
 

@@ -1,4 +1,5 @@
 import Foundation
+import MenuBarStatsCore
 import Testing
 @testable import MenuBarStatsUI
 
@@ -29,5 +30,13 @@ struct CalendarWeekdayLabelTests {
 
         #expect(labels.map(\.id) == Array(0..<7))
         #expect(labels.map(\.symbol) == Array(symbols[1...] + symbols[..<1]))
+    }
+
+    @Test("Every explicit week start maps to a distinct calendar column")
+    func explicitWeekStarts() {
+        let choices = CalendarWeekStart.allCases.filter { $0 != .systemDefault }
+
+        #expect(choices.compactMap(\.firstWeekday) == Array(1...7))
+        #expect(Set(choices.compactMap(\.firstWeekday)).count == 7)
     }
 }

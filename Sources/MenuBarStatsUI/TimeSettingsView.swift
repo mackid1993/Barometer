@@ -53,6 +53,11 @@ struct TimeSettingsView: View {
                 }
             }
             Section("Calendar") {
+                Picker("Start week on", selection: timeBinding(\.calendarWeekStart)) {
+                    ForEach(CalendarWeekStart.allCases, id: \.self) { option in
+                        Text(option.displayName).tag(option)
+                    }
+                }
                 Toggle("Show upcoming events", isOn: timeBinding(\.showsCalendarEvents))
                 Stepper(value: timeBinding(\.calendarEventCount), in: 1...10) {
                     Text("Event count: \(settingsStore.settings.time.calendarEventCount)")

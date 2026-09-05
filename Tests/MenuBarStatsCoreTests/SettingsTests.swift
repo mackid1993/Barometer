@@ -16,10 +16,25 @@ struct SettingsTests {
         settings.graphOpacity = 0.62
         settings.fontWeight = .semibold
         settings.modules[.cpu]?.warningLightColor = "#ABCDEF"
+        settings.time.calendarWeekStart = .monday
 
         let data = try JSONEncoder().encode(settings)
         let decoded = try JSONDecoder().decode(AppSettings.self, from: data)
         #expect(decoded == settings)
+    }
+
+    @Test("older Time settings use the system week start")
+    func migratesCalendarWeekStart() throws {
+        let encoded = try JSONEncoder().encode(AppSettings())
+        var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        var time = try #require(object["time"] as? [String: Any])
+        time.removeValue(forKey: "calendarWeekStart")
+        object["time"] = time
+
+        let oldData = try JSONSerialization.data(withJSONObject: object)
+        let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
+
+        #expect(migrated.time.calendarWeekStart == .systemDefault)
     }
 
     @Test("settings import rejects invalid values without changing current settings")
