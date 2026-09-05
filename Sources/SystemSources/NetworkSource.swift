@@ -76,8 +76,7 @@ public enum NetworkSourceError: Error, Sendable {
     case sysctl(Int32)
 }
 
-/// Reads interface identity from `NET_RT_IFLIST2`, 64-bit counters from IFMIB, and configuration from
-/// SystemConfiguration.
+/// Reads interface identity and 64-bit counters from `NET_RT_IFLIST2`, plus configuration from SystemConfiguration.
 public struct NetworkSource: Sendable {
     /// Whether the routing information base exposes at least one interface.
     public var isAvailable: Bool {
@@ -141,6 +140,7 @@ public struct NetworkSource: Sendable {
             throw NetworkSourceError.sysctl(errno)
         }
 
+        let interfaceNames = Self.interfaceNames()
         var result: [UInt32: InterfaceCounters] = [:]
         bytes.withUnsafeBytes { buffer in
             var offset = 0
@@ -155,7 +155,7 @@ public struct NetworkSource: Sendable {
                 {
                     let message = buffer.loadUnaligned(fromByteOffset: offset, as: if_msghdr2.self)
                     let index = UInt32(message.ifm_index)
-                    if let name = Self.interfaceName(index: index) {
+                    if let name = interfaceNames[index] {
                         let data = message.ifm_data
                         result[index] = InterfaceCounters(
                             name: name,
@@ -177,12 +177,18 @@ public struct NetworkSource: Sendable {
         return result
     }
 
-    private static func interfaceName(index: UInt32) -> String? {
-        var name = [CChar](repeating: 0, count: Int(IF_NAMESIZE))
-        guard if_indextoname(index, &name) != nil else {
-            return nil
+    private static func interfaceNames() -> [UInt32: String] {
+        guard let first = if_nameindex() else { return [:] }
+        defer { if_freenameindex(first) }
+        var result: [UInt32: String] = [:]
+        var current = first
+        while current.pointee.if_index != 0 {
+            if let name = current.pointee.if_name {
+                result[UInt32(current.pointee.if_index)] = String(cString: name)
+            }
+            current = current.advanced(by: 1)
         }
-        return Self.string(fromNullTerminated: name)
+        return result
     }
 
     private static func interfaceAddresses() -> [String: InterfaceAddresses] {

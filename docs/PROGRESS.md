@@ -3253,3 +3253,20 @@ Verification before the final local installation:
   14.1 MiB peak physical footprint with zero leaked blocks (`dist/p8-t42-idle-top-139-stable.txt` and
   `dist/p8-t42-leaks-139.txt`). Its signature is valid. The sampled stacks contained only visible status-item
   sampling and rendering; hidden GPU, Wi-Fi, and process-detail sources were absent. No push.
+
+## P8-T43 Collapse interface-name system queries
+
+An idle-process profile after P8-T42 showed that `if_indextoname` internally enumerated every interface each time it
+resolved one route entry. Network sampling therefore repeated `getifaddrs` and its kernel query for every interface.
+`NetworkSource` now takes one `if_nameindex` snapshot for the route pass and resolves all message indices from that
+dictionary. The route message remains the sole source of byte, packet, error, and flag values.
+
+Verification before local installation:
+
+- Source invariants and `git diff --check` passed.
+- `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer make test` executed all 241 tests: 32 SystemSources,
+  84 UI, and 125 Core tests passed (`dist/p8-t43-tests.log`).
+- The live Network probe retained `en0`, current transfer rates, IPv4 and IPv6 addresses, router, DNS, and nonzero
+  cumulative totals (`dist/p8-t43-network-probe.log`).
+- `python3 Scripts/benchmark-memory.py dist/memory-baseline` passed with a 92.8% lower one-hour footprint and zero
+  growth from simulated hours 24 to 48 (`dist/p8-t43-history-memory.log`). No push.
