@@ -3343,3 +3343,20 @@ DMG SHA-256 is `61fde3429c4dea53604386f9920b7f000662faa1651d65a56a786b94901ed133
 replacement of Canvas-backed graphs as the largest memory fix and explain the measured retained allocation it
 removed. The final order leads with the optimization work, followed by the built-in updater and the other feature
 and bug-fix sections. No release workflow was run and no release was created.
+
+## P8-T46 Prepare the 1.0.2 draft through GitHub Actions
+
+GitHub Actions Release run 33947348211 completed successfully against commit `7cd6ece`. The source invariant check,
+all 242 tests in 34 suites, and the panel and graph memory benchmark passed. The release benchmark peaked at
+37.9 MiB against its 128 MiB limit.
+
+The GitHub macOS runner built the production app and DMG, imported the Developer ID certificate, signed both
+artifacts, and submitted the DMG to Apple's notary service. Apple returned `Accepted`. Stapling and validation passed,
+and Gatekeeper reported `source=Notarized Developer ID`. The Actions artifact, rather than a local build, was then
+used to refresh the existing v1.0.2 draft.
+
+Verified through the GitHub release API that the release remains a non-prerelease draft targeting `7cd6ece`, the
+published notes exactly match `docs/RELEASE_NOTES_1.0.2.md`, and the notes link `@diazdesandi` and pull request #2.
+The draft contains one asset named `Barometer-1.0.2.dmg`, reported as an Apple disk image with SHA-256
+`83e9570841ccea223859f3b683e1367b40681bcbdf43fcdfc2fb96ad7698da8d`. Publication remains a manual action for
+David.
