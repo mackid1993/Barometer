@@ -3587,3 +3587,23 @@ Release verification before dispatch:
 - `make dmg` built `dist/Barometer-1.0.4.dmg`; the nested app reports version 1.0.4, passes strict signature
   verification, and `hdiutil verify` validates the image checksum. The local DMG is ad hoc signed by design; GitHub
   Actions performs the Developer ID signature, notarization, stapling, and final assessment.
+
+## P8-T55 Preserve every calendar weekday heading
+
+Issue #3 exposed a SwiftUI identity collision in the Time calendar: the seven localized one-letter headings used their
+displayed text as the `ForEach` identity. Languages such as English repeat the same letter for multiple weekdays, so
+SwiftUI collapsed Tuesday with Thursday and Saturday with Sunday. Weekday headings now use their stable column index
+as identity while preserving the user's locale and first-weekday order. Regression coverage proves that seven columns
+remain distinct even when their displayed symbols repeat.
+
+The first 1.0.4 workflow run was canceled during notarization as soon as the report arrived. It never uploaded an
+artifact or created a GitHub release. Release notes now include the calendar correction.
+
+Verification:
+
+- `swift test --filter CalendarWeekdayLabelTests` passed both duplicate-symbol and first-weekday-order tests.
+- `make test` passed all 261 tests: 35 SystemSources, 95 UI, and 131 Core tests. This included the complete popover
+  placement test.
+- `python3 Scripts/check-source-invariants.py`, `make security-audit`, and `git diff --check` passed.
+- `make dmg` rebuilt `dist/Barometer-1.0.4.dmg`; its nested app reports 1.0.4 and `hdiutil verify` validated the image.
+  The local artifact is ad hoc signed; the restarted GitHub workflow performs distribution signing and notarization.

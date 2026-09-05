@@ -200,8 +200,8 @@ private struct MonthCalendar: View {
                     symbol: "calendar")
             }
             LazyVGrid(columns: columns, spacing: 5) {
-                ForEach(weekdaySymbols, id: \.self) { symbol in
-                    Text(symbol).font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                ForEach(CalendarWeekdayLabel.labels(for: calendar)) { label in
+                    Text(label.symbol).font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
                 }
                 ForEach(0..<leading, id: \.self) { _ in Color.clear.frame(height: 24) }
                 ForEach(Array(dayRange), id: \.self) { day in
@@ -230,10 +230,18 @@ private struct MonthCalendar: View {
         return formatter.string(from: date)
     }
 
-    private var weekdaySymbols: [String] {
-        let symbols = Calendar.current.veryShortStandaloneWeekdaySymbols
-        let offset = Calendar.current.firstWeekday - 1
-        return Array(symbols[offset...] + symbols[..<offset])
+}
+
+struct CalendarWeekdayLabel: Identifiable, Equatable {
+    let id: Int
+    let symbol: String
+
+    static func labels(for calendar: Calendar) -> [Self] {
+        let symbols = calendar.veryShortStandaloneWeekdaySymbols
+        guard !symbols.isEmpty else { return [] }
+        let offset = min(max(0, calendar.firstWeekday - 1), symbols.count - 1)
+        let ordered = Array(symbols[offset...] + symbols[..<offset])
+        return ordered.enumerated().map { Self(id: $0.offset, symbol: $0.element) }
     }
 }
 
