@@ -2789,3 +2789,28 @@ At David's request, reran both checks against committed revision c30073a before 
   grew 16,384 bytes (12,403,264 to 12,419,648), below the 5 MiB plateau threshold. This is isolated history storage.
   Output: dist/pre-push-memory.log.
 - git diff --check passed. No code changed after these checks; this entry records the pre-push results.
+
+### P8-T28: Bound every popover to its display
+
+David's screenshot showed the main weather popover extending above the screen. Root presentation had relied on
+NSHostingController's automatic sizing without explicitly setting NSPopover.contentSize. Added shared
+PopoverPlacement: fix the viewport, disable automatic hosting-controller sizing, set contentSize before showing,
+and contain the resulting window inside the anchor display's visible frame. Apply it to Weather, Combined, and
+hover day popovers; recheck the root during updates and child presentation. Status-item window geometry is untouched.
+
+Verification before packaging:
+
+- make test: all 198 tests in 29 suites passed. New tests cover actual Weather, Combined with Weather selected,
+  both rich fixture days, four corners, light/dark appearances, plus oversized frames on displays with negative
+  coordinates. Window bounds must remain contained after display, not just during initial layout.
+- Native NSView bitmap captures were blank and rejected as visual evidence. CGPreflightScreenCaptureAccess returned
+  true, so used existing permission for /usr/sbin/screencapture of test popover windows only. Captured 32 real window
+  screenshots under dist/popover-screens and inspected each popover type in both appearances. Headers are visible;
+  content extends only inside the scroll viewport. Screenshots are opt-in via POPOVER_SNAPSHOT_DIRECTORY; default CI
+  still runs the live window geometry checks without requiring capture permission.
+- Existing nested-popover scrolling and 100 real-weather open/close release tests passed.
+- Memory benchmark passed: 92.7% lower one-hour history footprint; 16,384-byte growth between simulated hours 24 and
+  48, below the 5 MiB threshold. This benchmark measures isolated history storage.
+- git diff --check passed. Logs: dist/weather-placement-tests.log and dist/weather-placement-memory.log.
+- After the clean tests, make app passed, the signed bundle was copied to /Applications/Barometer.app, strict
+  codesign verification passed, and the Applications copy was relaunched. This correction remains local.

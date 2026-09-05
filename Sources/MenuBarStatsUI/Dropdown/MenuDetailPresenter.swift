@@ -47,13 +47,12 @@ final class MenuDetailPresenter: NSObject, NSPopoverDelegate {
         detail.behavior = .semitransient
         detail.animates = false
         detail.delegate = self
-        detail.contentViewController = NSHostingController(rootView: content.environment(\.closeMenuDetail, {
-            [weak self] in self?.close()
-        }))
         let height = min(640, max(300, (anchor.window?.screen?.visibleFrame.height ?? 900) - 100))
-        detail.contentSize = NSSize(width: 380, height: height)
+        let content = content.environment(\.closeMenuDetail, { [weak self] in self?.close() })
+        PopoverPlacement.configure(detail, content: content, size: NSSize(width: 380, height: height))
         popover = detail
         detail.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: edge)
+        PopoverPlacement.constrain(detail, to: anchor.window?.screen)
     }
 
     func close() {

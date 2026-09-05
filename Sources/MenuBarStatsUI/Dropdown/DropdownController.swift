@@ -52,6 +52,9 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
             guard let self else { return }
             if self.usesPopover {
                 self.detailPresenter.present(content, anchoredTo: rowAnchor, edge: .maxX)
+                if let root = self.rootPopover {
+                    PopoverPlacement.constrain(root, to: self.detailAnchor?.window?.screen)
+                }
             } else if let anchor = self.detailAnchor {
                 self.detailPresenter.show(content, from: self.menu, anchoredTo: anchor)
             }
@@ -110,9 +113,10 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
                 Button("Quit Barometer") { [weak self] in self?.quitAction() }
             }.padding(12)
         }.frame(width: contentWidth, height: height)
-        popover.contentViewController = NSHostingController(rootView: content)
+        PopoverPlacement.configure(popover, content: content, size: NSSize(width: contentWidth, height: height))
         rootPopover = popover
         popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
+        PopoverPlacement.constrain(popover, to: anchor.window?.screen)
         trackingTimer?.invalidate()
         let timer = Timer(timeInterval: 0.5, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
         RunLoop.main.add(timer, forMode: .common)
@@ -170,6 +174,7 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
     }
 
     @objc private func tick() {
+        if let rootPopover { PopoverPlacement.constrain(rootPopover, to: detailAnchor?.window?.screen) }
         tickAction()
         fitContent()
         logger.debug("tracking tick module=\(self.moduleName, privacy: .public)")
