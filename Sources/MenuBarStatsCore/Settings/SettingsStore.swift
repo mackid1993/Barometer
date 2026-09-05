@@ -43,6 +43,9 @@ public final class SettingsStore {
     /// Per-stack visibility choices waiting for the user to apply them.
     public private(set) var pendingStackVisibility: [Int: Bool] = [:]
 
+    /// Width-affecting clock choices waiting for a clean application relaunch.
+    public private(set) var pendingTimeMenuBarConfiguration: TimeMenuBarConfiguration?
+
     /// Stack readings waiting for the user to apply them.
     ///
     /// Staged because a stack's readings decide which modules it replaces, and that changes the set
@@ -119,6 +122,7 @@ public final class SettingsStore {
     public var settingsIncludingPendingMenuBarChanges: AppSettings {
         var result = settings
         applyPendingVisibility(to: &result)
+        applyPendingTimeMenuBarConfiguration(to: &result)
         return result
     }
 
@@ -129,6 +133,17 @@ public final class SettingsStore {
             || !pendingStackVisibility.isEmpty
             || !pendingStackMetrics.isEmpty
             || !pendingStackHidesSourceItems.isEmpty
+            || pendingTimeMenuBarConfiguration != nil
+    }
+
+    /// Clock configuration shown by Settings, including edits waiting for Apply Changes.
+    public var timeMenuBarConfiguration: TimeMenuBarConfiguration {
+        pendingTimeMenuBarConfiguration ?? savedTimeMenuBarConfiguration
+    }
+
+    /// Stages clock edits so the status item can receive its final width before becoming visible.
+    public func stageTimeMenuBarConfiguration(_ configuration: TimeMenuBarConfiguration) {
+        pendingTimeMenuBarConfiguration = configuration == savedTimeMenuBarConfiguration ? nil : configuration
     }
 
     /// Returns the staged module visibility, falling back to the saved value.
@@ -210,11 +225,12 @@ public final class SettingsStore {
         pendingStackHidesSourceItems.removeValue(forKey: id)
     }
 
-    /// Commits all staged visibility choices and persists them immediately.
+    /// Commits all staged menu bar choices and persists them immediately.
     public func applyPendingMenuBarChanges() {
         guard hasPendingMenuBarChanges else { return }
         var updated = settings
         applyPendingVisibility(to: &updated)
+        applyPendingTimeMenuBarConfiguration(to: &updated)
         clearPendingMenuBarChanges()
         settings = updated
         saveNow()
@@ -231,6 +247,7 @@ public final class SettingsStore {
         pendingStackVisibility.removeAll()
         pendingStackMetrics.removeAll()
         pendingStackHidesSourceItems.removeAll()
+        pendingTimeMenuBarConfiguration = nil
     }
 
     private func applyPendingVisibility(to result: inout AppSettings) {
@@ -255,6 +272,23 @@ public final class SettingsStore {
             guard let index = result.stacks.stacks.firstIndex(where: { $0.id == id }) else { continue }
             result.stacks.stacks[index].hidesSourceItems = hidesSourceItems
         }
+    }
+
+    private var savedTimeMenuBarConfiguration: TimeMenuBarConfiguration {
+        TimeMenuBarConfiguration(
+            template: settings.time.menuBarTemplate,
+            showsSeconds: settings.time.showsSeconds,
+            usesFixedWidth: settings.modules[.time]?.usesFixedWidth ?? true
+        )
+    }
+
+    private func applyPendingTimeMenuBarConfiguration(to result: inout AppSettings) {
+        guard let configuration = pendingTimeMenuBarConfiguration else { return }
+        result.time.menuBarTemplate = configuration.template
+        result.time.showsSeconds = configuration.showsSeconds
+        var moduleSettings = result.modules[.time] ?? ModuleSettings(mode: "custom", interval: 60)
+        moduleSettings.usesFixedWidth = configuration.usesFixedWidth
+        result.modules[.time] = moduleSettings
     }
 
     private func scheduleSave() {

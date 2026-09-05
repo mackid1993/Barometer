@@ -16,12 +16,23 @@ binary_path = pathlib.Path(subprocess.check_output(
     ['swift', 'build', '--show-bin-path'], cwd=root, text=True).strip())
 objects = []
 for target in ['MenuBarStatsUI', 'MenuBarStatsCore', 'SystemSources', 'CSystemSources']:
-    objects.extend(str(p) for p in sorted((binary_path / f'{target}.build').glob('*.o')))
+    merged_object = binary_path / f'{target}.o'
+    if merged_object.exists():
+        objects.append(str(merged_object))
+    else:
+        objects.extend(str(p) for p in sorted((binary_path / f'{target}.build').glob('*.o')))
 binary = root / 'dist' / 'popover-memory-benchmark'
 binary.parent.mkdir(parents=True, exist_ok=True)
-command = ['swiftc', '-parse-as-library', '-O', '-I', str(binary_path / 'Modules'),
+module_path = binary_path / 'Modules'
+command = ['swiftc', '-parse-as-library', '-O', '-I', str(module_path if module_path.exists() else binary_path),
            '-I', str(binary_path / 'CSystemSources.build'), str(root / 'Tools/PopoverMemoryBenchmark.swift'),
            *objects, '-o', str(binary)]
+c_module_map = binary_path / 'CSystemSources.build' / 'module.modulemap'
+if not c_module_map.exists():
+    c_module_map = binary_path.parent.parent / 'Intermediates.noindex/GeneratedModuleMaps/CSystemSources.modulemap'
+if c_module_map.exists():
+    command.extend(['-Xcc', f'-fmodule-map-file={c_module_map}',
+                    '-Xcc', f'-I{root / "Sources/CSystemSources/include"}'])
 for framework in ['AppKit', 'SwiftUI', 'IOKit', 'CoreWLAN', 'EventKit', 'Network', 'SystemConfiguration']:
     command.extend(['-framework', framework])
 subprocess.run(command, cwd=root, check=True)

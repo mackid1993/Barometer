@@ -116,6 +116,35 @@ struct MenuBarRendererTests {
         #expect(unavailable.image.size == content.image.size)
     }
 
+    @Test("seconds clock fits the canvas calculated after relaunch")
+    func secondsClockFitsRelaunchedCanvas() {
+        let settings = ModuleSettings(isEnabled: true, mode: "custom", usesFixedWidth: true)
+        let timeSettings = TimeSettings(menuBarTemplate: "{weekday} {time} {zone}", showsSeconds: true)
+        let unavailable = TimeMenuBarPresenter.content(
+            sample: nil,
+            settings: settings,
+            timeSettings: timeSettings,
+            context: context
+        )
+        let dates = [
+            Date(timeIntervalSince1970: 1_704_110_400),
+            Date(timeIntervalSince1970: 1_704_153_599),
+            Date(timeIntervalSince1970: 1_720_056_599),
+        ]
+
+        for date in dates {
+            let content = TimeMenuBarPresenter.content(
+                sample: TimeSample(timestamp: date, systemTimeZoneIdentifier: "America/New_York"),
+                settings: settings,
+                timeSettings: timeSettings,
+                context: context
+            )
+            #expect(content.image.size.width <= unavailable.image.size.width)
+            #expect(StatusItemRendering.roundedLength(content.image.size.width)
+                <= StatusItemRendering.roundedLength(unavailable.image.size.width))
+        }
+    }
+
     @Test
     func weatherRefreshAgeMakesSuccessfulUpdatesVisible() {
         let now = Date(timeIntervalSince1970: 10_000)

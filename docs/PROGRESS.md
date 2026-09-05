@@ -3360,3 +3360,32 @@ published notes exactly match `docs/RELEASE_NOTES_1.0.2.md`, and the notes link 
 The draft contains one asset named `Barometer-1.0.2.dmg`, reported as an Apple disk image with SHA-256
 `83e9570841ccea223859f3b683e1367b40681bcbdf43fcdfc2fb96ad7698da8d`. Publication remains a manual action for
 David.
+
+## P8-T47 Fix clock sizing and reduce Time overhead
+
+Width-affecting Time choices now follow the same Apply Changes and relaunch path as menu bar visibility. Editing the
+format, seconds, or fixed-width option updates the Settings preview without changing the live status item. Applying
+the changes saves them and reopens Barometer so the permanent Time item receives its final width before it becomes
+visible. This fixes the clipped seconds display without resizing a live item under a menu bar manager.
+
+The one-second clock path now formats only the tokens in the configured template and reuses a bounded DateFormatter
+cache. Calendar authorization and event queries refresh once per minute while the displayed clock continues to update
+each second. Tests cover the staged settings flow, relaunch-sized seconds canvas, lazy token evaluation, and Calendar
+query frequency.
+
+Verification before local installation:
+
+- `python3 Scripts/check-source-invariants.py` passed.
+- `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer make test` executed all 245 tests in 34 suites. All
+  SystemSources, Core, UI, updater DMG installation, clock, layout, and cleanup tests passed.
+- `POPOVER_SNAPSHOT_DIRECTORY="$PWD/dist/p8-t47-all-popover-screens"` with the same developer directory ran the full
+  suite and produced 192 captures. CPU, GPU, Memory, Disks, Network, Sensors, Battery, Weather, Time, Combined, and
+  Weather day detail were placed at every screen corner in light and dark appearances. Representative top and bottom
+  captures are aligned, remain inside the display, scroll to their true bottom, and preserve the existing cards,
+  gradients, shapes, and glow.
+- `python3 Scripts/benchmark-popover-memory.py` passed ten rich-panel and shared-graph cycles at about 37.3 MiB current
+  and 47.8 MiB peak, below the 128 MiB gate.
+- `python3 Scripts/benchmark-memory.py dist/memory-baseline` passed with a 92.7% one-hour memory reduction and zero
+  growth between simulated hours 24 and 48.
+- `swift build -c release`, `git diff --check`, and the status item width invariant passed. Production still has one
+  `statusItem.length` assignment at launch.

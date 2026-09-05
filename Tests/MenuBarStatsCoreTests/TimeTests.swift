@@ -1,4 +1,5 @@
 import Foundation
+import SystemSources
 @testable import MenuBarStatsCore
 import Testing
 
@@ -55,9 +56,75 @@ struct TimeTests {
         #expect(abs(TimeMonitor.secondsUntilNextMinute(date: date) - 47.75) < 0.001)
     }
 
+    @Test("seconds ticks reuse Calendar data for one minute")
+    func secondsTicksReuseCalendarData() async {
+        let source = CountingCalendarSource()
+        let monitor = TimeMonitor(showsSeconds: true, calendarSource: source)
+        await monitor.setCalendarConfiguration(isEnabled: true, count: 5)
+        let start = Date(timeIntervalSinceReferenceDate: 10_000)
+
+        let first = await monitor.sample(at: start)
+        let second = await monitor.sample(at: start.addingTimeInterval(1))
+        let beforeRefresh = await monitor.sample(at: start.addingTimeInterval(59))
+        let refreshed = await monitor.sample(at: start.addingTimeInterval(60))
+        let counts = await source.counts
+
+        #expect(first.timestamp == start)
+        #expect(second.timestamp == start.addingTimeInterval(1))
+        #expect(beforeRefresh.timestamp == start.addingTimeInterval(59))
+        #expect(refreshed.timestamp == start.addingTimeInterval(60))
+        #expect(first.upcomingEvents == second.upcomingEvents)
+        #expect(counts.authorization == 2)
+        #expect(counts.events == 2)
+    }
+
+    @Test("token expansion computes only fields present in the template")
+    func tokenExpansionIsLazy() {
+        var requested: [String] = []
+        let result = TimeFormatEngine.replacingTokens(in: "Clock {time} {zone}") { token in
+            requested.append(token)
+            return token == "{time}" ? "9:41:30 AM" : "EDT"
+        }
+
+        #expect(result == "Clock 9:41:30 AM EDT")
+        #expect(requested == ["{time}", "{zone}"])
+    }
+
     private func normalizedWhitespace(_ value: String) -> String {
         value
             .replacingOccurrences(of: "\u{00A0}", with: " ")
             .replacingOccurrences(of: "\u{202F}", with: " ")
+    }
+}
+
+private actor CountingCalendarSource: CalendarEventProviding {
+    private var authorizationCount = 0
+    private var eventCount = 0
+
+    var authorizationState: CalendarAuthorizationState {
+        authorizationCount += 1
+        return .fullAccess
+    }
+
+    var counts: (authorization: Int, events: Int) {
+        (authorizationCount, eventCount)
+    }
+
+    func requestFullAccess() async throws -> CalendarAuthorizationState {
+        .fullAccess
+    }
+
+    func events(from date: Date, limit: Int) -> [CalendarEventSnapshot] {
+        eventCount += 1
+        return [
+            CalendarEventSnapshot(
+                id: "event",
+                title: "Event",
+                startDate: date.addingTimeInterval(3_600),
+                endDate: date.addingTimeInterval(7_200),
+                isAllDay: false,
+                calendarTitle: "Calendar"
+            )
+        ]
     }
 }

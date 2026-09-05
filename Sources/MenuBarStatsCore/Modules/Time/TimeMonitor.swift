@@ -1,5 +1,20 @@
 import Foundation
+import Synchronization
 import SystemSources
+
+/// Calendar operations used by the Time monitor.
+public protocol CalendarEventProviding: Actor, Sendable {
+    /// Current Calendar authorization without prompting.
+    var authorizationState: CalendarAuthorizationState { get }
+
+    /// Requests full event access following a user action.
+    func requestFullAccess() async throws -> CalendarAuthorizationState
+
+    /// Returns upcoming Calendar events.
+    func events(from date: Date, limit: Int) -> [CalendarEventSnapshot]
+}
+
+extension CalendarEventSource: CalendarEventProviding {}
 
 /// Current wall-clock state and system time zone.
 public struct TimeSample: Equatable, Sendable {
@@ -27,13 +42,21 @@ public actor TimeMonitor: Monitor {
     private var showsSeconds: Bool
     private var includesCalendarEvents = false
     private var calendarEventCount = 5
-    private let calendarSource: CalendarEventSource
+    private let calendarSource: any CalendarEventProviding
+    private var cachedCalendarAuthorization: CalendarAuthorizationState?
+    private var cachedUpcomingEvents: [CalendarEventSnapshot] = []
+    private var nextCalendarRefresh: Date?
+
+    static let calendarRefreshInterval: TimeInterval = 60
 
     /// Wall-clock time is available on every supported Mac.
     public var isAvailable: Bool { true }
 
     /// Creates a time monitor. The coordinator selects a one- or sixty-second scheduler interval.
-    public init(showsSeconds: Bool = false, calendarSource: CalendarEventSource = CalendarEventSource()) {
+    public init(
+        showsSeconds: Bool = false,
+        calendarSource: any CalendarEventProviding = CalendarEventSource()
+    ) {
         self.showsSeconds = showsSeconds
         self.calendarSource = calendarSource
     }
@@ -45,15 +68,24 @@ public actor TimeMonitor: Monitor {
 
     /// Reads the current time and dynamic system time zone.
     public func sample() async -> TimeSample {
-        let now = Date()
-        let authorization = await calendarSource.authorizationState
-        let events = includesCalendarEvents && authorization == .fullAccess
-            ? await calendarSource.events(from: now, limit: calendarEventCount)
-            : []
+        await sample(at: Date())
+    }
+
+    func sample(at now: Date) async -> TimeSample {
+        let shouldRefreshCalendar = cachedCalendarAuthorization == nil
+            || nextCalendarRefresh.map { now >= $0 } ?? true
+        if shouldRefreshCalendar {
+            let authorization = await calendarSource.authorizationState
+            cachedCalendarAuthorization = authorization
+            cachedUpcomingEvents = includesCalendarEvents && authorization == .fullAccess
+                ? await calendarSource.events(from: now, limit: calendarEventCount)
+                : []
+            nextCalendarRefresh = now.addingTimeInterval(Self.calendarRefreshInterval)
+        }
         return TimeSample(
             timestamp: now,
-            calendarAuthorization: authorization,
-            upcomingEvents: events
+            calendarAuthorization: cachedCalendarAuthorization ?? .unavailable,
+            upcomingEvents: cachedUpcomingEvents
         )
     }
 
@@ -64,13 +96,19 @@ public actor TimeMonitor: Monitor {
 
     /// Enables or disables event queries without requesting authorization.
     public func setCalendarConfiguration(isEnabled: Bool, count: Int) {
+        let normalizedCount = min(10, max(1, count))
+        guard includesCalendarEvents != isEnabled || calendarEventCount != normalizedCount else { return }
         includesCalendarEvents = isEnabled
-        calendarEventCount = min(10, max(1, count))
+        calendarEventCount = normalizedCount
+        nextCalendarRefresh = nil
     }
 
     /// Requests Calendar access. Call only from a user-initiated action.
     public func requestCalendarAccess() async throws -> CalendarAuthorizationState {
-        try await calendarSource.requestFullAccess()
+        let authorization = try await calendarSource.requestFullAccess()
+        cachedCalendarAuthorization = authorization
+        nextCalendarRefresh = nil
+        return authorization
     }
 
     static func secondsUntilNextMinute(date: Date) -> Double {
@@ -95,25 +133,49 @@ public enum TimeFormatEngine {
         showsSeconds: Bool,
         locale: Locale = .current
     ) -> String {
-        let calendar = configuredCalendar(timeZone: timeZone, locale: locale)
-        let timeTemplate = showsSeconds ? "jms" : "jm"
-        let values = [
-            "{time}": formatted(date, template: timeTemplate, timeZone: timeZone, locale: locale),
-            "{time24}": formatted(
-                date,
-                format: showsSeconds ? "HH:mm:ss" : "HH:mm",
-                timeZone: timeZone,
-                locale: locale
-            ),
-            "{date}": formatted(date, format: "MMM d", timeZone: timeZone, locale: locale),
-            "{weekday}": formatted(date, format: "EEE", timeZone: timeZone, locale: locale),
-            "{week}": String(format: "%02d", calendar.component(.weekOfYear, from: date)),
-            "{day}": String(format: "%03d", calendar.ordinality(of: .day, in: .year, for: date) ?? 0),
-            "{zone}": timeZone.abbreviation(for: date) ?? timeZone.identifier,
-        ]
-        return values.reduce(template) { result, pair in
-            result.replacingOccurrences(of: pair.key, with: pair.value)
+        replacingTokens(in: template) { token in
+            switch token {
+            case "{time}":
+                formatted(
+                    date,
+                    template: showsSeconds ? "jms" : "jm",
+                    timeZone: timeZone,
+                    locale: locale
+                )
+            case "{time24}":
+                formatted(
+                    date,
+                    format: showsSeconds ? "HH:mm:ss" : "HH:mm",
+                    timeZone: timeZone,
+                    locale: locale
+                )
+            case "{date}":
+                formatted(date, format: "MMM d", timeZone: timeZone, locale: locale)
+            case "{weekday}":
+                formatted(date, format: "EEE", timeZone: timeZone, locale: locale)
+            case "{week}":
+                String(format: "%02d", configuredCalendar(timeZone: timeZone, locale: locale)
+                    .component(.weekOfYear, from: date))
+            case "{day}":
+                String(format: "%03d", configuredCalendar(timeZone: timeZone, locale: locale)
+                    .ordinality(of: .day, in: .year, for: date) ?? 0)
+            case "{zone}":
+                timeZone.abbreviation(for: date) ?? timeZone.identifier
+            default:
+                token
+            }
         }
+    }
+
+    static func replacingTokens(
+        in template: String,
+        value: (String) -> String
+    ) -> String {
+        var result = template
+        for token in supportedTokens where result.contains(token) {
+            result = result.replacingOccurrences(of: token, with: value(token))
+        }
+        return result
     }
 
     /// Expands tokens to stable, deliberately wide values for menu bar width reservation.
@@ -138,11 +200,12 @@ public enum TimeFormatEngine {
         timeZone: TimeZone,
         locale: Locale
     ) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.timeZone = timeZone
-        formatter.dateFormat = DateFormatter.dateFormat(fromTemplate: template, options: 0, locale: locale)
-        return formatter.string(from: date)
+        cachedFormatted(
+            date,
+            key: FormatterKey(locale: locale.identifier, timeZone: timeZone.identifier, format: "template:\(template)"),
+            locale: locale,
+            timeZone: timeZone
+        ) { DateFormatter.dateFormat(fromTemplate: template, options: 0, locale: locale) }
     }
 
     private static func formatted(
@@ -151,11 +214,43 @@ public enum TimeFormatEngine {
         timeZone: TimeZone,
         locale: Locale
     ) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.timeZone = timeZone
-        formatter.dateFormat = format
-        return formatter.string(from: date)
+        cachedFormatted(
+            date,
+            key: FormatterKey(locale: locale.identifier, timeZone: timeZone.identifier, format: "format:\(format)"),
+            locale: locale,
+            timeZone: timeZone
+        ) { format }
+    }
+
+    private struct FormatterKey: Hashable {
+        let locale: String
+        let timeZone: String
+        let format: String
+    }
+
+    private static let formatterCache = Mutex<[FormatterKey: DateFormatter]>([:])
+
+    private static func cachedFormatted(
+        _ date: Date,
+        key: FormatterKey,
+        locale: Locale,
+        timeZone: TimeZone,
+        format: () -> String?
+    ) -> String {
+        formatterCache.withLock { cache in
+            if let formatter = cache[key] {
+                return formatter.string(from: date)
+            }
+            if cache.count >= 32 {
+                cache.removeAll(keepingCapacity: true)
+            }
+            let formatter = DateFormatter()
+            formatter.locale = locale
+            formatter.timeZone = timeZone
+            formatter.dateFormat = format()
+            cache[key] = formatter
+            return formatter.string(from: date)
+        }
     }
 
     private static func configuredCalendar(timeZone: TimeZone, locale: Locale) -> Calendar {

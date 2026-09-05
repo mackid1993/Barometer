@@ -42,3 +42,22 @@ public struct TimeSettings: Codable, Equatable, Sendable {
         calendarEventCount = min(10, max(1, calendarEventCount))
     }
 }
+
+/// Width-affecting Time choices that are applied together on a clean application launch.
+public struct TimeMenuBarConfiguration: Equatable, Sendable {
+    /// Token template rendered in the menu bar.
+    public var template: String
+
+    /// Whether clock tokens include seconds.
+    public var showsSeconds: Bool
+
+    /// Whether the renderer reserves the configured clock's widest value.
+    public var usesFixedWidth: Bool
+
+    /// Creates one menu bar clock configuration.
+    public init(template: String, showsSeconds: Bool, usesFixedWidth: Bool) {
+        self.template = template
+        self.showsSeconds = showsSeconds
+        self.usesFixedWidth = usesFixedWidth
+    }
+}

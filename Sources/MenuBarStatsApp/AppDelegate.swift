@@ -176,7 +176,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         settingsStore.applyPendingMenuBarChanges()
-        Self.logger.info("Applied menu bar visibility changes; reopening with new launch geometry")
+        Self.logger.info("Applied menu bar changes; reopening with new launch geometry")
         NSApp.terminate(nil)
     }
 }

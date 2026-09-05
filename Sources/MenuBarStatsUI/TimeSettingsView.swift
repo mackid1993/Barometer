@@ -14,6 +14,10 @@ struct TimeSettingsView: View {
         settingsStore.settings.modules[.time] ?? ModuleSettings(mode: "custom", interval: 60)
     }
 
+    private var menuBarConfiguration: TimeMenuBarConfiguration {
+        settingsStore.timeMenuBarConfiguration
+    }
+
     var body: some View {
         let now = store.latestSample?.timestamp ?? Date()
         Form {
@@ -22,9 +26,9 @@ struct TimeSettingsView: View {
                 LabeledContent("Live preview", value: preview(date: now))
             }
             Section("Menu Bar") {
-                TextField("Format", text: timeBinding(\.menuBarTemplate))
-                Toggle("Show seconds", isOn: timeBinding(\.showsSeconds))
-                Toggle("Use fixed-width numbers", isOn: moduleBinding(\.usesFixedWidth))
+                TextField("Format", text: menuBarBinding(\.template))
+                Toggle("Show seconds", isOn: menuBarBinding(\.showsSeconds))
+                Toggle("Use fixed-width numbers", isOn: menuBarBinding(\.usesFixedWidth))
                 Text("Tokens: {time}, {time24}, {date}, {weekday}, {week}, {day}, {zone}")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -88,8 +92,8 @@ struct TimeSettingsView: View {
         TimeFormatEngine.render(
             date: date,
             timeZone: .current,
-            template: settingsStore.settings.time.menuBarTemplate,
-            showsSeconds: settingsStore.settings.time.showsSeconds
+            template: menuBarConfiguration.template,
+            showsSeconds: menuBarConfiguration.showsSeconds
         )
     }
 
@@ -107,19 +111,6 @@ struct TimeSettingsView: View {
         settingsStore.settings = settings
     }
 
-    private func moduleBinding<Value>(_ keyPath: WritableKeyPath<ModuleSettings, Value>) -> Binding<Value> {
-        Binding(
-            get: { moduleSettings[keyPath: keyPath] },
-            set: { value in
-                var appSettings = settingsStore.settings
-                var settings = appSettings.modules[.time] ?? ModuleSettings(mode: "custom", interval: 60)
-                settings[keyPath: keyPath] = value
-                appSettings.modules[.time] = settings
-                settingsStore.settings = appSettings
-            }
-        )
-    }
-
     private func timeBinding<Value>(_ keyPath: WritableKeyPath<TimeSettings, Value>) -> Binding<Value> {
         Binding(
             get: { settingsStore.settings.time[keyPath: keyPath] },
@@ -127,6 +118,19 @@ struct TimeSettingsView: View {
                 var settings = settingsStore.settings
                 settings.time[keyPath: keyPath] = value
                 settingsStore.settings = settings
+            }
+        )
+    }
+
+    private func menuBarBinding<Value>(
+        _ keyPath: WritableKeyPath<TimeMenuBarConfiguration, Value>
+    ) -> Binding<Value> {
+        Binding(
+            get: { menuBarConfiguration[keyPath: keyPath] },
+            set: { value in
+                var configuration = menuBarConfiguration
+                configuration[keyPath: keyPath] = value
+                settingsStore.stageTimeMenuBarConfiguration(configuration)
             }
         )
     }

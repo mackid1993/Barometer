@@ -490,6 +490,42 @@ struct SettingsTests {
         #expect(store.settings.modules[.weather]?.isEnabled == false)
     }
 
+    @Test("clock width changes remain pending until applied")
+    @MainActor
+    func stagesTimeMenuBarConfiguration() {
+        let suiteName = "com.barometer.app.Tests.PendingTimeConfiguration"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = SettingsStore(defaults: defaults)
+        let saved = store.timeMenuBarConfiguration
+        var staged = saved
+        staged.template = "{weekday} {time}"
+        staged.showsSeconds = true
+        staged.usesFixedWidth = false
+
+        store.stageTimeMenuBarConfiguration(staged)
+
+        #expect(store.settings.time.menuBarTemplate == saved.template)
+        #expect(store.settings.time.showsSeconds == saved.showsSeconds)
+        #expect(store.settings.modules[.time]?.usesFixedWidth == saved.usesFixedWidth)
+        #expect(store.timeMenuBarConfiguration == staged)
+        #expect(store.settingsIncludingPendingMenuBarChanges.time.menuBarTemplate == staged.template)
+        #expect(store.settingsIncludingPendingMenuBarChanges.time.showsSeconds)
+        #expect(store.settingsIncludingPendingMenuBarChanges.modules[.time]?.usesFixedWidth == false)
+        #expect(store.hasPendingMenuBarChanges)
+
+        store.applyPendingMenuBarChanges()
+
+        #expect(store.settings.time.menuBarTemplate == staged.template)
+        #expect(store.settings.time.showsSeconds)
+        #expect(store.settings.modules[.time]?.usesFixedWidth == false)
+        #expect(!store.hasPendingMenuBarChanges)
+    }
+
     @Test("Sensors widget visibility uses the same apply boundary")
     @MainActor
     func stagesSensorWidgetVisibility() {

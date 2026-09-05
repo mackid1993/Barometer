@@ -1,4 +1,5 @@
 import AppKit
+import SystemSources
 import SwiftUI
 import Testing
 @testable import MenuBarStatsUI
@@ -27,6 +28,8 @@ struct PopoverPlacementTests {
         store.receive(sample)
         let networkStore = ModuleStore<NetworkSample>(historyCapacity: 60)
         let cpuStore = ModuleStore<CPUSample>(historyCapacity: 60)
+        let memoryStore = ModuleStore<MemorySample>(historyCapacity: 60)
+        let gpuStore = ModuleStore<GPUSample>(historyCapacity: 60)
         for index in 0..<60 {
             let timestamp = Date().addingTimeInterval(Double(index - 59))
             networkStore.receive(NetworkSample(
@@ -43,7 +46,22 @@ struct PopoverPlacementTests {
                 publicIP: nil
             ), at: timestamp)
             cpuStore.receive(Self.cpuSample(timestamp: timestamp, percent: Double(index + 20)), at: timestamp)
+            memoryStore.receive(Self.memorySample(timestamp: timestamp, percent: Double(index + 25)), at: timestamp)
+            gpuStore.receive(Self.gpuSample(timestamp: timestamp, percent: Double(index + 10)), at: timestamp)
         }
+        let diskStore = ModuleStore<DiskSample>(historyCapacity: 60)
+        diskStore.receive(Self.diskSample(timestamp: Date()))
+        let sensorStore = ModuleStore<SensorSample>(historyCapacity: 60)
+        sensorStore.receive(Self.sensorSample(timestamp: Date()))
+        let batteryStore = ModuleStore<BatterySample>(historyCapacity: 60)
+        batteryStore.receive(Self.batterySample(timestamp: Date()))
+        let timeStore = ModuleStore<TimeSample>(historyCapacity: 2)
+        timeStore.receive(TimeSample(
+            timestamp: Date(),
+            systemTimeZoneIdentifier: "America/New_York",
+            calendarAuthorization: .fullAccess,
+            upcomingEvents: []
+        ))
         var views: [(String, () -> AnyView, CGFloat)] = HistoryRange.allCases.map { range in
             (
                 "cpu-\(range.rawValue)",
@@ -56,6 +74,22 @@ struct PopoverPlacementTests {
             )
         }
         views.append(contentsOf: [
+            ("memory", { AnyView(MemoryDropdownView(
+                store: memoryStore, settingsStore: settingsStore)) }, 450),
+            ("gpu", { AnyView(GPUDropdownView(
+                store: gpuStore, settingsStore: settingsStore)) }, 520),
+            ("disks", { AnyView(DiskDropdownView(
+                store: diskStore, settingsStore: settingsStore)) }, 540),
+            ("sensors", { AnyView(SensorsDropdownView(
+                store: sensorStore, settingsStore: settingsStore, resetEnergyAction: {})) }, 620),
+            ("battery", { AnyView(BatteryDropdownView(
+                store: batteryStore, settingsStore: settingsStore)) }, 560),
+            ("time", { AnyView(TimeDropdownView(
+                store: timeStore,
+                weatherStore: store,
+                settingsStore: settingsStore,
+                requestCalendarAccess: {}
+            )) }, 560),
             ("weather", { AnyView(WeatherDropdownView(
                 store: store, settingsStore: settingsStore, refreshAction: {})) }, 720),
             ("network", { AnyView(NetworkDropdownView(
@@ -178,6 +212,135 @@ struct PopoverPlacementTests {
             processCount: 420,
             threadCount: 2_400,
             topProcesses: []
+        )
+    }
+
+    private static func memorySample(timestamp: Date, percent: Double) -> MemorySample {
+        let total: UInt64 = 32 * 1_073_741_824
+        let used = UInt64(Double(total) * percent / 100)
+        return MemorySample(
+            timestamp: timestamp,
+            total: total,
+            used: used,
+            app: used / 2,
+            wired: used / 4,
+            compressed: used / 4,
+            cached: 4 * 1_073_741_824,
+            free: total - used,
+            pressurePercent: percent,
+            pressureLevel: .normal,
+            swapUsed: 512 * 1_048_576,
+            swapTotal: 4 * 1_073_741_824,
+            topProcesses: []
+        )
+    }
+
+    private static func gpuSample(timestamp: Date, percent: Double) -> GPUSample {
+        GPUSample(
+            timestamp: timestamp,
+            name: "Apple M4 Pro",
+            deviceUtilizationPercent: percent,
+            rendererUtilizationPercent: percent * 0.8,
+            tilerUtilizationPercent: percent * 0.45,
+            memoryInUseBytes: 2 * 1_073_741_824,
+            memoryAllocatedBytes: 8 * 1_073_741_824,
+            driverMemoryInUseBytes: 256 * 1_048_576,
+            frequencyMHz: 1_278,
+            activePercent: percent,
+            powerWatts: 8.4,
+            temperatureCelsius: 54.2
+        )
+    }
+
+    private static func diskSample(timestamp: Date) -> DiskSample {
+        DiskSample(
+            timestamp: timestamp,
+            volumes: [
+                DiskVolumeSample(
+                    id: "startup",
+                    name: "Macintosh HD",
+                    mountPoint: "/",
+                    bsdName: "disk3s1s1",
+                    physicalBSDName: "disk0",
+                    totalBytes: 1_000_000_000_000,
+                    usedBytes: 640_000_000_000,
+                    availableBytes: 360_000_000_000,
+                    kind: .internalDisk,
+                    isEjectable: false,
+                    isRemovable: false,
+                    isReadOnly: false
+                )
+            ],
+            devices: [
+                DiskDeviceSample(
+                    bsdName: "disk0",
+                    model: "APPLE SSD",
+                    readBytesPerSecond: 82_000_000,
+                    writeBytesPerSecond: 31_000_000,
+                    readOperationsPerSecond: 540,
+                    writeOperationsPerSecond: 210,
+                    bytesRead: 1_000_000_000,
+                    bytesWritten: 500_000_000,
+                    readOperations: 10_000,
+                    writeOperations: 5_000,
+                    readErrors: 0,
+                    writeErrors: 0
+                )
+            ]
+        )
+    }
+
+    private static func sensorSample(timestamp: Date) -> SensorSample {
+        SensorSample(
+            timestamp: timestamp,
+            readings: [
+                SensorReading(
+                    id: "derived:temperature:cpu",
+                    name: "CPU Temperature",
+                    shortName: "CPU",
+                    rawName: "CPU",
+                    kind: .temperature,
+                    source: .derived,
+                    value: 52.4,
+                    unit: .celsius
+                ),
+                SensorReading(
+                    id: "smc:fan:0",
+                    name: "Left Fan",
+                    shortName: "Fan",
+                    rawName: "F0Ac",
+                    kind: .fan,
+                    source: .smc,
+                    value: 2_100,
+                    unit: .rpm
+                ),
+            ],
+            sessionEnergy: [SensorEnergyReading(id: "cpu", name: "CPU", joules: 12_450)]
+        )
+    }
+
+    private static func batterySample(timestamp: Date) -> BatterySample {
+        BatterySample(
+            timestamp: timestamp,
+            snapshot: BatterySnapshot(
+                name: "Internal Battery",
+                chargePercent: 74,
+                state: .discharging,
+                isExternalConnected: false,
+                isCharging: false,
+                isFullyCharged: false,
+                healthPercent: 96,
+                cycleCount: 124,
+                temperatureCelsius: 31.2,
+                voltageVolts: 12.1,
+                amperageAmps: -1.4,
+                wattageWatts: -16.9,
+                condition: "Good",
+                adapter: nil,
+                isLowPowerModeEnabled: false,
+                timeToEmptyMinutes: 327,
+                timeToFullMinutes: nil
+            )
         )
     }
 

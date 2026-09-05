@@ -23,6 +23,8 @@ A few other problems were contributing to the high memory reports:
 - Attached panels no longer run an unnecessary half-second redraw loop.
 - Closed menus do not build hidden views when Accessibility tools inspect them.
 - Process names, process icons, and date formatters use bounded caches.
+- The clock only formats the tokens you actually use, reuses its formatter, and refreshes Calendar data once per
+  minute instead of every second.
 - Network resolves interface names in one pass instead of repeatedly asking the system for the same list.
 - Sensor, GPU, Network, and process details are collected only when something visible needs them.
 - Numeric updates no longer trigger pointless implicit animations. Hover effects and the existing visual design are
@@ -100,6 +102,9 @@ their more expensive extra details while their panels are closed.
 
 ## Bugs fixed
 
+- Turning on seconds no longer cuts off the clock. Format, seconds, and fixed-width changes wait behind **Apply
+  Changes**, then Barometer reopens once with the correct menu bar width. This also avoids live resizing while a menu
+  bar manager is arranging items.
 - **Allow Calendar Access** actually requests access now. This works from Settings and from the Time dropdown. The app
   bundle also has the Calendar entitlement and permission description it needs.
 - The Network interface picker works again. You can choose Automatic, a physical interface, or a VPN interface from
@@ -128,8 +133,8 @@ usual.
 
 ## Testing and build changes
 
-The test suite is up to 242 tests. It covers the system sources, graph history, updater, dropdown behavior, Weather
-hovering and scrolling, Calendar packaging, and memory cleanup.
+The test suite is up to 245 tests. It covers the system sources, graph history, updater, dropdown behavior, Weather
+hovering and scrolling, Calendar packaging, clock sizing and refresh behavior, and memory cleanup.
 
 There are also screen tests for every changed popover at every display corner in light and dark mode. They check that
 the panels stay on screen, scroll all the way to the bottom, and do not break the cards, gradients, graphs, or glow.
