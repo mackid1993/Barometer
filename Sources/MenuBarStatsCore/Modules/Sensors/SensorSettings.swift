@@ -115,3 +115,26 @@ public struct SensorSettings: Codable, Equatable, Sendable {
         return (unique.isEmpty ? [SensorWidgetSettings(id: 1)] : unique).sorted { $0.id < $1.id }
     }
 }
+
+extension AppSettings {
+    /// Sensor identifiers that currently contribute to a visible menu-bar item.
+    public var activeMenuBarSensorIDs: Set<String> {
+        var result: Set<String> = []
+        if modules[.sensors]?.isEnabled == true {
+            for widget in sensors.widgets where widget.isEnabled {
+                result.formUnion(widget.sensorIDs.isEmpty
+                    ? ["derived:temperature:hottest", "smc:fan:0"]
+                    : widget.sensorIDs)
+            }
+        }
+        for stack in stacks.stacks where stack.isEnabled {
+            if stack.metrics.contains(.sensorsHottest) {
+                result.insert("derived:temperature:hottest")
+            }
+            if stack.metrics.contains(.sensorsFan) {
+                result.insert("smc:fan:0")
+            }
+        }
+        return result
+    }
+}

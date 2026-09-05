@@ -59,17 +59,23 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         rootContent = rootView
         super.init()
 
-        rootContent = AnyView(rootView.environment(\.showMenuDetail, { [weak self] content, rowAnchor in
-            guard let self else { return }
-            if self.usesAttachedPanel {
-                self.detailPresenter.present(content, anchoredTo: rowAnchor, edge: .maxX)
-                if let root = self.rootPanel {
-                    PopoverPlacement.constrain(root, to: self.detailAnchor?.window?.screen)
-                }
-            } else if let anchor = self.detailAnchor {
-                self.detailPresenter.show(content, from: self.menu, anchoredTo: anchor)
-            }
-        }))
+        rootContent = AnyView(
+            rootView
+                .environment(\.showMenuDetail, { [weak self] content, rowAnchor in
+                    guard let self else { return }
+                    if self.usesAttachedPanel {
+                        self.detailPresenter.present(content, anchoredTo: rowAnchor, edge: .maxX)
+                        if let root = self.rootPanel {
+                            PopoverPlacement.constrain(root, to: self.detailAnchor?.window?.screen)
+                        }
+                    } else if let anchor = self.detailAnchor {
+                        self.detailPresenter.show(content, from: self.menu, anchoredTo: anchor)
+                    }
+                })
+                .environment(\.hideMenuDetail, { [weak self] rowAnchor in
+                    self?.detailPresenter.anchorDidExit(rowAnchor)
+                })
+        )
         menu.delegate = self
         menu.minimumWidth = contentWidth
 

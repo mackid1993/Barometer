@@ -495,16 +495,20 @@ private struct DailyForecastRow: View {
     let settingsStore: SettingsStore
     private var timeZone: TimeZone { sample.forecast.timeZone }
     @Environment(\.showMenuDetail) private var showDetail
+    @Environment(\.hideMenuDetail) private var hideDetail
     let overallMinimum: Double
     let overallMaximum: Double
     @State private var isHovering = false
 
     var body: some View {
         row
-            .background(WeatherHoverAnchor { anchor in
-                showDetail(AnyView(WeatherDayDetailView(
-                    day: day, sample: sample, accent: accent, settingsStore: settingsStore)), anchor)
-            })
+            .background(WeatherHoverAnchor(
+                show: { anchor in
+                    showDetail(AnyView(WeatherDayDetailView(
+                        day: day, sample: sample, accent: accent, settingsStore: settingsStore)), anchor)
+                },
+                hide: { anchor in hideDetail(anchor) }
+            ))
             .accessibilityLabel("Details for \(WeatherDayDetailView.dateTitle(day.date, timeZone: timeZone))")
             .help("Hover to show daily and hourly forecast details")
     }

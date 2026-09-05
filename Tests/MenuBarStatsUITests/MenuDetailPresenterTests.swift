@@ -33,13 +33,21 @@ struct MenuDetailPresenterTests {
     func hoverOpensDetail() throws {
         let view = WeatherHoverAnchor.HoverView()
         var entered = false
+        var exited = false
         view.show = { anchor in entered = anchor === view }
-        let event = try #require(NSEvent.enterExitEvent(with: .mouseEntered, location: .zero,
+        view.hide = { anchor in exited = anchor === view }
+        let enterEvent = try #require(NSEvent.enterExitEvent(with: .mouseEntered, location: .zero,
             modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
             eventNumber: 1, trackingNumber: 1, userData: nil))
-        view.mouseEntered(with: event)
+        let exitEvent = try #require(NSEvent.enterExitEvent(with: .mouseExited, location: .zero,
+            modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+            eventNumber: 2, trackingNumber: 1, userData: nil))
+        view.mouseEntered(with: enterEvent)
+        view.mouseExited(with: exitEvent)
         #expect(entered)
+        #expect(exited)
         view.show = nil
+        view.hide = nil
     }
 
     @Test("Leaving the row and detail dismisses it, but moving into the detail keeps it open")
@@ -72,6 +80,28 @@ struct MenuDetailPresenterTests {
         #expect(!detail.isVisible)
         #expect(presenter.panel == nil)
         #expect(detail.contentView == nil)
+    }
+
+    @Test("A native date-row exit dismisses detail even when stale geometry still contains the pointer")
+    func nativeRowExitDismissal() throws {
+        let anchorWindow = makeAnchor()
+        defer { anchorWindow.close() }
+        let anchor = try #require(anchorWindow.contentView)
+        let presenter = MenuDetailPresenter(pointerLocation: { NSPoint(x: 150, y: 715) })
+        defer { presenter.close() }
+        presenter.present(AnyView(Text("Forecast")), anchoredTo: anchor)
+        let detail = try #require(presenter.panel)
+        let row = anchorWindow.convertToScreen(anchor.bounds)
+        let start = ProcessInfo.processInfo.systemUptime
+
+        presenter.anchorDidExit(anchor, time: start)
+        presenter.updateHover(
+            at: NSPoint(x: row.midX, y: row.midY),
+            time: start + PopoverDismissalMonitor.hoverExitDelay + 0.1
+        )
+
+        #expect(!detail.isVisible)
+        #expect(presenter.panel == nil)
     }
 
     @Test("Presentation waits until the menu tracking run loop ends")

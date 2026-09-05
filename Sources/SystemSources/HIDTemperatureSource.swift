@@ -37,9 +37,27 @@ public actor HIDTemperatureSource {
 
     /// Reads, filters, averages duplicate service names, and returns friendly labels.
     public func read() throws -> [HIDTemperatureReading] {
+        try read(matchingRawNames: nil, rawNamePrefixes: [])
+    }
+
+    /// Reads only matching temperature services while reusing the complete discovered service list.
+    public func read(rawNames: Set<String>, rawNamePrefixes: [String] = []) throws -> [HIDTemperatureReading] {
+        try read(matchingRawNames: rawNames, rawNamePrefixes: rawNamePrefixes)
+    }
+
+    private func read(
+        matchingRawNames rawNames: Set<String>?,
+        rawNamePrefixes: [String]
+    ) throws -> [HIDTemperatureReading] {
         try prepareServicesIfNeeded()
         var grouped: [String: [Double]] = [:]
         for service in services {
+            if let rawNames,
+               !rawNames.contains(service.rawName),
+               !rawNamePrefixes.contains(where: service.rawName.hasPrefix)
+            {
+                continue
+            }
             guard let event = IOHIDServiceClientCopyEvent(
                 service.reference,
                 Int64(MBS_IOHID_EVENT_TYPE_TEMPERATURE),

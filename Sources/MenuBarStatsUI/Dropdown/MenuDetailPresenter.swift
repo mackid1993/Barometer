@@ -5,10 +5,19 @@ private struct ShowMenuDetailKey: EnvironmentKey {
     static let defaultValue: @MainActor (AnyView, NSView) -> Void = { _, _ in }
 }
 
+private struct HideMenuDetailKey: EnvironmentKey {
+    static let defaultValue: @MainActor (NSView) -> Void = { _ in }
+}
+
 extension EnvironmentValues {
     var showMenuDetail: @MainActor (AnyView, NSView) -> Void {
         get { self[ShowMenuDetailKey.self] }
         set { self[ShowMenuDetailKey.self] = newValue }
+    }
+
+    var hideMenuDetail: @MainActor (NSView) -> Void {
+        get { self[HideMenuDetailKey.self] }
+        set { self[HideMenuDetailKey.self] = newValue }
     }
 }
 
@@ -23,6 +32,7 @@ final class MenuDetailPresenter: NSObject {
     private var hoverTimer: Timer?
     private let dismissalMonitor = PopoverDismissalMonitor()
     private var lastHoverTime: TimeInterval = 0
+    private var anchorContainsPointer = false
     private let pointerLocation: @MainActor () -> NSPoint
 
     init(pointerLocation: @escaping @MainActor () -> NSPoint = { NSEvent.mouseLocation }) {
@@ -62,6 +72,7 @@ final class MenuDetailPresenter: NSObject {
             self?.panel?.frame.contains(point) == true
         }, tracksHover: false, dismiss: { [weak self] in self?.close() })
         hoverAnchor = anchor
+        anchorContainsPointer = true
         lastHoverTime = ProcessInfo.processInfo.systemUptime
         let timer = Timer(timeInterval: 0.05, target: self, selector: #selector(checkHover),
                           userInfo: nil, repeats: true)
@@ -80,7 +91,7 @@ final class MenuDetailPresenter: NSObject {
             return
         }
         let row = anchorWindow.convertToScreen(anchor.convert(anchor.visibleRect, to: nil))
-        if row.insetBy(dx: -4, dy: -4).contains(point)
+        if (anchorContainsPointer && row.insetBy(dx: -4, dy: -4).contains(point))
             || detailWindow.frame.insetBy(dx: -4, dy: -4).contains(point) {
             lastHoverTime = time
         } else if time - lastHoverTime >= PopoverDismissalMonitor.hoverExitDelay {
@@ -89,11 +100,18 @@ final class MenuDetailPresenter: NSObject {
         }
     }
 
+    func anchorDidExit(_ anchor: NSView, time: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+        guard hoverAnchor === anchor else { return }
+        anchorContainsPointer = false
+        lastHoverTime = time
+    }
+
     func close() {
         dismissalMonitor.stop()
         hoverTimer?.invalidate()
         hoverTimer = nil
         hoverAnchor = nil
+        anchorContainsPointer = false
         presentationTimer?.invalidate()
         presentationTimer = nil
         pendingContent = nil

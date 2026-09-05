@@ -119,6 +119,52 @@ struct SensorsTests {
                 interval: 10
             ))
     }
+
+    @Test("closed sensor sampling requests only readings used by visible items")
+    func selectedSamplingPlan() {
+        let plan = SensorSamplingPlan(
+            sensorIDs: [
+                "derived:temperature:cpu",
+                "derived:temperature:gpu",
+                "hid:temperature:NAND CH0 temp",
+                "smc:power:PSTR",
+                "smc:fan:1",
+            ],
+            includesFullInventory: false
+        )
+
+        #expect(plan.needsCPU)
+        #expect(plan.needsGPU)
+        #expect(!plan.needsAllTemperatures)
+        #expect(plan.hidRawNames == ["NAND CH0 temp"])
+        #expect(plan.smcKeys == ["PSTR"])
+        #expect(plan.fanIDs == [1])
+        #expect(!plan.needsIOReport)
+    }
+
+    @Test("active sensor IDs exclude disabled widgets and include enabled stacks")
+    func activeMenuBarSensorIDs() {
+        var settings = AppSettings()
+        settings.modules[.sensors]?.isEnabled = true
+        settings.sensors = SensorSettings(widgets: [
+            SensorWidgetSettings(
+                id: 1,
+                isEnabled: true,
+                sensorIDs: ["derived:temperature:cpu", "derived:temperature:gpu"]
+            ),
+            SensorWidgetSettings(id: 2, isEnabled: false, sensorIDs: ["derived:temperature:hottest"]),
+        ])
+        settings.stacks = StacksSettings(stacks: [
+            StackSettings(id: 1, isEnabled: true, metrics: [.sensorsFan]),
+            StackSettings(id: 2, isEnabled: false, metrics: [.sensorsHottest]),
+        ])
+
+        #expect(settings.activeMenuBarSensorIDs == [
+            "derived:temperature:cpu",
+            "derived:temperature:gpu",
+            "smc:fan:0",
+        ])
+    }
 }
 
 @Suite("DerivedTemperatureTests")

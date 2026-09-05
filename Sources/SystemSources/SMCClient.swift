@@ -159,6 +159,11 @@ public actor SMCClient {
         try availableSensorKeys().compactMap { try? read($0) }
     }
 
+    /// Reads only the named sensor keys without scanning unrelated firmware values.
+    public func sensorValues(keys: Set<String>) -> [SMCValue] {
+        keys.sorted().compactMap { try? read($0) }
+    }
+
     /// Reads only matching runtime-discovered keys, avoiding unrelated hardware calls.
     public func sensorValues(keyPrefixes: [String]) throws -> [SMCValue] {
         try Self.matchingSensorKeys(allKeys(), prefixes: keyPrefixes).compactMap { try? read($0) }
@@ -173,24 +178,28 @@ public actor SMCClient {
         guard let count = try? read("FNum").numericValue else {
             return []
         }
-        return (0..<max(0, Int(count))).compactMap { id in
-            guard let current = try? read("F\(id)Ac").numericValue,
-                  current.isFinite,
-                  current >= 0
-            else {
-                return nil
-            }
-            let identifier = (try? read("F\(id)ID").stringValue) ?? "Fan \(id + 1)"
-            let minimum = try? read("F\(id)Mn").numericValue
-            let maximum = try? read("F\(id)Mx").numericValue
-            return SMCFanReading(
-                id: id,
-                name: identifier,
-                currentRPM: current,
-                minimumRPM: minimum,
-                maximumRPM: maximum
-            )
+        return (0..<max(0, Int(count))).compactMap(fan)
+    }
+
+    /// Reads one selected fan without querying every other fan.
+    public func fan(id: Int) -> SMCFanReading? {
+        guard id >= 0,
+              let current = try? read("F\(id)Ac").numericValue,
+              current.isFinite,
+              current >= 0
+        else {
+            return nil
         }
+        let identifier = (try? read("F\(id)ID").stringValue) ?? "Fan \(id + 1)"
+        let minimum = try? read("F\(id)Mn").numericValue
+        let maximum = try? read("F\(id)Mx").numericValue
+        return SMCFanReading(
+            id: id,
+            name: identifier,
+            currentRPM: current,
+            minimumRPM: minimum,
+            maximumRPM: maximum
+        )
     }
 
     static func decodeNumeric(bytes: [UInt8], dataType: String) -> Double? {

@@ -23,9 +23,10 @@ public final class SettingsWindowController: NSWindowController {
         sensorStore: ModuleStore<SensorSample>,
         updateController: UpdateController,
         calendarAccessAction: @escaping @MainActor () -> Void,
+        moduleSelectionAction: @escaping @MainActor (ModuleID?) -> Void = { _ in },
         applyMenuBarChangesAction: @escaping @MainActor () -> Void
     ) {
-        let navigationModel = SettingsNavigationModel()
+        let navigationModel = SettingsNavigationModel(moduleSelectionAction: moduleSelectionAction)
         let rootView = SettingsRootView(
             settingsStore: settingsStore,
             gpuStore: gpuStore,
@@ -68,6 +69,7 @@ public final class SettingsWindowController: NSWindowController {
 extension SettingsWindowController: NSWindowDelegate {
     public func windowWillClose(_ notification: Notification) {
         window?.contentViewController = nil
+        navigationModel?.close()
         navigationModel = nil
         window?.delegate = nil
         window = nil
@@ -90,15 +92,36 @@ enum SettingsSelection: Hashable {
         case .about: "About"
         }
     }
+
+    var module: ModuleID? {
+        if case .module(let module) = self {
+            return module
+        }
+        return nil
+    }
 }
 
 @MainActor
 @Observable
 final class SettingsNavigationModel {
-    var selection: SettingsSelection? = .general
+    var selection: SettingsSelection? = .general {
+        didSet {
+            moduleSelectionAction(selection?.module)
+        }
+    }
+
+    @ObservationIgnored private let moduleSelectionAction: @MainActor (ModuleID?) -> Void
+
+    init(moduleSelectionAction: @escaping @MainActor (ModuleID?) -> Void = { _ in }) {
+        self.moduleSelectionAction = moduleSelectionAction
+    }
 
     func open(module: ModuleID?) {
         selection = module.map(SettingsSelection.module) ?? .general
+    }
+
+    func close() {
+        moduleSelectionAction(nil)
     }
 }
 

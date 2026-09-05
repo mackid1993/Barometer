@@ -14,6 +14,7 @@ struct SettingsWindowLifecycleTests {
         defaults.set(try JSONEncoder().encode(AppSettings()), forKey: SettingsStore.defaultsKey)
         let settingsStore = SettingsStore(defaults: defaults)
         var closeCount = 0
+        var selectedModules: [ModuleID?] = []
         var controller: SettingsWindowController? = SettingsWindowController(
             settingsStore: settingsStore,
             gpuStore: .init(historyCapacity: 1),
@@ -24,6 +25,7 @@ struct SettingsWindowLifecycleTests {
             sensorStore: .init(historyCapacity: 1),
             updateController: UpdateController(),
             calendarAccessAction: {},
+            moduleSelectionAction: { selectedModules.append($0) },
             applyMenuBarChangesAction: {}
         )
         let window = try #require(controller?.window)
@@ -32,12 +34,14 @@ struct SettingsWindowLifecycleTests {
             controller = nil
         }
 
+        controller?.show(module: .sensors)
         window.close()
 
         #expect(closeCount == 1)
         #expect(controller == nil)
         #expect(window.contentViewController == nil)
         #expect(window.delegate == nil)
+        #expect(selectedModules == [.sensors, nil])
     }
 
     @Test("Automatic update checks can be disabled and remain disabled")

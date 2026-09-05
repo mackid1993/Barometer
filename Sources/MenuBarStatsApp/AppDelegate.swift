@@ -134,6 +134,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 calendarAccessAction: { [weak monitoringCoordinator] in
                     monitoringCoordinator?.requestCalendarAccess()
                 },
+                moduleSelectionAction: { [weak monitoringCoordinator] module in
+                    monitoringCoordinator?.setVisibleSettingsModule(module)
+                },
                 applyMenuBarChangesAction: { [weak self] in
                     self?.applyMenuBarChangesAndReopen()
                 }

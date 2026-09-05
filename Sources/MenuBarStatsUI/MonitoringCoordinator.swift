@@ -462,9 +462,21 @@ public final class MonitoringCoordinator {
         }
     }
 
+    /// Enables complete hardware discovery only while the Sensors settings page is visible.
+    public func setVisibleSettingsModule(_ module: ModuleID?) {
+        let showsSensors = module == .sensors
+        setDetailVisibility(
+            owner: "settings",
+            modules: showsSensors ? [.sensors] : [],
+            visible: showsSensors
+        )
+    }
+
     private func setDetailVisibility(owner: String, modules: Set<ModuleID>, visible: Bool) {
         if visible { detailRequests[owner] = modules } else { detailRequests.removeValue(forKey: owner) }
         let needed = detailRequests.values.reduce(into: Set<ModuleID>()) { $0.formUnion($1) }
+        let sensorIDs = settingsStore.settings.activeMenuBarSensorIDs
+        let backgroundNeedsSensors = Self.modulesRequiringSamples(settingsStore.settings).contains(.sensors)
         detailSamplingTask?.cancel()
         detailSamplingTask = Task { [weak self] in
             guard let self, !Task.isCancelled else { return }
@@ -473,10 +485,21 @@ public final class MonitoringCoordinator {
             await memoryMonitor.setProcessDetailsEnabled(needed.contains(.memory))
             guard !Task.isCancelled else { return }
             await networkMonitor.setProcessDetailsEnabled(needed.contains(.network))
-            guard !Task.isCancelled, visible else { return }
+            guard !Task.isCancelled else { return }
+            await sensorsMonitor.setSamplingSelection(
+                sensorIDs: sensorIDs,
+                includesFullInventory: needed.contains(.sensors)
+            )
+            guard !Task.isCancelled else { return }
+            await setScheduler(
+                sensorsScheduler,
+                active: backgroundNeedsSensors || needed.contains(.sensors)
+            )
+            guard visible else { return }
             if modules.contains(.cpu) { await cpuScheduler.refresh() }
             if modules.contains(.memory) { await memoryScheduler.refresh() }
             if modules.contains(.network) { await networkScheduler.refresh() }
+            if modules.contains(.sensors) { await sensorsScheduler.refresh() }
         }
     }
 
@@ -734,13 +757,22 @@ public final class MonitoringCoordinator {
 
     private func updateSchedulerActivity() {
         let active = Self.modulesRequiringSamples(settingsStore.settings)
+        let sensorIDs = settingsStore.settings.activeMenuBarSensorIDs
+        let includesFullSensorInventory = detailRequests.values.contains { $0.contains(.sensors) }
         Task {
             await setScheduler(cpuScheduler, active: active.contains(.cpu))
             await setScheduler(memoryScheduler, active: active.contains(.memory))
             await setScheduler(gpuScheduler, active: active.contains(.gpu))
             await setScheduler(networkScheduler, active: active.contains(.network))
             await setScheduler(diskScheduler, active: active.contains(.disks))
-            await setScheduler(sensorsScheduler, active: active.contains(.sensors))
+            await sensorsMonitor.setSamplingSelection(
+                sensorIDs: sensorIDs,
+                includesFullInventory: includesFullSensorInventory
+            )
+            await setScheduler(
+                sensorsScheduler,
+                active: active.contains(.sensors) || includesFullSensorInventory
+            )
             await setScheduler(batteryScheduler, active: active.contains(.battery))
             await setScheduler(timeScheduler, active: active.contains(.time))
         }
@@ -757,8 +789,12 @@ public final class MonitoringCoordinator {
     static func modulesRequiringSamples(_ settings: AppSettings) -> Set<ModuleID> {
         var active = Set(
             ModuleID.allCases.filter { module in
-                module != .weather && module != .combined && settings.modules[module]?.isEnabled == true
+                module != .weather && module != .combined && module != .sensors
+                    && settings.modules[module]?.isEnabled == true
             })
+        if !settings.activeMenuBarSensorIDs.isEmpty {
+            active.insert(.sensors)
+        }
         // A stack keeps its source modules sampling even when their individual items are hidden.
         for stack in settings.enabledStacks {
             active.formUnion(stack.sourceModules.filter { $0 != .weather && $0 != .combined })
@@ -854,6 +890,13 @@ public final class MonitoringCoordinator {
                 ),
                 contentHeight: SensorsDropdownView.contentSize.height,
                 contentWidth: SensorsDropdownView.contentSize.width,
+                visibilityAction: { [weak self] visible in
+                    self?.setDetailVisibility(
+                        owner: "sensors-\(instance)",
+                        modules: [.sensors],
+                        visible: visible
+                    )
+                },
                 tickAction: { [weak sensorStore] in sensorStore?.tick() },
                 settingsAction: { self.settingsAction(.sensors) },
                 quitAction: quitAction

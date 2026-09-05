@@ -4,12 +4,17 @@ import SwiftUI
 /// Provides a stable row anchor and native hover events without entering a menu-tracking loop.
 struct WeatherHoverAnchor: NSViewRepresentable {
     let show: @MainActor (NSView) -> Void
+    let hide: @MainActor (NSView) -> Void
 
     func makeNSView(context: Context) -> HoverView { HoverView() }
-    func updateNSView(_ view: HoverView, context: Context) { view.show = show }
+    func updateNSView(_ view: HoverView, context: Context) {
+        view.show = show
+        view.hide = hide
+    }
 
     final class HoverView: NSView {
         var show: (@MainActor (NSView) -> Void)?
+        var hide: (@MainActor (NSView) -> Void)?
 
         override func updateTrackingAreas() {
             super.updateTrackingAreas()
@@ -19,6 +24,7 @@ struct WeatherHoverAnchor: NSViewRepresentable {
         }
 
         override func mouseEntered(with event: NSEvent) { show?(self) }
+        override func mouseExited(with event: NSEvent) { hide?(self) }
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
 }

@@ -165,6 +165,50 @@ public enum SensorValueFormatter {
     }
 }
 
+/// Minimal hardware-source request derived from the sensor readings visible in the menu bar.
+struct SensorSamplingPlan: Equatable, Sendable {
+    let sensorIDs: Set<String>
+    let includesFullInventory: Bool
+    let needsAllTemperatures: Bool
+    let needsCPU: Bool
+    let needsGPU: Bool
+    let hidRawNames: Set<String>
+    let smcKeys: Set<String>
+    let fanIDs: [Int]
+    let needsIOReport: Bool
+
+    init(sensorIDs: Set<String>, includesFullInventory: Bool) {
+        self.sensorIDs = sensorIDs
+        self.includesFullInventory = includesFullInventory
+        needsAllTemperatures = includesFullInventory || sensorIDs.contains("derived:temperature:hottest")
+        needsCPU = includesFullInventory || sensorIDs.contains("derived:temperature:cpu")
+        needsGPU = includesFullInventory || sensorIDs.contains("derived:temperature:gpu")
+        hidRawNames = Set(sensorIDs.compactMap { id in
+            let components = id.split(separator: ":", maxSplits: 2).map(String.init)
+            return components.count == 3 && components[0] == "hid" ? components[2] : nil
+        })
+        smcKeys = Set(sensorIDs.compactMap { id in
+            let components = id.split(separator: ":", maxSplits: 2).map(String.init)
+            return components.count == 3 && components[0] == "smc" && components[1] != "fan"
+                ? components[2] : nil
+        })
+        fanIDs = sensorIDs.compactMap { id in
+            let components = id.split(separator: ":", maxSplits: 2).map(String.init)
+            return components.count == 3 && components[0] == "smc" && components[1] == "fan"
+                ? Int(components[2]) : nil
+        }.sorted()
+        needsIOReport = includesFullInventory || sensorIDs.contains { $0.hasPrefix("ioreport:") }
+    }
+
+    var needsHID: Bool {
+        includesFullInventory || needsAllTemperatures || needsCPU || !hidRawNames.isEmpty
+    }
+
+    var needsSMC: Bool {
+        includesFullInventory || needsAllTemperatures || needsCPU || needsGPU || !smcKeys.isEmpty || !fanIDs.isEmpty
+    }
+}
+
 /// Merges the three read-only hardware interfaces without requiring root or a helper process.
 public actor SensorsMonitor: Monitor {
     public nonisolated let interval: Duration
@@ -180,6 +224,8 @@ public actor SensorsMonitor: Monitor {
     private var lastHIDRefresh: Date?
     private var lastSMCRefresh: Date?
     private var lastIOReportRefresh: Date?
+    private var selectedSensorIDs: Set<String> = []
+    private var includesFullInventory = false
 
     /// Whether at least one supported hardware interface opened successfully.
     public var isAvailable: Bool {
@@ -199,35 +245,71 @@ public actor SensorsMonitor: Monitor {
         ioReportSource = try? IOReportSource()
     }
 
+    /// Restricts background hardware reads to visible menu-bar sensors, or enables the complete inventory for UI.
+    public func setSamplingSelection(sensorIDs: Set<String>, includesFullInventory: Bool) {
+        guard sensorIDs != selectedSensorIDs || includesFullInventory != self.includesFullInventory else {
+            return
+        }
+        selectedSensorIDs = sensorIDs
+        self.includesFullInventory = includesFullInventory
+        cachedHIDReadings = []
+        cachedSMCReadings = []
+        cachedIOReportReadings = []
+        lastHIDRefresh = nil
+        lastSMCRefresh = nil
+        lastIOReportRefresh = nil
+    }
+
     /// Collects available sources independently and returns every valid reading.
     public func sample() async throws -> SensorSample {
         var readings: [SensorReading] = []
         let timestamp = Date()
+        let plan = SensorSamplingPlan(sensorIDs: selectedSensorIDs, includesFullInventory: includesFullInventory)
+        let expensiveRefreshInterval: TimeInterval = 10
 
-        // Reading every IOHID temperature service is one of the most expensive idle operations.
-        // Temperatures do not need a five-second hardware query to remain useful in the menu bar,
-        // so reuse the normalized readings between ten-second refreshes.
-        if Self.shouldRefresh(lastRefresh: lastHIDRefresh, now: timestamp, interval: 10) {
+        if plan.needsHID,
+           Self.shouldRefresh(lastRefresh: lastHIDRefresh, now: timestamp, interval: expensiveRefreshInterval)
+        {
             lastHIDRefresh = timestamp
             do {
-                cachedHIDReadings = Self.hidReadings(try await hidSource.read())
+                let sourceReadings = if plan.needsAllTemperatures {
+                    try await hidSource.read()
+                } else {
+                    try await hidSource.read(
+                        rawNames: plan.hidRawNames,
+                        rawNamePrefixes: plan.needsCPU ? ["PMU tdie"] : []
+                    )
+                }
+                cachedHIDReadings = Self.hidReadings(sourceReadings)
             } catch {
                 Self.logger.debug("IOHID sensor read unavailable: \(String(describing: error), privacy: .public)")
             }
+        } else if !plan.needsHID {
+            cachedHIDReadings = []
         }
         readings.append(contentsOf: cachedHIDReadings)
 
-        if let smcSource, Self.shouldRefresh(lastRefresh: lastSMCRefresh, now: timestamp, interval: 10) {
+        if let smcSource, plan.needsSMC,
+           Self.shouldRefresh(lastRefresh: lastSMCRefresh, now: timestamp, interval: expensiveRefreshInterval)
+        {
             lastSMCRefresh = timestamp
             do {
-                cachedSMCReadings = try await Self.smcReadings(from: smcSource)
+                cachedSMCReadings = try await Self.smcReadings(
+                    from: smcSource,
+                    plan: plan,
+                    hasHIDCPUReading: cachedHIDReadings.contains { $0.name.hasPrefix("SoC die") }
+                )
             } catch {
                 Self.logger.debug("SMC sensor read unavailable: \(String(describing: error), privacy: .public)")
             }
+        } else if !plan.needsSMC {
+            cachedSMCReadings = []
         }
         readings.append(contentsOf: cachedSMCReadings)
 
-        if let ioReportSource, Self.shouldRefresh(lastRefresh: lastIOReportRefresh, now: timestamp, interval: 5) {
+        if let ioReportSource, plan.needsIOReport,
+           Self.shouldRefresh(lastRefresh: lastIOReportRefresh, now: timestamp, interval: 5)
+        {
             let previousRefresh = lastIOReportRefresh
             lastIOReportRefresh = timestamp
             do {
@@ -239,6 +321,8 @@ public actor SensorsMonitor: Monitor {
             } catch {
                 Self.logger.debug("IOReport sensor read unavailable: \(String(describing: error), privacy: .public)")
             }
+        } else if !plan.needsIOReport {
+            cachedIOReportReadings = []
         }
         readings.append(contentsOf: cachedIOReportReadings)
 
@@ -282,8 +366,52 @@ public actor SensorsMonitor: Monitor {
     }
 
     private static func smcReadings(from source: SMCClient) async throws -> [SensorReading] {
+        let values = try await source.sensorValues()
+        let fans = try await source.fans()
+        return smcReadings(values: values, fans: fans)
+    }
+
+    private static func smcReadings(
+        from source: SMCClient,
+        plan: SensorSamplingPlan,
+        hasHIDCPUReading: Bool
+    ) async throws -> [SensorReading] {
+        if plan.includesFullInventory {
+            return try await smcReadings(from: source)
+        }
+        var values = await source.sensorValues(keys: plan.smcKeys)
+        var prefixes: [String] = []
+        if plan.needsAllTemperatures {
+            prefixes.append("T")
+        } else {
+            if plan.needsCPU && !hasHIDCPUReading {
+                prefixes.append("TPD")
+            }
+            if plan.needsGPU {
+                prefixes.append(contentsOf: ["Tg", "TG"])
+            }
+        }
+        if !prefixes.isEmpty {
+            values.append(contentsOf: try await source.sensorValues(keyPrefixes: prefixes))
+        }
+        if plan.needsCPU && !hasHIDCPUReading
+            && !values.contains(where: { $0.key.hasPrefix("TPD") && $0.numericValue != nil })
+        {
+            values.append(contentsOf: try await source.sensorValues(keyPrefixes: ["Tp", "Te"]))
+        }
+        var fans: [SMCFanReading] = []
+        for id in plan.fanIDs {
+            if let fan = await source.fan(id: id) {
+                fans.append(fan)
+            }
+        }
+        return smcReadings(values: values, fans: fans)
+    }
+
+    private static func smcReadings(values: [SMCValue], fans: [SMCFanReading]) -> [SensorReading] {
         var readings: [SensorReading] = []
-        for value in try await source.sensorValues() {
+        var seenKeys: Set<String> = []
+        for value in values where seenKeys.insert(value.key).inserted {
             guard let number = value.numericValue,
                 let kind = smcKind(key: value.key, value: number)
             else {
@@ -302,7 +430,7 @@ public actor SensorsMonitor: Monitor {
                 )
             )
         }
-        for fan in try await source.fans() {
+        for fan in fans {
             readings.append(
                 SensorReading(
                     id: "smc:fan:\(fan.id)",

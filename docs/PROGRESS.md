@@ -3180,3 +3180,39 @@ Verification before local installation:
   close and a 47.8 MiB peak (`dist/p8-t40-popover-memory.log`).
 - An instrumented installed-app cycle measured 39.6 MiB physical footprint with all windows closed, 0.2% CPU, and
   zero leaked blocks. Interactive validation of the new installed build is required before any GitHub push.
+
+## P8-T41 Visible-only sensor sampling and reliable Weather hover exit
+
+Closed Sensors UI now derives a hardware sampling plan from only the sensor IDs used by enabled menu bar widgets
+and stacks. The plan filters IOHID services and SMC keys before reading them, skips IOReport unless a displayed
+reading requires it, reads only selected fans, and pauses the Sensors scheduler when no visible item needs it. The
+complete sensor inventory remains available while the Sensors dropdown or Sensors Settings page is visible.
+
+Weather date rows now report their native mouse-exit events to the detail presenter. The presenter no longer lets
+stale SwiftUI row geometry keep a day detail open when the pointer moves elsewhere inside the Weather panel. The
+existing one-second grace still permits crossing from a date into its scrollable detail panel, and moving within
+the detail keeps it open. No Weather layout, material, card, graph, gradient, or glow changed.
+
+Verification before local installation:
+
+- `python3 Scripts/check-source-invariants.py` passed.
+- `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer make test` executed all 240 tests against the final
+  source: 32 SystemSources, 83 UI, and 125 Core tests passed (`dist/p8-t41-final-tests.log`). New regressions cover
+  native date-row exit, selected sensor-source planning, enabled-widget/stack sensor IDs, and Sensors Settings
+  lifecycle.
+- The same suite passed with `POPOVER_SNAPSHOT_DIRECTORY="$PWD/dist/p8-t41-panel-screens-v2"` to generate the visual
+  regression artifacts (`dist/p8-t41-full-tests.log`).
+- The screen suite produced 128 captures covering Weather, two rich forecast days, CPU ranges, Network, and Combined
+  at every display corner in light and dark appearances. Inspected top, middle, hourly, and true-bottom captures
+  remain aligned, unclipped, scrollable, and preserve all existing shapes, gradients, and glows.
+- `python3 Scripts/benchmark-popover-memory.py` completed ten rich-panel and shared-graph cycles at 35.6 MiB current
+  and 47.8 MiB peak, below the 128 MiB gate (`dist/p8-t41-popover-memory.log`).
+- `python3 Scripts/benchmark-memory.py dist/memory-baseline` passed with a 92.7% lower one-hour footprint and 32 KiB
+  growth from simulated hours 24 to 48 (`dist/p8-t41-history-memory.log`).
+- `swift build -c release` and `git diff --check` passed. Installed build 138 validated as version 1.0.2 with bundle
+  identifier `com.barometer.app`, a valid signature, and the Calendar entitlement.
+- With every panel closed, a 20-second installed-process sample measured 12.8 MiB current / 14.2 MiB peak and found
+  the main thread idle in 99.6% of samples. A separate 31-second `top` run averaged 1.21% of one core, including
+  short periodic bursts, versus the reported steady 3%. `leaks` reported zero leaked blocks and the same
+  12.8 MiB / 14.2 MiB footprint (`dist/p8-t41-installed-idle.sample`,
+  `dist/p8-t41-installed-idle-top.log`, and `dist/p8-t41-installed-leaks.log`). No push.
