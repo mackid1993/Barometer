@@ -494,8 +494,7 @@ private struct DailyForecastRow: View {
     let accent: ModuleAccent
     let settingsStore: SettingsStore
     private var timeZone: TimeZone { sample.forecast.timeZone }
-    @Environment(\.showMenuDetail) private var showDetail
-    @Environment(\.hideMenuDetail) private var hideDetail
+    @Environment(\.menuDetailActions) private var menuDetailActions
     let overallMinimum: Double
     let overallMaximum: Double
     @State private var isHovering = false
@@ -504,10 +503,14 @@ private struct DailyForecastRow: View {
         row
             .background(WeatherHoverAnchor(
                 show: { anchor in
-                    showDetail(AnyView(WeatherDayDetailView(
-                        day: day, sample: sample, accent: accent, settingsStore: settingsStore)), anchor)
+                    menuDetailActions?.show(
+                        AnyView(WeatherDayDetailView(
+                            day: day, sample: sample, accent: accent, settingsStore: settingsStore
+                        )),
+                        anchoredTo: anchor
+                    )
                 },
-                hide: { anchor in hideDetail(anchor) }
+                hide: { anchor in menuDetailActions?.hide(anchoredTo: anchor) }
             ))
             .accessibilityLabel("Details for \(WeatherDayDetailView.dateTitle(day.date, timeZone: timeZone))")
             .help("Hover to show daily and hourly forecast details")

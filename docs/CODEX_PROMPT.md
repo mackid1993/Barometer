@@ -13,7 +13,10 @@ Read these files completely before writing any code, in this order:
 3. docs/PLAN.md (the phased plan with task IDs, "Done when" conditions, and "Verify" commands)
 4. Tools/probes/*.swift (working probe scripts already verified on this Mac; reuse their approach)
 
-Environment facts you must respect: macOS 27.0 beta on an Apple M4 Pro; Command Line Tools only, no Xcode, Swift 6.2.3, SDK 26.2; build only with SwiftPM (`swift build`, `swift test`) plus the Makefile and Scripts/make-app.sh you will create in Phase 0; zero third-party dependencies; Swift 6 strict concurrency; American spelling everywhere.
+Environment facts you must respect: macOS 27.0 beta on an Apple M4 Pro; Xcode 27 command-line toolchain, Swift 6.4,
+SDK 27.0, no Xcode project or `xcodebuild`; build only with SwiftPM (`swift build`, `swift test`) plus the Makefile and
+Scripts/make-app.sh you will create in Phase 0; zero third-party dependencies; Swift 6 strict concurrency; American
+spelling everywhere.
 
 Execute Phase 0 of docs/PLAN.md now: tasks P0-T1 through P0-T5, in order. For each task: implement it, run every command on its "Verify" line, record the output under the task ID in docs/PROGRESS.md (create the file), and commit with a message of the form "P0-T3: application shell". No attribution lines or co-author trailers in commits.
 

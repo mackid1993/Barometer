@@ -53,6 +53,31 @@ struct UpdateTests {
         }
     }
 
+    @Test("Only the exact HTTPS GitHub release path is trusted")
+    func trustedDownloadBoundary() throws {
+        let accepted = try #require(URL(string: StubUpdateProtocol.dmgURL))
+        #expect(UpdateService.isTrustedReleaseDownload(accepted))
+
+        for text in [
+            "http://github.com/mackid1993/Barometer/releases/download/v1.2.3/Barometer-1.2.3.dmg",
+            "https://github.com:443/mackid1993/Barometer/releases/download/v1.2.3/Barometer-1.2.3.dmg",
+            "https://user@github.com/mackid1993/Barometer/releases/download/v1.2.3/Barometer-1.2.3.dmg",
+            "https://github.com/mackid1993/Barometer/releases/downloaded/v1.2.3/Barometer-1.2.3.dmg",
+            "https://github.com/mackid1993/Barometer/releases/download/v1.2.3/Barometer-1.2.3.dmg?raw=1",
+            "https://github.com/mackid1993/Barometer/releases/download/v1.2.3/Barometer-1.2.3.dmg#fragment",
+            "https://example.com/mackid1993/Barometer/releases/download/v1.2.3/Barometer-1.2.3.dmg",
+        ] {
+            let url = try #require(URL(string: text))
+            #expect(!UpdateService.isTrustedReleaseDownload(url), "Unexpectedly trusted \(text)")
+        }
+    }
+
+    @Test("Production updates derive the signer requirement from the running code")
+    func designatedSignerRequirement() throws {
+        #expect(!(try UpdateInstaller.runningDesignatedRequirement()).isEmpty)
+        #expect(UpdateInstaller.installScriptForTesting.contains("codesign --verify --deep --strict -R="))
+    }
+
     @Test("A tampered DMG is discarded")
     func digestMismatch() async throws {
         let directory = FileManager.default.temporaryDirectory

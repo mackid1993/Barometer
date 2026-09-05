@@ -4,7 +4,9 @@ Current implementation status: Phases 0 through 7 are implemented. The release c
 review. The one-hour soak and notarization submission were explicitly skipped; release tooling keeps notarization
 off unless a future manual dispatch enables it.
 
-This is the step-by-step plan for building the app described in `docs/DESIGN.md`. It is written for a coding agent (Codex) working on David's Mac with the Command Line Tools only. Read `AGENTS.md` and `docs/DESIGN.md` first. Section 3.5 of the design (the identity contract) is normative and is repeated in short form in `AGENTS.md`.
+This is the step-by-step plan for building the app described in `docs/DESIGN.md`. It is written for a coding agent
+working on David's Mac with the Swift 6.4 command-line toolchain from Xcode 27. Read `AGENTS.md` and `docs/DESIGN.md`
+first. Section 3.5 of the design (the identity contract) is normative and is repeated in short form in `AGENTS.md`.
 
 ## 0. How to work this plan
 
@@ -47,12 +49,12 @@ Goal: a signed `.app` that shows one static status item with the correct identit
 ### P0-T1 Repository and package skeleton
 
 - `git init`, `.gitignore` (`.build/`, `dist/`, `*.xcodeproj`, `.DS_Store`, `.swiftpm/`).
-- `Package.swift`: `swift-tools-version: 6.2`, `platforms: [.macOS("26.0")]`, targets exactly as in design section 5.2, `swiftSettings: [.enableUpcomingFeature("StrictConcurrency")]` or the equivalent `-strict-concurrency=complete`, `linkerSettings` linking `IOKit`, `CoreWLAN`, `SystemConfiguration`, `AppKit` on the targets that need them.
+- `Package.swift`: `swift-tools-version: 6.4`, `platforms: [.macOS("26.0")]`, targets exactly as in design section 5.2, `swiftSettings: [.enableUpcomingFeature("StrictConcurrency")]` or the equivalent `-strict-concurrency=complete`, `linkerSettings` linking `IOKit`, `CoreWLAN`, `SystemConfiguration`, `AppKit` on the targets that need them.
 - `VERSION` file containing `0.1.0`.
 - `LICENSE` (MIT, copyright David Brustein 2026), `README.md` (short, links to docs).
 - Empty-but-compiling sources for every target so `swift build` succeeds.
-- Done when: `swift build` and `swift test` succeed with zero warnings from our code.
-- Verify: `swift build 2>&1 | tail -3`, `swift test 2>&1 | tail -3`, `git log --oneline | head`.
+- Done when: `make build` and `make test` succeed with zero warnings from our code.
+- Verify: `make build 2>&1 | tail -3`, `make test 2>&1 | tail -3`, `git log --oneline | head`.
 
 ### P0-T2 Bundle assembly and Makefile
 

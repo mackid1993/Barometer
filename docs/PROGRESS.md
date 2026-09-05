@@ -1688,8 +1688,8 @@ Verification:
 
 - `sh -n Scripts/make-app.sh` passed, and `make install` built and installed the current code without restoring an old
   commit.
-- The installed app reports identifier `com.barometer.app`, Developer ID authority, Team ID `BQNYYA2UND`, hardened
-  runtime, and a timestamp. Strict code-signature verification passed.
+- The installed app reports identifier `com.barometer.app`, Developer ID authority, hardened runtime, and a
+  timestamp. Strict code-signature verification passed; the signing-team identifier is intentionally not recorded.
 - A fresh desktop capture showed Network, Memory, Weather, GPU, CPU, Sensors, and the battery item in the menu bar.
   Barometer remained a single `/Applications/Barometer.app/Contents/MacOS/Barometer` process.
 - Gatekeeper correctly reported the Developer ID build as unnotarized. No notarization or stapling command ran.
@@ -1720,8 +1720,8 @@ Verification:
   signed app at `/Applications/Barometer.app`. No notarization or stapling command ran.
 - Source scans found no Font size slider, committed-width cache, manual graphic-size control, spacing control, or
   condensed-density control. Exactly one guarded production assignment to `statusItem.length` remains.
-- The installed process is owned by `com.barometer.app`, and strict signature verification passed with Team ID
-  `BQNYYA2UND`. A desktop capture confirmed the active Barometer items are visible after the relaunch.
+- The installed process is owned by `com.barometer.app`, and strict Developer ID signature verification passed. A
+  desktop capture confirmed the active Barometer items are visible after the relaunch.
 
 David's movement check then exposed a separate launch-order regression. Bartender's read-only cold-start catalog
 contained current collisions including `Barometer.CPU` paired with the Sensors AX identifier, `Barometer.Battery`
@@ -1766,7 +1766,7 @@ Verification:
 - `swift test` exited 0 and built and linked every test target successfully.
 - `swift build -c release`, `git diff --check`, and `make install` completed successfully.
 - The installed app is the Developer ID signed `/Applications/Barometer.app`, has bundle identifier
-  `com.barometer.app`, Team ID `BQNYYA2UND`, and passes strict code-signature verification. No notarization ran.
+  `com.barometer.app`, and passes strict code-signature verification. No notarization ran.
 - The live identity report records distinct labels and matching identifiers for all eleven prepared items. Network is
   labeled `Network` with `Barometer.Network`; Weather is labeled `Weather` with `Barometer.Weather`; numbered Sensors
   is labeled `Sensors 2` with `Barometer.Sensors.2`.
@@ -3338,7 +3338,7 @@ certificate, signed the app and DMG, and uploaded `Barometer-1.0.2.dmg`. The cre
 skipped as requested.
 
 Downloaded the workflow artifact and independently verified the DMG checksum, DMG signature, nested application
-signature, version 1.0.2, bundle identifier `com.barometer.app`, and Developer ID team `BQNYYA2UND`. The downloaded
+signature, version 1.0.2, bundle identifier `com.barometer.app`, and intended Developer ID identity. The downloaded
 DMG SHA-256 is `61fde3429c4dea53604386f9920b7f000662faa1651d65a56a786b94901ed133`. The release notes now call out the
 replacement of Canvas-backed graphs as the largest memory fix and explain the measured retained allocation it
 removed. The final order leads with the optimization work, followed by the built-in updater and the other feature
@@ -3404,7 +3404,7 @@ workflow's tested source and packaged application. Independently downloaded and 
 - The stapled ticket validates successfully.
 - Gatekeeper accepts the application with `source=Notarized Developer ID`.
 - The nested application passes strict code-signature verification with bundle identifier `com.barometer.app`,
-  version 1.0.2, and Developer ID team `BQNYYA2UND`.
+  version 1.0.2, and the intended Developer ID identity.
 - The GitHub release targets `4eb34d1`, contains the complete checked-in notes, and has one asset named
   `Barometer-1.0.2.dmg`.
 
@@ -3468,3 +3468,64 @@ Independently downloaded the public `Barometer-1.0.2.dmg` after replacement and 
 - Its bundle identifier is `com.barometer.app`, its version is 1.0.2, and its Location usage description is present.
 - The signed application contains both `com.apple.security.personal-information.calendars` and
   `com.apple.security.personal-information.location`, each set to true.
+
+## P8-T51 Apply Xcode 27 hardening and adopt Swift 6.4
+
+Audited the application using Apple's Xcode 27 security, SwiftUI, and C bounds-safety guidance. The updater now
+derives the running process's Apple designated requirement and evaluates it against both the mounted and copied
+application, instead of accepting any internally valid signature or storing a signing identifier. Release asset
+trust now validates parsed HTTPS URL components,
+the exact GitHub host, and the repository release path while rejecting user information, explicit ports, queries,
+fragments, and lookalike paths.
+
+Replaced Weather detail's closure-valued SwiftUI environment entries with one retained, weakly delegated
+`MenuDetailActions` reference. This preserves the same behavior without propagating changing function values through
+the view tree. The manually declared `EnvironmentKey` is intentional: the standalone Command Line Tools expose the
+`@Entry` declaration without shipping its macro plug-in.
+
+The one-file C bridge now compiles with stack variable zero initialization, Apple's relevant security warning set,
+and additional conversion diagnostics. `make security-audit` runs the available Clang security analyzers, and the
+shared GitHub test workflow runs it before the Swift suite. C bounds safety remains documented rather than partially
+enabled because Xcode 27 diagnoses the inherently unsafe `dlopen` and `dlsym` conversions and SwiftPM lacks Apple's
+reviewed per-file adoption controls.
+
+At David's request, upgraded the project to Swift tools 6.4 and the macOS 27 SDK. Local Make targets select the Xcode
+27 beta command-line toolchain. GitHub test, check, build, signing, and release jobs now use the dedicated `xcode-27`
+runner and its default Xcode path. The deployment target remains macOS 26, and a packaging regression test pins the
+new toolchain across the package and workflows.
+
+An A/B comparison exported commit `b84de25` and the hardened worktree into clean directories, then built both with
+the same Swift 6.4 compiler and SDK. Cold release builds took 31.59 and 31.57 seconds with zero warnings. The hardened
+executable is 18,256 bytes smaller. Popover peak memory was 50,234,400 bytes before and 50,267,192 bytes after, a
+0.07% difference that is benchmark noise. The pass improves enforceable security boundaries without a meaningful
+performance or memory regression. Full decisions and deferred items are in `docs/XCODE_27_HARDENING_AUDIT.md`.
+
+Verification:
+
+- `make test` passed all 252 tests in 34 suites: 34 SystemSources, 87 UI, and 131 Core tests.
+- `swift build -c release` under Swift 6.4 completed from a clean build in 31.57 seconds with zero warnings.
+- `make security-audit` passed the C analyzer with no suppressions.
+- `python3 Scripts/check-source-invariants.py` and `git diff --check` passed.
+- All three GitHub workflow files parsed as YAML after moving to the `xcode-27` runner.
+- `python3 Scripts/benchmark-popover-memory.py` passed at a 47.9 MiB peak, below the 128 MiB limit.
+- `make app` produced one executable with bundle identifier `com.barometer.app`, the intended Developer ID identity,
+  hardened runtime, and true Calendar and Location entitlements; strict code-signature verification passed.
+
+## P8-T52 Validate the installed Swift 6.4 build
+
+Installed the Developer ID-signed Swift 6.4 application in `/Applications` and launched that bundle. After startup
+settled and every pane was closed, 30 one-second process samples averaged 0.887% CPU, with a 0.0% minimum and a brief
+4.8% maximum while samplers ran. This supports David's independent observation of roughly 0.6% average CPU and is
+substantially below the earlier multi-percent idle behavior. A sample taken across an application relaunch was
+discarded because it measured startup work rather than steady state.
+
+David manually validated Calendar authorization and live Calendar access in the installed application. This confirms
+the direct user-triggered permission prompt, signed entitlement, usage description, EventKit authorization state,
+and event-reading path together; automated tests intentionally never generate a TCC prompt.
+
+Prepublication verification:
+
+- `make security-audit` passed.
+- `python3 Scripts/check-source-invariants.py` passed.
+- `make test` passed all 252 tests in 34 suites: 34 SystemSources, 87 UI, and 131 Core tests.
+- `git diff --check` passed.

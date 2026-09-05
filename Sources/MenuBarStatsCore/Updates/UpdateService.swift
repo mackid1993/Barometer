@@ -72,7 +72,8 @@ public struct UpdateService: Sendable {
         }
         return url
     }()
-    public static let releaseDownloadPrefix = "https://github.com/mackid1993/Barometer/releases/download/"
+    public static let releaseDownloadPathPrefix = "/mackid1993/Barometer/releases/download/"
+    public static let releaseDownloadPrefix = "https://github.com\(releaseDownloadPathPrefix)"
     public static let maximumReleaseReplyBytes = 1 * 1_024 * 1_024
     public static let maximumDownloadBytes = 32 * 1_024 * 1_024
 
@@ -214,7 +215,17 @@ public struct UpdateService: Sendable {
     }
 
     static func isTrustedReleaseDownload(_ url: URL) -> Bool {
-        url.absoluteString.hasPrefix(releaseDownloadPrefix)
+        guard url.scheme?.lowercased() == "https",
+              url.host?.lowercased() == "github.com",
+              url.user == nil,
+              url.password == nil,
+              url.port == nil,
+              url.query == nil,
+              url.fragment == nil
+        else {
+            return false
+        }
+        return url.path.hasPrefix(releaseDownloadPathPrefix)
     }
 
     static func isSafeAssetName(_ name: String) -> Bool {

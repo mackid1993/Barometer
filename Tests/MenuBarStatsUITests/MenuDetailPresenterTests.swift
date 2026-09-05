@@ -29,6 +29,16 @@ struct MenuDetailPresenterTests {
         return WeatherDayDetailView(day: day, sample: sample, accent: .signature(for: .weather))
     }
 
+    @Test("menu detail environment preserves one closure-free action reference")
+    func stableEnvironmentActions() {
+        var environment = EnvironmentValues()
+        #expect(environment.menuDetailActions == nil)
+
+        let actions = MenuDetailActions()
+        environment.menuDetailActions = actions
+        #expect(environment.menuDetailActions === actions)
+    }
+
     @Test("Hover settles on a day without opening rows crossed during fast scrolling")
     func hoverOpensSettledDetail() throws {
         let view = WeatherHoverAnchor.HoverView()

@@ -1,23 +1,35 @@
 import AppKit
 import SwiftUI
 
-private struct ShowMenuDetailKey: EnvironmentKey {
-    static let defaultValue: @MainActor (AnyView, NSView) -> Void = { _, _ in }
-}
-
-private struct HideMenuDetailKey: EnvironmentKey {
-    static let defaultValue: @MainActor (NSView) -> Void = { _ in }
+private struct MenuDetailActionsKey: EnvironmentKey {
+    static let defaultValue: MenuDetailActions? = nil
 }
 
 extension EnvironmentValues {
-    var showMenuDetail: @MainActor (AnyView, NSView) -> Void {
-        get { self[ShowMenuDetailKey.self] }
-        set { self[ShowMenuDetailKey.self] = newValue }
+    var menuDetailActions: MenuDetailActions? {
+        get { self[MenuDetailActionsKey.self] }
+        set { self[MenuDetailActionsKey.self] = newValue }
+    }
+}
+
+/// Stable, closure-free actions injected into Weather rows through the SwiftUI environment.
+///
+/// Function values cannot be compared reliably when SwiftUI propagates environment changes. A single retained
+/// reference keeps the environment value stable while delegating behavior to the owning dropdown controller.
+@MainActor
+final class MenuDetailActions {
+    private weak var owner: DropdownController?
+
+    func attach(to owner: DropdownController) {
+        self.owner = owner
     }
 
-    var hideMenuDetail: @MainActor (NSView) -> Void {
-        get { self[HideMenuDetailKey.self] }
-        set { self[HideMenuDetailKey.self] = newValue }
+    func show(_ content: AnyView, anchoredTo rowAnchor: NSView) {
+        owner?.showMenuDetail(content, anchoredTo: rowAnchor)
+    }
+
+    func hide(anchoredTo rowAnchor: NSView) {
+        owner?.hideMenuDetail(anchoredTo: rowAnchor)
     }
 }
 

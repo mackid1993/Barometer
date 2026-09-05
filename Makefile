@@ -1,11 +1,23 @@
-.PHONY: build test app dmg run stop install probe clean
+LOCAL_SWIFT_64_DEVELOPER_DIR := $(firstword $(wildcard \
+	/Applications/Xcode_27.0.app/Contents/Developer \
+	/Applications/Xcode_27.0.0.app/Contents/Developer \
+	/Applications/Xcode-beta.app/Contents/Developer))
+DEVELOPER_DIR ?= $(LOCAL_SWIFT_64_DEVELOPER_DIR)
+ifeq ($(strip $(DEVELOPER_DIR)),)
+DEVELOPER_DIR := /Applications/Xcode.app/Contents/Developer
+endif
+export DEVELOPER_DIR
+
+.PHONY: build test security-audit app dmg run stop install probe clean
 
 build:
 	swift build
 
 test:
-	swift test --enable-swift-testing -Xswiftc -F \
-		-Xswiftc "$${DEVELOPER_DIR:-/Library/Developer/CommandLineTools}/Library/Developer/Frameworks"
+	swift test --enable-swift-testing
+
+security-audit:
+	./Scripts/audit-c-security.sh
 
 app:
 	./Scripts/make-app.sh

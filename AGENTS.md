@@ -10,8 +10,10 @@ managers (Thaw, Bartender) on macOS 27. Design: `docs/DESIGN.md`. Plan: `docs/PL
 
 ## Environment
 
-- macOS 27.0 beta on an Apple M4 Pro MacBook Pro. Command Line Tools only, no Xcode. Swift 6.2.3. SDK 26.2.
-- Build with SwiftPM: `swift build`, `swift test`, `make app`, `make run`, `make stop`. Never use `xcodebuild`. Never add an `.xcodeproj`.
+- macOS 27.0 beta on an Apple M4 Pro MacBook Pro. SwiftPM uses the Xcode 27 command-line toolchain: Swift 6.4 and
+  SDK 27.0. The local bundle is `/Applications/Xcode-beta.app`; GitHub uses the `xcode-27` runner.
+- Build with SwiftPM: `make build`, `make test`, `make app`, `make run`, `make stop`. The Makefile selects Swift 6.4;
+  direct `swift` commands need the same `DEVELOPER_DIR`. Never use `xcodebuild`. Never add an `.xcodeproj`.
 - Zero third-party dependencies in v1.
 - Thaw (`com.stonerl.Thaw`), iStat Menus, and Stats are installed. Never modify them, their preferences, or their launch agents. Do not launch Thaw; ask David to run it when a check needs it.
 

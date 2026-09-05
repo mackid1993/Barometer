@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 /// Installs a verified Barometer DMG after the running app exits.
 public enum UpdateInstaller {
@@ -9,6 +10,7 @@ public enum UpdateInstaller {
     applications=$3
     pid=$4
     relaunch=$5
+    requirement=$6
     replacement="$applications/.Barometer.app.update"
     backup="$applications/.Barometer.app.backup"
 
@@ -41,12 +43,12 @@ public enum UpdateInstaller {
     [ "$identifier" = "com.barometer.app" ]
     links=$(/usr/bin/find "$app" -type l -print)
     [ -z "$links" ]
-    /usr/bin/codesign --verify --deep --strict "$app"
+    /usr/bin/codesign --verify --deep --strict -R="$requirement" "$app"
 
     /bin/mkdir -p "$applications"
     /bin/rm -rf "$replacement"
     /usr/bin/ditto "$app" "$replacement"
-    /usr/bin/codesign --verify --deep --strict "$replacement"
+    /usr/bin/codesign --verify --deep --strict -R="$requirement" "$replacement"
     /bin/rm -rf "$backup"
     had_existing=no
     if [ -e "$applications/Barometer.app" ]; then
@@ -89,6 +91,7 @@ public enum UpdateInstaller {
         applicationsDirectory: URL = URL(fileURLWithPath: "/Applications", isDirectory: true),
         processIdentifier: Int32 = ProcessInfo.processInfo.processIdentifier
     ) throws {
+        let designatedRequirement = try runningDesignatedRequirement()
         let mount = FileManager.default.temporaryDirectory
             .appendingPathComponent("Barometer-update-mount-\(UUID().uuidString)", isDirectory: true)
         let process = installerProcess(
@@ -96,7 +99,8 @@ public enum UpdateInstaller {
             mount: mount,
             applicationsDirectory: applicationsDirectory,
             processIdentifier: processIdentifier,
-            relaunch: true
+            relaunch: true,
+            designatedRequirement: designatedRequirement
         )
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -113,7 +117,8 @@ public enum UpdateInstaller {
             mount: mount,
             applicationsDirectory: applicationsDirectory,
             processIdentifier: nil,
-            relaunch: false
+            relaunch: false,
+            designatedRequirement: #"identifier "com.barometer.app""#
         )
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -126,12 +131,44 @@ public enum UpdateInstaller {
 
     static var installScriptForTesting: String { installScript }
 
+    static func runningDesignatedRequirement() throws -> String {
+        var runningCode: SecCode?
+        guard SecCodeCopySelf(SecCSFlags(), &runningCode) == errSecSuccess,
+              let runningCode
+        else {
+            throw UpdateInstallationError.signingRequirementUnavailable
+        }
+
+        var staticCode: SecStaticCode?
+        guard SecCodeCopyStaticCode(runningCode, SecCSFlags(), &staticCode) == errSecSuccess,
+              let staticCode
+        else {
+            throw UpdateInstallationError.signingRequirementUnavailable
+        }
+
+        var requirement: SecRequirement?
+        guard SecCodeCopyDesignatedRequirement(staticCode, SecCSFlags(), &requirement) == errSecSuccess,
+              let requirement
+        else {
+            throw UpdateInstallationError.signingRequirementUnavailable
+        }
+
+        var requirementText: CFString?
+        guard SecRequirementCopyString(requirement, SecCSFlags(), &requirementText) == errSecSuccess,
+              let requirementText
+        else {
+            throw UpdateInstallationError.signingRequirementUnavailable
+        }
+        return requirementText as String
+    }
+
     private static func installerProcess(
         diskImage: URL,
         mount: URL,
         applicationsDirectory: URL,
         processIdentifier: Int32?,
-        relaunch: Bool
+        relaunch: Bool,
+        designatedRequirement: String
     ) -> Process {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
@@ -144,6 +181,7 @@ public enum UpdateInstaller {
             applicationsDirectory.path,
             processIdentifier.map(String.init) ?? "",
             relaunch ? "yes" : "no",
+            designatedRequirement,
         ]
         return process
     }
@@ -152,12 +190,15 @@ public enum UpdateInstaller {
 /// Failures specific to extracting and replacing Barometer from a DMG.
 public enum UpdateInstallationError: LocalizedError {
     case unreadableDiskImage
+    case signingRequirementUnavailable
     case installFailed
 
     public var errorDescription: String? {
         switch self {
         case .unreadableDiskImage:
             "The verified update is not a readable Barometer disk image."
+        case .signingRequirementUnavailable:
+            "Barometer could not verify its signing identity before installing the update."
         case .installFailed:
             "The update could not replace Barometer in Applications."
         }

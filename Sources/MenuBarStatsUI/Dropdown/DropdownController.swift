@@ -26,6 +26,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     private let contentItem = NSMenuItem()
     private var trackingTimer: Timer?
     private let detailPresenter = MenuDetailPresenter()
+    private let detailActions = MenuDetailActions()
     private weak var detailAnchor: NSView?
     private let usesAttachedPanel: Bool
     private var rootPanel: AttachedPanel?
@@ -60,22 +61,10 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         rootContent = rootView
         super.init()
 
+        detailActions.attach(to: self)
         rootContent = AnyView(
             rootView
-                .environment(\.showMenuDetail, { [weak self] content, rowAnchor in
-                    guard let self else { return }
-                    if self.usesAttachedPanel {
-                        self.detailPresenter.present(content, anchoredTo: rowAnchor, edge: .maxX)
-                        if let root = self.rootPanel {
-                            PopoverPlacement.constrain(root, to: self.detailAnchor?.window?.screen)
-                        }
-                    } else if let anchor = self.detailAnchor {
-                        self.detailPresenter.show(content, from: self.menu, anchoredTo: anchor)
-                    }
-                })
-                .environment(\.hideMenuDetail, { [weak self] rowAnchor in
-                    self?.detailPresenter.anchorDidExit(rowAnchor)
-                })
+                .environment(\.menuDetailActions, detailActions)
         )
         NotificationCenter.default.addObserver(
             self,
@@ -157,6 +146,21 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         panel.show(relativeTo: NSRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2),
                    preferredEdge: .minY, on: screen)
         startDismissalMonitoring()
+    }
+
+    func showMenuDetail(_ content: AnyView, anchoredTo rowAnchor: NSView) {
+        if usesAttachedPanel {
+            detailPresenter.present(content, anchoredTo: rowAnchor, edge: .maxX)
+            if let rootPanel {
+                PopoverPlacement.constrain(rootPanel, to: detailAnchor?.window?.screen)
+            }
+        } else if let detailAnchor {
+            detailPresenter.show(content, from: menu, anchoredTo: detailAnchor)
+        }
+    }
+
+    func hideMenuDetail(anchoredTo rowAnchor: NSView) {
+        detailPresenter.anchorDidExit(rowAnchor)
     }
 
     var hasActiveTrackingTimer: Bool { trackingTimer != nil }

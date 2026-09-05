@@ -10,9 +10,10 @@ silently discard the compatibility contract.
 
 ## Tested environment and hard constraints
 
-- Development uses Command Line Tools only: Swift 6.2.3 and the macOS 26.2 SDK at
-  `/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk`.
-- Barometer compiles against macOS 26 headers and runs on macOS 27. Do not depend on a macOS 27-only SDK symbol.
+- Development uses the Xcode 27 command-line toolchain through SwiftPM: Swift 6.4 and the macOS 27.0 SDK. The local
+  bundle is `/Applications/Xcode-beta.app`; GitHub uses the `xcode-27` runner and its default `Xcode.app`.
+- Barometer still targets macOS 26. Any macOS 27-only SDK symbol must have an availability gate and a working macOS
+  26 fallback.
 - Build with SwiftPM and the repository scripts. Never add an Xcode project or require `xcodebuild`.
 - The production identity is `Barometer.app`, executable `Barometer`, bundle identifier `com.barometer.app`.
 - Interactive compatibility checks must use `/Applications/Barometer.app`, installed with `make install`.
@@ -366,14 +367,27 @@ universal performance guarantee.
 - GitHub release workflows are manual-dispatch only. Notarization remains off unless David explicitly enables it;
   do not submit a build merely because the workflow supports the path.
 
-## Command Line Tools caveats
+## Swift 6.4 toolchain and hardening rules
 
-- This installation includes `Testing.framework`, but plain `swift test` builds and links the test bundle without
-  printing a test-execution summary. An exit code of zero proves compilation/linking here, not a visible run count.
-- `Package.swift` supplies the Command Line Tools framework search path and disables the broken Foundation/Testing
-  cross-import overlay needed by this installation. Do not remove those flags without rechecking the runner.
-- Always run both `swift test` and `swift build -c release`; debug success did not catch the Swift optimizer issue
-  involving actor-isolated destructors.
+- `make` selects `/Applications/Xcode-beta.app/Contents/Developer` locally when `DEVELOPER_DIR` is not already set.
+  GitHub uses the dedicated `xcode-27` runner and `/Applications/Xcode.app/Contents/Developer`.
+- Continue to use SwiftPM only. The Xcode application supplies the Swift 6.4 command-line toolchain and SDK; it does
+  not authorize an Xcode project or `xcodebuild`.
+- Xcode bundles place `Testing.framework` under the macOS platform directory, while standalone Command Line Tools
+  place it under the developer directory. `Package.swift` resolves both layouts; do not hard-code the obsolete path.
+- SwiftUI's `@Entry` macro is not usable with the older standalone Command Line Tools installation because that
+  bundle lacks the `SwiftUIMacros` plug-in. The manually declared `EnvironmentKey` remains intentional.
+- SwiftUI environment values must not store closures. Inject one stable reference-type action object and keep its
+  owner weak to avoid invalidation churn and retain cycles.
+- The updater must derive the running Barometer process's designated requirement through the Security framework and
+  evaluate it against an update, not merely accept any valid code signature. Never hard-code or record a certificate
+  or signing-team identifier in source, tests, documentation, settings, logs, or release notes.
+- `CSystemSources` retains the warning policy in `Package.swift`, and CI runs `make security-audit`. Do not suppress a
+  diagnostic without a written, source-specific reason.
+- C bounds safety remains deferred for the dynamic `dlopen` and `dlsym` bridge. Do not add unsafe pointer annotations
+  solely to make `-fbounds-safety` compile.
+- Always run both `make test` and `swift build -c release`; debug success has previously missed optimizer and macro
+  plug-in failures.
 
 ## macOS update regression checklist
 

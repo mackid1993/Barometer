@@ -22,16 +22,17 @@ Weather is a first-class module, not an add-on.
 | --- | --- |
 | Machine | MacBook Pro, Apple M4 Pro, 48 GB |
 | OS | macOS 27.0 beta, build 26A5425a (Darwin 27.0.0) |
-| Toolchain | Command Line Tools only, no Xcode. Swift 6.2.3. SDK at `/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk` is version 26.2 |
+| Toolchain | Xcode 27 command-line toolchain through SwiftPM. Swift 6.4 and SDK 27.0; no Xcode project or `xcodebuild` |
 | Menu bar manager | Thaw 3.0.0-alpha.1 (`com.stonerl.Thaw`, requires macOS 27), open source, fork of Ice |
 | Reference apps installed | iStat Menus 7.30, Stats 3.0.14 (`eu.exelban.Stats`) |
 
 Consequences:
 
-- Everything must build with `swift build` from a Swift package. There is no `.xcodeproj`, no `xcodebuild`, and no
-  Xcode-only project configuration. The bundle script applies the minimum Calendar and Location entitlements directly;
-  there is no WeatherKit or storyboard dependency.
-- The SDK is 26.2, so the code compiles against macOS 26 headers and runs on 27. Do not depend on any macOS 27-only API.
+- Everything must build with `make build` from a Swift package. The Makefile selects the Swift 6.4 command-line
+  toolchain. There is no `.xcodeproj`, no `xcodebuild`, and no Xcode-only project configuration. The bundle script
+  applies the minimum Calendar and Location entitlements directly; there is no WeatherKit or storyboard dependency.
+- The deployment target remains macOS 26. Any macOS 27-only API must be availability-gated and retain a macOS 26
+  fallback.
 - Development builds use ad-hoc signing. The v1 release uses Developer ID Application signing, the hardened runtime,
   and Apple notarization. TCC grants can still reset during ad-hoc development, so Location and Calendars remain
   optional paths with saved-data fallbacks.
@@ -229,7 +230,7 @@ One `LSUIElement` application, `Barometer.app`, with no Dock icon. It owns all s
 
 ```
 MenuBarStats/
-  Package.swift                      swift-tools-version 6.2, platforms macOS "26.0", zero third-party dependencies
+  Package.swift                      swift-tools-version 6.4, platforms macOS "26.0", zero third-party dependencies
   AGENTS.md                          rules for coding agents
   README.md
   LICENSE                            MIT
@@ -439,7 +440,7 @@ Every source below has been checked on the target machine unless marked "expecte
 
 | Decision | Choice | Alternatives rejected |
 | --- | --- | --- |
-| Language and UI | Swift 6.2, AppKit for status items and menus, SwiftUI for panel and settings content | Pure SwiftUI `MenuBarExtra` (cannot set autosave names or accessibility per item reliably, and its window style is not an `NSMenu`) |
+| Language and UI | Swift 6.4, AppKit for status items and menus, SwiftUI for panel and settings content | Pure SwiftUI `MenuBarExtra` (cannot set autosave names or accessibility per item reliably, and its window style is not an `NSMenu`) |
 | Build system | SwiftPM plus a bundle script | Xcode project (not installed) |
 | Dependencies | None | Sparkle, charts libraries (add later if wanted) |
 | Minimum macOS | 26.0 | 15 (would need feature flags for glass and menu bar changes) |

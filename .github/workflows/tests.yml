@@ -7,11 +7,11 @@ permissions:
   contents: read
 
 env:
-  DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
+  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
 
 jobs:
   test:
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -21,6 +21,9 @@ jobs:
 
       - name: Check source invariants
         run: python3 Scripts/check-source-invariants.py
+
+      - name: Check C security diagnostics
+        run: make security-audit
 
       - name: Run tests
         run: make test

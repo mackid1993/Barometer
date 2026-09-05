@@ -54,6 +54,63 @@ struct CalendarPackagingTests {
         #expect(distributionSigning.contains("calendars location"))
     }
 
+    @Test("the C bridge keeps Apple's security diagnostics in local and CI builds")
+    func cSecurityDiagnostics() throws {
+        let package = try String(contentsOf: repository.appendingPathComponent("Package.swift"), encoding: .utf8)
+        for flag in [
+            "-ftrivial-auto-var-init=zero",
+            "-Werror=return-type",
+            "-Wuninitialized",
+            "-Wconditional-uninitialized",
+            "-Wimplicit-fallthrough",
+            "-Wshorten-64-to-32",
+            "-Werror=implicit-function-declaration",
+            "-Wshadow",
+            "-Wempty-body",
+            "-Warray-bounds",
+            "-Wreturn-stack-address",
+            "-Wconversion",
+            "-Wassign-enum",
+            "-Wsign-compare",
+        ] {
+            #expect(package.contains("\"\(flag)\""))
+        }
+
+        let analyzer = try String(
+            contentsOf: repository.appendingPathComponent("Scripts/audit-c-security.sh"),
+            encoding: .utf8
+        )
+        #expect(analyzer.contains("security.FloatLoopCounter"))
+        #expect(analyzer.contains("security.insecureAPI.rand"))
+        #expect(analyzer.contains("security.insecureAPI.strcpy"))
+
+        let workflow = try String(
+            contentsOf: repository.appendingPathComponent(".github/workflows/tests.yml"),
+            encoding: .utf8
+        )
+        #expect(workflow.contains("make security-audit"))
+    }
+
+    @Test("Swift 6.4 stays pinned across the package and every GitHub build")
+    func swiftToolchain() throws {
+        let package = try String(contentsOf: repository.appendingPathComponent("Package.swift"), encoding: .utf8)
+        #expect(package.hasPrefix("// swift-tools-version: 6.4"))
+
+        let makefile = try String(contentsOf: repository.appendingPathComponent("Makefile"), encoding: .utf8)
+        #expect(makefile.contains("/Applications/Xcode-beta.app/Contents/Developer"))
+
+        for path in [
+            ".github/workflows/check.yml",
+            ".github/workflows/macos.yml",
+            ".github/workflows/tests.yml",
+        ] {
+            let workflow = try String(contentsOf: repository.appendingPathComponent(path), encoding: .utf8)
+            #expect(workflow.contains("runs-on: xcode-27"))
+            #expect(workflow.contains("DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer"))
+            #expect(!workflow.contains("Xcode_26.2"))
+        }
+    }
+
     private func dictionary(at path: String) throws -> [String: Any] {
         let data = try Data(contentsOf: repository.appendingPathComponent(path))
         return try #require(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])

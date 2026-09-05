@@ -1,4 +1,4 @@
-// swift-tools-version: 6.2
+// swift-tools-version: 6.4
 
 import Foundation
 import PackageDescription
@@ -6,11 +6,40 @@ import PackageDescription
 let strictConcurrency: [SwiftSetting] = [
     .unsafeFlags(["-strict-concurrency=complete"]),
 ]
+let cSafetySettings: [CSetting] = [
+    .unsafeFlags([
+        "-ftrivial-auto-var-init=zero",
+        "-Werror=return-type",
+        "-Wuninitialized",
+        "-Wconditional-uninitialized",
+        "-Wimplicit-fallthrough",
+        "-Wshorten-64-to-32",
+        "-Werror=implicit-function-declaration",
+        "-Wshadow",
+        "-Wempty-body",
+        "-Wbuiltin-memcpy-chk-size",
+        "-Wformat-nonliteral",
+        "-Warray-bounds",
+        "-Warray-bounds-pointer-arithmetic",
+        "-Wsuspicious-memaccess",
+        "-Wsizeof-array-div",
+        "-Wsizeof-pointer-div",
+        "-Wreturn-stack-address",
+        "-Wconversion",
+        "-Wassign-enum",
+        "-Wsign-compare",
+    ]),
+]
 
 let developerDirectory =
     ProcessInfo.processInfo.environment["DEVELOPER_DIR"]
-    ?? "/Library/Developer/CommandLineTools"
-let selectedToolchainFrameworks = "\(developerDirectory)/Library/Developer/Frameworks"
+    ?? "/Applications/Xcode.app/Contents/Developer"
+let xcodePlatformFrameworks =
+    "\(developerDirectory)/Platforms/MacOSX.platform/Developer/Library/Frameworks"
+let commandLineToolsFrameworks = "\(developerDirectory)/Library/Developer/Frameworks"
+let selectedToolchainFrameworks = FileManager.default.fileExists(atPath: xcodePlatformFrameworks)
+    ? xcodePlatformFrameworks
+    : commandLineToolsFrameworks
 let testSwiftSettings = strictConcurrency + [
     .unsafeFlags([
         "-F", selectedToolchainFrameworks,
@@ -41,6 +70,7 @@ let package = Package(
         .target(
             name: "CSystemSources",
             publicHeadersPath: "include",
+            cSettings: cSafetySettings,
             linkerSettings: [
                 .linkedFramework("IOKit"),
             ]
@@ -60,7 +90,10 @@ let package = Package(
         .target(
             name: "MenuBarStatsCore",
             dependencies: ["SystemSources"],
-            swiftSettings: strictConcurrency
+            swiftSettings: strictConcurrency,
+            linkerSettings: [
+                .linkedFramework("Security"),
+            ]
         ),
         .target(
             name: "MenuBarStatsUI",
