@@ -22,6 +22,7 @@ struct SettingsWindowLifecycleTests {
             networkStore: .init(historyCapacity: 1),
             diskStore: .init(historyCapacity: 1),
             sensorStore: .init(historyCapacity: 1),
+            updateController: UpdateController(),
             calendarAccessAction: {},
             applyMenuBarChangesAction: {}
         )
@@ -37,5 +38,21 @@ struct SettingsWindowLifecycleTests {
         #expect(controller == nil)
         #expect(window.contentViewController == nil)
         #expect(window.delegate == nil)
+    }
+
+    @Test("Automatic update checks can be disabled and remain disabled")
+    func automaticUpdatePreference() throws {
+        let suite = "UpdatePreferenceTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let controller = UpdateController(defaults: defaults)
+        #expect(controller.automaticChecksEnabled)
+        controller.toggleAutomaticChecks()
+        #expect(!controller.automaticChecksEnabled)
+        #expect(controller.statusMessage == "Automatic checks are off")
+
+        let restored = UpdateController(defaults: defaults)
+        #expect(!restored.automaticChecksEnabled)
     }
 }

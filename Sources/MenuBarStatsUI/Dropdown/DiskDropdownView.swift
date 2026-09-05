@@ -52,7 +52,11 @@ public struct DiskDropdownView: View {
                             value: DiskValueFormatter.rate(rates.write, unitSystem: settings.unitSystem),
                             color: accent.secondary)
                     }
-                    DiskHistoryGraph(samples: store.history.recent(300), readAccent: readAccent, writeAccent: writeAccent)
+                    DiskHistoryGraph(
+                        samples: store.history.recent(300),
+                        readAccent: readAccent,
+                        writeAccent: writeAccent
+                    )
                         .frame(height: 90)
                 }
             }
@@ -223,7 +227,6 @@ private struct DiskRateTile: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .contentTransition(.numericText())
-                    .animation(.snappy(duration: 0.3), value: value)
             }
             Spacer(minLength: 0)
         }

@@ -19,16 +19,18 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     private let logger = Logger(subsystem: "com.barometer.app", category: "dropdown")
     private var rootContent: AnyView
     private var hasHostedContent = false
-    private let hostingView: NSHostingView<AnyView>
+    private var hostingView: NSHostingView<AnyView>?
     private let contentHeight: CGFloat
     private let contentWidth: CGFloat
     private let menu: NSMenu
+    private let contentItem = NSMenuItem()
     private var trackingTimer: Timer?
     private let detailPresenter = MenuDetailPresenter()
     private weak var detailAnchor: NSView?
     private let usesAttachedPanel: Bool
     private var rootPanel: AttachedPanel?
     private let dismissalMonitor = PopoverDismissalMonitor()
+    private var activationHoverRegion: NSRect?
     private var isOpen = false
 
     /// Creates and installs a hosted menu for one permanent status item.
@@ -55,9 +57,6 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         self.detailAnchor = statusItem?.button
         menu = NSMenu()
         rootContent = rootView
-        hostingView = NSHostingView(rootView: AnyView(EmptyView()))
-        hostingView.sizingOptions = [.intrinsicContentSize]
-        hostingView.frame = NSRect(x: 0, y: 0, width: contentWidth, height: contentHeight)
         super.init()
 
         rootContent = AnyView(rootView.environment(\.showMenuDetail, { [weak self] content, rowAnchor in
@@ -74,8 +73,6 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         menu.delegate = self
         menu.minimumWidth = contentWidth
 
-        let contentItem = NSMenuItem()
-        contentItem.view = hostingView
         menu.addItem(contentItem)
         menu.addItem(.separator())
 
@@ -114,6 +111,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         detailAnchor = anchor
         becomeActive()
         isOpen = true
+        activationHoverRegion = Self.activationHoverRegion(at: NSEvent.mouseLocation, buttonSize: anchor.bounds.size)
         visibilityAction(true)
         let availableHeight = (anchor.window?.screen?.visibleFrame.height ?? 900) - 100
         let height = Self.attachedPanelHeight(contentHeight: contentHeight, availableHeight: availableHeight)
@@ -139,9 +137,16 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     }
 
     var hasActiveTrackingTimer: Bool { trackingTimer != nil }
+    var hasAllocatedHostingView: Bool { hostingView != nil }
 
     static func attachedPanelHeight(contentHeight: CGFloat, availableHeight: CGFloat) -> CGFloat {
         min(BarometerDesign.maximumPanelHeight, contentHeight + 56, availableHeight)
+    }
+
+    static func activationHoverRegion(at point: NSPoint, buttonSize: NSSize) -> NSRect {
+        let size = NSSize(width: max(36, buttonSize.width), height: max(24, buttonSize.height))
+        return NSRect(x: point.x - size.width / 2, y: point.y - size.height / 2,
+                      width: size.width, height: size.height)
     }
 
     private func closeRootPanel() {
@@ -154,6 +159,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         trackingTimer = nil
         rootPanel?.releaseAndClose()
         rootPanel = nil
+        activationHoverRegion = nil
         resignActive()
         MemoryReclaim.scheduleRelief()
     }
@@ -170,6 +176,10 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     public func menuWillOpen(_ menu: NSMenu) {
         becomeActive()
         isOpen = true
+        activationHoverRegion = Self.activationHoverRegion(
+            at: NSEvent.mouseLocation,
+            buttonSize: detailAnchor?.bounds.size ?? NSSize(width: 36, height: 24)
+        )
         prepareContent()
         visibilityAction(true)
         detailPresenter.close()
@@ -194,8 +204,11 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         if wasOpen { visibilityAction(false) }
         trackingTimer?.invalidate()
         trackingTimer = nil
-        hostingView.rootView = AnyView(EmptyView())
+        contentItem.view = nil
+        hostingView?.rootView = AnyView(EmptyView())
+        hostingView = nil
         hasHostedContent = false
+        activationHoverRegion = nil
         resignActive()
         MemoryReclaim.scheduleRelief()
         logger.debug("closed module=\(self.moduleName, privacy: .public)")
@@ -226,7 +239,11 @@ public final class DropdownController: NSObject, NSMenuDelegate {
 
     private func prepareContent() {
         guard !hasHostedContent else { return }
-        hostingView.rootView = rootContent
+        let hostingView = NSHostingView(rootView: rootContent)
+        hostingView.sizingOptions = [.intrinsicContentSize]
+        hostingView.frame = NSRect(x: 0, y: 0, width: contentWidth, height: contentHeight)
+        self.hostingView = hostingView
+        contentItem.view = hostingView
         hasHostedContent = true
     }
 
@@ -234,9 +251,10 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         dismissalMonitor.start(containsPoint: { [weak self] point in
             guard let self else { return false }
             let rootWindow = self.usesAttachedPanel
-                ? self.rootPanel : self.hostingView.window
+                ? self.rootPanel : self.hostingView?.window
             return rootWindow?.frame.contains(point) == true
                 || self.detailPresenter.panel?.frame.contains(point) == true
+                || self.activationHoverRegion?.contains(point) == true
                 || self.detailAnchor.map { anchor in
                     anchor.window?.convertToScreen(anchor.convert(anchor.bounds, to: nil)).contains(point) == true
                 } == true
@@ -248,7 +266,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
 
     /// Resizes the hosted view to the ideal height of its SwiftUI content.
     private func fitContent() {
-        guard !usesAttachedPanel else { return }
+        guard !usesAttachedPanel, let hostingView else { return }
         let maximumHeight = min(BarometerDesign.maximumPanelHeight, (NSScreen.main?.visibleFrame.height ?? 900) - 120)
         var measured = hostingView.intrinsicContentSize.height
         if !measured.isFinite || measured <= 0 {

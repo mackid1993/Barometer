@@ -269,6 +269,7 @@ public final class MonitoringCoordinator {
             rootView: AnyView(CPUDropdownView(store: cpuStore, settingsStore: settingsStore)),
             contentHeight: CPUDropdownView.contentSize.height,
             contentWidth: CPUDropdownView.contentSize.width,
+            usesAttachedPanel: true,
             visibilityAction: { [weak self] visible in
                 self?.setDetailVisibility(owner: "cpu", modules: [.cpu], visible: visible)
             },

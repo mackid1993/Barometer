@@ -676,7 +676,6 @@ private struct AQIScale: View {
             }
         }
         .frame(height: 8)
-        .animation(.snappy(duration: 0.4), value: value)
     }
 }
 

@@ -14,16 +14,19 @@ func dropdownVisibility(module: String) {
         visibilityAction: { visibility.append($0) }, tickAction: { ticks += 1 }, settingsAction: {}, quitAction: {}
     )
     let menu = NSMenu()
+    #expect(!controller.hasAllocatedHostingView)
     controller.menuNeedsUpdate(menu)
     #expect(visibility.isEmpty)
     #expect(ticks == 0)
     controller.menuWillOpen(menu)
+    #expect(controller.hasAllocatedHostingView)
     #expect(ticks == 1)
     controller.menuNeedsUpdate(menu)
     #expect(visibility == [true])
     #expect(ticks == 2)
     controller.menuDidClose(menu)
     #expect(visibility == [true, false])
+    #expect(!controller.hasAllocatedHostingView)
 }
 
 @MainActor
@@ -79,4 +82,16 @@ func attachedDropdownHeight() {
     #expect(DropdownController.attachedPanelHeight(contentHeight: 560, availableHeight: 800) == 616)
     #expect(DropdownController.attachedPanelHeight(contentHeight: 720, availableHeight: 800) == 720)
     #expect(DropdownController.attachedPanelHeight(contentHeight: 720, availableHeight: 500) == 500)
+}
+
+@MainActor
+@Test("The launch point remains a hover-safe menu bar region")
+func activationHoverRegion() {
+    let region = DropdownController.activationHoverRegion(
+        at: NSPoint(x: 1_000, y: 900),
+        buttonSize: NSSize(width: 28, height: 20)
+    )
+    #expect(region.size == NSSize(width: 36, height: 24))
+    #expect(region.contains(NSPoint(x: 1_000, y: 900)))
+    #expect(!region.contains(NSPoint(x: 950, y: 900)))
 }

@@ -159,7 +159,6 @@ private struct SensorReadingRow: View {
                 .font(BarometerDesign.valueFont)
                 .frame(minWidth: 64, alignment: .trailing)
                 .contentTransition(.numericText())
-                .animation(.snappy(duration: 0.3), value: formattedValue)
         }
         .padding(.vertical, 3)
         .padding(.horizontal, 6)

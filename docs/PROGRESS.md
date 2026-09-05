@@ -3101,3 +3101,33 @@ Verification before installation:
 - `python3 Scripts/benchmark-memory.py dist/memory-baseline` passed with a 92.7% lower one-hour footprint than the
   original history baseline and zero growth from simulated hours 24 to 48 (`dist/p8-t37-verified-history-memory.log`).
 - `git diff --check` passed. Packaging, installed-app measurements, and interactive selector checks follow. No push.
+
+## P8-T38 Production CPU, lifecycle, and updater correction
+
+CPU history now places available samples across the full selected range for 1 minute, 5 minutes, 30 minutes,
+3 hours, and 24 hours. CPU uses the attached panel so its range controls receive clicks. Dropdown dismissal also
+retains the activation hover region used by mirrored menu bar managers, while keeping the existing one-second exit
+grace.
+
+Native-menu SwiftUI hosts are allocated only while their menu is open and detached on close. Removed implicit
+animations driven by live metric values across the shared design and metric panels; hover glow, gradients, shapes,
+and the final visual layout are unchanged. This avoids retaining every closed widget tree and prevents live samples
+from continuously animating otherwise static panels.
+
+Added a zero-dependency update pipeline modeled on Clicker's behavior: a quiet delayed startup check, a manual
+About-window check, persisted automatic-check enable/disable control, exact-version DMG selection, required GitHub
+SHA-256 digest verification, release notes, and Skip/Later/Download actions. The installer verifies the DMG, bundle
+identity, executable, symlinks, and code signature, stages the replacement in Applications, preserves a rollback
+copy, and relaunches Barometer.
+
+Verification before the production install:
+
+- `python3 Scripts/check-source-invariants.py` passed.
+- Focused dropdown, placement, renderer, and Settings lifecycle coverage passed: 64 tests in five suites
+  (`dist/p8-t38-focused.log`).
+- The updater pipeline passed all seven tests, including a real temporary DMG creation, verification, extraction,
+  replacement, and cleanup test (`dist/p8-t38-updater-pipeline.log`).
+- The broader screen suite reached 113 passing tests with no observed failure before it was interrupted at David's
+  request to install the production build for interactive checking. Full screenshots and benchmarks remain due
+  before the eventual push (`dist/p8-t38-full-screen-tests.log`).
+- `git diff --check` passed.

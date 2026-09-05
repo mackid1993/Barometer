@@ -44,8 +44,18 @@ struct PopoverPlacementTests {
             ), at: timestamp)
             cpuStore.receive(Self.cpuSample(timestamp: timestamp, percent: Double(index + 20)), at: timestamp)
         }
-        var views: [(String, () -> AnyView, CGFloat)] = [
-            ("cpu", { AnyView(CPUDropdownView(store: cpuStore, settingsStore: settingsStore)) }, 500),
+        var views: [(String, () -> AnyView, CGFloat)] = HistoryRange.allCases.map { range in
+            (
+                "cpu-\(range.rawValue)",
+                { AnyView(CPUDropdownView(
+                    store: cpuStore,
+                    settingsStore: settingsStore,
+                    initialRange: range
+                )) },
+                500
+            )
+        }
+        views.append(contentsOf: [
             ("weather", { AnyView(WeatherDropdownView(
                 store: store, settingsStore: settingsStore, refreshAction: {})) }, 720),
             ("network", { AnyView(NetworkDropdownView(
@@ -61,7 +71,7 @@ struct PopoverPlacementTests {
                 batteryStore: .init(historyCapacity: 1), weatherStore: store, timeStore: .init(historyCapacity: 1),
                 settingsStore: settingsStore, locationAccess: { .unavailable }, locationAction: {},
                 weatherRefreshAction: {}, resetEnergyAction: {}, requestCalendarAccess: {})) }, 720)
-        ]
+        ])
         for (index, day) in forecast.daily.enumerated() {
             views.append(("day-\(index)", { AnyView(WeatherDayDetailView(
                 day: day, sample: sample, accent: .signature(for: .weather))) }, 640))
@@ -94,7 +104,9 @@ struct PopoverPlacementTests {
                                 let horizontal = x == visible.minX ? "left" : "right"
                                 let vertical = y == visible.minY ? "bottom" : "top"
                                 let corner = "\(horizontal)-\(vertical)"
-                                RunLoop.main.run(until: Date(timeIntervalSinceNow: name == "cpu" ? 1 : 0.25))
+                                RunLoop.main.run(
+                                    until: Date(timeIntervalSinceNow: name.hasPrefix("cpu") ? 1 : 0.25)
+                                )
                                 panel.displayIfNeeded()
                                 let baseName = "\(name)-\(appearance.rawValue)-\(corner)"
                                 try capture(panel, named: baseName, in: directory)

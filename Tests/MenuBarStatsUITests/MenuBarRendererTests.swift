@@ -575,18 +575,25 @@ struct MenuBarRendererTests {
     }
 
     @Test
-    func cpuHistoryUsesTimestampsWithinTheSelectedWindow() {
-        let cutoff = Date(timeIntervalSince1970: 10_000)
-        let history = [
-            HistoryEntry(timestamp: cutoff.addingTimeInterval(1_080), value: CPUHistoryValue(totalPercent: 25)),
-            HistoryEntry(timestamp: cutoff.addingTimeInterval(10_800), value: CPUHistoryValue(totalPercent: 50)),
-        ]
-
-        let threeHours = CPUDropdownView.historyPositions(history, cutoff: cutoff, duration: 10_800)
-        let twentyFourHours = CPUDropdownView.historyPositions(history, cutoff: cutoff, duration: 86_400)
-
-        #expect(threeHours == [0.1, 1])
-        #expect(twentyFourHours == [0.0125, 0.125])
+    func cpuHistoryAlwaysUsesTheFullChartWidth() throws {
+        let values = [0.2, 0.4, 0.8]
+        let size = CGSize(width: 300, height: 84)
+        let first = try #require(NormalizedGraphGeometry.point(
+            at: 0,
+            values: values,
+            size: size,
+            horizontalInset: 4,
+            verticalInset: 3
+        ))
+        let last = try #require(NormalizedGraphGeometry.point(
+            at: values.count - 1,
+            values: values,
+            size: size,
+            horizontalInset: 4,
+            verticalInset: 3
+        ))
+        #expect(first.x == 4)
+        #expect(last.x == 296)
     }
 
     @Test

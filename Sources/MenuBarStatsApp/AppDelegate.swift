@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindowController: SettingsWindowController?
     private var monitoringCoordinator: MonitoringCoordinator?
     private var settingsStore: SettingsStore?
+    private var updateController: UpdateController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard validateBundleIdentity() else {
@@ -38,18 +39,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         let settingsStore = SettingsStore()
+        let updateController = UpdateController()
         // Register the complete launch-visible child set before any controller shows it.
         // Hidden AppKit slots have no AX counterpart and make managers pair an inactive
         // autosave name with a different visible Barometer item.
         let registry = StatusItemRegistry(settings: settingsStore.settings)
         statusItemRegistry = registry
         self.settingsStore = settingsStore
+        self.updateController = updateController
         monitoringCoordinator = MonitoringCoordinator(
             registry: registry,
             settingsStore: settingsStore,
             settingsAction: { [weak self] module in self?.showSettings(module: module) },
             quitAction: { NSApp.terminate(nil) }
         )
+        updateController.startAutomaticCheck()
         Self.logger.info("Barometer started")
     }
 
@@ -126,6 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 networkStore: monitoringCoordinator.networkStore,
                 diskStore: monitoringCoordinator.diskStore,
                 sensorStore: monitoringCoordinator.sensorStore,
+                updateController: updateController ?? UpdateController(),
                 calendarAccessAction: { [weak monitoringCoordinator] in
                     monitoringCoordinator?.requestCalendarAccess()
                 },

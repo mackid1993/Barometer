@@ -39,15 +39,20 @@ public struct CPUDropdownView: View {
     public init(store: ModuleStore<CPUSample>, settingsStore: SettingsStore) {
         self.store = store
         self.settingsStore = settingsStore
+        _range = State(initialValue: .fiveMinutes)
+    }
+
+    init(store: ModuleStore<CPUSample>, settingsStore: SettingsStore, initialRange: HistoryRange) {
+        self.store = store
+        self.settingsStore = settingsStore
+        _range = State(initialValue: initialRange)
     }
 
     public var body: some View {
         let sample = store.latestSample
-        let now = Date()
-        let cutoff = now.addingTimeInterval(-range.duration)
-        let history = store.history.downsampled(to: 300, since: cutoff)
-        let values = history.map { $0.value.totalPercent / 100 }
-        let positions = Self.historyPositions(history, cutoff: cutoff, duration: range.duration)
+        let cutoff = Date().addingTimeInterval(-range.duration)
+        let values = store.history.downsampled(to: 300, since: cutoff)
+            .map { $0.value.totalPercent / 100 }
         let _ = store.revision
         let settings = settingsStore.settings.modules[.cpu] ?? ModuleSettings()
         let accent = ModuleAccent.resolve(settingsStore.settings, module: .cpu)
@@ -71,7 +76,7 @@ public struct CPUDropdownView: View {
                             accent: accent
                         )
                     }
-                    AreaGraph(values: values, accent: accent, positions: positions)
+                    AreaGraph(values: values, accent: accent)
                         .frame(height: 84)
                     if let sample {
                         HStack(spacing: 6) {
@@ -134,16 +139,6 @@ public struct CPUDropdownView: View {
         }
     }
 
-    static func historyPositions(
-        _ history: [HistoryEntry<CPUSample.GraphValue>],
-        cutoff: Date,
-        duration: TimeInterval
-    ) -> [CGFloat] {
-        history.map { entry in
-            CGFloat(min(1, max(0, entry.timestamp.timeIntervalSince(cutoff) / duration)))
-        }
-    }
-
     private static func subtitle(_ sample: CPUSample) -> String {
         String(
             format: "%.0f%% user  ·  %.0f%% system  ·  %.0f%% idle", sample.userPercent, sample.systemPercent,
@@ -188,7 +183,6 @@ private struct CoreBar: View {
                 Text(String(format: "%.0f%%", core.usagePercent))
                     .font(.caption2.monospacedDigit())
                     .contentTransition(.numericText())
-                    .animation(.snappy(duration: 0.3), value: core.usagePercent)
             }
             CapsuleBar(
                 fraction: core.usagePercent / 100,
@@ -406,7 +400,6 @@ private struct MemoryBreakdownBar: View {
             }
             .clipShape(Capsule())
         }
-        .animation(.snappy(duration: 0.35), value: sample.used)
     }
 
     private func segment(_ amount: UInt64, color: Color, width: CGFloat) -> some View {

@@ -377,7 +377,6 @@ private struct HeroRate: View {
             Text(value)
                 .font(.system(size: 17, weight: .semibold, design: .rounded).monospacedDigit())
                 .contentTransition(.numericText())
-                .animation(.snappy(duration: 0.3), value: value)
         }
         .foregroundStyle(color)
         .lineLimit(1)
@@ -403,7 +402,6 @@ private struct RateTile: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .contentTransition(.numericText())
-                    .animation(.snappy(duration: 0.3), value: value)
             }
             Spacer(minLength: 0)
         }

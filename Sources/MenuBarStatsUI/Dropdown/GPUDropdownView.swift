@@ -137,7 +137,6 @@ private struct UtilizationRow: View {
                 Text(percent.map { String(format: "%.1f%%", $0) } ?? "—")
                     .font(BarometerDesign.valueFont)
                     .contentTransition(.numericText())
-                    .animation(.snappy(duration: 0.3), value: percent ?? 0)
             }
             CapsuleBar(
                 fraction: (percent ?? 0) / 100,

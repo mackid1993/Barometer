@@ -21,6 +21,7 @@ public final class SettingsWindowController: NSWindowController {
         networkStore: ModuleStore<NetworkSample>,
         diskStore: ModuleStore<DiskSample>,
         sensorStore: ModuleStore<SensorSample>,
+        updateController: UpdateController,
         calendarAccessAction: @escaping @MainActor () -> Void,
         applyMenuBarChangesAction: @escaping @MainActor () -> Void
     ) {
@@ -33,6 +34,7 @@ public final class SettingsWindowController: NSWindowController {
             networkStore: networkStore,
             diskStore: diskStore,
             sensorStore: sensorStore,
+            updateController: updateController,
             calendarAccessAction: calendarAccessAction,
             applyMenuBarChangesAction: applyMenuBarChangesAction,
             navigationModel: navigationModel
@@ -108,6 +110,7 @@ private struct SettingsRootView: View {
     let networkStore: ModuleStore<NetworkSample>
     let diskStore: ModuleStore<DiskSample>
     let sensorStore: ModuleStore<SensorSample>
+    let updateController: UpdateController
     let calendarAccessAction: @MainActor () -> Void
     let applyMenuBarChangesAction: @MainActor () -> Void
     @Bindable var navigationModel: SettingsNavigationModel
@@ -174,7 +177,7 @@ private struct SettingsRootView: View {
                     case .module(.sensors):
                         SensorSettingsView(store: sensorStore, settingsStore: settingsStore)
                     case .about:
-                        AboutSettingsView()
+                        AboutSettingsView(updateController: updateController)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -524,6 +527,8 @@ private struct GeneralSettingsView: View {
 }
 
 private struct AboutSettingsView: View {
+    let updateController: UpdateController
+
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Development"
     }
@@ -560,20 +565,39 @@ private struct AboutSettingsView: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: 420)
-                HStack(spacing: 10) {
-                    if let sourceURL = URL(string: "https://github.com/mackid1993/Barometer") {
-                        Link(destination: sourceURL) {
-                            Label("Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
+                VStack(spacing: 10) {
+                    HStack(spacing: 10) {
+                        Button(action: updateController.checkManually) {
+                            Label(updateController.buttonTitle, systemImage: "arrow.triangle.2.circlepath")
                         }
                         .buttonStyle(.glassProminent)
-                    }
-                    if let weatherURL = URL(string: "https://open-meteo.com/") {
-                        Link(destination: weatherURL) {
-                            Label("Open-Meteo", systemImage: "cloud.sun.fill")
+                        .disabled(updateController.isChecking || updateController.isDownloading)
+                        Button(action: updateController.toggleAutomaticChecks) {
+                            Label(
+                                updateController.automaticChecksButtonTitle,
+                                systemImage: updateController.automaticChecksEnabled ? "bell.slash" : "bell"
+                            )
                         }
                         .buttonStyle(.glass)
                     }
+                    HStack(spacing: 10) {
+                        if let sourceURL = URL(string: "https://github.com/mackid1993/Barometer") {
+                            Link(destination: sourceURL) {
+                                Label("Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
+                            }
+                            .buttonStyle(.glassProminent)
+                        }
+                        if let weatherURL = URL(string: "https://open-meteo.com/") {
+                            Link(destination: weatherURL) {
+                                Label("Open-Meteo", systemImage: "cloud.sun.fill")
+                            }
+                            .buttonStyle(.glass)
+                        }
+                    }
                 }
+                Text(updateController.statusMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 GlassCard {
                     VStack(alignment: .leading, spacing: 6) {
                         SectionLabel("Credits")
