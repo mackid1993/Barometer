@@ -126,7 +126,9 @@ public struct History<Value: Sendable>: Sendable {
         for index in 0..<count {
             let candidate = entry(at: index)
             guard candidate.timestamp >= cutoff else { continue }
-            let target = wanted == 1 ? available - 1
+            let target =
+                wanted == 1
+                ? available - 1
                 : Int((Double(result.count) * Double(available - 1) / Double(wanted - 1)).rounded())
             if rank == target {
                 result.append(candidate)
@@ -142,8 +144,8 @@ public struct History<Value: Sendable>: Sendable {
     }
 }
 
-private extension Duration {
-    var timeInterval: TimeInterval {
+extension Duration {
+    fileprivate var timeInterval: TimeInterval {
         let value = components
         return TimeInterval(value.seconds) + TimeInterval(value.attoseconds) / 1e18
     }

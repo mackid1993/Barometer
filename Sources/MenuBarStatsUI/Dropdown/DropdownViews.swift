@@ -445,11 +445,13 @@ enum ProcessIconResolver {
 
     /// Rasterizes only the pixels the 16-point row needs, releasing the full application icon.
     private static func thumbnail(_ image: NSImage) -> NSImage {
-        guard let bitmap = NSBitmapImageRep(
-            bitmapDataPlanes: nil, pixelsWide: 32, pixelsHigh: 32, bitsPerSample: 8,
-            samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
-            bytesPerRow: 0, bitsPerPixel: 0
-        ), let context = NSGraphicsContext(bitmapImageRep: bitmap) else {
+        guard
+            let bitmap = NSBitmapImageRep(
+                bitmapDataPlanes: nil, pixelsWide: 32, pixelsHigh: 32, bitsPerSample: 8,
+                samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                bytesPerRow: 0, bitsPerPixel: 0
+            ), let context = NSGraphicsContext(bitmapImageRep: bitmap)
+        else {
             return NSImage()
         }
         NSGraphicsContext.saveGraphicsState()

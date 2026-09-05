@@ -73,7 +73,8 @@ public struct WeatherSettings: Codable, Equatable, Sendable {
         usesCurrentLocation = try values.decodeIfPresent(Bool.self, forKey: .usesCurrentLocation) ?? false
         units = try values.decodeIfPresent(WeatherUnits.self, forKey: .units) ?? .imperial
         refreshIntervalMinutes = try values.decodeIfPresent(Int.self, forKey: .refreshIntervalMinutes) ?? 15
-        detailSections = try values.decodeIfPresent(WeatherDetailSettings.self, forKey: .detailSections)
+        detailSections =
+            try values.decodeIfPresent(WeatherDetailSettings.self, forKey: .detailSections)
             ?? WeatherDetailSettings()
     }
 

@@ -82,8 +82,9 @@ private func runIdentityProbe() {
 private func printVersion() {
     let versionURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         .appendingPathComponent("VERSION")
-    guard let version = try? String(contentsOf: versionURL, encoding: .utf8)
-        .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard
+        let version = try? String(contentsOf: versionURL, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     else {
         writeError("Unable to read VERSION from \(versionURL.path)")
         exit(EXIT_FAILURE)
@@ -432,16 +433,19 @@ private func runWeatherProbe(latitude: Double, longitude: Double) async throws {
             + "wind \(format(forecast.current.windSpeed, suffix: " mph")); "
             + "AQI \(airQuality.usAQI.map(String.init) ?? "unavailable")"
     )
-    let formatter = DateFormatter()
-    formatter.timeZone = forecast.timeZone
-    formatter.dateFormat = "EEE MMM d"
+    let dayStyle = Date.VerbatimFormatStyle(
+        format: "\(weekday: .abbreviated) \(month: .abbreviated) \(day: .defaultDigits)",
+        locale: .current,
+        timeZone: forecast.timeZone,
+        calendar: .current
+    )
     print("10-day forecast:")
     for day in forecast.daily {
         let high = format(day.high, suffix: "°")
         let low = format(day.low, suffix: "°")
         let precipitation = format(day.precipitationProbability, suffix: "%")
         let condition = day.code?.description ?? "Unknown"
-        print("  \(formatter.string(from: day.date)): \(condition), \(high)/\(low), rain \(precipitation)")
+        print("  \(day.date.formatted(dayStyle)): \(condition), \(high)/\(low), rain \(precipitation)")
     }
 }
 
@@ -619,10 +623,10 @@ private enum ProbeMain {
                 printVersion()
             case .weather:
                 guard arguments.count == 5,
-                      arguments[1] == "--lat",
-                      let latitude = Double(arguments[2]),
-                      arguments[3] == "--lon",
-                      let longitude = Double(arguments[4])
+                    arguments[1] == "--lat",
+                    let latitude = Double(arguments[2]),
+                    arguments[3] == "--lon",
+                    let longitude = Double(arguments[4])
                 else {
                     writeError("usage: mbs-probe weather --lat N --lon N")
                     exit(EXIT_FAILURE)

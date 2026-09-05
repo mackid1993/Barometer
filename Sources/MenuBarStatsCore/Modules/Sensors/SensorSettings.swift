@@ -48,7 +48,8 @@ public struct SensorWidgetSettings: Codable, Equatable, Identifiable, Sendable {
         id = max(1, try container.decodeIfPresent(Int.self, forKey: .id) ?? 1)
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
         mode = try container.decodeIfPresent(SensorWidgetMode.self, forKey: .mode) ?? .compactStack
-        sensorIDs = try container.decodeIfPresent([String].self, forKey: .sensorIDs)
+        sensorIDs =
+            try container.decodeIfPresent([String].self, forKey: .sensorIDs)
             ?? ["derived:temperature:hottest", "smc:fan:0"]
     }
 }
@@ -110,8 +111,7 @@ public struct SensorSettings: Codable, Equatable, Sendable {
     }
 
     private static func normalized(_ widgets: [SensorWidgetSettings]) -> [SensorWidgetSettings] {
-        var seen: Set<Int> = []
-        let unique = widgets.filter { seen.insert($0.id).inserted }
-        return (unique.isEmpty ? [SensorWidgetSettings(id: 1)] : unique).sorted { $0.id < $1.id }
+        let unique = widgets.uniquedByID()
+        return unique.isEmpty ? [SensorWidgetSettings(id: 1)] : unique
     }
 }

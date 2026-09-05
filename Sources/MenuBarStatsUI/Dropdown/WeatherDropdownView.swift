@@ -98,11 +98,12 @@ public struct WeatherDropdownView: View {
     ) -> String {
         var calendar = Calendar.current
         calendar.timeZone = timeZone
-        let formatter = DateFormatter()
-        formatter.dateStyle = calendar.isDate(fetchedAt, inSameDayAs: now) ? .none : .medium
-        formatter.timeStyle = .short
-        formatter.timeZone = timeZone
-        let absoluteTime = formatter.string(from: fetchedAt)
+        let absoluteTime = DateFormatterCache.string(
+            from: fetchedAt,
+            dateStyle: calendar.isDate(fetchedAt, inSameDayAs: now) ? .none : .medium,
+            timeStyle: .short,
+            timeZone: timeZone
+        )
         let fetchedMinute = floor(fetchedAt.timeIntervalSince1970 / 60)
         let currentMinute = floor(now.timeIntervalSince1970 / 60)
         let elapsedMinutes = max(0, Int(currentMinute - fetchedMinute))
@@ -464,10 +465,14 @@ private struct DailyForecastRow: View {
 
     var body: some View {
         row
-            .background(WeatherHoverAnchor { anchor in
-                showDetail(AnyView(WeatherDayDetailView(
-                    day: day, sample: sample, accent: accent, settingsStore: settingsStore)), anchor)
-            })
+            .background(
+                WeatherHoverAnchor { anchor in
+                    showDetail(
+                        AnyView(
+                            WeatherDayDetailView(
+                                day: day, sample: sample, accent: accent, settingsStore: settingsStore)), anchor)
+                }
+            )
             .accessibilityLabel("Details for \(WeatherDayDetailView.dateTitle(day.date, timeZone: timeZone))")
             .help("Hover to show daily and hourly forecast details")
     }
@@ -599,7 +604,7 @@ private struct AirQualitySection: View {
                         AQIScale(value: value)
                     }
                     HStack(spacing: 8) {
-                        if let value = airQuality.pm2_5 {
+                        if let value = airQuality.pm25 {
                             StatTile(
                                 symbol: "aqi.medium", label: "PM2.5", value: String(format: "%.1f µg/m³", value),
                                 tint: .teal)
@@ -687,29 +692,26 @@ enum WeatherValue {
     }
 
     static func hour(_ date: Date, timeZone: TimeZone) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "ha"
-        formatter.amSymbol = "am"
-        formatter.pmSymbol = "pm"
-        formatter.timeZone = timeZone
-        return formatter.string(from: date).lowercased()
+        let configuration = DateFormatterCache.Configuration(
+            pattern: .format("ha"),
+            timeZone: timeZone,
+            amSymbol: "am",
+            pmSymbol: "pm"
+        )
+        return DateFormatterCache.string(from: date, configuration).lowercased()
     }
 
     static func weekday(_ date: Date, timeZone: TimeZone) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEE"
-        formatter.timeZone = timeZone
-        return formatter.string(from: date)
+        date.formatted(
+            Date.VerbatimFormatStyle(
+                format: "\(weekday: .abbreviated)", locale: .current, timeZone: timeZone, calendar: .current))
     }
 
     static func time(_ date: Date?, timeZone: TimeZone) -> String {
         guard let date else {
             return "—"
         }
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        formatter.timeZone = timeZone
-        return formatter.string(from: date)
+        return DateFormatterCache.string(from: date, timeStyle: .short, timeZone: timeZone)
     }
 
     static func pressure(_ value: Double?, units: WeatherUnits) -> String {

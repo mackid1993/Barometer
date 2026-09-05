@@ -71,7 +71,8 @@ public actor CalendarEventSource {
     /// Returns upcoming events, or an empty list unless full access has already been granted.
     public func events(from date: Date, limit: Int) -> [CalendarEventSnapshot] {
         guard authorizationState == .fullAccess else { return [] }
-        let endDate = Calendar.current.date(byAdding: .day, value: 14, to: date)
+        let endDate =
+            Calendar.current.date(byAdding: .day, value: 14, to: date)
             ?? date.addingTimeInterval(14 * 86_400)
         let predicate = store.predicateForEvents(withStart: date, end: endDate, calendars: nil)
         return store.events(matching: predicate)

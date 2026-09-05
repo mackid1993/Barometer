@@ -52,7 +52,7 @@ public struct GPUAcceleratorSource: Sendable {
         guard !snapshots.isEmpty else {
             throw GPUAcceleratorSourceError.statisticsUnavailable
         }
-        return snapshots.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        return snapshots.sorted(using: KeyPathComparator(\.name, comparator: .localizedStandard))
     }
 
     static func snapshot(name: String, statistics: [String: Any]) -> GPUAcceleratorSnapshot? {
@@ -71,17 +71,19 @@ public struct GPUAcceleratorSource: Sendable {
     }
 
     private static func snapshot(service: io_registry_entry_t) -> GPUAcceleratorSnapshot? {
-        guard let property = IORegistryEntryCreateCFProperty(
-            service,
-            "PerformanceStatistics" as CFString,
-            nil,
-            0
-        ),
-        let statistics = property.takeRetainedValue() as? [String: Any]
+        guard
+            let property = IORegistryEntryCreateCFProperty(
+                service,
+                "PerformanceStatistics" as CFString,
+                nil,
+                0
+            ),
+            let statistics = property.takeRetainedValue() as? [String: Any]
         else {
             return nil
         }
-        let name = stringProperty(service: service, key: "model")
+        let name =
+            stringProperty(service: service, key: "model")
             ?? stringProperty(service: service, key: "IOClass")
             ?? "GPU"
         return snapshot(name: name, statistics: statistics)

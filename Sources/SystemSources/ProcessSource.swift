@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import Synchronization
 
 /// One process observation derived from libproc.
 public struct ProcessSnapshot: Sendable {
@@ -98,7 +99,8 @@ public final class ProcessSource {
             if metadataMatches {
                 name = cached?.name ?? ""
             } else {
-                name = path.flatMap(Self.applicationDisplayName(forExecutablePath:))
+                name =
+                    path.flatMap(Self.applicationDisplayName(forExecutablePath:))
                     ?? processName(for: processIdentifier)
             }
 
@@ -158,7 +160,8 @@ public final class ProcessSource {
     public func identity(processIdentifier: pid_t, fallbackName: String) -> ProcessIdentitySnapshot {
         let path = processPath(for: processIdentifier)
         let processName = processName(for: processIdentifier)
-        let name = path.flatMap(Self.applicationDisplayName(forExecutablePath:))
+        let name =
+            path.flatMap(Self.applicationDisplayName(forExecutablePath:))
             ?? (processName.isEmpty ? nil : processName)
             ?? fallbackName
         return ProcessIdentitySnapshot(processIdentifier: processIdentifier, name: name, path: path)
@@ -243,9 +246,35 @@ public final class ProcessSource {
         return nil
     }
 
+    /// Resolved display names are stable per executable path, and resolving one maps the
+    /// application bundle's property lists. Every refresh cycle walks hundreds of processes,
+    /// so the resolved value is cached to keep those mapped files from accumulating in
+    /// long-running sessions. The empty string caches a path with no display name.
+    ///
+    /// A Mutex guards the dictionary because readProcesses runs on monitor tasks off the main actor.
+    private static let displayNameCache = Mutex<[String: String]>([:])
+    private static let displayNameCacheLimit = 512
+
     static func applicationDisplayName(forExecutablePath path: String) -> String? {
+        let cached = displayNameCache.withLock { $0[path] }
+        if let cached {
+            return cached.isEmpty ? nil : cached
+        }
+
+        let resolved = resolveApplicationDisplayName(forExecutablePath: path)
+
+        displayNameCache.withLock { cache in
+            if cache.count >= displayNameCacheLimit, let oldest = cache.keys.first {
+                cache.removeValue(forKey: oldest)
+            }
+            cache[path] = resolved ?? ""
+        }
+        return resolved
+    }
+
+    private static func resolveApplicationDisplayName(forExecutablePath path: String) -> String? {
         guard let applicationURL = applicationBundleURL(forExecutablePath: path),
-              let bundle = Bundle(url: applicationURL)
+            let bundle = Bundle(url: applicationURL)
         else {
             return nil
         }
@@ -257,8 +286,8 @@ public final class ProcessSource {
     }
 }
 
-private extension Duration {
-    var timeInterval: TimeInterval {
+extension Duration {
+    fileprivate var timeInterval: TimeInterval {
         let value = components
         return TimeInterval(value.seconds) + TimeInterval(value.attoseconds) / 1e18
     }

@@ -357,7 +357,7 @@ public struct NetworkDropdownView: View {
     private func selectableInterfaces(_ sample: NetworkSample) -> [NetworkInterfaceSample] {
         sample.interfaces
             .filter { $0.isUp && !$0.isLoopback }
-            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            .sorted(using: KeyPathComparator(\.name, comparator: .localizedStandard))
     }
 
     private static func bytes(_ value: UInt64) -> String {

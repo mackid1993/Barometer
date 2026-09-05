@@ -2789,3 +2789,155 @@ At David's request, reran both checks against committed revision c30073a before 
   grew 16,384 bytes (12,403,264 to 12,419,648), below the 5 MiB plateau threshold. This is isolated history storage.
   Output: dist/pre-push-memory.log.
 - git diff --check passed. No code changed after these checks; this entry records the pre-push results.
+
+### P8-T28: Closed-menu accessibility churn and process display-name caching
+
+David's `leaks` report on the installed 1.0.1 showed a 291 MB physical footprint with a 422 MB peak, and the
+report's 415 "leaks" were 19.9 KB of system AppIntents XPC cycles that macOS creates in every app. The real
+signal was ~259 MB of retained heap. Diagnosing required an ad-hoc re-sign without the hardened runtime so
+vmmap, heap, and malloc_history could attach; MallocStackLogging named the allocators.
+
+Two Barometer-side causes came out of the traces. First, macOS populates closed menus whenever accessibility
+clients such as menu bar managers inspect them, and every one of those populate calls ran the dropdown's tick
+and a full SwiftUI layout pass through `intrinsicContentSize`. Thaw polls continuously, so closed menus paid
+for a layout they never showed, and the framework keeps AttributeGraph, CoreSVG, and font pages it grew for
+each pass. `menuNeedsUpdate` now does nothing while the menu is closed; `menuWillOpen` still ticks and fits
+for a real open, and the hosted content stays current on its own through the observable stores. Second,
+`ProcessSource.applicationDisplayName` opened every application bundle's property lists on each process
+refresh, mapping hundreds of files per minute; resolved names are now cached per executable path under a
+lock, capped at 512 entries, with the empty string caching a path that has no display name.
+
+The remaining UI footprint is one-time framework warm-up, not growth. A captured session where David opened
+dropdowns and Settings rose from 36 MB to a 439 MB peak and settled at 351 MB; the settled state is mostly
+file-backed CoreUI, Metal, and LaunchServices mappings the system can evict, plus AttributeGraph regions for
+each surface opened once. The Settings window controller is already created lazily once and its window is
+not released on close, so repeated sessions do not compound. Idle footprint on this build measured 36 MB
+after eight minutes against 75.6 MB on the pre-rebase build, which also carries the bounded graph history
+from P8-T23 and the bounded process icon cache from P8-T26.
+
+Verification:
+
+- `swift build` and `swift build -c release` (via `make app`) completed successfully; `git diff --check`
+  completed successfully.
+- `swift test`: 108 tests in 19 suites, 58 in 6, and 29 in 3 all passed on the rebased tree with these
+  changes.
+- Idle soak, eight minutes, no interaction: 24.7 MB at launch, flat 35.7 MB through the window, 36.5 MB at
+  the end (MallocStackLogging enabled, so the clean number is lower).
+- One-minute UI capture while opening CPU, GPU, and Memory dropdowns and the Settings window: 36.5 MB flat
+  until first interaction, 268.5 MB at four seconds, 439.3 MB peak, settled 351.5 MB. malloc_history
+  attributes the settled state to one-time system mappings (117 MB CoreUI catalog, 36 MB ICU locale,
+  30 MB and 16.6 MB Metal archives, 15.9 MB LaunchServices database copy) and one-time AttributeGraph
+  regions (12.6 MB for Settings), all of which recur no further once paid.
+- Repeat-session ratchet check on the installed build with two UI tours in one window: 18.1 MB baseline,
+  146.3 MB peak during the tours, then flat 80.6 MB for the final 90 seconds with no growth. The pre-fix
+  build settled at 351 MB after a single tour, and the originally reported instance held 291 MB. The
+  throwaway capture scripts under dist/ were removed after this check.
+
+### P8-T29: Cached date formatters, Mutex-guarded process name cache, shared dedupe and sort helpers
+
+Sixteen sites built a fresh DateFormatter on every call, nine of them inside dropdown view helpers that run
+on each render, and OpenMeteoClient parsed every forecast timestamp with a new formatter. Literal patterns
+and the one localized template now use Date.VerbatimFormatStyle and Date.FormatStyle, which a scratch
+comparison across seven locales, four time zones, and three dates showed produce identical strings. Sites
+that rely on dateStyle and timeStyle keep a DateFormatter, because FormatStyle diverges from those styles
+outside en_US, and take it from a new DateFormatterCache in MenuBarStatsCore that holds one configured
+instance per configuration behind a Mutex. ProcessSource.displayNameCache dropped its NSLock plus
+nonisolated(unsafe) pair for a single Mutex, so Sources has no nonisolated(unsafe) left. StackSettings and
+SensorSettings share one uniquedByID helper, and eight localizedStandardCompare sort closures became
+sorted(using: KeyPathComparator(..., comparator: .localizedStandard)).
+
+Verification:
+
+- swift build completed with zero warnings; git diff --check completed successfully.
+- swift test: 29 tests in 3 suites, 58 in 6, and 108 in 19 all passed.
+
+### P8-T30: CPU and Memory presenters and a per-module pipeline in the coordinator
+
+CPU and Memory were the only modules still rendered inline in MonitoringCoordinator; they now have
+CPUMenuBarPresenter and MemoryMenuBarPresenter alongside the other presenters, with the coordinator's
+renderCPU and renderMemory kept as one-line forwarders because the renderer tests call them. A private
+ModulePipeline type bundles each module's status item controller, dropdown controller, and sample task,
+collapsing twenty-four parallel optionals into eight properties, and one consume helper replaces the eight
+copied for-await loops while keeping the weak self capture, the cancellation check, and the Combined store
+heartbeat at each sample's timestamp. DiskSample gained totalRates and graphScale so the coordinator, the
+disk dropdown, and the disk presenter no longer carry their own copies. The coordinator went from 1359 to
+1239 lines.
+
+Verification:
+
+- swift build completed with zero warnings; git diff --check completed successfully.
+- swift test: 29 tests in 3 suites, 58 in 6, and 108 in 19 all passed.
+
+### P8-T31: One file per menu bar renderer
+
+MenuBarRenderer.swift held thirteen renderer types across 1358 lines. The protocol, appearance, palette,
+render context, and layout metrics stay in MenuBarRenderer.swift (334 lines); each renderer moved verbatim
+into Rendering/Renderers, SymbolInkMeasurer into its own file, and the two combined renderers now share one
+combinedWidth helper instead of duplicating the reduce. makeImage and MenuBarFontWeight.nsWeight became
+internal because every renderer uses them.
+
+Verification:
+
+- swift build completed with zero warnings; git diff --check completed successfully.
+- swift test: 29 tests in 3 suites, 58 in 6, and 108 in 19 all passed.
+
+### P8-T32: Settings window panes in their own files
+
+SettingsWindowController.swift dropped from 790 to 175 lines. GeneralSettingsView, AboutSettingsView, and
+ModuleSettingsView now live in files named after them like the other panes, and the ModuleID settings title
+and symbol helpers moved to SettingsSupport.swift. The three pane structs became internal so the root view
+can reach them; everything else kept its access level. NSColor.hexRGB stays a fileprivate copy in the two
+files that use it because SensorSettingsView already declares its own.
+
+Verification:
+
+- swift build completed with zero warnings; git diff --check completed successfully.
+- swift test: 29 tests in 3 suites, 58 in 6, and 108 in 19 all passed.
+
+### P8-T33: swift-format adoption, lint in CI and the Makefile
+
+The Check workflow ran tests and packaging but never linted. A .swift-format configuration now pins the
+repository style (120 columns, four-space indentation), make lint and make format wrap the toolchain's
+swift format, make check runs build, test, and lint together, and the Tests workflow runs make lint after
+the suite. The first repository-wide format touched 75 files, all whitespace, line breaks, and moving
+access modifiers from extensions onto their members. Two lint rules needed source changes: the coordinator's
+consume calls pass the timestamp closure as a labeled argument, and the air quality field pm2_5 became pm25
+with the wire key kept in CodingKeys. Backticks were removed from the doc comments added in P8-T29 through
+P8-T32. The Makefile test target lost the framework flags that Package.swift already sets and the deprecated
+enable-swift-testing switch, install no longer sleeps before opening the app, and the probe target's
+variable is ARGS.
+
+Verification:
+
+- swift build completed with zero warnings; git diff --check completed successfully.
+- swift test: 29 tests in 3 suites, 58 in 6, and 108 in 19 all passed.
+- make lint exited 0.
+
+### P8-T34: Lower resident memory after dropdown and Settings use
+
+Build 129 after a tour of three dropdowns and Settings sat at 84 to 89 MB with a 307 MB peak, and heap showed
+45 MB of live objects, of which about 15,000 SwiftUI property list nodes belonged to hosting views that every
+DropdownController built at init and kept for the life of the process. Four changes, each on its own commit:
+the pressure relief helper MemoryReclaim asks libmalloc to return free pages shortly after a transient surface
+closes; DropdownController builds its NSHostingView in menuWillOpen and releases it 400 ms after close, with
+a reopen canceling the teardown; AppDelegate drops the SettingsWindowController when its window closes, and
+the controller logs its own deinit so the release is observable; and StatusItemController fingerprints the
+rendered image by hashing bitmap bytes in one reused NSBitmapImageRep instead of encoding a TIFF every tick.
+
+Measuring build 133 showed live objects down to 21 MB and the SwiftUI node count at one, yet the footprint
+stayed at 90 MB because libmalloc kept 74 MB of dirty small-zone pages that pressure relief could not release
+(fragmented, not free). Relaunching the same build with MallocSpaceEfficient set in the environment brought
+the same tour to an 11 MB launch, a 106 MB peak, and 50 MB afterward with identical live objects, so the
+variable now ships in Scripts/Info.plist under LSEnvironment.
+
+Verification:
+
+- swift build completed with zero warnings; make lint exited 0; git diff --check completed successfully.
+- swift test: 29 tests in 3 suites, 61 in 7, and 108 in 19 all passed (three new fingerprint tests).
+- Debug log during a tour on build 133: built hosting view and released hosting view for GPU, CPU, and
+  Memory in order, Settings window controller deallocated on close, pressure relief ran after each close.
+- Footprint, same tour, three dropdowns plus Settings: build 129 launch 25 MB, peak 307 MB, after 84 to
+  89 MB; build 133 launch 18 MB, peak 244 MB, after 90 MB; build 133 with MallocSpaceEfficient launch
+  11 MB, peak 106 MB, after 50 MB. Live heap objects: 45 MB, 21 MB, 22 MB.
+- Installed build 134 through LaunchServices reports MallocSpaceEfficient=1 in its environment and 15 MB at
+  launch.

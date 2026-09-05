@@ -47,7 +47,8 @@ public actor TimeMonitor: Monitor {
     public func sample() async -> TimeSample {
         let now = Date()
         let authorization = await calendarSource.authorizationState
-        let events = includesCalendarEvents && authorization == .fullAccess
+        let events =
+            includesCalendarEvents && authorization == .fullAccess
             ? await calendarSource.events(from: now, limit: calendarEventCount)
             : []
         return TimeSample(
@@ -138,11 +139,7 @@ public enum TimeFormatEngine {
         timeZone: TimeZone,
         locale: Locale
     ) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.timeZone = timeZone
-        formatter.dateFormat = DateFormatter.dateFormat(fromTemplate: template, options: 0, locale: locale)
-        return formatter.string(from: date)
+        DateFormatterCache.string(from: date, template: template, timeZone: timeZone, locale: locale)
     }
 
     private static func formatted(
@@ -151,11 +148,7 @@ public enum TimeFormatEngine {
         timeZone: TimeZone,
         locale: Locale
     ) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.timeZone = timeZone
-        formatter.dateFormat = format
-        return formatter.string(from: date)
+        DateFormatterCache.string(from: date, format: format, timeZone: timeZone, locale: locale)
     }
 
     private static func configuredCalendar(timeZone: TimeZone, locale: Locale) -> Calendar {

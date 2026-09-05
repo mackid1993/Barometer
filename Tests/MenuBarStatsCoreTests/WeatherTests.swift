@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MenuBarStatsCore
 
 @Suite("WeatherTests")
@@ -57,7 +58,7 @@ struct WeatherTests {
         )
 
         #expect(quality.usAQI == 52)
-        #expect(quality.pm2_5 == 14.6)
+        #expect(quality.pm25 == 14.6)
         #expect(quality.pm10 == 14.7)
         #expect(quality.ozone == 54)
     }
@@ -88,15 +89,17 @@ struct WeatherTests {
         #expect(result.code.rawValue == 3)
     }
 
-    @Test("WMO codes provide descriptions and day/night symbols", arguments: [
-        (0, "Clear sky", "sun.max", "moon.stars"),
-        (3, "Overcast", "cloud", "cloud"),
-        (45, "Fog", "cloud.fog", "cloud.fog"),
-        (65, "Heavy rain", "cloud.heavyrain", "cloud.heavyrain"),
-        (71, "Light snow", "cloud.snow", "cloud.snow"),
-        (95, "Thunderstorm", "cloud.bolt", "cloud.bolt"),
-        (99, "Thunderstorm with heavy hail", "cloud.bolt.rain", "cloud.bolt.rain"),
-    ])
+    @Test(
+        "WMO codes provide descriptions and day/night symbols",
+        arguments: [
+            (0, "Clear sky", "sun.max", "moon.stars"),
+            (3, "Overcast", "cloud", "cloud"),
+            (45, "Fog", "cloud.fog", "cloud.fog"),
+            (65, "Heavy rain", "cloud.heavyrain", "cloud.heavyrain"),
+            (71, "Light snow", "cloud.snow", "cloud.snow"),
+            (95, "Thunderstorm", "cloud.bolt", "cloud.bolt"),
+            (99, "Thunderstorm with heavy hail", "cloud.bolt.rain", "cloud.bolt.rain"),
+        ])
     func mapWMO(code: Int, description: String, day: String, night: String) {
         let value = WMOCode(rawValue: code)
         #expect(value.description == description)
@@ -114,16 +117,18 @@ struct WeatherTests {
         #expect(MoonPhase.calculate(for: fullMoonDate) == .fullMoon)
     }
 
-    @Test("moon phases map to valid SF Symbol names", arguments: [
-        (MoonPhase.newMoon, "moonphase.new.moon"),
-        (.waxingCrescent, "moonphase.waxing.crescent"),
-        (.firstQuarter, "moonphase.first.quarter"),
-        (.waxingGibbous, "moonphase.waxing.gibbous"),
-        (.fullMoon, "moonphase.full.moon"),
-        (.waningGibbous, "moonphase.waning.gibbous"),
-        (.lastQuarter, "moonphase.last.quarter"),
-        (.waningCrescent, "moonphase.waning.crescent"),
-    ])
+    @Test(
+        "moon phases map to valid SF Symbol names",
+        arguments: [
+            (MoonPhase.newMoon, "moonphase.new.moon"),
+            (.waxingCrescent, "moonphase.waxing.crescent"),
+            (.firstQuarter, "moonphase.first.quarter"),
+            (.waxingGibbous, "moonphase.waxing.gibbous"),
+            (.fullMoon, "moonphase.full.moon"),
+            (.waningGibbous, "moonphase.waning.gibbous"),
+            (.lastQuarter, "moonphase.last.quarter"),
+            (.waningCrescent, "moonphase.waning.crescent"),
+        ])
     func moonPhaseSymbol(phase: MoonPhase, symbol: String) {
         #expect(phase.symbolName == symbol)
     }

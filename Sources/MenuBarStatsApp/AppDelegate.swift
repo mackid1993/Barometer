@@ -70,9 +70,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func claimSingleInstance() -> Bool {
         let currentProcessIdentifier = ProcessInfo.processInfo.processIdentifier
-        guard let existingApplication = NSRunningApplication
-            .runningApplications(withBundleIdentifier: Self.bundleIdentifier)
-            .first(where: { $0.processIdentifier != currentProcessIdentifier })
+        guard
+            let existingApplication =
+                NSRunningApplication
+                .runningApplications(withBundleIdentifier: Self.bundleIdentifier)
+                .first(where: { $0.processIdentifier != currentProcessIdentifier })
         else {
             return true
         }
@@ -94,10 +96,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let actualExecutable = bundle.executableURL?.lastPathComponent ?? "none"
         let isApplicationBundle = bundle.bundleURL.pathExtension == "app"
         guard actualIdentifier == Self.bundleIdentifier,
-              actualExecutable == Self.executableName,
-              isApplicationBundle
+            actualExecutable == Self.executableName,
+            isApplicationBundle
         else {
-            let message = "Refusing unbundled launch: bundle=\(actualIdentifier) "
+            let message =
+                "Refusing unbundled launch: bundle=\(actualIdentifier) "
                 + "executable=\(actualExecutable) isAppBundle=\(isApplicationBundle)"
             Self.logger.fault("\(message, privacy: .public)")
             return false
@@ -107,12 +110,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    /// Shows the settings window, creating a fresh controller when none is open.
+    ///
+    /// The controller is released when its window closes so the SwiftUI settings hierarchy does
+    /// not stay resident for the life of the process.
     private func showSettings(module: ModuleID? = nil) {
         if settingsWindowController == nil {
             guard let settingsStore, let monitoringCoordinator else {
                 return
             }
-            settingsWindowController = SettingsWindowController(
+            let controller = SettingsWindowController(
                 settingsStore: settingsStore,
                 gpuStore: monitoringCoordinator.gpuStore,
                 batteryStore: monitoringCoordinator.batteryStore,
@@ -127,6 +134,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self?.applyMenuBarChangesAndReopen()
                 }
             )
+            controller.windowCloseHandler = { [weak self] in
+                self?.settingsWindowController = nil
+            }
+            settingsWindowController = controller
         }
         settingsWindowController?.show(module: module)
     }

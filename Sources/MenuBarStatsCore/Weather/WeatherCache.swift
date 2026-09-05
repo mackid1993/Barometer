@@ -47,9 +47,11 @@ public actor WeatherCache {
     }
 
     private static func defaultDirectory(fileManager: FileManager) -> URL {
-        let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        let base =
+            fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-        return base
+        return
+            base
             .appendingPathComponent("MenuBarStats", isDirectory: true)
             .appendingPathComponent("weather", isDirectory: true)
     }

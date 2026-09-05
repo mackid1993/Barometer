@@ -77,10 +77,11 @@ public struct DiskSource: Sendable {
             .volumeIsReadOnlyKey,
             .volumeUUIDStringKey,
         ]
-        let urls = FileManager.default.mountedVolumeURLs(
-            includingResourceValuesForKeys: Array(keys),
-            options: []
-        ) ?? []
+        let urls =
+            FileManager.default.mountedVolumeURLs(
+                includingResourceValuesForKeys: Array(keys),
+                options: []
+            ) ?? []
         return urls.compactMap { url in
             guard let values = try? url.resourceValues(forKeys: keys) else {
                 return nil
@@ -135,16 +136,17 @@ public struct DiskSource: Sendable {
             IOObjectRelease(service)
             service = IOIteratorNext(iterator)
         }
-        return devices.sorted { $0.bsdName.localizedStandardCompare($1.bsdName) == .orderedAscending }
+        return devices.sorted(using: KeyPathComparator(\.bsdName, comparator: .localizedStandard))
     }
 
     private static func deviceSnapshot(service: io_registry_entry_t) -> DiskDeviceSnapshot? {
-        guard let bsdName = stringProperty(
-            service: service,
-            key: "BSD Name",
-            options: IOOptionBits(kIORegistryIterateRecursively)
-        ),
-        let statistics = dictionaryProperty(service: service, key: "Statistics")
+        guard
+            let bsdName = stringProperty(
+                service: service,
+                key: "BSD Name",
+                options: IOOptionBits(kIORegistryIterateRecursively)
+            ),
+            let statistics = dictionaryProperty(service: service, key: "Statistics")
         else {
             return nil
         }
@@ -154,7 +156,8 @@ public struct DiskSource: Sendable {
             key: "Device Characteristics",
             options: parentOptions
         )
-        let model = characteristics?["Product Name"] as? String
+        let model =
+            characteristics?["Product Name"] as? String
             ?? stringProperty(service: service, key: "Model", options: parentOptions)
             ?? stringProperty(service: service, key: "Product Name", options: parentOptions)
         return DiskDeviceSnapshot(
@@ -236,13 +239,15 @@ public struct DiskSource: Sendable {
         key: String,
         options: IOOptionBits
     ) -> String? {
-        guard let property = IORegistryEntrySearchCFProperty(
-            service,
-            kIOServicePlane,
-            key as CFString,
-            nil,
-            options
-        ) else {
+        guard
+            let property = IORegistryEntrySearchCFProperty(
+                service,
+                kIOServicePlane,
+                key as CFString,
+                nil,
+                options
+            )
+        else {
             return nil
         }
         return property as? String
@@ -253,13 +258,15 @@ public struct DiskSource: Sendable {
         key: String,
         options: IOOptionBits
     ) -> [String: Any]? {
-        guard let property = IORegistryEntrySearchCFProperty(
-            service,
-            kIOServicePlane,
-            key as CFString,
-            nil,
-            options
-        ) else {
+        guard
+            let property = IORegistryEntrySearchCFProperty(
+                service,
+                kIOServicePlane,
+                key as CFString,
+                nil,
+                options
+            )
+        else {
             return nil
         }
         return property as? [String: Any]

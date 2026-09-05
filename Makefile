@@ -1,11 +1,18 @@
-.PHONY: build test app dmg run stop install probe clean
+.PHONY: build test lint format check app dmg run stop install probe clean
 
 build:
 	swift build
 
 test:
-	swift test --enable-swift-testing -Xswiftc -F \
-		-Xswiftc "$${DEVELOPER_DIR:-/Library/Developer/CommandLineTools}/Library/Developer/Frameworks"
+	swift test
+
+lint:
+	swift format lint --strict --recursive --parallel Package.swift Sources Tests
+
+format:
+	swift format --in-place --recursive --parallel Package.swift Sources Tests
+
+check: build test lint
 
 app:
 	./Scripts/make-app.sh
@@ -25,11 +32,10 @@ stop:
 
 install: app stop
 	ditto dist/Barometer.app /Applications/Barometer.app
-	sleep 1
 	open /Applications/Barometer.app
 
 probe:
-	swift run mbs-probe $(SRC)
+	swift run mbs-probe $(ARGS)
 
 clean: stop
 	swift package clean

@@ -27,8 +27,8 @@ struct BatterySettingsView: View {
                         + "appears in the dropdown. Changing this takes effect after Barometer relaunches, "
                         + "because a status item keeps one width for the life of the process."
                 )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
                 Toggle("Show while connected to power", isOn: batteryBinding(\.showsWhenConnectedToPower))
                 MenuBarColorPickerRows(
                     lightColor: colorBinding(\.lightColor),

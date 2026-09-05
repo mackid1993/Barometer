@@ -135,8 +135,8 @@ public actor GPUMonitor: Monitor {
     private static func smcTemperature(source: SMCClient) async throws -> Double? {
         let values = try await source.sensorValues().compactMap { value -> Double? in
             guard value.key.hasPrefix("Tg") || value.key.hasPrefix("TG"),
-                  let number = value.numericValue,
-                  (10...125).contains(number)
+                let number = value.numericValue,
+                (10...125).contains(number)
             else {
                 return nil
             }

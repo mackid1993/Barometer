@@ -22,7 +22,9 @@ struct WeatherDayDetailView: View {
                 Text(Self.dateTitle(day.date, timeZone: forecast.timeZone))
                     .font(.system(.title3, design: .rounded).weight(.semibold))
                 Spacer()
-                Button { dismiss() } label: {
+                Button {
+                    dismiss()
+                } label: {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
@@ -60,10 +62,7 @@ struct WeatherDayDetailView: View {
     }
 
     nonisolated static func dateTitle(_ date: Date, timeZone: TimeZone) -> String {
-        let formatter = DateFormatter()
-        formatter.timeZone = timeZone
-        formatter.setLocalizedDateFormatFromTemplate("EEEE MMM d")
-        return formatter.string(from: date)
+        date.formatted(Date.FormatStyle(timeZone: timeZone).weekday(.wide).month(.abbreviated).day())
     }
 
     // MARK: - Day overview
@@ -95,14 +94,16 @@ struct WeatherDayDetailView: View {
         WeatherDetailCard(section: .dayMetrics, preferences: detailSettings) {
             VStack(alignment: .leading, spacing: 8) {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                    tile("thermometer.medium", "Feels like high / low",
-                         "\(temperature(day.apparentHigh)) / \(temperature(day.apparentLow))")
+                    tile(
+                        "thermometer.medium", "Feels like high / low",
+                        "\(temperature(day.apparentHigh)) / \(temperature(day.apparentLow))")
                     tile("drop.fill", "Precipitation chance", percent(day.precipitationProbability))
                     tile("cloud.rain.fill", "Precipitation total", precipitation(day.precipitation))
                     tile("sun.max.fill", "Maximum UV index", number(day.uvIndexMax))
                     tile("wind", "Maximum wind", WeatherValue.wind(day.windSpeedMax, direction: nil, units: units))
-                    tile("wind.snow", "Maximum gusts",
-                         WeatherValue.wind(day.windGustsMax, direction: nil, units: units))
+                    tile(
+                        "wind.snow", "Maximum gusts",
+                        WeatherValue.wind(day.windGustsMax, direction: nil, units: units))
                 }
             }
         }
@@ -138,9 +139,11 @@ struct WeatherDayDetailView: View {
                             Text(details.moonPhase.name).font(.headline)
                             Text("About \(Int((details.moonIllumination * 100).rounded()))% illuminated")
                                 .font(.callout).foregroundStyle(.secondary)
-                            Text(details.usesEstimatedMoonPhase
-                                 ? "Estimated at local noon" : "Daily lunar phase · Open-Meteo")
-                                .font(.caption2).foregroundStyle(.secondary)
+                            Text(
+                                details.usesEstimatedMoonPhase
+                                    ? "Estimated at local noon" : "Daily lunar phase · Open-Meteo"
+                            )
+                            .font(.caption2).foregroundStyle(.secondary)
                         }
                     }
                     HStack {
@@ -185,9 +188,11 @@ struct WeatherDayDetailView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack(spacing: 8) {
                                     Text(hourLabel(point.time)).frame(width: 76, alignment: .leading)
-                                    Image(systemName: point.code?.symbolName(isDay: point.isDay ?? true)
-                                          ?? "questionmark.circle")
-                                        .symbolRenderingMode(.multicolor).frame(width: 20)
+                                    Image(
+                                        systemName: point.code?.symbolName(isDay: point.isDay ?? true)
+                                            ?? "questionmark.circle"
+                                    )
+                                    .symbolRenderingMode(.multicolor).frame(width: 20)
                                     Text(temperature(point.temperature)).fontWeight(.semibold)
                                     Spacer(minLength: 0)
                                     Label(percent(point.precipitationProbability), systemImage: "drop.fill")
@@ -228,10 +233,7 @@ struct WeatherDayDetailView: View {
     // MARK: - Formatting
 
     private func hourLabel(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.timeZone = forecast.timeZone
-        formatter.dateFormat = "h a z"
-        return formatter.string(from: date)
+        DateFormatterCache.string(from: date, format: "h a z", timeZone: forecast.timeZone)
     }
 
     private func detail(_ label: String, _ value: String) -> some View {

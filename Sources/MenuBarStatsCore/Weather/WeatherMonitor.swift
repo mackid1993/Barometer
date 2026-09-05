@@ -124,8 +124,8 @@ public actor WeatherMonitor: Monitor {
     }
 }
 
-private extension Duration {
-    var timeInterval: TimeInterval {
+extension Duration {
+    fileprivate var timeInterval: TimeInterval {
         let components = self.components
         return TimeInterval(components.seconds) + TimeInterval(components.attoseconds) / 1e18
     }

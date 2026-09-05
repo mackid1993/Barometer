@@ -11,8 +11,10 @@ struct WeatherDayExtraSections: View {
 
     var body: some View {
         if let values = day.details {
-            WeatherDetailCard(section: section, preferences: preferences,
-                                  tint: section == .precipitation ? accent.primary : nil) {
+            WeatherDetailCard(
+                section: section, preferences: preferences,
+                tint: section == .precipitation ? accent.primary : nil
+            ) {
                 WeatherDetailGrid(rows: rows(values), units: units)
             }
         }
@@ -27,7 +29,7 @@ struct WeatherDayExtraSections: View {
                 ("Snowfall", values[.snowfallSum], .snowfall),
                 ("Precipitation hours", values[.precipitationHours], .hours),
                 ("Sunshine", values[.sunshineDuration], .duration),
-                ("Clear-sky UV maximum", values[.uvIndexClearSkyMax], .number)
+                ("Clear-sky UV maximum", values[.uvIndexClearSkyMax], .number),
             ]
         case .airComfort:
             return [
@@ -41,7 +43,7 @@ struct WeatherDayExtraSections: View {
                 ("Prevailing wind", values[.windDirectionDominant], .direction),
                 ("Average visibility", values[.visibilityMean], .visibility),
                 ("Minimum visibility", values[.visibilityMin], .visibility),
-                ("Average pressure", values[.pressureMean], .pressure)
+                ("Average pressure", values[.pressureMean], .pressure),
             ]
         case .atmosphere:
             return [
@@ -50,7 +52,7 @@ struct WeatherDayExtraSections: View {
                 ("Maximum CAPE", values[.capeMax], .cape),
                 ("Maximum vapor pressure deficit", values[.vaporPressureDeficitMax], .kilopascals),
                 ("Solar energy", values[.shortwaveRadiationSum], .solarEnergy),
-                ("Reference evapotranspiration", values[.referenceEvapotranspiration], .precipitation)
+                ("Reference evapotranspiration", values[.referenceEvapotranspiration], .precipitation),
             ]
         default: return []
         }
@@ -66,45 +68,53 @@ struct WeatherHourExtraSections: View {
     var body: some View {
         if let values = point.details {
             VStack(alignment: .leading, spacing: 10) {
-                group(.hourlyPrecipitation, rows: [
-                    ("Rain", values[.rain], .precipitation),
-                    ("Showers", values[.showers], .precipitation),
-                    ("Snowfall", values[.snowfall], .snowfall),
-                    ("Snow depth", values[.snowDepth], .snowDepth),
-                    ("Wind gusts", values[.windGusts], .wind)
-                ])
-                group(.hourlyAtmosphere, rows: [
-                    ("Low clouds", values[.cloudCoverLow], .percent),
-                    ("Middle clouds", values[.cloudCoverMid], .percent),
-                    ("High clouds", values[.cloudCoverHigh], .percent),
-                    ("Sea-level pressure", values[.seaLevelPressure], .pressure),
-                    ("Surface pressure", values[.surfacePressure], .pressure),
-                    ("Wet-bulb temperature", values[.wetBulbTemperature], .temperature),
-                    ("Freezing level", values[.freezingLevelHeight], .height),
-                    ("CAPE", values[.cape], .cape),
-                    ("Vapor pressure deficit", values[.vaporPressureDeficit], .kilopascals)
-                ])
-                group(.hourlySunlight, rows: [
-                    ("Sunshine", values[.sunshineDuration], .duration),
-                    ("Clear-sky UV", values[.uvIndexClearSky], .number),
-                    ("Solar radiation", values[.shortwaveRadiation], .radiation),
-                    ("Direct radiation", values[.directRadiation], .radiation),
-                    ("Diffuse radiation", values[.diffuseRadiation], .radiation),
-                    ("Direct normal irradiance", values[.directNormalIrradiance], .radiation)
-                ])
-                group(.hourlyGround, rows: [
-                    ("Surface soil temperature", values[.soilTemperature0cm], .temperature),
-                    ("Soil temperature · 6 cm", values[.soilTemperature6cm], .temperature),
-                    ("Soil temperature · 18 cm", values[.soilTemperature18cm], .temperature),
-                    ("Soil temperature · 54 cm", values[.soilTemperature54cm], .temperature),
-                    ("Soil moisture · 0–1 cm", values[.soilMoisture0To1cm], .soilMoisture),
-                    ("Soil moisture · 1–3 cm", values[.soilMoisture1To3cm], .soilMoisture),
-                    ("Soil moisture · 3–9 cm", values[.soilMoisture3To9cm], .soilMoisture),
-                    ("Soil moisture · 9–27 cm", values[.soilMoisture9To27cm], .soilMoisture),
-                    ("Soil moisture · 27–81 cm", values[.soilMoisture27To81cm], .soilMoisture),
-                    ("Evapotranspiration", values[.evapotranspiration], .precipitation),
-                    ("Reference evapotranspiration", values[.referenceEvapotranspiration], .precipitation)
-                ])
+                group(
+                    .hourlyPrecipitation,
+                    rows: [
+                        ("Rain", values[.rain], .precipitation),
+                        ("Showers", values[.showers], .precipitation),
+                        ("Snowfall", values[.snowfall], .snowfall),
+                        ("Snow depth", values[.snowDepth], .snowDepth),
+                        ("Wind gusts", values[.windGusts], .wind),
+                    ])
+                group(
+                    .hourlyAtmosphere,
+                    rows: [
+                        ("Low clouds", values[.cloudCoverLow], .percent),
+                        ("Middle clouds", values[.cloudCoverMid], .percent),
+                        ("High clouds", values[.cloudCoverHigh], .percent),
+                        ("Sea-level pressure", values[.seaLevelPressure], .pressure),
+                        ("Surface pressure", values[.surfacePressure], .pressure),
+                        ("Wet-bulb temperature", values[.wetBulbTemperature], .temperature),
+                        ("Freezing level", values[.freezingLevelHeight], .height),
+                        ("CAPE", values[.cape], .cape),
+                        ("Vapor pressure deficit", values[.vaporPressureDeficit], .kilopascals),
+                    ])
+                group(
+                    .hourlySunlight,
+                    rows: [
+                        ("Sunshine", values[.sunshineDuration], .duration),
+                        ("Clear-sky UV", values[.uvIndexClearSky], .number),
+                        ("Solar radiation", values[.shortwaveRadiation], .radiation),
+                        ("Direct radiation", values[.directRadiation], .radiation),
+                        ("Diffuse radiation", values[.diffuseRadiation], .radiation),
+                        ("Direct normal irradiance", values[.directNormalIrradiance], .radiation),
+                    ])
+                group(
+                    .hourlyGround,
+                    rows: [
+                        ("Surface soil temperature", values[.soilTemperature0cm], .temperature),
+                        ("Soil temperature · 6 cm", values[.soilTemperature6cm], .temperature),
+                        ("Soil temperature · 18 cm", values[.soilTemperature18cm], .temperature),
+                        ("Soil temperature · 54 cm", values[.soilTemperature54cm], .temperature),
+                        ("Soil moisture · 0–1 cm", values[.soilMoisture0To1cm], .soilMoisture),
+                        ("Soil moisture · 1–3 cm", values[.soilMoisture1To3cm], .soilMoisture),
+                        ("Soil moisture · 3–9 cm", values[.soilMoisture3To9cm], .soilMoisture),
+                        ("Soil moisture · 9–27 cm", values[.soilMoisture9To27cm], .soilMoisture),
+                        ("Soil moisture · 27–81 cm", values[.soilMoisture27To81cm], .soilMoisture),
+                        ("Evapotranspiration", values[.evapotranspiration], .precipitation),
+                        ("Reference evapotranspiration", values[.referenceEvapotranspiration], .precipitation),
+                    ])
             }
             .font(.caption)
         }

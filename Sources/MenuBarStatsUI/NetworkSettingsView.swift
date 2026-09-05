@@ -116,7 +116,7 @@ struct NetworkSettingsView: View {
         store.latestSample?.interfaces
             .filter { $0.isUp && !$0.isLoopback }
             .map(\.name)
-            .sorted { $0.localizedStandardCompare($1) == .orderedAscending } ?? []
+            .sorted(using: .localizedStandard) ?? []
     }
 
     private var previewImage: NSImage {

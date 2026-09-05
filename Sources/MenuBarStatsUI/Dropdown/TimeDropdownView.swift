@@ -135,17 +135,17 @@ public struct TimeDropdownView: View {
     }
 
     private static func time(_ date: Date, timeZone: TimeZone) -> String {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        formatter.timeZone = timeZone
-        return formatter.string(from: date)
+        DateFormatterCache.string(from: date, timeStyle: .short, timeZone: timeZone)
     }
 
     private static func date(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMMM d"
-        formatter.timeZone = .current
-        return formatter.string(from: date)
+        date.formatted(
+            Date.VerbatimFormatStyle(
+                format: "\(weekday: .wide), \(month: .wide) \(day: .defaultDigits)",
+                locale: .current,
+                timeZone: .current,
+                calendar: .current
+            ))
     }
 }
 
@@ -172,10 +172,7 @@ private struct CalendarEventRow: View {
     }
 
     private static func time(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+        DateFormatterCache.string(from: date, dateStyle: .short, timeStyle: .short)
     }
 }
 
@@ -225,9 +222,13 @@ private struct MonthCalendar: View {
     }
 
     private var monthTitle: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM yyyy"
-        return formatter.string(from: date)
+        date.formatted(
+            Date.VerbatimFormatStyle(
+                format: "\(month: .wide) \(year: .defaultDigits)",
+                locale: .current,
+                timeZone: .current,
+                calendar: .current
+            ))
     }
 
     private var weekdaySymbols: [String] {
@@ -275,10 +276,7 @@ private struct WorldClockRow: View {
     }
 
     private static func value(_ date: Date, timeZone: TimeZone) -> String {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        formatter.timeZone = timeZone
-        return formatter.string(from: date)
+        DateFormatterCache.string(from: date, timeStyle: .short, timeZone: timeZone)
     }
 
     private static func offset(_ timeZone: TimeZone, date: Date) -> String {

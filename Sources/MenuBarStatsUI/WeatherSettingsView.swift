@@ -181,7 +181,6 @@ struct WeatherSettingsView: View {
         settingsStore.menuBarVisibilityBinding(for: .weather)
     }
 
-
     private var temperatureBinding: Binding<TemperatureUnit> {
         unitBinding(\.temperature)
     }

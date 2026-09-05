@@ -25,8 +25,9 @@ final class MenuDetailPresenter: NSObject, NSPopoverDelegate {
         pendingContent = content
         pendingAnchor = anchor
         // Default mode cannot run while AppKit is inside its menu-tracking loop.
-        let timer = Timer(timeInterval: 0, target: self, selector: #selector(finishPresentation),
-                          userInfo: nil, repeats: false)
+        let timer = Timer(
+            timeInterval: 0, target: self, selector: #selector(finishPresentation),
+            userInfo: nil, repeats: false)
         presentationTimer = timer
         RunLoop.main.add(timer, forMode: .default)
         menu.cancelTracking()
@@ -47,9 +48,12 @@ final class MenuDetailPresenter: NSObject, NSPopoverDelegate {
         detail.behavior = .semitransient
         detail.animates = false
         detail.delegate = self
-        detail.contentViewController = NSHostingController(rootView: content.environment(\.closeMenuDetail, {
-            [weak self] in self?.close()
-        }))
+        detail.contentViewController = NSHostingController(
+            rootView: content.environment(
+                \.closeMenuDetail,
+                {
+                    [weak self] in self?.close()
+                }))
         let height = min(640, max(300, (anchor.window?.screen?.visibleFrame.height ?? 900) - 100))
         detail.contentSize = NSSize(width: 380, height: height)
         popover = detail

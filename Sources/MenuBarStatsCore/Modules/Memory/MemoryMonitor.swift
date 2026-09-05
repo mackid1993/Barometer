@@ -107,7 +107,8 @@ public actor MemoryMonitor: Monitor {
 
     private func refreshProcessesIfNeeded(at timestamp: Date) {
         if let lastProcessRefresh,
-           timestamp.timeIntervalSince(lastProcessRefresh) < processRefreshInterval {
+            timestamp.timeIntervalSince(lastProcessRefresh) < processRefreshInterval
+        {
             return
         }
         let processes = processSource.readProcesses(logicalCPUCount: ProcessInfo.processInfo.processorCount)

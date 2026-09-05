@@ -50,10 +50,12 @@ public struct BluetoothBatterySource: Sendable {
         var byIdentifier: [String: BluetoothBatterySnapshot] = [:]
         for className in Self.serviceClasses {
             for (properties, identifier) in Self.properties(matching: className) {
-                guard let value = Self.snapshot(
-                    properties: properties,
-                    registryIdentifier: identifier
-                ) else {
+                guard
+                    let value = Self.snapshot(
+                        properties: properties,
+                        registryIdentifier: identifier
+                    )
+                else {
                     continue
                 }
                 if value.levels.count > (byIdentifier[value.id]?.levels.count ?? 0) {
@@ -70,9 +72,11 @@ public struct BluetoothBatterySource: Sendable {
         properties: [String: Any],
         registryIdentifier: UInt64
     ) -> BluetoothBatterySnapshot? {
-        let name = string(properties, keys: ["Product", "ProductName", "DeviceName", "Name"])
+        let name =
+            string(properties, keys: ["Product", "ProductName", "DeviceName", "Name"])
             ?? "Bluetooth Device"
-        let identifier = string(properties, keys: ["DeviceAddress", "SerialNumber"])
+        let identifier =
+            string(properties, keys: ["DeviceAddress", "SerialNumber"])
             ?? String(registryIdentifier)
         var levels: [BluetoothBatteryLevel] = []
         if let value = percent(properties, keys: ["BatteryPercent", "BatteryPercentSingle", "BatteryLevel"]) {
@@ -106,8 +110,8 @@ public struct BluetoothBatterySource: Sendable {
             var unmanagedProperties: Unmanaged<CFMutableDictionary>?
             var identifier: UInt64 = 0
             guard IORegistryEntryGetRegistryEntryID(service, &identifier) == KERN_SUCCESS,
-                  IORegistryEntryCreateCFProperties(service, &unmanagedProperties, nil, 0) == KERN_SUCCESS,
-                  let properties = unmanagedProperties?.takeRetainedValue() as? [String: Any]
+                IORegistryEntryCreateCFProperties(service, &unmanagedProperties, nil, 0) == KERN_SUCCESS,
+                let properties = unmanagedProperties?.takeRetainedValue() as? [String: Any]
             else {
                 continue
             }

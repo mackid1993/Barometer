@@ -40,12 +40,14 @@ public actor HIDTemperatureSource {
         try prepareServicesIfNeeded()
         var grouped: [String: [Double]] = [:]
         for service in services {
-            guard let event = IOHIDServiceClientCopyEvent(
-                service.reference,
-                Int64(MBS_IOHID_EVENT_TYPE_TEMPERATURE),
-                0,
-                0
-            ) else {
+            guard
+                let event = IOHIDServiceClientCopyEvent(
+                    service.reference,
+                    Int64(MBS_IOHID_EVENT_TYPE_TEMPERATURE),
+                    0,
+                    0
+                )
+            else {
                 continue
             }
             defer { mbs_iohid_event_release(event) }
@@ -74,7 +76,7 @@ public actor HIDTemperatureSource {
                 sampleCount: values.count
             )
         }
-        .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        .sorted(using: KeyPathComparator(\.name, comparator: .localizedStandard))
     }
 
     /// Drops the cached services so the next read discovers the current hardware set.
@@ -118,7 +120,8 @@ public actor HIDTemperatureSource {
         }
         services = references.compactMap { reference in
             guard let property = IOHIDServiceClientCopyProperty(reference, "Product" as CFString),
-                  let name = property as? String else {
+                let name = property as? String
+            else {
                 return nil
             }
             return Service(reference: reference, rawName: name)

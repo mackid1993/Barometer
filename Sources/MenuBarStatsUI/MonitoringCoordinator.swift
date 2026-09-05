@@ -10,6 +10,8 @@ public final class MonitoringCoordinator {
     // CPU and Memory expose day-long graphs. Other histories retain only the largest window
     // consumed by their dropdown or status-item graph; full details stay in latestSample.
 
+    // MARK: - Stores
+
     /// Observable CPU state used by status items and dropdowns.
     public let cpuStore = ModuleStore<CPUSample>(
         historyCapacity: GraphHistoryRetention.capacity(for: .cpu)
@@ -63,6 +65,8 @@ public final class MonitoringCoordinator {
     /// Shared application settings.
     public let settingsStore: SettingsStore
 
+    // MARK: - Private state
+
     private let cpuScheduler: Scheduler<CPUMonitor>
     private let memoryScheduler: Scheduler<MemoryMonitor>
     private let gpuScheduler: Scheduler<GPUMonitor>
@@ -84,39 +88,27 @@ public final class MonitoringCoordinator {
     private let timeZoneChangeWatcher = TimeZoneChangeWatcher()
     private var weatherSession: WeatherMonitoringSession?
     private var weatherConfiguration: WeatherConfiguration?
-    private var cpuController: StatusItemController<CPUSample>?
-    private var memoryController: StatusItemController<MemorySample>?
-    private var gpuController: StatusItemController<GPUSample>?
-    private var weatherController: StatusItemController<WeatherSample>?
-    private var networkController: StatusItemController<NetworkSample>?
-    private var diskController: StatusItemController<DiskSample>?
+    private var cpuPipeline = ModulePipeline<CPUSample>()
+    private var memoryPipeline = ModulePipeline<MemorySample>()
+    private var gpuPipeline = ModulePipeline<GPUSample>()
+    private var weatherPipeline = ModulePipeline<WeatherSample>()
+    private var networkPipeline = ModulePipeline<NetworkSample>()
+    private var diskPipeline = ModulePipeline<DiskSample>()
+    private var batteryPipeline = ModulePipeline<BatterySample>()
+    private var timePipeline = ModulePipeline<TimeSample>()
+    // Sensors and stacks own one movable item per configured instance, so they keep per-instance
+    // maps instead of a single pipeline. Sensors still share one sample stream.
     private var sensorControllers: [Int: StatusItemController<SensorSample>] = [:]
-    private var batteryController: StatusItemController<BatterySample>?
-    private var timeController: StatusItemController<TimeSample>?
-    private var stackControllers: [Int: StatusItemController<CombinedSample>] = [:]
-    private var cpuDropdown: DropdownController?
-    private var memoryDropdown: DropdownController?
-    private var gpuDropdown: DropdownController?
-    private var weatherDropdown: DropdownController?
-    private var networkDropdown: DropdownController?
-    private var diskDropdown: DropdownController?
     private var sensorDropdowns: [Int: DropdownController] = [:]
-    private var batteryDropdown: DropdownController?
-    private var timeDropdown: DropdownController?
-    private var stackDropdowns: [Int: DropdownController] = [:]
-    private var cpuSampleTask: Task<Void, Never>?
-    private var memorySampleTask: Task<Void, Never>?
-    private var gpuSampleTask: Task<Void, Never>?
-    private var weatherSampleTask: Task<Void, Never>?
-    private var networkSampleTask: Task<Void, Never>?
-    private var diskSampleTask: Task<Void, Never>?
     private var sensorSampleTask: Task<Void, Never>?
-    private var batterySampleTask: Task<Void, Never>?
-    private var timeSampleTask: Task<Void, Never>?
+    private var stackControllers: [Int: StatusItemController<CombinedSample>] = [:]
+    private var stackDropdowns: [Int: DropdownController] = [:]
     private var weatherGeneration = 0
     private var isTrackingCurrentLocation = false
     private var lastPublicIPEnabled: Bool?
     private var hasActivatedStatusItems = false
+
+    // MARK: - Lifecycle
 
     /// Creates and starts application monitoring.
     public init(
@@ -144,22 +136,22 @@ public final class MonitoringCoordinator {
         self.timeMonitor = timeMonitor
         timeScheduler = Scheduler(monitor: timeMonitor)
 
-        cpuController = StatusItemController(
+        cpuPipeline.controller = StatusItemController(
             module: .cpu,
             statusItem: registry.item(for: .cpu),
             store: cpuStore,
             settingsStore: settingsStore,
-            render: Self.renderCPU
+            render: CPUMenuBarPresenter.content
         )
-        memoryController = StatusItemController(
+        memoryPipeline.controller = StatusItemController(
             module: .memory,
             statusItem: registry.item(for: .memory),
             store: memoryStore,
             settingsStore: settingsStore,
-            render: Self.renderMemory
+            render: MemoryMenuBarPresenter.content
         )
         let sharedCPUStore = cpuStore
-        gpuController = StatusItemController(
+        gpuPipeline.controller = StatusItemController(
             module: .gpu,
             statusItem: registry.item(for: .gpu),
             store: gpuStore,
@@ -174,7 +166,7 @@ public final class MonitoringCoordinator {
                 )
             }
         )
-        weatherController = StatusItemController(
+        weatherPipeline.controller = StatusItemController(
             module: .weather,
             statusItem: registry.item(for: .weather),
             store: weatherStore,
@@ -188,7 +180,7 @@ public final class MonitoringCoordinator {
                 )
             }
         )
-        networkController = StatusItemController(
+        networkPipeline.controller = StatusItemController(
             module: .network,
             statusItem: registry.item(for: .network),
             store: networkStore,
@@ -203,7 +195,7 @@ public final class MonitoringCoordinator {
                 )
             }
         )
-        diskController = StatusItemController(
+        diskPipeline.controller = StatusItemController(
             module: .disks,
             statusItem: registry.item(for: .disks),
             store: diskStore,
@@ -219,7 +211,7 @@ public final class MonitoringCoordinator {
             }
         )
         let sharedBatteryStore = batteryStore
-        batteryController = StatusItemController(
+        batteryPipeline.controller = StatusItemController(
             module: .battery,
             statusItem: registry.item(for: .battery),
             store: batteryStore,
@@ -238,7 +230,7 @@ public final class MonitoringCoordinator {
                 )
             }
         )
-        timeController = StatusItemController(
+        timePipeline.controller = StatusItemController(
             module: .time,
             statusItem: registry.item(for: .time),
             store: timeStore,
@@ -252,7 +244,7 @@ public final class MonitoringCoordinator {
                 )
             }
         )
-        cpuDropdown = DropdownController(
+        cpuPipeline.dropdown = DropdownController(
             moduleName: ModuleID.cpu.displayName,
             statusItem: registry.item(for: .cpu),
             rootView: AnyView(CPUDropdownView(store: cpuStore, settingsStore: settingsStore)),
@@ -262,7 +254,7 @@ public final class MonitoringCoordinator {
             settingsAction: { settingsAction(.cpu) },
             quitAction: quitAction
         )
-        memoryDropdown = DropdownController(
+        memoryPipeline.dropdown = DropdownController(
             moduleName: ModuleID.memory.displayName,
             statusItem: registry.item(for: .memory),
             rootView: AnyView(MemoryDropdownView(store: memoryStore, settingsStore: settingsStore)),
@@ -272,7 +264,7 @@ public final class MonitoringCoordinator {
             settingsAction: { settingsAction(.memory) },
             quitAction: quitAction
         )
-        gpuDropdown = DropdownController(
+        gpuPipeline.dropdown = DropdownController(
             moduleName: ModuleID.gpu.displayName,
             statusItem: registry.item(for: .gpu),
             rootView: AnyView(GPUDropdownView(store: gpuStore, settingsStore: settingsStore)),
@@ -282,7 +274,7 @@ public final class MonitoringCoordinator {
             settingsAction: { settingsAction(.gpu) },
             quitAction: quitAction
         )
-        weatherDropdown = DropdownController(
+        weatherPipeline.dropdown = DropdownController(
             moduleName: ModuleID.weather.displayName,
             statusItem: registry.item(for: .weather),
             rootView: AnyView(
@@ -306,7 +298,7 @@ public final class MonitoringCoordinator {
             settingsAction: { settingsAction(.weather) },
             quitAction: quitAction
         )
-        networkDropdown = DropdownController(
+        networkPipeline.dropdown = DropdownController(
             moduleName: ModuleID.network.displayName,
             statusItem: registry.item(for: .network),
             rootView: AnyView(
@@ -323,7 +315,7 @@ public final class MonitoringCoordinator {
             settingsAction: { settingsAction(.network) },
             quitAction: quitAction
         )
-        diskDropdown = DropdownController(
+        diskPipeline.dropdown = DropdownController(
             moduleName: ModuleID.disks.displayName,
             statusItem: registry.item(for: .disks),
             rootView: AnyView(DiskDropdownView(store: diskStore, settingsStore: settingsStore)),
@@ -333,7 +325,7 @@ public final class MonitoringCoordinator {
             settingsAction: { settingsAction(.disks) },
             quitAction: quitAction
         )
-        batteryDropdown = DropdownController(
+        batteryPipeline.dropdown = DropdownController(
             moduleName: ModuleID.battery.displayName,
             statusItem: registry.item(for: .battery),
             rootView: AnyView(BatteryDropdownView(store: batteryStore, settingsStore: settingsStore)),
@@ -343,7 +335,7 @@ public final class MonitoringCoordinator {
             settingsAction: { settingsAction(.battery) },
             quitAction: quitAction
         )
-        timeDropdown = DropdownController(
+        timePipeline.dropdown = DropdownController(
             moduleName: ModuleID.time.displayName,
             statusItem: registry.item(for: .time),
             rootView: AnyView(
@@ -380,15 +372,15 @@ public final class MonitoringCoordinator {
 
     /// Stops monitor tasks and finishes their streams.
     public func stop() {
-        cpuSampleTask?.cancel()
-        memorySampleTask?.cancel()
-        gpuSampleTask?.cancel()
-        weatherSampleTask?.cancel()
-        networkSampleTask?.cancel()
-        diskSampleTask?.cancel()
+        cpuPipeline.cancelSampleTask()
+        memoryPipeline.cancelSampleTask()
+        gpuPipeline.cancelSampleTask()
+        weatherPipeline.cancelSampleTask()
+        networkPipeline.cancelSampleTask()
+        diskPipeline.cancelSampleTask()
         sensorSampleTask?.cancel()
-        batterySampleTask?.cancel()
-        timeSampleTask?.cancel()
+        batteryPipeline.cancelSampleTask()
+        timePipeline.cancelSampleTask()
         CurrentLocationProvider.shared.stop()
         CurrentLocationProvider.shared.authorizationDidChange = nil
         timeZoneChangeWatcher.stop()
@@ -413,86 +405,39 @@ public final class MonitoringCoordinator {
         }
     }
 
+    // MARK: - Sample consumption
+
     private func startSampleConsumption() {
-        let cpuSamples = cpuScheduler.samples
-        cpuSampleTask = Task { [weak self] in
-            for await sample in cpuSamples {
+        cpuPipeline.sampleTask = consume(cpuScheduler.samples, into: { $0.cpuStore }, timestamp: { $0.timestamp })
+        memoryPipeline.sampleTask = consume(
+            memoryScheduler.samples, into: { $0.memoryStore }, timestamp: { $0.timestamp })
+        gpuPipeline.sampleTask = consume(gpuScheduler.samples, into: { $0.gpuStore }, timestamp: { $0.timestamp })
+        networkPipeline.sampleTask = consume(
+            networkScheduler.samples, into: { $0.networkStore }, timestamp: { $0.timestamp })
+        diskPipeline.sampleTask = consume(diskScheduler.samples, into: { $0.diskStore }, timestamp: { $0.timestamp })
+        sensorSampleTask = consume(sensorsScheduler.samples, into: { $0.sensorStore }, timestamp: { $0.timestamp })
+        batteryPipeline.sampleTask = consume(
+            batteryScheduler.samples, into: { $0.batteryStore }, timestamp: { $0.timestamp })
+        timePipeline.sampleTask = consume(timeScheduler.samples, into: { $0.timeStore }, timestamp: { $0.timestamp })
+    }
+
+    /// Feeds one sample stream into its module store and beats the Combined store so stacks redraw.
+    ///
+    /// The task holds the coordinator weakly: once the coordinator is gone the loop drains the stream
+    /// without touching any store, and cancellation from stop() ends it at the next sample.
+    private func consume<Sample: HistoryProjecting>(
+        _ samples: AsyncStream<Sample>,
+        into store: @escaping @MainActor (MonitoringCoordinator) -> ModuleStore<Sample>,
+        timestamp: @escaping @Sendable (Sample) -> Date
+    ) -> Task<Void, Never> {
+        Task { [weak self] in
+            for await sample in samples {
                 guard !Task.isCancelled else {
                     break
                 }
-                self?.cpuStore.receive(sample, at: sample.timestamp)
-                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
-            }
-        }
-
-        let memorySamples = memoryScheduler.samples
-        memorySampleTask = Task { [weak self] in
-            for await sample in memorySamples {
-                guard !Task.isCancelled else {
-                    break
-                }
-                self?.memoryStore.receive(sample, at: sample.timestamp)
-                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
-            }
-        }
-
-        let gpuSamples = gpuScheduler.samples
-        gpuSampleTask = Task { [weak self] in
-            for await sample in gpuSamples {
-                guard !Task.isCancelled else { break }
-                self?.gpuStore.receive(sample, at: sample.timestamp)
-                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
-            }
-        }
-
-        let networkSamples = networkScheduler.samples
-        networkSampleTask = Task { [weak self] in
-            for await sample in networkSamples {
-                guard !Task.isCancelled else {
-                    break
-                }
-                self?.networkStore.receive(sample, at: sample.timestamp)
-                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
-            }
-        }
-
-        let diskSamples = diskScheduler.samples
-        diskSampleTask = Task { [weak self] in
-            for await sample in diskSamples {
-                guard !Task.isCancelled else {
-                    break
-                }
-                self?.diskStore.receive(sample, at: sample.timestamp)
-                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
-            }
-        }
-
-        let sensorSamples = sensorsScheduler.samples
-        sensorSampleTask = Task { [weak self] in
-            for await sample in sensorSamples {
-                guard !Task.isCancelled else {
-                    break
-                }
-                self?.sensorStore.receive(sample, at: sample.timestamp)
-                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
-            }
-        }
-
-        let batterySamples = batteryScheduler.samples
-        batterySampleTask = Task { [weak self] in
-            for await sample in batterySamples {
-                guard !Task.isCancelled else { break }
-                self?.batteryStore.receive(sample, at: sample.timestamp)
-                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
-            }
-        }
-
-        let timeSamples = timeScheduler.samples
-        timeSampleTask = Task { [weak self] in
-            for await sample in timeSamples {
-                guard !Task.isCancelled else { break }
-                self?.timeStore.receive(sample, at: sample.timestamp)
-                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
+                let sampledAt = timestamp(sample)
+                self.map(store)?.receive(sample, at: sampledAt)
+                self?.combinedStore.receive(CombinedSample(), at: sampledAt)
             }
         }
     }
@@ -808,23 +753,23 @@ public final class MonitoringCoordinator {
         for identity in StatusItemRegistry.launchIdentities(settings: settingsStore.settings) {
             switch identity.module {
             case .cpu:
-                cpuController?.activateVisibility()
+                cpuPipeline.controller?.activateVisibility()
             case .gpu:
-                gpuController?.activateVisibility()
+                gpuPipeline.controller?.activateVisibility()
             case .memory:
-                memoryController?.activateVisibility()
+                memoryPipeline.controller?.activateVisibility()
             case .disks:
-                diskController?.activateVisibility()
+                diskPipeline.controller?.activateVisibility()
             case .network:
-                networkController?.activateVisibility()
+                networkPipeline.controller?.activateVisibility()
             case .sensors:
                 sensorControllers[identity.instance]?.activateVisibility()
             case .battery:
-                batteryController?.activateVisibility()
+                batteryPipeline.controller?.activateVisibility()
             case .weather:
-                weatherController?.activateVisibility()
+                weatherPipeline.controller?.activateVisibility()
             case .time:
-                timeController?.activateVisibility()
+                timePipeline.controller?.activateVisibility()
             case .combined:
                 stackControllers[identity.instance]?.activateVisibility()
             }
@@ -834,26 +779,25 @@ public final class MonitoringCoordinator {
 
     private func prepareNewlyEnabledItems() {
         for identity in StatusItemRegistry.launchIdentities(settings: settingsStore.settings)
-            where identity.module != .sensors && identity.module != .combined
-        {
+        where identity.module != .sensors && identity.module != .combined {
             let statusItem = registry.prepareItem(for: identity)
             switch identity.module {
             case .cpu:
-                attach(statusItem, controller: cpuController, dropdown: cpuDropdown)
+                attach(statusItem, to: cpuPipeline)
             case .gpu:
-                attach(statusItem, controller: gpuController, dropdown: gpuDropdown)
+                attach(statusItem, to: gpuPipeline)
             case .memory:
-                attach(statusItem, controller: memoryController, dropdown: memoryDropdown)
+                attach(statusItem, to: memoryPipeline)
             case .disks:
-                attach(statusItem, controller: diskController, dropdown: diskDropdown)
+                attach(statusItem, to: diskPipeline)
             case .network:
-                attach(statusItem, controller: networkController, dropdown: networkDropdown)
+                attach(statusItem, to: networkPipeline)
             case .battery:
-                attach(statusItem, controller: batteryController, dropdown: batteryDropdown)
+                attach(statusItem, to: batteryPipeline)
             case .weather:
-                attach(statusItem, controller: weatherController, dropdown: weatherDropdown)
+                attach(statusItem, to: weatherPipeline)
             case .time:
-                attach(statusItem, controller: timeController, dropdown: timeDropdown)
+                attach(statusItem, to: timePipeline)
             case .combined, .sensors:
                 break
             }
@@ -862,15 +806,11 @@ public final class MonitoringCoordinator {
         configureStacks()
     }
 
-    private func attach<Sample: Sendable>(
-        _ statusItem: NSStatusItem,
-        controller: StatusItemController<Sample>?,
-        dropdown: DropdownController?
-    ) {
-        dropdown?.attach(statusItem: statusItem)
-        controller?.attach(statusItem: statusItem)
+    private func attach<Sample: HistoryProjecting>(_ statusItem: NSStatusItem, to pipeline: ModulePipeline<Sample>) {
+        pipeline.dropdown?.attach(statusItem: statusItem)
+        pipeline.controller?.attach(statusItem: statusItem)
         if hasActivatedStatusItems {
-            controller?.activateVisibility()
+            pipeline.controller?.activateVisibility()
         }
     }
 
@@ -911,9 +851,11 @@ public final class MonitoringCoordinator {
         case .authorized, .unavailable:
             refreshNetworkIdentity()
         case .denied, .restricted:
-            guard let url = URL(
-                string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices"
-            ) else {
+            guard
+                let url = URL(
+                    string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices"
+                )
+            else {
                 return
             }
             NSWorkspace.shared.open(url)
@@ -978,7 +920,7 @@ public final class MonitoringCoordinator {
         let session = WeatherMonitoringSession(monitor: monitor)
         weatherSession = session
         let samples = session.samples
-        weatherSampleTask = Task { [weak self] in
+        weatherPipeline.sampleTask = Task { [weak self] in
             await session.start()
             for await sample in samples {
                 guard !Task.isCancelled, let self, self.weatherGeneration == generation else {
@@ -993,8 +935,8 @@ public final class MonitoringCoordinator {
     private func stopWeatherMonitoring() {
         weatherGeneration += 1
         weatherConfiguration = nil
-        weatherSampleTask?.cancel()
-        weatherSampleTask = nil
+        weatherPipeline.cancelSampleTask()
+        weatherPipeline.sampleTask = nil
         let previousSession = weatherSession
         weatherSession = nil
         weatherStore.reset()
@@ -1042,92 +984,26 @@ public final class MonitoringCoordinator {
         settingsStore.settings = appSettings
     }
 
+    // MARK: - Rendering
+
+    /// Renders the CPU status item; kept as a stable entry point for tests and previews.
     static func renderCPU(
         sample: CPUSample?,
         history: [HistoryEntry<CPUSample.GraphValue>],
         settings: ModuleSettings,
         context: RenderContext
     ) -> StatusItemContent {
-        let percentage = sample.map { String(format: "%.0f%%", $0.totalPercent) } ?? "—"
-        let renderer: any MenuBarRenderer
-        switch settings.mode {
-        case "graph":
-            renderer = GraphRenderer(
-                values: history.map { $0.value.totalPercent / 100 },
-                style: settings.graphStyle
-            )
-        case "perCore":
-            let coreValues =
-                sample?.perCore.map { $0.usagePercent / 100 }
-                ?? Array(repeating: 0, count: ProcessInfo.processInfo.activeProcessorCount)
-            renderer = GraphRenderer(
-                values: coreValues,
-                style: .bars,
-                width: max(32, CGFloat(coreValues.count) * 3)
-            )
-        case "stacked":
-            renderer = StackedLabelRenderer(label: "CPU", value: percentage, reservedValue: "100%")
-        case "iconText":
-            renderer = IconTextRenderer(symbolName: "cpu", text: percentage, reservedText: "100%")
-        default:
-            renderer = TextRenderer(
-                text: percentage,
-                reservedText: settings.usesFixedWidth ? "100%" : nil
-            )
-        }
-        guard let sample else {
-            return StatusItemContent(image: renderer.render(in: context), accessibilityValue: "CPU unavailable")
-        }
-        return StatusItemContent(
-            image: renderer.render(in: context),
-            accessibilityValue: String(format: "CPU %.1f percent", sample.totalPercent)
-        )
+        CPUMenuBarPresenter.content(sample: sample, history: history, settings: settings, context: context)
     }
 
+    /// Renders the Memory status item; kept as a stable entry point for tests and previews.
     static func renderMemory(
         sample: MemorySample?,
         history: [HistoryEntry<MemorySample.GraphValue>],
         settings: ModuleSettings,
         context: RenderContext
     ) -> StatusItemContent {
-        let usedPercent = sample.map { $0.total > 0 ? Double($0.used) / Double($0.total) * 100 : 0 } ?? 0
-        let usedText = sample.map { _ in String(format: "%.0f%%", usedPercent) } ?? "—"
-        let pressureText = sample.map { String(format: "%.0f%%", $0.pressurePercent) } ?? "—"
-        let renderer: any MenuBarRenderer
-        switch settings.mode {
-        case "pressurePercentage":
-            renderer = TextRenderer(
-                text: pressureText,
-                reservedText: settings.usesFixedWidth ? "100%" : nil
-            )
-        case "graph":
-            renderer = GraphRenderer(
-                values: history.map { value in
-                    value.value.usedFraction
-                },
-                style: settings.graphStyle
-            )
-        case "bar":
-            renderer = GraphRenderer(values: [usedPercent / 100], style: .bars, width: 14)
-        case "stacked":
-            renderer = StackedLabelRenderer(label: "MEM", value: usedText, reservedValue: "100%")
-        default:
-            renderer = TextRenderer(
-                text: usedText,
-                reservedText: settings.usesFixedWidth ? "100%" : nil
-            )
-        }
-        guard let sample else {
-            return StatusItemContent(image: renderer.render(in: context), accessibilityValue: "Memory unavailable")
-        }
-        return StatusItemContent(
-            image: renderer.render(in: context),
-            accessibilityValue: String(
-                format: "Memory %.1f percent used, pressure %.1f percent",
-                usedPercent,
-                sample.pressurePercent
-            )
-        )
+        MemoryMenuBarPresenter.content(sample: sample, history: history, settings: settings, context: context)
     }
 
     /// Builds one stack's status item content from its chosen metrics.
@@ -1215,13 +1091,13 @@ public final class MonitoringCoordinator {
         case .diskRead:
             return field(
                 diskStore.latestSample.map {
-                    DiskValueFormatter.rate(Self.diskRates($0).read, unitSystem: disks.unitSystem, compact: true)
+                    DiskValueFormatter.rate($0.totalRates.read, unitSystem: disks.unitSystem, compact: true)
                 }
             )
         case .diskWrite:
             return field(
                 diskStore.latestSample.map {
-                    DiskValueFormatter.rate(Self.diskRates($0).write, unitSystem: disks.unitSystem, compact: true)
+                    DiskValueFormatter.rate($0.totalRates.write, unitSystem: disks.unitSystem, compact: true)
                 }
             )
         case .diskUsedPercent:
@@ -1298,14 +1174,6 @@ public final class MonitoringCoordinator {
         return String(format: "%.0f%@", value, unit.symbol)
     }
 
-    private static func diskRates(_ sample: DiskSample) -> (read: Double, write: Double) {
-        sample.devices.reduce(into: (read: 0.0, write: 0.0)) { totals, device in
-            totals.read += device.readBytesPerSecond
-            totals.write += device.writeBytesPerSecond
-        }
-    }
-
-
     static func renderWeather(
         sample: WeatherSample?,
         history: [HistoryEntry<WeatherSample.GraphValue>],
@@ -1356,4 +1224,20 @@ private struct WeatherConfiguration: Equatable {
     let location: Location
     let units: WeatherUnits
     let refreshIntervalMinutes: Int
+}
+
+// MARK: - Module pipeline
+
+/// Everything the coordinator keeps for one single-instance module: the controller that paints its
+/// status item, the dropdown that item opens, and the task feeding its store from a sample stream.
+@MainActor
+private struct ModulePipeline<Sample: HistoryProjecting> {
+    var controller: StatusItemController<Sample>?
+    var dropdown: DropdownController?
+    var sampleTask: Task<Void, Never>?
+
+    /// Cancels sample consumption. The stream's next value ends the loop; nothing else is torn down.
+    func cancelSampleTask() {
+        sampleTask?.cancel()
+    }
 }

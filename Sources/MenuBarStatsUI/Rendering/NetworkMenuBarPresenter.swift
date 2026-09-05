@@ -16,20 +16,22 @@ enum NetworkMenuBarPresenter {
             decimalPlaces: networkSettings.decimalPlaces
         )
         let interface = sample?.interface(named: networkSettings.selectedInterfaceName)
-        let download = interface.map {
-            NetworkRateFormatter.compactString(
-                bytesPerSecond: $0.downloadBytesPerSecond,
-                unit: networkSettings.rateUnit,
-                decimalPlaces: networkSettings.decimalPlaces
-            )
-        } ?? "—"
-        let upload = interface.map {
-            NetworkRateFormatter.compactString(
-                bytesPerSecond: $0.uploadBytesPerSecond,
-                unit: networkSettings.rateUnit,
-                decimalPlaces: networkSettings.decimalPlaces
-            )
-        } ?? "—"
+        let download =
+            interface.map {
+                NetworkRateFormatter.compactString(
+                    bytesPerSecond: $0.downloadBytesPerSecond,
+                    unit: networkSettings.rateUnit,
+                    decimalPlaces: networkSettings.decimalPlaces
+                )
+            } ?? "—"
+        let upload =
+            interface.map {
+                NetworkRateFormatter.compactString(
+                    bytesPerSecond: $0.uploadBytesPerSecond,
+                    unit: networkSettings.rateUnit,
+                    decimalPlaces: networkSettings.decimalPlaces
+                )
+            } ?? "—"
         let renderer: any MenuBarRenderer
         let uploadFirst = networkSettings.rateOrder == .uploadThenDownload
         switch moduleSettings.mode {
@@ -43,10 +45,12 @@ enum NetworkMenuBarPresenter {
                 style: moduleSettings.graphStyle
             )
         case "arrows":
-            let orderedText = uploadFirst
+            let orderedText =
+                uploadFirst
                 ? "↑\(upload) ↓\(download)"
                 : "↓\(download) ↑\(upload)"
-            let orderedPlaceholder = uploadFirst
+            let orderedPlaceholder =
+                uploadFirst
                 ? "↑\(placeholder) ↓\(placeholder)"
                 : "↓\(placeholder) ↑\(placeholder)"
             renderer = TextRenderer(
@@ -56,7 +60,8 @@ enum NetworkMenuBarPresenter {
         case "stacked":
             renderer = StackedLabelRenderer(label: "NET", value: download, reservedValue: placeholder)
         default:
-            renderer = uploadFirst
+            renderer =
+                uploadFirst
                 ? NetworkRateStackRenderer(
                     top: "↑\(upload)",
                     bottom: "↓\(download)",

@@ -1,4 +1,5 @@
 import Testing
+
 @testable import SystemSources
 
 @Suite("BluetoothBatterySourceTests")
@@ -24,13 +25,15 @@ struct BluetoothBatterySourceTests {
 
     @Test("invalid and absent values do not create a device")
     func invalidValues() {
-        #expect(BluetoothBatterySource.snapshot(
-            properties: ["Product": "Keyboard"],
-            registryIdentifier: 11
-        ) == nil)
-        #expect(BluetoothBatterySource.snapshot(
-            properties: ["Product": "Mouse", "BatteryPercent": 255],
-            registryIdentifier: 12
-        ) == nil)
+        #expect(
+            BluetoothBatterySource.snapshot(
+                properties: ["Product": "Keyboard"],
+                registryIdentifier: 11
+            ) == nil)
+        #expect(
+            BluetoothBatterySource.snapshot(
+                properties: ["Product": "Mouse", "BatteryPercent": 255],
+                registryIdentifier: 12
+            ) == nil)
     }
 }

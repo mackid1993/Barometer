@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MenuBarStatsCore
 
 @Suite("MemoryHistoryTests")
@@ -58,7 +59,8 @@ struct MemoryHistoryTests {
         for second in [100, 120, 90, 110, 130, 140] {
             history.append(second, at: Date(timeIntervalSince1970: Double(second)))
         }
-        #expect(history.downsampled(to: 10, since: Date(timeIntervalSince1970: 110)).map(\.value)
+        #expect(
+            history.downsampled(to: 10, since: Date(timeIntervalSince1970: 110)).map(\.value)
                 == [120, 110, 130, 140])
         #expect(history.downsampled(to: 2, since: Date(timeIntervalSince1970: 110)).map(\.value) == [120, 140])
         #expect(history.downsampled(to: 1, since: Date(timeIntervalSince1970: 110)).map(\.value) == [140])
@@ -98,8 +100,9 @@ struct MemoryHistoryTests {
     }
 
     private func reading(id: String, value: Double) -> SensorReading {
-        SensorReading(id: id, name: "Descriptive sensor name", shortName: "S", rawName: "raw",
-                      kind: .temperature, source: .hid, value: value, unit: .celsius)
+        SensorReading(
+            id: id, name: "Descriptive sensor name", shortName: "S", rawName: "raw",
+            kind: .temperature, source: .hid, value: value, unit: .celsius)
     }
 }
 

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MenuBarStatsCore
 
 @Suite("WeatherDayDetailsTests")
@@ -13,9 +14,11 @@ struct WeatherDayDetailsTests {
         #expect(details.hourly.map(\.time) == [0.0, 12, 23].map { date.addingTimeInterval($0 * 3_600) })
     }
 
-    @Test("Spring and fall daylight saving days retain 23 and 25 hours", arguments: [
-        ("2026-03-08T05:00:00Z", 23), ("2026-11-01T04:00:00Z", 25)
-    ])
+    @Test(
+        "Spring and fall daylight saving days retain 23 and 25 hours",
+        arguments: [
+            ("2026-03-08T05:00:00Z", 23), ("2026-11-01T04:00:00Z", 25),
+        ])
     func daylightSaving(_ input: (String, Int)) throws {
         let date = try instant(input.0)
         let zone = try #require(TimeZone(identifier: "America/New_York"))
@@ -87,14 +90,16 @@ struct WeatherDayDetailsTests {
     private func day(
         _ date: Date, sunrise: Date? = nil, sunset: Date? = nil, details: DailyWeatherDetails? = nil
     ) -> DailyPoint {
-        DailyPoint(date: date, code: nil, high: nil, low: nil, apparentHigh: nil, apparentLow: nil,
-                   sunrise: sunrise, sunset: sunset, uvIndexMax: nil, precipitation: nil,
-                   precipitationProbability: nil, windSpeedMax: nil, windGustsMax: nil, details: details)
+        DailyPoint(
+            date: date, code: nil, high: nil, low: nil, apparentHigh: nil, apparentLow: nil,
+            sunrise: sunrise, sunset: sunset, uvIndexMax: nil, precipitation: nil,
+            precipitationProbability: nil, windSpeedMax: nil, windGustsMax: nil, details: details)
     }
 
     private func hour(_ time: Date) -> HourlyPoint {
-        HourlyPoint(time: time, temperature: nil, apparentTemperature: nil, precipitationProbability: nil,
-                    precipitation: nil, code: nil, windSpeed: nil, windDirection: nil, uvIndex: nil,
-                    isDay: nil, humidity: nil, dewPoint: nil, visibility: nil, cloudCover: nil)
+        HourlyPoint(
+            time: time, temperature: nil, apparentTemperature: nil, precipitationProbability: nil,
+            precipitation: nil, code: nil, windSpeed: nil, windDirection: nil, uvIndex: nil,
+            isDay: nil, humidity: nil, dewPoint: nil, visibility: nil, cloudCover: nil)
     }
 }

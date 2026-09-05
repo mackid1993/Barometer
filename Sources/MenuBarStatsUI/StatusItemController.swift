@@ -44,6 +44,7 @@ public final class StatusItemController<Sample: HistoryProjecting> {
     private let logger = Logger(subsystem: "com.barometer.app", category: "render")
     private var lengthLatch = StatusItemLengthLatch()
     private var appliedImageFingerprint: Int?
+    private var imageFingerprinter = StatusItemImageFingerprinter()
     private var geometryLatch = StatusItemGeometryLatch()
 
     /// Creates and begins observing a status item controller.
@@ -136,12 +137,13 @@ public final class StatusItemController<Sample: HistoryProjecting> {
                 appearance: appearance,
                 geometry: geometry
             )
-            reservedFontWeightWidth = renderContent(
-                store.latestSample,
-                history,
-                moduleSettings,
-                sizingContext
-            ).image.size.width
+            reservedFontWeightWidth =
+                renderContent(
+                    store.latestSample,
+                    history,
+                    moduleSettings,
+                    sizingContext
+                ).image.size.width
         } else {
             reservedFontWeightWidth = content.image.size.width
         }
@@ -159,8 +161,12 @@ public final class StatusItemController<Sample: HistoryProjecting> {
         displayedImage.accessibilityDescription = accessibilityLabel
         // Replacing the image makes AppKit redraw the item, so an unchanged image is skipped. The
         // fingerprint is the drawn pixels, not the reading, so graphs that move while their value
-        // reads the same still update.
-        let fingerprint = displayedImage.tiffRepresentation?.hashValue
+        // reads the same still update. Pixels are hashed straight from a reused bitmap rather
+        // than from a TIFF encoded on every sample.
+        let fingerprint = imageFingerprinter.fingerprint(
+            of: displayedImage,
+            backingScaleFactor: context.backingScaleFactor
+        )
         if fingerprint == nil || fingerprint != appliedImageFingerprint {
             button.image = displayedImage
             appliedImageFingerprint = fingerprint
@@ -231,6 +237,73 @@ struct StatusItemLengthLatch {
         }
         length = proposed
         return (proposed, true)
+    }
+}
+
+/// Hashes the pixels of a status item image without encoding it.
+///
+/// Status item images are drawing-handler backed, so they carry no bitmap of their own. The
+/// fingerprinter rasterizes each image into one bitmap that it keeps between updates and hashes the
+/// raw bytes, which replaces a TIFF encode plus a Data allocation per enabled item per sample.
+@MainActor
+struct StatusItemImageFingerprinter {
+    private var representation: NSBitmapImageRep?
+
+    /// Returns a hash of the drawn pixels of `image`, or nil when it cannot be rasterized.
+    ///
+    /// Rendering happens at `backingScaleFactor` so movement smaller than one point, such as a
+    /// graph advancing by a fraction of a point, changes the fingerprint on Retina displays.
+    mutating func fingerprint(of image: NSImage, backingScaleFactor: CGFloat) -> Int? {
+        let size = image.size
+        let scale = min(max(backingScaleFactor, 1), 3)
+        let pixelWidth = Int(ceil(size.width * scale))
+        let pixelHeight = Int(ceil(size.height * scale))
+        guard pixelWidth > 0, pixelHeight > 0,
+            let representation = reusableRepresentation(pixelsWide: pixelWidth, pixelsHigh: pixelHeight),
+            let data = representation.bitmapData
+        else {
+            return nil
+        }
+        let byteCount = representation.bytesPerRow * pixelHeight
+        // The bitmap is reused, so clear the previous rendering before drawing over it.
+        data.update(repeating: 0, count: byteCount)
+        // The context's user space follows the representation's point size, so set it
+        // before creating the context; otherwise drawing lands in a fraction of the bitmap.
+        representation.size = size
+        guard let context = NSGraphicsContext(bitmapImageRep: representation) else {
+            return nil
+        }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        image.draw(in: NSRect(origin: .zero, size: size))
+        NSGraphicsContext.restoreGraphicsState()
+
+        var hasher = Hasher()
+        hasher.combine(pixelWidth)
+        hasher.combine(pixelHeight)
+        hasher.combine(image.isTemplate)
+        hasher.combine(bytes: UnsafeRawBufferPointer(start: data, count: byteCount))
+        return hasher.finalize()
+    }
+
+    private mutating func reusableRepresentation(pixelsWide: Int, pixelsHigh: Int) -> NSBitmapImageRep? {
+        if let representation, representation.pixelsWide == pixelsWide, representation.pixelsHigh == pixelsHigh {
+            return representation
+        }
+        let representation = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: pixelsWide,
+            pixelsHigh: pixelsHigh,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        )
+        self.representation = representation
+        return representation
     }
 }
 

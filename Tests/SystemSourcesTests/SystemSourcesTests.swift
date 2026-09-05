@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import SystemSources
 
 @Test func systemSourcesLayerLoads() {
@@ -11,7 +12,8 @@ import Testing
         .appendingPathComponent("BarometerProcessTests-\(UUID().uuidString)", isDirectory: true)
         .appendingPathComponent("Parallels Desktop.app", isDirectory: true)
     let contentsURL = applicationURL.appendingPathComponent("Contents", isDirectory: true)
-    let executableURL = contentsURL
+    let executableURL =
+        contentsURL
         .appendingPathComponent("MacOS", isDirectory: true)
         .appendingPathComponent("prl_vm_app", isDirectory: false)
     try FileManager.default.createDirectory(
@@ -31,12 +33,12 @@ import Testing
 
 @Test func processNetworkSourceParsesQuotedNamesAndAggregatesDuplicateRows() throws {
     let output = """
-    ,bytes_in,bytes_out,
-    "Example, Helper.42",100,20,
-    "Example, Helper.42",25,5,
-    Browser.81,900,120,
-    invalid,1,2,
-    """
+        ,bytes_in,bytes_out,
+        "Example, Helper.42",100,20,
+        "Example, Helper.42",25,5,
+        Browser.81,900,120,
+        invalid,1,2,
+        """
 
     let counters = ProcessNetworkSource.parse(output)
     let helper = try #require(counters.first { $0.processIdentifier == 42 })
