@@ -96,7 +96,7 @@ public final class StatusItemController<Sample: HistoryProjecting> {
         )
         let isHiddenInCombined = StatusItemRendering.isHiddenByCombined(module: module, settings: appSettings)
         guard isEnabled(appSettings, moduleSettings), !isHiddenInCombined else {
-            if let statusItem, statusItem.isVisible {
+            if let statusItem, visibilityLatch.shouldApply(false) {
                 statusItem.isVisible = false
             }
             return
@@ -180,7 +180,7 @@ public final class StatusItemController<Sample: HistoryProjecting> {
         if button.accessibilityValue() as? String != content.accessibilityValue {
             button.setAccessibilityValue(content.accessibilityValue)
         }
-        if visibilityLatch.isActivated, !statusItem.isVisible {
+        if visibilityLatch.shouldApply(true) {
             statusItem.isVisible = true
         }
         let message = "module=\(module.displayName) value=\(content.accessibilityValue)"
@@ -241,6 +241,13 @@ struct StatusItemLengthLatch {
 /// finished configuring the complete launch set.
 struct StatusItemVisibilityLatch {
     private(set) var isActivated = false
+    private var appliedVisibility = false
+
+    mutating func shouldApply(_ visible: Bool) -> Bool {
+        guard (!visible || isActivated), appliedVisibility != visible else { return false }
+        appliedVisibility = visible
+        return true
+    }
 
     mutating func activate() -> Bool {
         guard !isActivated else {

@@ -70,9 +70,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func claimSingleInstance() -> Bool {
         let currentProcessIdentifier = ProcessInfo.processInfo.processIdentifier
+        // Concurrent launches must elect the same winner, rather than each exiting for the other.
         guard let existingApplication = NSRunningApplication
             .runningApplications(withBundleIdentifier: Self.bundleIdentifier)
-            .first(where: { $0.processIdentifier != currentProcessIdentifier })
+            .filter({ !$0.isTerminated })
+            .min(by: { lhs, rhs in
+                let left = lhs.launchDate ?? .distantPast
+                let right = rhs.launchDate ?? .distantPast
+                return left == right ? lhs.processIdentifier < rhs.processIdentifier : left < right
+            }), existingApplication.processIdentifier != currentProcessIdentifier
         else {
             return true
         }

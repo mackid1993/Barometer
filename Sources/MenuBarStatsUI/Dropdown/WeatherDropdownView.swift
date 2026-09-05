@@ -317,85 +317,7 @@ struct HourlyForecastChart: View {
         let spread = max(1, maximum - minimum)
 
         ZStack(alignment: .topLeading) {
-            Canvas { context, size in
-                guard points.count > 1 else {
-                    return
-                }
-                let step = size.width / CGFloat(points.count)
-                let baseline = size.height - 18
-                for (index, point) in points.enumerated() {
-                    let probability = CGFloat((point.precipitationProbability ?? 0) / 100)
-                    let height = max(probability > 0 ? 2 : 0, probability * 22)
-                    let rect = CGRect(
-                        x: CGFloat(index) * step + step * 0.22,
-                        y: baseline - height,
-                        width: max(2, step * 0.56),
-                        height: height
-                    )
-                    context.fill(
-                        Path(roundedRect: rect, cornerRadius: 2),
-                        with: .linearGradient(
-                            Gradient(colors: [Color(hex: 0x60A5FA).opacity(0.9), Color(hex: 0x2563EB).opacity(0.5)]),
-                            startPoint: CGPoint(x: 0, y: rect.minY),
-                            endPoint: CGPoint(x: 0, y: rect.maxY)
-                        )
-                    )
-                }
-
-                var line = Path()
-                var area = Path()
-                var first: CGPoint?
-                var last: CGPoint?
-                for (index, point) in points.enumerated() {
-                    guard let temperature = point.temperature else {
-                        continue
-                    }
-                    let x = (CGFloat(index) + 0.5) * step
-                    let normalized = CGFloat((temperature - minimum) / spread)
-                    // Keep the curve in a band below the hour labels and above the rain bars.
-                    let top = size.height - 68
-                    let bottom = size.height - 26
-                    let y = bottom - normalized * (bottom - top)
-                    let location = CGPoint(x: x, y: y)
-                    if first == nil {
-                        first = location
-                        line.move(to: location)
-                        area.move(to: CGPoint(x: x, y: bottom + 4))
-                        area.addLine(to: location)
-                    } else {
-                        line.addLine(to: location)
-                        area.addLine(to: location)
-                    }
-                    last = location
-                }
-                if let first, let last {
-                    let floor = size.height - 22
-                    area.addLine(to: CGPoint(x: last.x, y: floor))
-                    area.addLine(to: CGPoint(x: first.x, y: floor))
-                    area.closeSubpath()
-                    context.fill(
-                        area,
-                        with: .linearGradient(
-                            Gradient(colors: [accent.secondary.opacity(0.28), accent.primary.opacity(0.02)]),
-                            startPoint: CGPoint(x: 0, y: size.height - 68),
-                            endPoint: CGPoint(x: 0, y: floor)
-                        )
-                    )
-                }
-                context.drawLayer { layer in
-                    layer.addFilter(.blur(radius: 3))
-                    layer.stroke(line, with: .color(accent.secondary.opacity(0.5)), lineWidth: 3.5)
-                }
-                context.stroke(
-                    line,
-                    with: .linearGradient(
-                        Gradient(colors: [accent.primary, accent.secondary]),
-                        startPoint: .zero,
-                        endPoint: CGPoint(x: size.width, y: 0)
-                    ),
-                    style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
-                )
-            }
+            WeatherChartPlot(points: points, minimum: minimum, spread: spread, accent: accent)
 
             HStack(spacing: 0) {
                 ForEach(Array(points.enumerated()), id: \.element.id) { index, point in
@@ -421,6 +343,121 @@ struct HourlyForecastChart: View {
             }
             .padding(.vertical, 8)
         }
+    }
+}
+
+private struct WeatherChartPlot: View {
+    let points: [HourlyPoint]
+    let minimum: Double
+    let spread: Double
+    let accent: ModuleAccent
+
+    var body: some View {
+        GeometryReader { geometry in
+            let size = geometry.size
+            let areaStart = UnitPoint(x: 0, y: (size.height - 68) / size.height)
+            let areaEnd = UnitPoint(x: 0, y: (size.height - 22) / size.height)
+            ZStack(alignment: .topLeading) {
+                precipitationBars(size: size)
+                WeatherTemperatureArea(points: points, minimum: minimum, spread: spread)
+                    .fill(LinearGradient(
+                        colors: [accent.secondary.opacity(0.28), accent.primary.opacity(0.02)],
+                        startPoint: areaStart,
+                        endPoint: areaEnd
+                    ))
+                WeatherTemperatureLine(points: points, minimum: minimum, spread: spread)
+                    .stroke(accent.secondary.opacity(0.5),
+                            style: StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round))
+                    .blur(radius: 3)
+                WeatherTemperatureLine(points: points, minimum: minimum, spread: spread)
+                    .stroke(LinearGradient(colors: [accent.primary, accent.secondary],
+                                           startPoint: .leading, endPoint: .trailing),
+                            style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func precipitationBars(size: CGSize) -> some View {
+        if points.count > 1 {
+            let step = size.width / CGFloat(points.count)
+            let baseline = size.height - 18
+            ForEach(Array(points.enumerated()), id: \.element.id) { index, point in
+                let probability = CGFloat((point.precipitationProbability ?? 0) / 100)
+                let height = max(probability > 0 ? 2 : 0, probability * 22)
+                if height > 0 {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(LinearGradient(
+                            colors: [Color(hex: 0x60A5FA).opacity(0.9), Color(hex: 0x2563EB).opacity(0.5)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ))
+                        .frame(width: max(2, step * 0.56), height: height)
+                        .position(x: CGFloat(index) * step + step * 0.5, y: baseline - height * 0.5)
+                }
+            }
+        }
+    }
+}
+
+private struct WeatherTemperatureLine: Shape {
+    let points: [HourlyPoint]
+    let minimum: Double
+    let spread: Double
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard points.count > 1 else { return path }
+        for (index, point) in points.enumerated() {
+            guard let temperature = point.temperature else { continue }
+            let location = WeatherTemperatureGeometry.location(
+                index: index, temperature: temperature, minimum: minimum, spread: spread,
+                count: points.count, size: rect.size)
+            if path.isEmpty { path.move(to: location) } else { path.addLine(to: location) }
+        }
+        return path
+    }
+}
+
+private struct WeatherTemperatureArea: Shape {
+    let points: [HourlyPoint]
+    let minimum: Double
+    let spread: Double
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard points.count > 1 else { return path }
+        var first: CGPoint?
+        var last: CGPoint?
+        for (index, point) in points.enumerated() {
+            guard let temperature = point.temperature else { continue }
+            let location = WeatherTemperatureGeometry.location(
+                index: index, temperature: temperature, minimum: minimum, spread: spread,
+                count: points.count, size: rect.size)
+            if first == nil {
+                first = location
+                path.move(to: CGPoint(x: location.x, y: rect.height - 22))
+            }
+            path.addLine(to: location)
+            last = location
+        }
+        guard let first, let last else { return Path() }
+        path.addLine(to: CGPoint(x: last.x, y: rect.height - 22))
+        path.addLine(to: CGPoint(x: first.x, y: rect.height - 22))
+        path.closeSubpath()
+        return path
+    }
+}
+
+private enum WeatherTemperatureGeometry {
+    static func location(index: Int, temperature: Double, minimum: Double, spread: Double,
+                         count: Int, size: CGSize) -> CGPoint {
+        let step = size.width / CGFloat(count)
+        let x = (CGFloat(index) + 0.5) * step
+        let normalized = CGFloat((temperature - minimum) / spread)
+        let top = size.height - 68
+        let bottom = size.height - 26
+        return CGPoint(x: x, y: bottom - normalized * (bottom - top))
     }
 }
 

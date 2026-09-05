@@ -20,16 +20,54 @@ public enum GPUAcceleratorSourceError: Error, Sendable {
 
 /// Reads runtime-discovered IOAccelerator `PerformanceStatistics` dictionaries.
 public struct GPUAcceleratorSource: Sendable {
+    // IORegistry service handles are immutable references. The cache owns and releases them once;
+    // IORegistry property reads are safe from the monitor actor that owns this source.
+    private final class ServiceCache: @unchecked Sendable {
+        struct Entry {
+            let service: io_service_t
+            let name: String
+        }
+
+        let entries: [Entry]
+
+        init(entries: [Entry]) {
+            self.entries = entries
+        }
+
+        deinit {
+            for entry in entries {
+                IOObjectRelease(entry.service)
+            }
+        }
+    }
+
+    private let serviceCache: ServiceCache?
+
     /// Whether at least one accelerator publishes a usable device-utilization value.
     public var isAvailable: Bool {
         (try? read().isEmpty) == false
     }
 
     /// Creates a GPU accelerator source.
-    public init() {}
+    public init() {
+        serviceCache = try? Self.discoverServices()
+    }
 
     /// Reads all usable graphics accelerators without assuming a vendor or model identifier.
     public func read() throws -> [GPUAcceleratorSnapshot] {
+        guard let serviceCache, !serviceCache.entries.isEmpty else {
+            throw GPUAcceleratorSourceError.statisticsUnavailable
+        }
+        let snapshots = serviceCache.entries.compactMap { entry in
+            Self.snapshot(service: entry.service, name: entry.name)
+        }
+        guard !snapshots.isEmpty else {
+            throw GPUAcceleratorSourceError.statisticsUnavailable
+        }
+        return snapshots.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    private static func discoverServices() throws -> ServiceCache {
         guard let matching = IOServiceMatching("IOAccelerator") else {
             throw GPUAcceleratorSourceError.statisticsUnavailable
         }
@@ -40,19 +78,19 @@ public struct GPUAcceleratorSource: Sendable {
         }
         defer { IOObjectRelease(iterator) }
 
-        var snapshots: [GPUAcceleratorSnapshot] = []
+        var entries: [ServiceCache.Entry] = []
         var service = IOIteratorNext(iterator)
         while service != 0 {
-            if let snapshot = Self.snapshot(service: service) {
-                snapshots.append(snapshot)
-            }
-            IOObjectRelease(service)
+            let name = stringProperty(service: service, key: "model")
+                ?? stringProperty(service: service, key: "IOClass")
+                ?? "GPU"
+            entries.append(ServiceCache.Entry(service: service, name: name))
             service = IOIteratorNext(iterator)
         }
-        guard !snapshots.isEmpty else {
+        guard !entries.isEmpty else {
             throw GPUAcceleratorSourceError.statisticsUnavailable
         }
-        return snapshots.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        return ServiceCache(entries: entries)
     }
 
     static func snapshot(name: String, statistics: [String: Any]) -> GPUAcceleratorSnapshot? {
@@ -70,7 +108,7 @@ public struct GPUAcceleratorSource: Sendable {
         )
     }
 
-    private static func snapshot(service: io_registry_entry_t) -> GPUAcceleratorSnapshot? {
+    private static func snapshot(service: io_registry_entry_t, name: String) -> GPUAcceleratorSnapshot? {
         guard let property = IORegistryEntryCreateCFProperty(
             service,
             "PerformanceStatistics" as CFString,
@@ -81,9 +119,6 @@ public struct GPUAcceleratorSource: Sendable {
         else {
             return nil
         }
-        let name = stringProperty(service: service, key: "model")
-            ?? stringProperty(service: service, key: "IOClass")
-            ?? "GPU"
         return snapshot(name: name, statistics: statistics)
     }
 

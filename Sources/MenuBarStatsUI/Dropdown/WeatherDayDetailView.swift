@@ -8,6 +8,7 @@ struct WeatherDayDetailView: View {
     let sample: WeatherSample
     let accent: ModuleAccent
     var settingsStore: SettingsStore? = nil
+    @State private var selectedHour: Date?
 
     private var forecast: Forecast { sample.forecast }
     private var detailSettings: WeatherDetailSettings {
@@ -31,7 +32,7 @@ struct WeatherDayDetailView: View {
 
     var forecastContent: some View {
         let details = WeatherDayDetails(day: day, hourly: forecast.hourly, timeZone: forecast.timeZone)
-        return VStack(alignment: .leading, spacing: BarometerDesign.sectionSpacing) {
+        return LazyVStack(alignment: .leading, spacing: BarometerDesign.sectionSpacing) {
             summary
             dailyMetrics
             extraSection(.precipitation)
@@ -172,26 +173,50 @@ struct WeatherDayDetailView: View {
                     .insetPlate()
                     Text("Blue bars show precipitation chance.")
                         .font(.caption2).foregroundStyle(.secondary)
-                    LazyVStack(alignment: .leading, spacing: 8) {
-                        ForEach(points) { point in
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(spacing: 8) {
-                                    Text(hourLabel(point.time)).frame(width: 76, alignment: .leading)
-                                    Image(systemName: point.code?.symbolName(isDay: point.isDay ?? true)
-                                          ?? "questionmark.circle")
-                                        .symbolRenderingMode(.multicolor).frame(width: 20)
-                                    Text(temperature(point.temperature)).fontWeight(.semibold)
-                                    Spacer(minLength: 0)
-                                    Label(percent(point.precipitationProbability), systemImage: "drop.fill")
-                                        .foregroundStyle(.blue)
+                    // Keep every hour immediately visible while realizing the advanced fields for one hour at a time.
+                    ScrollView(.horizontal, showsIndicators: true) {
+                        LazyHStack(spacing: 8) {
+                            ForEach(points) { point in
+                                Button {
+                                    selectedHour = point.time
+                                } label: {
+                                    VStack(spacing: 5) {
+                                        Text(compactHourLabel(point.time))
+                                        Image(systemName: point.code?.symbolName(isDay: point.isDay ?? true)
+                                              ?? "questionmark.circle")
+                                            .symbolRenderingMode(.multicolor)
+                                        Text(temperature(point.temperature)).fontWeight(.semibold)
+                                        Label(percent(point.precipitationProbability), systemImage: "drop.fill")
+                                            .foregroundStyle(.blue)
+                                    }
+                                    .font(.caption.monospacedDigit())
+                                    .padding(8)
+                                    .frame(width: 72)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                            .fill(isSelected(point) ? accent.primary.opacity(0.16) : Color.primary.opacity(0.04))
+                                    )
                                 }
-                                .font(.caption.monospacedDigit())
-                                .padding(.vertical, 3)
-                                hourlyMetrics(point).padding(.vertical, 8)
+                                .buttonStyle(.plain)
+                                .onHover { hovering in
+                                    if hovering { selectedHour = point.time }
+                                }
                             }
-                            .tint(accent.primary)
-                            Divider()
                         }
+                        .padding(.vertical, 2)
+                    }
+                    if let point = selectedPoint(in: points) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text(hourLabel(point.time)).font(.headline)
+                                Spacer()
+                                Text(point.code?.description ?? "Conditions unavailable")
+                                    .font(.callout).foregroundStyle(.secondary)
+                            }
+                            hourlyMetrics(point)
+                        }
+                        .padding(10)
+                        .insetPlate()
                     }
                 }
             }
@@ -224,6 +249,21 @@ struct WeatherDayDetailView: View {
         formatter.timeZone = forecast.timeZone
         formatter.dateFormat = "h a z"
         return formatter.string(from: date)
+    }
+
+    private func compactHourLabel(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.timeZone = forecast.timeZone
+        formatter.dateFormat = "ha"
+        return formatter.string(from: date).lowercased()
+    }
+
+    private func selectedPoint(in points: [HourlyPoint]) -> HourlyPoint? {
+        points.first { $0.time == selectedHour } ?? points.first
+    }
+
+    private func isSelected(_ point: HourlyPoint) -> Bool {
+        selectedHour.map { $0 == point.time } ?? (forecast.hourly.first?.time == point.time)
     }
 
     private func detail(_ label: String, _ value: String) -> some View {

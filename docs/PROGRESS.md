@@ -2948,3 +2948,36 @@ Verification:
   16 KB growth between simulated hours 24 and 48 (dist/hover-delay-memory.log).
 - make app passed; copied to Applications, verified strict signature, and relaunched (dist/hover-delay-build.log).
 - git diff --check passed. No push.
+
+### P8-T34 — Stabilize manager interaction and remove weather rendering overhead
+
+The installed build 129 reproduced the reported 187 MB footprint after Weather interaction. An isolated host
+comparison found that a trivial SwiftUI `NSPopover` reached about 158 MB while the same view in a borderless panel
+reached about 13 MB. Weather and Combined now use a fixed, non-draggable attached panel positioned from the actual
+pointer or forecast row and constrained to the active display. The panel detaches its hosted content on close.
+Global click monitors were removed because they compete with menu bar manager event taps; pointer dismissal waits
+until the pointer has entered the presented region and then uses the shared 0.8-second exit grace.
+
+Status-item visibility now follows a controller-owned intent latch. Repeated samples and dropdown opens no longer
+rewrite `NSStatusItem.isVisible` after a manager temporarily hides an item. Autosave names, AX identifiers, static
+labels, empty titles, fixed lengths, ownership, and creation order remain unchanged. GPU accelerator handles and
+names are cached for the source lifetime, and aligned source samples feeding Combined coalesce into one redraw.
+
+The rich Weather UI and glow remain. The hourly chart now draws the same precipitation bars, gradient area,
+temperature line, and blurred glow with vector shapes instead of SwiftUI `Canvas`, whose backing allocation alone
+measured about 163 MB in the isolated benchmark. Day details retain every API field while presenting all hours in a
+compact horizontal strip and one complete selected-hour card, reducing the former long vertical repetition.
+
+Verification before installation:
+
+- `make test`: all 213 tests in 31 suites passed. New regressions cover manager-owned visibility, manager pointer
+  handoff, coalesced Combined redraws, attached-panel lifecycle/release, scrolling, and placement.
+- The screen test captured the top and true bottom of Weather, Combined, and both rich fixture days at every display
+  corner in light and dark appearances: 64 full-resolution captures. All frames remained inside the visible screen;
+  inspected captures showed aligned cards, labels, charts, scrollbars, footer actions, lunar data, and attribution.
+- The repeated rich day open/scroll/close benchmark peaked at 37.5 MiB, below its new 128 MiB regression ceiling.
+  Before the chart backing change, the same benchmark peaked near 181 MB. CI runs this gate after the suite, and
+  packaging remains dependent on the complete reusable test job.
+- The history benchmark passed with a 92.7% lower one-hour footprint and zero growth from simulated hours 24 to 48.
+- `swift build`, `git diff --check`, development signing, strict bundle verification, and the Calendar entitlement
+  check passed. Runtime CPU, repeated installed-app peaks, and the interactive Thaw check follow on build 130.

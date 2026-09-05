@@ -7,7 +7,7 @@ import Testing
 @Suite("Popover screen placement", .serialized)
 @MainActor
 struct PopoverPlacementTests {
-    @Test("Every weather and Combined popover fits at all four display corners in light and dark mode")
+    @Test("Every weather and Combined panel fits at all four display corners in light and dark mode")
     func everyPopoverOnScreen() throws {
         let suite = "PopoverScreenTests-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -53,37 +53,81 @@ struct PopoverPlacementTests {
                         for y in [visible.minY, visible.maxY - 24] {
                             anchorWindow.setFrameOrigin(NSPoint(x: x, y: y))
                             anchorWindow.orderFront(nil)
-                            let popover = NSPopover()
-                            popover.animates = false
-                            popover.appearance = NSAppearance(named: appearance)
                             let height = min(name.hasPrefix("day") ? 640.0 : 720.0, visible.height - 100)
-                            PopoverPlacement.configure(popover, content: view.frame(width: 380, height: height),
-                                                       size: NSSize(width: 380, height: height))
-                            popover.show(relativeTo: anchor.bounds, of: anchor,
-                                         preferredEdge: name.hasPrefix("day") ? .maxX : .minY)
-                            PopoverPlacement.constrain(popover, to: screen)
-                            let window = try #require(popover.contentViewController?.view.window)
-                            window.contentView?.layoutSubtreeIfNeeded()
-                            #expect(visible.contains(window.frame), "\(name): \(window.frame) outside \(visible)")
+                            let panel = AttachedPanel(content: AnyView(view.frame(width: 380, height: height)),
+                                                      size: NSSize(width: 380, height: height))
+                            panel.appearance = NSAppearance(named: appearance)
+                            let anchorRect = anchorWindow.convertToScreen(anchor.bounds)
+                            panel.show(relativeTo: anchorRect,
+                                       preferredEdge: name.hasPrefix("day") ? .maxX : .minY, on: screen)
+                            panel.contentView?.layoutSubtreeIfNeeded()
+                            #expect(visible.contains(panel.frame), "\(name): \(panel.frame) outside \(visible)")
                             if let directory = ProcessInfo.processInfo.environment["POPOVER_SNAPSHOT_DIRECTORY"] {
                                 // Explicit opt-in only; screen-capture permission must already be granted.
-                                RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
-                                let capture = Process()
-                                capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
                                 let corner = "\(x == visible.minX ? "left" : "right")-\(y == visible.minY ? "bottom" : "top")"
-                                let path = URL(fileURLWithPath: directory)
-                                    .appendingPathComponent("\(name)-\(appearance.rawValue)-\(corner).png").path
-                                capture.arguments = ["-x", "-l", String(window.windowNumber), path]
-                                try capture.run()
-                                capture.waitUntilExit()
-                                #expect(capture.terminationStatus == 0, "Window capture failed for \(name)")
-                                #expect(visible.contains(window.frame), "\(name) moved off-screen after display")
+                                RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.25))
+                                let baseName = "\(name)-\(appearance.rawValue)-\(corner)"
+                                try capture(panel, named: baseName, in: directory)
+                                if let scroll = Self.verticalScrollView(in: panel.contentView),
+                                   let document = scroll.documentView {
+                                    let maximumY = max(0, document.frame.height - scroll.contentView.bounds.height)
+                                    if maximumY > 1 {
+                                        Self.scrollToBottom(scroll)
+                                        try capture(panel, named: "\(baseName)-bottom", in: directory)
+                                        let finalMaximumY = max(
+                                            0, (scroll.documentView?.frame.height ?? 0) - scroll.contentView.bounds.height)
+                                        #expect(abs(scroll.contentView.bounds.origin.y - finalMaximumY) <= 1,
+                                                "Did not reach the bottom of \(name)")
+                                    }
+                                }
+                                #expect(visible.contains(panel.frame), "\(name) moved off-screen after display")
                             }
-                            popover.close()
-                            popover.contentViewController = nil
+                            panel.releaseAndClose()
                         }
                     }
                 }
+            }
+        }
+    }
+
+    private func capture(_ panel: NSPanel, named name: String, in directory: String) throws {
+        let path = URL(fileURLWithPath: directory).appendingPathComponent("\(name).png").path
+        let capture = Process()
+        capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        capture.arguments = ["-x", "-l", String(panel.windowNumber), path]
+        try capture.run()
+        capture.waitUntilExit()
+        #expect(capture.terminationStatus == 0, "Window capture failed for \(name)")
+    }
+
+    private static func verticalScrollView(in view: NSView?) -> NSScrollView? {
+        guard let view else { return nil }
+        if let scroll = view as? NSScrollView,
+           let document = scroll.documentView,
+           document.frame.height > scroll.contentView.bounds.height + 1 {
+            return scroll
+        }
+        let candidates = view.subviews.compactMap { verticalScrollView(in: $0) }
+        return candidates.max { lhs, rhs in
+            (lhs.documentView?.frame.height ?? 0) < (rhs.documentView?.frame.height ?? 0)
+        }
+    }
+
+    private static func scrollToBottom(_ scroll: NSScrollView) {
+        var stablePasses = 0
+        var previousMaximumY: CGFloat = -1
+        for _ in 0..<20 {
+            guard let document = scroll.documentView else { return }
+            let maximumY = max(0, document.frame.height - scroll.contentView.bounds.height)
+            scroll.contentView.scroll(to: NSPoint(x: 0, y: maximumY))
+            scroll.reflectScrolledClipView(scroll.contentView)
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+            if abs(maximumY - previousMaximumY) <= 1 {
+                stablePasses += 1
+                if stablePasses == 3 { return }
+            } else {
+                stablePasses = 0
+                previousMaximumY = maximumY
             }
         }
     }
@@ -115,20 +159,15 @@ struct PopoverPlacementTests {
             for y in [visible.minY, visible.maxY - 24] {
                 host.setFrameOrigin(NSPoint(x: x, y: y))
                 host.orderFront(nil)
-                let popover = NSPopover()
-                popover.animates = false
                 let height = min(640, visible.height - 100)
                 let content = ScrollView { VStack { ForEach(0..<100) { Text("Hour \($0)").frame(height: 40) } } }
                     .frame(width: 380, height: height)
-                PopoverPlacement.configure(popover, content: content, size: NSSize(width: 380, height: height))
-                popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
-                PopoverPlacement.constrain(popover, to: screen)
-                let window = try #require(popover.contentViewController?.view.window)
-                window.contentView?.layoutSubtreeIfNeeded()
-                #expect(visible.contains(window.frame))
-                #expect(popover.contentSize.height <= height)
-                popover.close()
-                popover.contentViewController = nil
+                let panel = AttachedPanel(content: AnyView(content), size: NSSize(width: 380, height: height))
+                panel.show(relativeTo: host.convertToScreen(anchor.bounds), preferredEdge: .minY, on: screen)
+                panel.contentView?.layoutSubtreeIfNeeded()
+                #expect(visible.contains(panel.frame))
+                #expect(panel.frame.height <= height)
+                panel.releaseAndClose()
             }
         }
     }

@@ -12,10 +12,10 @@ extension EnvironmentValues {
     }
 }
 
-/// Presents an attached, non-detachable popover only after AppKit finishes tracking the menu.
+/// Presents an attached, non-draggable panel only after AppKit finishes tracking the menu.
 @MainActor
-final class MenuDetailPresenter: NSObject, NSPopoverDelegate {
-    private(set) var popover: NSPopover?
+final class MenuDetailPresenter: NSObject {
+    private(set) var panel: AttachedPanel?
     private var presentationTimer: Timer?
     private var pendingContent: AnyView?
     private weak var pendingAnchor: NSView?
@@ -52,18 +52,14 @@ final class MenuDetailPresenter: NSObject, NSPopoverDelegate {
 
     func present(_ content: AnyView, anchoredTo anchor: NSView, edge: NSRectEdge = .minY) {
         close()
-        guard anchor.window != nil else { return }
-        let detail = NSPopover()
-        detail.behavior = .semitransient
-        detail.animates = false
-        detail.delegate = self
+        guard let anchorWindow = anchor.window else { return }
         let height = min(640, max(300, (anchor.window?.screen?.visibleFrame.height ?? 900) - 100))
-        PopoverPlacement.configure(detail, content: content, size: NSSize(width: 380, height: height))
-        popover = detail
-        detail.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: edge)
-        PopoverPlacement.constrain(detail, to: anchor.window?.screen)
+        let detail = AttachedPanel(content: content, size: NSSize(width: 380, height: height))
+        panel = detail
+        let anchorRect = anchorWindow.convertToScreen(anchor.convert(anchor.visibleRect, to: nil))
+        detail.show(relativeTo: anchorRect, preferredEdge: edge, on: anchorWindow.screen)
         dismissalMonitor.start(containsPoint: { [weak self] point in
-            self?.popover?.contentViewController?.view.window?.frame.contains(point) == true
+            self?.panel?.frame.contains(point) == true
         }, tracksHover: false, dismiss: { [weak self] in self?.close() })
         hoverAnchor = anchor
         lastHoverTime = ProcessInfo.processInfo.systemUptime
@@ -79,7 +75,7 @@ final class MenuDetailPresenter: NSObject, NSPopoverDelegate {
 
     func updateHover(at point: NSPoint, time: TimeInterval) {
         guard let anchor = hoverAnchor, let anchorWindow = anchor.window,
-              let detailWindow = popover?.contentViewController?.view.window else {
+              let detailWindow = panel else {
             close()
             return
         }
@@ -88,7 +84,7 @@ final class MenuDetailPresenter: NSObject, NSPopoverDelegate {
             || detailWindow.frame.insetBy(dx: -4, dy: -4).contains(point) {
             lastHoverTime = time
         } else if time - lastHoverTime >= PopoverDismissalMonitor.hoverExitDelay {
-            // Brief grace permits crossing the gap between the row and its scrollable popover.
+            // Brief grace permits crossing the gap between the row and its scrollable panel.
             close()
         }
     }
@@ -102,17 +98,8 @@ final class MenuDetailPresenter: NSObject, NSPopoverDelegate {
         presentationTimer = nil
         pendingContent = nil
         pendingAnchor = nil
-        guard let detail = popover else { return }
-        popover = nil
-        detail.delegate = nil
-        detail.close()
-        detail.contentViewController = nil
-    }
-
-    func popoverShouldDetach(_ popover: NSPopover) -> Bool { false }
-
-    func popoverDidClose(_ notification: Notification) {
-        guard let detail = notification.object as? NSPopover, detail === popover else { return }
-        close()
+        guard let detail = panel else { return }
+        panel = nil
+        detail.releaseAndClose()
     }
 }

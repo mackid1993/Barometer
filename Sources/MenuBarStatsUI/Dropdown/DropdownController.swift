@@ -8,21 +8,23 @@ import SwiftUI
 /// on each tracking tick, so panels never clip. Menus taller than the screen scroll through
 /// AppKit's own menu scrolling. Status-item identity and menu attachment are unchanged.
 @MainActor
-public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelegate {
+public final class DropdownController: NSObject, NSMenuDelegate {
     private let moduleName: String
     private let visibilityAction: @MainActor (Bool) -> Void
     private let tickAction: @MainActor () -> Void
     private let settingsAction: @MainActor () -> Void
     private let quitAction: @MainActor () -> Void
     private let logger = Logger(subsystem: "com.barometer.app", category: "dropdown")
+    private var rootContent: AnyView
+    private var hasHostedContent = false
     private let hostingView: NSHostingView<AnyView>
     private let contentWidth: CGFloat
     private let menu: NSMenu
     private var trackingTimer: Timer?
     private let detailPresenter = MenuDetailPresenter()
     private weak var detailAnchor: NSView?
-    private let usesPopover: Bool
-    private var rootPopover: NSPopover?
+    private let usesAttachedPanel: Bool
+    private var rootPanel: AttachedPanel?
     private let dismissalMonitor = PopoverDismissalMonitor()
 
     /// Creates and installs a hosted menu for one permanent status item.
@@ -32,7 +34,7 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
         rootView: AnyView,
         contentHeight: CGFloat,
         contentWidth: CGFloat = 320,
-        usesPopover: Bool = false,
+        usesAttachedPanel: Bool = false,
         visibilityAction: @escaping @MainActor (Bool) -> Void = { _ in },
         tickAction: @escaping @MainActor () -> Void,
         settingsAction: @escaping @MainActor () -> Void,
@@ -44,19 +46,20 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
         self.settingsAction = settingsAction
         self.quitAction = quitAction
         self.contentWidth = contentWidth
-        self.usesPopover = usesPopover
+        self.usesAttachedPanel = usesAttachedPanel
         self.detailAnchor = statusItem?.button
         menu = NSMenu()
-        hostingView = NSHostingView(rootView: rootView)
+        rootContent = rootView
+        hostingView = NSHostingView(rootView: AnyView(EmptyView()))
         hostingView.sizingOptions = [.intrinsicContentSize]
         hostingView.frame = NSRect(x: 0, y: 0, width: contentWidth, height: contentHeight)
         super.init()
 
-        hostingView.rootView = AnyView(rootView.environment(\.showMenuDetail, { [weak self] content, rowAnchor in
+        rootContent = AnyView(rootView.environment(\.showMenuDetail, { [weak self] content, rowAnchor in
             guard let self else { return }
-            if self.usesPopover {
+            if self.usesAttachedPanel {
                 self.detailPresenter.present(content, anchoredTo: rowAnchor, edge: .maxX)
-                if let root = self.rootPopover {
+                if let root = self.rootPanel {
                     PopoverPlacement.constrain(root, to: self.detailAnchor?.window?.screen)
                 }
             } else if let anchor = self.detailAnchor {
@@ -84,44 +87,42 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
     /// Attaches this controller's permanent menu to a newly enabled status item.
     public func attach(statusItem: NSStatusItem) {
         detailAnchor = statusItem.button
-        if usesPopover {
+        if usesAttachedPanel {
             statusItem.menu = nil
             statusItem.button?.target = self
-            statusItem.button?.action = #selector(togglePopover)
+            statusItem.button?.action = #selector(togglePanel)
         } else {
             statusItem.menu = menu
         }
     }
 
-    @objc private func togglePopover() {
-        if let rootPopover, rootPopover.isShown {
-            rootPopover.performClose(nil)
+    @objc private func togglePanel() {
+        if rootPanel?.isVisible == true {
+            closeRootPanel()
             return
         }
         guard let anchor = detailAnchor else { return }
         visibilityAction(true)
         tickAction()
-        let popover = NSPopover()
-        popover.behavior = .transient
-        popover.animates = false
-        popover.delegate = self
         let height = min(720, (anchor.window?.screen?.visibleFrame.height ?? 900) - 100)
         let content = VStack(spacing: 0) {
-            hostingView.rootView
+            rootContent
             Divider()
             HStack {
                 Button("Settings…") { [weak self] in
-                    self?.rootPopover?.performClose(nil)
+                    self?.closeRootPanel()
                     self?.settingsAction()
                 }
                 Spacer()
                 Button("Quit Barometer") { [weak self] in self?.quitAction() }
             }.padding(12)
         }.frame(width: contentWidth, height: height)
-        PopoverPlacement.configure(popover, content: content, size: NSSize(width: contentWidth, height: height))
-        rootPopover = popover
-        popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
-        PopoverPlacement.constrain(popover, to: anchor.window?.screen)
+        let panel = AttachedPanel(content: AnyView(content), size: NSSize(width: contentWidth, height: height))
+        rootPanel = panel
+        let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? anchor.window?.screen
+        let point = NSEvent.mouseLocation
+        panel.show(relativeTo: NSRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2),
+                   preferredEdge: .minY, on: screen)
         startDismissalMonitoring()
         trackingTimer?.invalidate()
         let timer = Timer(timeInterval: 0.5, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
@@ -129,24 +130,24 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
         trackingTimer = timer
     }
 
-    public func popoverShouldDetach(_ popover: NSPopover) -> Bool { false }
-
-    public func popoverDidClose(_ notification: Notification) {
+    private func closeRootPanel() {
         dismissalMonitor.stop()
         visibilityAction(false)
         detailPresenter.close()
         trackingTimer?.invalidate()
         trackingTimer = nil
-        rootPopover?.contentViewController = nil
-        rootPopover = nil
+        rootPanel?.releaseAndClose()
+        rootPanel = nil
     }
 
     public func menuNeedsUpdate(_ menu: NSMenu) {
+        prepareContent()
         tickAction()
         fitContent()
     }
 
     public func menuWillOpen(_ menu: NSMenu) {
+        prepareContent()
         visibilityAction(true)
         detailPresenter.close()
         fitContent()
@@ -164,28 +165,36 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
         visibilityAction(false)
         trackingTimer?.invalidate()
         trackingTimer = nil
+        hostingView.rootView = AnyView(EmptyView())
+        hasHostedContent = false
         logger.debug("closed module=\(self.moduleName, privacy: .public)")
+    }
+
+    private func prepareContent() {
+        guard !hasHostedContent else { return }
+        hostingView.rootView = rootContent
+        hasHostedContent = true
     }
 
     private func startDismissalMonitoring() {
         dismissalMonitor.start(containsPoint: { [weak self] point in
             guard let self else { return false }
-            let rootWindow = self.usesPopover
-                ? self.rootPopover?.contentViewController?.view.window : self.hostingView.window
+            let rootWindow = self.usesAttachedPanel
+                ? self.rootPanel : self.hostingView.window
             return rootWindow?.frame.contains(point) == true
-                || self.detailPresenter.popover?.contentViewController?.view.window?.frame.contains(point) == true
+                || self.detailPresenter.panel?.frame.contains(point) == true
                 || self.detailAnchor.map { anchor in
                     anchor.window?.convertToScreen(anchor.convert(anchor.bounds, to: nil)).contains(point) == true
                 } == true
         }, dismiss: { [weak self] in
             guard let self else { return }
-            if self.usesPopover { self.rootPopover?.performClose(nil) } else { self.menu.cancelTracking() }
+            if self.usesAttachedPanel { self.closeRootPanel() } else { self.menu.cancelTracking() }
         })
     }
 
     /// Resizes the hosted view to the ideal height of its SwiftUI content.
     private func fitContent() {
-        guard !usesPopover else { return }
+        guard !usesAttachedPanel else { return }
         let maximumHeight = min(BarometerDesign.maximumPanelHeight, (NSScreen.main?.visibleFrame.height ?? 900) - 120)
         var measured = hostingView.intrinsicContentSize.height
         if !measured.isFinite || measured <= 0 {
@@ -202,7 +211,7 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
     }
 
     @objc private func tick() {
-        if let rootPopover { PopoverPlacement.constrain(rootPopover, to: detailAnchor?.window?.screen) }
+        if let rootPanel { PopoverPlacement.constrain(rootPanel, to: detailAnchor?.window?.screen) }
         tickAction()
         fitContent()
         logger.debug("tracking tick module=\(self.moduleName, privacy: .public)")

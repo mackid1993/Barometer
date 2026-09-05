@@ -67,6 +67,8 @@ public final class MonitoringCoordinator {
     private let memoryMonitor: MemoryMonitor
     private var detailRequests: [String: Set<ModuleID>] = [:]
     private var detailSamplingTask: Task<Void, Never>?
+    private var combinedUpdateCoalescer = CombinedUpdateCoalescer()
+    private var combinedUpdateTask: Task<Void, Never>?
     private let cpuScheduler: Scheduler<CPUMonitor>
     private let memoryScheduler: Scheduler<MemoryMonitor>
     private let gpuScheduler: Scheduler<GPUMonitor>
@@ -316,7 +318,7 @@ public final class MonitoringCoordinator {
             ),
             contentHeight: WeatherDropdownView.contentSize.height,
             contentWidth: WeatherDropdownView.contentSize.width,
-            usesPopover: true,
+            usesAttachedPanel: true,
             tickAction: { [weak weatherStore] in weatherStore?.tick() },
             settingsAction: { settingsAction(.weather) },
             quitAction: quitAction
@@ -398,6 +400,9 @@ public final class MonitoringCoordinator {
 
     /// Stops monitor tasks and finishes their streams.
     public func stop() {
+        combinedUpdateTask?.cancel()
+        combinedUpdateTask = nil
+        combinedUpdateCoalescer = CombinedUpdateCoalescer()
         cpuSampleTask?.cancel()
         memorySampleTask?.cancel()
         gpuSampleTask?.cancel()
@@ -465,7 +470,15 @@ public final class MonitoringCoordinator {
 
     private func recordCombinedUpdate(from module: ModuleID, at timestamp: Date) {
         guard settingsStore.settings.stacks.needsSample(from: module) else { return }
-        combinedStore.receive(CombinedSample(), at: timestamp)
+        guard combinedUpdateCoalescer.request(timestamp) else { return }
+        combinedUpdateTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(75))
+            guard let self, !Task.isCancelled,
+                  let timestamp = combinedUpdateCoalescer.takeTimestamp()
+            else { return }
+            combinedUpdateTask = nil
+            combinedStore.receive(CombinedSample(), at: timestamp)
+        }
     }
 
     private func startSampleConsumption() {
@@ -846,7 +859,7 @@ public final class MonitoringCoordinator {
                 ),
                 contentHeight: CombinedDropdownView.contentSize.height,
                 contentWidth: CombinedDropdownView.contentSize.width,
-                usesPopover: true,
+                usesAttachedPanel: true,
                 visibilityAction: { [weak self] visible in
                     guard let self else { return }
                     let modules = self.settingsStore.settings.stacks.stack(id: instance)?.sourceModules ?? []
@@ -1410,6 +1423,22 @@ public final class MonitoringCoordinator {
         "cloud.rain", "cloud.sleet", "cloud.snow", "cloud.heavyrain", "cloud.bolt.rain", "questionmark.circle",
     ]
 
+}
+
+/// Combines source samples arriving on the same aligned scheduler boundary into one stack redraw.
+struct CombinedUpdateCoalescer {
+    private var pendingTimestamp: Date?
+
+    mutating func request(_ timestamp: Date) -> Bool {
+        let shouldSchedule = pendingTimestamp == nil
+        pendingTimestamp = max(pendingTimestamp ?? timestamp, timestamp)
+        return shouldSchedule
+    }
+
+    mutating func takeTimestamp() -> Date? {
+        defer { pendingTimestamp = nil }
+        return pendingTimestamp
+    }
 }
 
 private struct WeatherConfiguration: Equatable {

@@ -36,3 +36,19 @@ func outsideClickDismissal() {
     #expect(dismissed)
     monitor.stop()
 }
+
+@MainActor
+@Test("Manager-synthesized click outside the real item does not start hover dismissal before entry")
+func managerPointerHandoff() {
+    let monitor = PopoverDismissalMonitor()
+    var dismissed = false
+    monitor.start(containsPoint: { $0.x > 100 }, dismiss: { dismissed = true })
+    let start = ProcessInfo.processInfo.systemUptime
+    monitor.handleHover(at: .zero, time: start + 10)
+    #expect(!dismissed)
+    monitor.handleHover(at: NSPoint(x: 200, y: 200), time: start + 11)
+    monitor.handleHover(at: .zero, time: start + 11.7)
+    #expect(!dismissed)
+    monitor.handleHover(at: .zero, time: start + 11.9)
+    #expect(dismissed)
+}
