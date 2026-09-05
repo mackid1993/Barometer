@@ -3443,3 +3443,28 @@ stapling, but independent inspection of the downloaded public DMG caught that th
 had stripped both privacy entitlements. Strict signature verification and Gatekeeper still accepted that malformed
 artifact. The release workflow must not be considered verified until the downloaded nested application has been
 inspected for its signed entitlements.
+
+## P8-T50 Preserve entitlements in the GitHub distribution signature
+
+The GitHub distribution-signing step now supplies `Scripts/Barometer.entitlements` when it replaces the ad-hoc app
+signature with the Developer ID signature. It immediately exports the signed entitlements and fails unless both
+Calendar and Location access are present. The packaging regression test also inspects the GitHub workflow for the
+entitlements argument and the post-sign check. `docs/AGENTS.md` records that a bare forced re-sign silently removes
+entitlements even when strict signature verification and Gatekeeper assessment both pass.
+
+Pushed commit `79b69f3` and manually dispatched GitHub Actions Release run `33950608213` for version 1.0.2 with
+notarization and the explicit published-release replacement option enabled. The source invariant gate, all 246 tests
+in 34 suites, the panel and graph memory regression, production build, entitlement-preserving Developer ID signing,
+Apple notarization, stapling, and in-place release replacement all passed. The public release and `v1.0.2` tag both
+target commit `79b69f32e5ed268cf2fb5815dc3ded1927c5616e`.
+
+Independently downloaded the public `Barometer-1.0.2.dmg` after replacement and verified:
+
+- Its SHA-256 is `60f3557007bb9b71415eb20e98d895ad19c1d074c1b347c1a14c3a3864ebe165`, matching GitHub's
+  published asset digest.
+- The stapled ticket validates successfully.
+- The mounted application passes strict code-signature verification and Gatekeeper accepts it with
+  `source=Notarized Developer ID`.
+- Its bundle identifier is `com.barometer.app`, its version is 1.0.2, and its Location usage description is present.
+- The signed application contains both `com.apple.security.personal-information.calendars` and
+  `com.apple.security.personal-information.location`, each set to true.
