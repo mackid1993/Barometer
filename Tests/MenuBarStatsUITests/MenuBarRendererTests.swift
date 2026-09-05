@@ -530,6 +530,42 @@ struct MenuBarRendererTests {
     }
 
     @Test
+    func networkInterfacePickerOffersActivePhysicalAndVPNInterfaces() {
+        func interface(_ name: String, isUp: Bool = true, isLoopback: Bool = false) -> NetworkInterfaceSample {
+            NetworkInterfaceSample(
+                name: name,
+                isUp: isUp,
+                isLoopback: isLoopback,
+                isVPN: name.hasPrefix("utun"),
+                ipv4Addresses: [],
+                ipv6Addresses: [],
+                downloadBytesPerSecond: 0,
+                uploadBytesPerSecond: 0,
+                receivedBytes: 0,
+                sentBytes: 0,
+                inputErrors: 0,
+                outputErrors: 0
+            )
+        }
+        let sample = NetworkSample(
+            timestamp: .now,
+            interfaces: [
+                interface("utun3"),
+                interface("lo0", isLoopback: true),
+                interface("en7", isUp: false),
+                interface("en0"),
+            ],
+            primaryInterface: "en0",
+            router: nil,
+            dnsServers: [],
+            wifi: nil,
+            publicIP: nil
+        )
+
+        #expect(NetworkDropdownView.selectableInterfaces(sample).map(\.name) == ["en0", "utun3"])
+    }
+
+    @Test
     func peerRowsKeepTheSameGeometryWhenSwapped() {
         let first = NetworkRateStackRenderer(
             download: "1.2MB/s",

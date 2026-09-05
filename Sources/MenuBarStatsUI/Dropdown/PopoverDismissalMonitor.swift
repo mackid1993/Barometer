@@ -15,6 +15,8 @@ final class PopoverDismissalMonitor {
     private var lastInsideTime: TimeInterval = 0
     private var containsPoint: (@MainActor (NSPoint) -> Bool)?
     private var dismiss: (@MainActor () -> Void)?
+    private var menuTrackingObservers: [NSObjectProtocol] = []
+    private var menuTrackingDepth = 0
 
     func start(containsPoint: @escaping @MainActor (NSPoint) -> Bool,
                tracksHover: Bool = true, dismiss: @escaping @MainActor () -> Void) {
@@ -24,6 +26,7 @@ final class PopoverDismissalMonitor {
         hasEntered = false
         startedAt = ProcessInfo.processInfo.systemUptime
         lastInsideTime = startedAt
+        observeMenuTracking()
         let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.handleHover(at: NSEvent.mouseLocation, time: ProcessInfo.processInfo.systemUptime)
@@ -41,7 +44,7 @@ final class PopoverDismissalMonitor {
     }
 
     func handleHover(at point: NSPoint, time: TimeInterval) {
-        guard let containsPoint else { return }
+        guard menuTrackingDepth == 0, let containsPoint else { return }
         if containsPoint(point) {
             hasEntered = true
             lastInsideTime = time
@@ -60,9 +63,34 @@ final class PopoverDismissalMonitor {
         action?()
     }
 
+    private func observeMenuTracking() {
+        let center = NotificationCenter.default
+        menuTrackingObservers = [
+            center.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: .main) {
+                [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.menuTrackingDepth += 1
+                }
+            },
+            center.addObserver(forName: NSMenu.didEndTrackingNotification, object: nil, queue: .main) {
+                [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.menuTrackingDepth = max(0, self.menuTrackingDepth - 1)
+                    self.lastInsideTime = ProcessInfo.processInfo.systemUptime
+                }
+            },
+        ]
+    }
+
     func stop() {
         hoverTimer?.invalidate()
         hoverTimer = nil
+        for observer in menuTrackingObservers {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        menuTrackingObservers.removeAll(keepingCapacity: false)
+        menuTrackingDepth = 0
         startedAt = 0
         lastInsideTime = 0
         hasEntered = false

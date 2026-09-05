@@ -44,3 +44,27 @@ func dropdownExclusivity() {
     second.menuDidClose(secondMenu)
     #expect(secondVisibility == [true, false])
 }
+
+@MainActor
+@Test("Attached dropdowns observe their stores instead of polling while open")
+func attachedDropdownDoesNotPoll() {
+    var ticks = 0
+    let window = NSWindow(
+        contentRect: NSRect(x: 100, y: 100, width: 40, height: 24),
+        styleMask: .borderless,
+        backing: .buffered,
+        defer: false
+    )
+    let anchor = NSView(frame: window.contentView?.bounds ?? .zero)
+    window.contentView = anchor
+    let controller = DropdownController(
+        moduleName: "Weather", statusItem: nil, rootView: AnyView(Text("Weather")), contentHeight: 100,
+        usesAttachedPanel: true, tickAction: { ticks += 1 }, settingsAction: {}, quitAction: {}
+    )
+
+    controller.presentAttachedPanel(anchoredTo: anchor)
+
+    #expect(!controller.hasActiveTrackingTimer)
+    #expect(ticks == 0)
+    controller.dismiss()
+}

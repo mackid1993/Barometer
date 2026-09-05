@@ -3018,3 +3018,37 @@ Verification before installation:
   and 16 KB growth between simulated hours 24 and 48 (`dist/history-memory-final-hover.log`).
 - `git diff --check` passed. Runtime installed-app memory, CPU, signature, Calendar entitlement, and manager
   interaction checks follow on build 131. No push.
+
+### P8-T36 — Stop attached-panel redraw churn and preserve control menus
+
+Installed build 131 reproduced the remaining Weather regression after a real open and close: `leaks` reported
+204.8 MB current / 319.3 MB peak, 320,933 allocation nodes, and 168,706 KB malloced. The detector found no leaked
+blocks, but the heap retained thousands of CoreSVG objects after the panel was gone. A clean launch without opening
+Weather measured 26.7 MB current / 26.8 MB peak, isolating the increase to rich attached-panel presentation rather
+than the idle monitors.
+
+Weather and Combined attached panels observed their module stores while also invoking a controller refresh closure
+every 500 ms. Removed that redundant initial refresh and repeating tracking timer for attached panels. Native menus
+retain their tracking refresh because AppKit suspends ordinary view updates while a menu tracks. Panel placement,
+materials, cards, chart glow, hourly hover glow, and all status-item identity fields are unchanged.
+
+The Network interface picker opened an AppKit control menu outside the attached panel. Hover dismissal interpreted
+that menu as leaving Barometer and closed its parent before a selection could be made. The dismissal monitor now
+suspends its hover timer while any control menu tracks and restores the one-second exit grace after the menu closes.
+Active physical and VPN interfaces remain sorted beneath Automatic; down and loopback interfaces remain excluded.
+
+Verification before installation:
+
+- `make test`: all 218 tests in 31 suites passed (`dist/p8-t36-full-tests.log`). New regressions verify that attached
+  dropdowns do not poll, control-menu tracking cannot dismiss the parent panel, and active physical/VPN interfaces
+  remain selectable.
+- The screen suite generated 80 fresh full-resolution captures for Weather, Combined, and both detailed forecast
+  days in light and dark appearances at every display corner, including top, hourly, and true-bottom positions.
+  Every frame remained inside the display and every scroll reached its bottom. Representative captures were
+  inspected for alignment, clipping, card shapes, materials, charts, and glows.
+- The exact controller benchmark with the installed 242 KB, 10-day Weather cache peaked at 54.4 MiB and settled at
+  38.8 MiB without cycle growth (`dist/p8-t36-live-cache-panel-memory.log`). The CI fixture peaked at 47.8 MiB and
+  settled at 35.4 MiB (`dist/p8-t36-ci-panel-memory.log`); both passed the 128 MiB ceiling.
+- `python3 Scripts/benchmark-memory.py dist/memory-baseline`: passed with a 92.7% lower isolated one-hour footprint
+  and zero growth from simulated hours 24 to 48 (`dist/p8-t36-history-memory.log`).
+- Installed-app memory, CPU, signature, entitlement, and interactive selector checks follow on build 132. No push.

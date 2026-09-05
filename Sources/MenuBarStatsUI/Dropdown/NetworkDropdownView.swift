@@ -271,7 +271,7 @@ public struct NetworkDropdownView: View {
     private func interfacePicker(sample: NetworkSample) -> some View {
         Picker("Interface", selection: selectedInterfaceBinding) {
             Text("Automatic (\(sample.primary?.name ?? "unavailable"))").tag(String?.none)
-            ForEach(selectableInterfaces(sample), id: \.name) { interface in
+            ForEach(Self.selectableInterfaces(sample), id: \.name) { interface in
                 Text(interface.isVPN ? "\(interface.name) (VPN)" : interface.name)
                     .tag(Optional(interface.name))
             }
@@ -354,7 +354,7 @@ public struct NetworkDropdownView: View {
         )
     }
 
-    private func selectableInterfaces(_ sample: NetworkSample) -> [NetworkInterfaceSample] {
+    static func selectableInterfaces(_ sample: NetworkSample) -> [NetworkInterfaceSample] {
         sample.interfaces
             .filter { $0.isUp && !$0.isLoopback }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }

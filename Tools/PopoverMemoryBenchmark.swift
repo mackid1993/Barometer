@@ -8,13 +8,8 @@ struct WeatherPanelMemoryBenchmark {
     @MainActor
     static func main() async throws {
         _ = NSApplication.shared
-        let location = Location(id: "boston", name: "Boston", admin: nil, country: "US",
-                                latitude: 42.36, longitude: -71.05, timeZone: "America/New_York")
-        let data = try Data(contentsOf: URL(fileURLWithPath:
-            "Tests/MenuBarStatsCoreTests/Fixtures/forecast-rich-imperial.json"))
-        let forecast = try OpenMeteoClient.decodeForecast(data, for: location, units: .imperial)
-        let sample = WeatherSample(timestamp: forecast.fetchedAt, forecast: forecast, airQuality: nil,
-                                   isStale: false, refreshError: nil)
+        let sample = try sample()
+        let forecast = sample.forecast
         let suite = "PopoverMemoryBenchmark-\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suite) else { exit(2) }
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -29,16 +24,23 @@ struct WeatherPanelMemoryBenchmark {
         anchorWindow.contentView = anchor
         anchorWindow.orderFront(nil)
         let presenter = MenuDetailPresenter(pointerLocation: { NSPoint(x: 150, y: 715) })
+        let rootController = DropdownController(
+            moduleName: "Weather",
+            statusItem: nil,
+            rootView: AnyView(
+                WeatherDropdownView(store: weatherStore, settingsStore: settingsStore, refreshAction: {})
+            ),
+            contentHeight: WeatherDropdownView.contentSize.height,
+            contentWidth: WeatherDropdownView.contentSize.width,
+            usesAttachedPanel: true,
+            tickAction: { weatherStore.tick() },
+            settingsAction: {},
+            quitAction: {}
+        )
         report(-1)
         for cycle in 0..<5 {
             for day in forecast.daily.prefix(2) {
-                let rootContent = AnyView(
-                    WeatherDropdownView(store: weatherStore, settingsStore: settingsStore, refreshAction: {})
-                        .frame(width: 380, height: 720)
-                )
-                let root = AttachedPanel(content: rootContent, size: NSSize(width: 380, height: 720))
-                root.show(relativeTo: anchorWindow.convertToScreen(anchor.bounds), preferredEdge: .minY,
-                          on: anchorWindow.screen)
+                rootController.presentAttachedPanel(anchoredTo: anchor)
                 let content = AnyView(WeatherDayDetailView(
                     day: day, sample: sample, accent: .signature(for: .weather)))
                 presenter.present(content, anchoredTo: anchor)
@@ -55,12 +57,35 @@ struct WeatherPanelMemoryBenchmark {
                     }
                 }
                 presenter.close()
-                root.releaseAndClose()
+                rootController.dismiss()
                 try await Task.sleep(for: .milliseconds(100))
             }
             report(cycle)
         }
         anchorWindow.close()
+    }
+
+    static func sample() throws -> WeatherSample {
+        if let cachePath = ProcessInfo.processInfo.environment["BAROMETER_WEATHER_CACHE"] {
+            let entry = try JSONDecoder().decode(
+                WeatherCacheEntry.self,
+                from: Data(contentsOf: URL(fileURLWithPath: cachePath))
+            )
+            return WeatherSample(
+                timestamp: entry.forecast.fetchedAt,
+                forecast: entry.forecast,
+                airQuality: entry.airQuality,
+                isStale: false,
+                refreshError: nil
+            )
+        }
+        let location = Location(id: "boston", name: "Boston", admin: nil, country: "US",
+                                latitude: 42.36, longitude: -71.05, timeZone: "America/New_York")
+        let data = try Data(contentsOf: URL(fileURLWithPath:
+            "Tests/MenuBarStatsCoreTests/Fixtures/forecast-rich-imperial.json"))
+        let forecast = try OpenMeteoClient.decodeForecast(data, for: location, units: .imperial)
+        return WeatherSample(timestamp: forecast.fetchedAt, forecast: forecast, airQuality: nil,
+                             isStale: false, refreshError: nil)
     }
 
     @MainActor

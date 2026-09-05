@@ -63,3 +63,24 @@ func managerPointerEntry() {
     monitor.handleHover(at: .zero, time: start + 3.0)
     #expect(dismissed)
 }
+
+@MainActor
+@Test("A control menu can be used without dismissing its attached popover")
+func controlMenuTrackingSuspendsHoverDismissal() {
+    let monitor = PopoverDismissalMonitor()
+    var dismissed = false
+    monitor.start(containsPoint: { $0.x > 100 }, dismiss: { dismissed = true })
+    let start = ProcessInfo.processInfo.systemUptime
+    monitor.handleHover(at: NSPoint(x: 200, y: 200), time: start)
+
+    NotificationCenter.default.post(name: NSMenu.didBeginTrackingNotification, object: NSMenu())
+    monitor.handleHover(at: .zero, time: start + 10)
+    #expect(!dismissed)
+
+    NotificationCenter.default.post(name: NSMenu.didEndTrackingNotification, object: NSMenu())
+    let ended = ProcessInfo.processInfo.systemUptime
+    monitor.handleHover(at: .zero, time: ended + PopoverDismissalMonitor.hoverExitDelay - 0.1)
+    #expect(!dismissed)
+    monitor.handleHover(at: .zero, time: ended + PopoverDismissalMonitor.hoverExitDelay + 0.1)
+    #expect(dismissed)
+}

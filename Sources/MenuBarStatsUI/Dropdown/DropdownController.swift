@@ -105,10 +105,14 @@ public final class DropdownController: NSObject, NSMenuDelegate {
             return
         }
         guard let anchor = detailAnchor else { return }
+        presentAttachedPanel(anchoredTo: anchor)
+    }
+
+    func presentAttachedPanel(anchoredTo anchor: NSView) {
+        detailAnchor = anchor
         becomeActive()
         isOpen = true
         visibilityAction(true)
-        tickAction()
         let height = min(720, (anchor.window?.screen?.visibleFrame.height ?? 900) - 100)
         let content = VStack(spacing: 0) {
             rootContent
@@ -129,11 +133,9 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         panel.show(relativeTo: NSRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2),
                    preferredEdge: .minY, on: screen)
         startDismissalMonitoring()
-        trackingTimer?.invalidate()
-        let timer = Timer(timeInterval: 0.5, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
-        RunLoop.main.add(timer, forMode: .common)
-        trackingTimer = timer
     }
+
+    var hasActiveTrackingTimer: Bool { trackingTimer != nil }
 
     private func closeRootPanel() {
         let wasOpen = isOpen
@@ -201,7 +203,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         }
     }
 
-    private func dismiss() {
+    func dismiss() {
         if usesAttachedPanel {
             closeRootPanel()
         } else {
