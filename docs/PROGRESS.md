@@ -3216,3 +3216,40 @@ Verification before local installation:
   short periodic bursts, versus the reported steady 3%. `leaks` reported zero leaked blocks and the same
   12.8 MiB / 14.2 MiB footprint (`dist/p8-t41-installed-idle.sample`,
   `dist/p8-t41-installed-idle-top.log`, and `dist/p8-t41-installed-leaks.log`). No push.
+
+## P8-T42 Stable Weather scroll hover and visible-only detail polling
+
+Fast or inertial scrolling in the Weather root now closes any date detail attached to a row that moved. Scrolls
+inside the detail remain available. Date rows wait 150 milliseconds before presenting details, so rows that pass
+under a stationary pointer during a fast scroll do not create transient panels; the row where the pointer settles
+still opens without a click. The existing one-second exit grace and the complete visual design remain unchanged.
+
+GPU keeps its inexpensive accelerator utilization sample active for its status item and graph, while IOReport and
+SMC frequency, activity, power, and temperature enrichment run only while GPU details are visible. Network keeps
+live transfer counters active, caches initial or invalidated connection metadata while closed, and defers periodic
+metadata, Wi-Fi, and per-process work until Network details are visible. Route messages now supply their own byte,
+packet, and error counters instead of triggering a second kernel query for every interface.
+
+Verification before the final local installation:
+
+- `python3 Scripts/check-source-invariants.py` and `git diff --check` passed.
+- `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer` with `POPOVER_SNAPSHOT_DIRECTORY` set to
+  `dist/p8-t42-panel-screens-v3` ran `make test` and executed all 241 tests: 32 SystemSources, 84 UI, and 125 Core
+  tests passed (`dist/p8-t42-tests-final.log`). New
+  coverage verifies settled hover intent, root-scroll dismissal, continued detail scrolling, GPU enrichment gating,
+  and cached Network metadata gating.
+- The screen suite produced 128 captures. Representative Weather and day-detail top, hourly, and true-bottom states,
+  plus Network and CPU, remain aligned and unclipped in both appearances. A pixel comparison with the preceding
+  approved capture set found zero changed pixels. The capture helper retries transient fully transparent WindowServer
+  results and still fails after three blank results.
+- The live Network probe reported `en0`, current transfer rates, IPv4 and IPv6 addresses, router, DNS, and nonzero
+  cumulative totals after the route-counter optimization.
+- `python3 Scripts/benchmark-popover-memory.py` completed ten rich-panel cycles at about 35.7 MiB current and a
+  48.0 MiB peak, below the 128 MiB gate (`dist/p8-t42-popover-memory-final.log`).
+- `python3 Scripts/benchmark-memory.py dist/memory-baseline` passed with a 92.7% lower one-hour footprint and zero
+  growth from simulated hours 24 to 48 (`dist/p8-t42-history-memory.log`).
+- Production installs before and after the final commit each averaged 0.72% CPU across 31 one-second observations
+  with every panel closed. Final installed build 139 used about 13 MiB resident memory and reported 12.6 MiB current /
+  14.1 MiB peak physical footprint with zero leaked blocks (`dist/p8-t42-idle-top-139-stable.txt` and
+  `dist/p8-t42-leaks-139.txt`). Its signature is valid. The sampled stacks contained only visible status-item
+  sampling and rendering; hidden GPU, Wi-Fi, and process-detail sources were absent. No push.

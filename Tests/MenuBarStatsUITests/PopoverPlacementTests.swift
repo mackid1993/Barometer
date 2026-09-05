@@ -182,18 +182,26 @@ struct PopoverPlacementTests {
 
     private func capture(_ panel: NSPanel, named name: String, in directory: String) throws {
         let path = URL(fileURLWithPath: directory).appendingPathComponent("\(name).png").path
-        let capture = Process()
-        capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        capture.arguments = ["-x", "-l", String(panel.windowNumber), path]
-        try capture.run()
-        capture.waitUntilExit()
-        #expect(capture.terminationStatus == 0, "Window capture failed for \(name)")
-        let data = try Data(contentsOf: URL(fileURLWithPath: path))
-        let image = try #require(NSBitmapImageRep(data: data), "Unreadable window capture for \(name)")
-        let byteCount = image.bytesPerRow * image.pixelsHigh
-        let bitmapData = try #require(image.bitmapData, "Window capture for \(name) has no bitmap data")
-        let containsVisiblePixel = UnsafeBufferPointer(start: bitmapData, count: byteCount).contains { $0 != 0 }
-        #expect(containsVisiblePixel, "Window capture for \(name) was fully transparent")
+        for attempt in 0..<3 {
+            let capture = Process()
+            capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+            capture.arguments = ["-x", "-l", String(panel.windowNumber), path]
+            try capture.run()
+            capture.waitUntilExit()
+            try #require(capture.terminationStatus == 0, "Window capture failed for \(name)")
+            let data = try Data(contentsOf: URL(fileURLWithPath: path))
+            let image = try #require(NSBitmapImageRep(data: data), "Unreadable window capture for \(name)")
+            let byteCount = image.bytesPerRow * image.pixelsHigh
+            let bitmapData = try #require(image.bitmapData, "Window capture for \(name) has no bitmap data")
+            if UnsafeBufferPointer(start: bitmapData, count: byteCount).contains(where: { $0 != 0 }) {
+                return
+            }
+            if attempt < 2 {
+                RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+                panel.displayIfNeeded()
+            }
+        }
+        Issue.record("Window capture for \(name) was fully transparent after three attempts")
     }
 
     private static func verticalScrollView(in view: NSView?) -> NSScrollView? {

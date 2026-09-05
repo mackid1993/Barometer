@@ -29,12 +29,14 @@ struct MenuDetailPresenterTests {
         return WeatherDayDetailView(day: day, sample: sample, accent: .signature(for: .weather))
     }
 
-    @Test("Hover enters a day without requiring a mouse click")
-    func hoverOpensDetail() throws {
+    @Test("Hover settles on a day without opening rows crossed during fast scrolling")
+    func hoverOpensSettledDetail() throws {
         let view = WeatherHoverAnchor.HoverView()
-        var entered = false
+        var entries = 0
         var exited = false
-        view.show = { anchor in entered = anchor === view }
+        view.show = { anchor in
+            if anchor === view { entries += 1 }
+        }
         view.hide = { anchor in exited = anchor === view }
         let enterEvent = try #require(NSEvent.enterExitEvent(with: .mouseEntered, location: .zero,
             modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
@@ -44,8 +46,13 @@ struct MenuDetailPresenterTests {
             eventNumber: 2, trackingNumber: 1, userData: nil))
         view.mouseEntered(with: enterEvent)
         view.mouseExited(with: exitEvent)
-        #expect(entered)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.2))
+        #expect(entries == 0)
         #expect(exited)
+
+        view.mouseEntered(with: enterEvent)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.2))
+        #expect(entries == 1)
         view.show = nil
         view.hide = nil
     }
@@ -100,6 +107,24 @@ struct MenuDetailPresenterTests {
             time: start + PopoverDismissalMonitor.hoverExitDelay + 0.1
         )
 
+        #expect(!detail.isVisible)
+        #expect(presenter.panel == nil)
+    }
+
+    @Test("Scrolling the forecast closes its day detail while the detail remains scrollable")
+    func rootScrollDismissal() throws {
+        let anchorWindow = makeAnchor()
+        defer { anchorWindow.close() }
+        let anchor = try #require(anchorWindow.contentView)
+        let presenter = MenuDetailPresenter()
+        defer { presenter.close() }
+        presenter.present(AnyView(Text("Forecast")), anchoredTo: anchor)
+        let detail = try #require(presenter.panel)
+
+        presenter.handleScroll(in: detail)
+        #expect(detail.isVisible)
+
+        presenter.handleScroll(in: anchorWindow)
         #expect(!detail.isVisible)
         #expect(presenter.panel == nil)
     }

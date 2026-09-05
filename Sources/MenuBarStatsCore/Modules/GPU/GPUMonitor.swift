@@ -55,6 +55,7 @@ public actor GPUMonitor: Monitor {
     private let acceleratorSource: GPUAcceleratorSource
     private let ioReportSource: IOReportSource?
     private let smcSource: SMCClient?
+    private var collectsDetails: Bool
     private var lastDetailRefresh: Date?
     private var cachedFrequencyMHz: Double?
     private var cachedActivePercent: Double?
@@ -67,11 +68,25 @@ public actor GPUMonitor: Monitor {
     }
 
     /// Creates a runtime-discovered GPU monitor.
-    public init(interval: Duration = .seconds(1), acceleratorSource: GPUAcceleratorSource = GPUAcceleratorSource()) {
+    public init(
+        interval: Duration = .seconds(1),
+        acceleratorSource: GPUAcceleratorSource = GPUAcceleratorSource(),
+        collectsDetails: Bool = true
+    ) {
         self.interval = interval
         self.acceleratorSource = acceleratorSource
+        self.collectsDetails = collectsDetails
         ioReportSource = try? IOReportSource()
         smcSource = try? SMCClient()
+    }
+
+    /// Enables the slower frequency, power, and temperature sources only while their UI is visible.
+    public func setDetailsEnabled(_ enabled: Bool) {
+        guard collectsDetails != enabled else { return }
+        collectsDetails = enabled
+        if enabled {
+            lastDetailRefresh = nil
+        }
     }
 
     /// Reads current utilization and optional detailed metrics.
@@ -84,7 +99,7 @@ public actor GPUMonitor: Monitor {
         }
 
         let timestamp = Date()
-        if Self.shouldRefreshDetails(lastRefresh: lastDetailRefresh, now: timestamp) {
+        if Self.shouldRefreshDetails(enabled: collectsDetails, lastRefresh: lastDetailRefresh, now: timestamp) {
             lastDetailRefresh = timestamp
             var refreshedTemperature: Double?
             if let ioReportSource {
@@ -125,11 +140,13 @@ public actor GPUMonitor: Monitor {
     }
 
     static func shouldRefreshDetails(
+        enabled: Bool = true,
         lastRefresh: Date?,
         now: Date,
         interval: TimeInterval = 10
     ) -> Bool {
-        lastRefresh.map { now.timeIntervalSince($0) >= interval } ?? true
+        guard enabled else { return false }
+        return lastRefresh.map { now.timeIntervalSince($0) >= interval } ?? true
     }
 
     private static func smcTemperature(source: SMCClient) async throws -> Double? {

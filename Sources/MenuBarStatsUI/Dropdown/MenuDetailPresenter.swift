@@ -30,6 +30,7 @@ final class MenuDetailPresenter: NSObject {
     private weak var pendingAnchor: NSView?
     private weak var hoverAnchor: NSView?
     private var hoverTimer: Timer?
+    private var scrollMonitor: Any?
     private let dismissalMonitor = PopoverDismissalMonitor()
     private var lastHoverTime: TimeInterval = 0
     private var anchorContainsPointer = false
@@ -78,6 +79,12 @@ final class MenuDetailPresenter: NSObject {
                           userInfo: nil, repeats: true)
         RunLoop.main.add(timer, forMode: .common)
         hoverTimer = timer
+        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            MainActor.assumeIsolated {
+                self?.handleScroll(in: event.window)
+            }
+            return event
+        }
     }
 
     @objc private func checkHover() {
@@ -106,10 +113,19 @@ final class MenuDetailPresenter: NSObject {
         lastHoverTime = time
     }
 
+    func handleScroll(in window: NSWindow?) {
+        guard window === hoverAnchor?.window else { return }
+        close()
+    }
+
     func close() {
         dismissalMonitor.stop()
         hoverTimer?.invalidate()
         hoverTimer = nil
+        if let scrollMonitor {
+            NSEvent.removeMonitor(scrollMonitor)
+            self.scrollMonitor = nil
+        }
         hoverAnchor = nil
         anchorContainsPointer = false
         presentationTimer?.invalidate()

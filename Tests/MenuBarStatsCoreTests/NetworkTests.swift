@@ -52,6 +52,24 @@ struct NetworkTests {
     func throttlesConnectionMetadata() {
         let start = Date(timeIntervalSince1970: 100)
 
+        #expect(NetworkMonitor.shouldRefreshMetadata(
+            hasCachedMetadata: false,
+            collectsConnectionDetails: false,
+            lastRefresh: nil,
+            now: start
+        ))
+        #expect(!NetworkMonitor.shouldRefreshMetadata(
+            hasCachedMetadata: true,
+            collectsConnectionDetails: false,
+            lastRefresh: start,
+            now: start.addingTimeInterval(60)
+        ))
+        #expect(NetworkMonitor.shouldRefreshMetadata(
+            hasCachedMetadata: true,
+            collectsConnectionDetails: true,
+            lastRefresh: start,
+            now: start.addingTimeInterval(10)
+        ))
         #expect(NetworkMonitor.shouldRefreshWiFi(lastRefresh: nil, now: start))
         #expect(!NetworkMonitor.shouldRefreshWiFi(lastRefresh: start, now: start.addingTimeInterval(9.9)))
         #expect(NetworkMonitor.shouldRefreshWiFi(lastRefresh: start, now: start.addingTimeInterval(10)))

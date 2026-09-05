@@ -68,6 +68,7 @@ public final class MonitoringCoordinator {
 
     private let cpuMonitor: CPUMonitor
     private let memoryMonitor: MemoryMonitor
+    private let gpuMonitor: GPUMonitor
     private var detailRequests: [String: Set<ModuleID>] = [:]
     private var detailSamplingTask: Task<Void, Never>?
     private var combinedUpdateCoalescer = CombinedUpdateCoalescer()
@@ -148,8 +149,13 @@ public final class MonitoringCoordinator {
         let memoryMonitor = MemoryMonitor(collectsProcessDetails: false)
         self.memoryMonitor = memoryMonitor
         memoryScheduler = Scheduler(monitor: memoryMonitor)
-        gpuScheduler = Scheduler(monitor: GPUMonitor())
-        let networkMonitor = NetworkMonitor(collectsProcessDetails: false)
+        let gpuMonitor = GPUMonitor(collectsDetails: false)
+        self.gpuMonitor = gpuMonitor
+        gpuScheduler = Scheduler(monitor: gpuMonitor)
+        let networkMonitor = NetworkMonitor(
+            collectsProcessDetails: false,
+            collectsConnectionDetails: false
+        )
         self.networkMonitor = networkMonitor
         networkScheduler = Scheduler(monitor: networkMonitor)
         diskScheduler = Scheduler(monitor: DiskMonitor())
@@ -303,6 +309,9 @@ public final class MonitoringCoordinator {
             rootView: AnyView(GPUDropdownView(store: gpuStore, settingsStore: settingsStore)),
             contentHeight: GPUDropdownView.contentSize.height,
             contentWidth: GPUDropdownView.contentSize.width,
+            visibilityAction: { [weak self] visible in
+                self?.setDetailVisibility(owner: "gpu", modules: [.gpu], visible: visible)
+            },
             tickAction: { [weak gpuStore] in gpuStore?.tick() },
             settingsAction: { settingsAction(.gpu) },
             quitAction: quitAction
@@ -462,13 +471,23 @@ public final class MonitoringCoordinator {
         }
     }
 
-    /// Enables complete hardware discovery only while the Sensors settings page is visible.
+    /// Enables detail-only collectors while their settings page is visible.
     public func setVisibleSettingsModule(_ module: ModuleID?) {
-        let showsSensors = module == .sensors
+        let detailModules: Set<ModuleID>
+        switch module {
+        case .gpu:
+            detailModules = [.gpu]
+        case .network:
+            detailModules = [.network]
+        case .sensors:
+            detailModules = [.sensors]
+        default:
+            detailModules = []
+        }
         setDetailVisibility(
             owner: "settings",
-            modules: showsSensors ? [.sensors] : [],
-            visible: showsSensors
+            modules: detailModules,
+            visible: !detailModules.isEmpty
         )
     }
 
@@ -484,7 +503,11 @@ public final class MonitoringCoordinator {
             guard !Task.isCancelled else { return }
             await memoryMonitor.setProcessDetailsEnabled(needed.contains(.memory))
             guard !Task.isCancelled else { return }
+            await gpuMonitor.setDetailsEnabled(needed.contains(.gpu))
+            guard !Task.isCancelled else { return }
             await networkMonitor.setProcessDetailsEnabled(needed.contains(.network))
+            guard !Task.isCancelled else { return }
+            await networkMonitor.setConnectionDetailsEnabled(needed.contains(.network))
             guard !Task.isCancelled else { return }
             await sensorsMonitor.setSamplingSelection(
                 sensorIDs: sensorIDs,
@@ -498,6 +521,7 @@ public final class MonitoringCoordinator {
             guard visible else { return }
             if modules.contains(.cpu) { await cpuScheduler.refresh() }
             if modules.contains(.memory) { await memoryScheduler.refresh() }
+            if modules.contains(.gpu) { await gpuScheduler.refresh() }
             if modules.contains(.network) { await networkScheduler.refresh() }
             if modules.contains(.sensors) { await sensorsScheduler.refresh() }
         }

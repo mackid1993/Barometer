@@ -131,6 +131,7 @@ public actor NetworkMonitor: Monitor {
     private var previousProcessCounters: [pid_t: ProcessNetworkCounter] = [:]
     private var lastProcessRefresh: Date?
     private var collectsProcessDetails: Bool
+    private var collectsConnectionDetails: Bool
     private var isProcessActivityAvailable = false
     private var cachedTopProcesses: [NetworkProcessSample] = []
     private var isPublicIPEnabled = false
@@ -186,7 +187,15 @@ public actor NetworkMonitor: Monitor {
         }
     }
 
-    static func shouldRefreshMetadata(lastRefresh: Date?, now: Date) -> Bool {
+    static func shouldRefreshMetadata(
+        hasCachedMetadata: Bool = true,
+        collectsConnectionDetails: Bool = true,
+        lastRefresh: Date?,
+        now: Date
+    ) -> Bool {
+        guard !hasCachedMetadata || collectsConnectionDetails else {
+            return false
+        }
         guard let lastRefresh else {
             return true
         }
@@ -206,7 +215,8 @@ public actor NetworkMonitor: Monitor {
         wiFiSource: WiFiSource = WiFiSource(),
         publicIPSource: PublicIPSource = PublicIPSource(),
         processNetworkSource: ProcessNetworkSource = ProcessNetworkSource(),
-        collectsProcessDetails: Bool = true
+        collectsProcessDetails: Bool = true,
+        collectsConnectionDetails: Bool = true
     ) {
         self.interval = interval
         self.networkSource = networkSource
@@ -214,6 +224,7 @@ public actor NetworkMonitor: Monitor {
         self.publicIPSource = publicIPSource
         self.processNetworkSource = processNetworkSource
         self.collectsProcessDetails = collectsProcessDetails
+        self.collectsConnectionDetails = collectsConnectionDetails
         processSource = ProcessSource()
     }
 
@@ -223,6 +234,16 @@ public actor NetworkMonitor: Monitor {
         collectsProcessDetails = enabled
         lastProcessRefresh = nil
         previousProcessCounters.removeAll(keepingCapacity: true)
+    }
+
+    /// Enables Wi-Fi and connection metadata polling only while its detail UI is visible.
+    public func setConnectionDetailsEnabled(_ enabled: Bool) {
+        guard collectsConnectionDetails != enabled else { return }
+        collectsConnectionDetails = enabled
+        if enabled {
+            lastMetadataRefresh = nil
+            lastWiFiRefresh = nil
+        }
     }
 
     /// Enables or disables the explicit external public-address lookup.
@@ -246,6 +267,7 @@ public actor NetworkMonitor: Monitor {
     public func refreshConnectionDetails() {
         lastWiFiRefresh = nil
         lastMetadataRefresh = nil
+        cachedMetadata = nil
     }
 
     /// Addresses and global configuration change rarely, so they are refreshed on this
@@ -255,7 +277,12 @@ public actor NetworkMonitor: Monitor {
     /// Reads interfaces and calculates transfer rates since the previous sample.
     public func sample() async throws -> NetworkSample {
         let timestamp = Date()
-        let refreshesMetadata = Self.shouldRefreshMetadata(lastRefresh: lastMetadataRefresh, now: timestamp)
+        let refreshesMetadata = Self.shouldRefreshMetadata(
+            hasCachedMetadata: cachedMetadata != nil,
+            collectsConnectionDetails: collectsConnectionDetails,
+            lastRefresh: lastMetadataRefresh,
+            now: timestamp
+        )
         var snapshot = try networkSource.read(includesMetadata: refreshesMetadata)
         if refreshesMetadata {
             lastMetadataRefresh = timestamp
@@ -298,7 +325,9 @@ public actor NetworkMonitor: Monitor {
         previousCounters = nextCounters
         refreshProcessActivityIfNeeded(at: timestamp)
         await updatePublicIPIfNeeded(at: timestamp)
-        if Self.shouldRefreshWiFi(lastRefresh: lastWiFiRefresh, now: timestamp) {
+        if collectsConnectionDetails,
+            Self.shouldRefreshWiFi(lastRefresh: lastWiFiRefresh, now: timestamp)
+        {
             lastWiFiRefresh = timestamp
             cachedWiFi = wiFiSource.read(interfaceName: snapshot.primaryInterface)
         }

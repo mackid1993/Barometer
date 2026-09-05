@@ -8,6 +8,7 @@ struct GPUTests {
     func throttlesEnrichment() {
         let start = Date(timeIntervalSince1970: 100)
 
+        #expect(!GPUMonitor.shouldRefreshDetails(enabled: false, lastRefresh: nil, now: start))
         #expect(GPUMonitor.shouldRefreshDetails(lastRefresh: nil, now: start))
         #expect(!GPUMonitor.shouldRefreshDetails(lastRefresh: start, now: start.addingTimeInterval(9.9)))
         #expect(GPUMonitor.shouldRefreshDetails(lastRefresh: start, now: start.addingTimeInterval(10)))
