@@ -342,7 +342,9 @@ universal performance guarantee.
   and saved-data fallback.
 - Hardened-runtime builds must contain both `com.apple.security.personal-information.location` and
   `com.apple.security.personal-information.calendars`. `Scripts/make-app.sh` verifies the signed entitlements instead
-  of trusting the source plist.
+  of trusting the source plist. Any later distribution re-sign must pass the entitlement file again and inspect the
+  resulting application; a bare `codesign --force` strips the entitlements even though strict signature and
+  Gatekeeper checks can still pass.
 - A direct Location request must activate the LSUIElement application before calling
   `requestWhenInUseAuthorization()`. Keep current-location callbacks registered at launch when the saved setting is
   on, but never initiate an undetermined permission request until the user selects **Use current location** or

@@ -93,8 +93,21 @@ jobs:
           fi
           codesign --force --options runtime --timestamp \
             --sign "$IDENTITY" \
+            --identifier com.barometer.app \
+            --entitlements Scripts/Barometer.entitlements \
             dist/Barometer.app
           codesign --verify --deep --strict --verbose=2 dist/Barometer.app
+          SIGNED_ENTITLEMENTS="$RUNNER_TEMP/barometer-signed-entitlements.plist"
+          codesign --display --entitlements - --xml dist/Barometer.app > "$SIGNED_ENTITLEMENTS"
+          for ENTITLEMENT in calendars location; do
+            VALUE=$(plutil -extract \
+              "com\.apple\.security\.personal-information\.${ENTITLEMENT}" \
+              raw -o - "$SIGNED_ENTITLEMENTS")
+            if [ "$VALUE" != "true" ]; then
+              echo "::error::Distribution signature is missing the ${ENTITLEMENT} entitlement" >&2
+              exit 1
+            fi
+          done
           ./Scripts/create-dmg.sh \
             dist/Barometer.app \
             "dist/Barometer-${VERSION}.dmg"

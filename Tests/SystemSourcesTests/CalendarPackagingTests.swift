@@ -40,6 +40,18 @@ struct CalendarPackagingTests {
         #expect(script.contains("codesign --display --entitlements"))
         #expect(script.contains("Barometer.app is missing its Calendar access entitlement"))
         #expect(script.contains("Barometer.app is missing its Location access entitlement"))
+
+        let workflow = try String(
+            contentsOf: repository.appendingPathComponent(".github/workflows/macos.yml"),
+            encoding: .utf8
+        )
+        let distributionSigning = try #require(
+            workflow.components(separatedBy: "- name: Sign app and build DMG").last?
+                .components(separatedBy: "- name: Store notarization credentials").first
+        )
+        #expect(distributionSigning.contains("--entitlements Scripts/Barometer.entitlements"))
+        #expect(distributionSigning.contains("codesign --display --entitlements"))
+        #expect(distributionSigning.contains("calendars location"))
     }
 
     private func dictionary(at path: String) throws -> [String: Any] {

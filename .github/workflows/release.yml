@@ -94,6 +94,7 @@ jobs:
                 -F force=true >/dev/null
             fi
             gh release edit "$TAG" \
+              --target "$GITHUB_SHA" \
               --title "Barometer ${VERSION}" \
               --notes-file notes.md
           fi

@@ -3437,3 +3437,9 @@ Verification before the GitHub Actions binary replacement:
 - The built 1.0.2 application's signed entitlements contain both Calendar and Location access, and its Info.plist
   retains the macOS Location usage description.
 - The Release workflow YAML parsed successfully and `git diff --check` passed.
+
+The first GitHub Actions replacement run, `33950334945`, passed the suite, memory gate, signing, notarization, and
+stapling, but independent inspection of the downloaded public DMG caught that the workflow's second `codesign` call
+had stripped both privacy entitlements. Strict signature verification and Gatekeeper still accepted that malformed
+artifact. The release workflow must not be considered verified until the downloaded nested application has been
+inspected for its signed entitlements.
