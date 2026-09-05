@@ -3529,3 +3529,23 @@ Prepublication verification:
 - `python3 Scripts/check-source-invariants.py` passed.
 - `make test` passed all 252 tests in 34 suites: 34 SystemSources, 87 UI, and 131 Core tests.
 - `git diff --check` passed.
+
+## P8-T53 Prepare Barometer 1.0.3
+
+Bumped the source version to 1.0.3 and added complete user-facing release notes covering lower closed-pane CPU use,
+stronger update verification, the Swift 6.4 migration, and expanded release diagnostics. The notes contain no
+development-assistant narrative, competitor references, private signing identifiers, or new permission claims.
+Updated the README build requirement to the Xcode 27 Swift 6.4 command-line toolchain.
+
+Local release verification before dispatch:
+
+- `make security-audit` passed.
+- `python3 Scripts/check-source-invariants.py` and `git diff --check` passed.
+- The release-note language and private-identifier scan passed.
+- The Release, Build macOS, and Tests workflows parsed successfully as YAML.
+- `make test` passed all 252 tests in 34 suites: 34 SystemSources, 87 UI, and 131 Core tests.
+- `swift build -c release` completed under Swift 6.4 with no source warnings.
+- `python3 Scripts/benchmark-popover-memory.py` passed at a 47.8 MiB peak, below the 128 MiB limit.
+- `make dmg` created `dist/Barometer-1.0.3.dmg`; the nested app passed strict Developer ID signature verification and
+  `hdiutil verify` validated the image checksum. The local DMG remains unsigned by design. The GitHub job imports the
+  distribution identity, signs the app and DMG, notarizes, staples, and verifies the final artifact.

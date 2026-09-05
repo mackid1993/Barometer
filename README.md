@@ -134,8 +134,8 @@ interfaces, so those sections will be mostly empty.
 
 ## Building it yourself
 
-Barometer is a Swift package with no third-party dependencies and no Xcode project. With the Command Line Tools
-installed, run:
+Barometer is a Swift package with no third-party dependencies and no Xcode project. With Xcode 27's Swift 6.4
+command-line toolchain installed, run:
 
 ```bash
 make install
