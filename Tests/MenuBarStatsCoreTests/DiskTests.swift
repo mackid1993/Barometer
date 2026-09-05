@@ -1,6 +1,7 @@
 import Foundation
-@testable import MenuBarStatsCore
 import Testing
+
+@testable import MenuBarStatsCore
 
 @Suite("DiskTests")
 struct DiskTests {

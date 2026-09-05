@@ -271,7 +271,7 @@ public struct AirQuality: Codable, Equatable, Sendable {
     public let location: Location
     public let time: Date
     public let usAQI: Int?
-    public let pm2_5: Double?
+    public let pm25: Double?
     public let pm10: Double?
     public let ozone: Double?
 }

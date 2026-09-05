@@ -408,20 +408,23 @@ public final class MonitoringCoordinator {
     // MARK: - Sample consumption
 
     private func startSampleConsumption() {
-        cpuPipeline.sampleTask = consume(cpuScheduler.samples, into: { $0.cpuStore }) { $0.timestamp }
-        memoryPipeline.sampleTask = consume(memoryScheduler.samples, into: { $0.memoryStore }) { $0.timestamp }
-        gpuPipeline.sampleTask = consume(gpuScheduler.samples, into: { $0.gpuStore }) { $0.timestamp }
-        networkPipeline.sampleTask = consume(networkScheduler.samples, into: { $0.networkStore }) { $0.timestamp }
-        diskPipeline.sampleTask = consume(diskScheduler.samples, into: { $0.diskStore }) { $0.timestamp }
-        sensorSampleTask = consume(sensorsScheduler.samples, into: { $0.sensorStore }) { $0.timestamp }
-        batteryPipeline.sampleTask = consume(batteryScheduler.samples, into: { $0.batteryStore }) { $0.timestamp }
-        timePipeline.sampleTask = consume(timeScheduler.samples, into: { $0.timeStore }) { $0.timestamp }
+        cpuPipeline.sampleTask = consume(cpuScheduler.samples, into: { $0.cpuStore }, timestamp: { $0.timestamp })
+        memoryPipeline.sampleTask = consume(
+            memoryScheduler.samples, into: { $0.memoryStore }, timestamp: { $0.timestamp })
+        gpuPipeline.sampleTask = consume(gpuScheduler.samples, into: { $0.gpuStore }, timestamp: { $0.timestamp })
+        networkPipeline.sampleTask = consume(
+            networkScheduler.samples, into: { $0.networkStore }, timestamp: { $0.timestamp })
+        diskPipeline.sampleTask = consume(diskScheduler.samples, into: { $0.diskStore }, timestamp: { $0.timestamp })
+        sensorSampleTask = consume(sensorsScheduler.samples, into: { $0.sensorStore }, timestamp: { $0.timestamp })
+        batteryPipeline.sampleTask = consume(
+            batteryScheduler.samples, into: { $0.batteryStore }, timestamp: { $0.timestamp })
+        timePipeline.sampleTask = consume(timeScheduler.samples, into: { $0.timeStore }, timestamp: { $0.timestamp })
     }
 
     /// Feeds one sample stream into its module store and beats the Combined store so stacks redraw.
     ///
     /// The task holds the coordinator weakly: once the coordinator is gone the loop drains the stream
-    /// without touching any store, and cancellation from `stop()` ends it at the next sample.
+    /// without touching any store, and cancellation from stop() ends it at the next sample.
     private func consume<Sample: HistoryProjecting>(
         _ samples: AsyncStream<Sample>,
         into store: @escaping @MainActor (MonitoringCoordinator) -> ModuleStore<Sample>,
@@ -776,8 +779,7 @@ public final class MonitoringCoordinator {
 
     private func prepareNewlyEnabledItems() {
         for identity in StatusItemRegistry.launchIdentities(settings: settingsStore.settings)
-            where identity.module != .sensors && identity.module != .combined
-        {
+        where identity.module != .sensors && identity.module != .combined {
             let statusItem = registry.prepareItem(for: identity)
             switch identity.module {
             case .cpu:
@@ -849,9 +851,11 @@ public final class MonitoringCoordinator {
         case .authorized, .unavailable:
             refreshNetworkIdentity()
         case .denied, .restricted:
-            guard let url = URL(
-                string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices"
-            ) else {
+            guard
+                let url = URL(
+                    string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices"
+                )
+            else {
                 return
             }
             NSWorkspace.shared.open(url)

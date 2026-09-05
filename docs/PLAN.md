@@ -61,7 +61,7 @@ Goal: a signed `.app` that shows one static status item with the correct identit
   binary as `Contents/MacOS/Barometer`, substitute the plist, and copy any SwiftPM resource bundles
   (`.build/release/*.bundle`) into `Contents/Resources`. Sign with an explicit or locally discovered Developer ID
   Application identity when available, with an ad-hoc fallback, and preserve identifier `com.barometer.app`.
-- `Makefile` targets: `build`, `test`, `app`, `run`, `stop`, `install`, `probe SRC=cpu`, `clean`. `stop` uses `osascript -e 'quit app id "com.barometer.app"'` with a `pkill -f Barometer.app/Contents/MacOS/Barometer` fallback.
+- `Makefile` targets: `build`, `test`, `app`, `run`, `stop`, `install`, `probe ARGS=cpu`, `clean`. `stop` uses `osascript -e 'quit app id "com.barometer.app"'` with a `pkill -f Barometer.app/Contents/MacOS/Barometer` fallback.
 - Done when: `make app` produces a bundle that `codesign -dv` reports with the right identifier and `plutil -p dist/Barometer.app/Contents/Info.plist` shows `LSUIElement => true`.
 - Verify: `make app && codesign -dv --verbose=2 dist/Barometer.app 2>&1 | grep -E 'Identifier|Signature'`.
 

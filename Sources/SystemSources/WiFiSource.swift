@@ -34,7 +34,7 @@ public struct WiFiSource: Sendable {
     public func read(interfaceName: String? = nil) -> WiFiSnapshot? {
         let client = CWWiFiClient.shared()
         guard let interface = interfaceName.flatMap(client.interface(withName:)) ?? client.interface(),
-              let name = interface.interfaceName
+            let name = interface.interfaceName
         else {
             return nil
         }

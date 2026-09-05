@@ -74,7 +74,7 @@ public struct CombinedImageRenderer: MenuBarRenderer {
 
 // MARK: - Shared layout
 
-/// Total width of `images` laid out side by side with `gap` between neighbors.
+/// Total width of images laid out side by side with gap between neighbors.
 func combinedWidth(of images: [NSImage], gap: CGFloat) -> CGFloat {
     images.reduce(0) { $0 + $1.size.width } + gap * CGFloat(max(0, images.count - 1))
 }

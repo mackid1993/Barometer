@@ -50,7 +50,8 @@ public struct IconTextRenderer: MenuBarRenderer {
         // optical padding that would reappear as unexplained space beside the value.
         let symbolField = metrics.inlineSymbolFieldSize
         let inkKey = "\(symbolName)|\(symbolPointSize)|\(context.fontWeight)|inline"
-        let placement = symbol
+        let placement =
+            symbol
             .map { SymbolInkMeasurer.placement(of: $0, key: inkKey, visibleHeight: symbolField) }
             .map { $0.fitted(toWidth: symbolField) }
         // A renderer that shows an icon keeps the gap even when the symbol fails to resolve, so one
@@ -72,7 +73,8 @@ public struct IconTextRenderer: MenuBarRenderer {
         // point as the weather changed, which is worse than being a point off center.
         let groupWidth = symbolFieldWidth + gap + ceil(textSize.width)
         return makeImage(width: width, context: context) { rect in
-            var x = MenuBarLayoutMetrics.contentInset
+            var x =
+                MenuBarLayoutMetrics.contentInset
                 + TextRenderer.centeringOffset(contentWidth: groupWidth, canvasWidth: rect.width)
             if let symbol, let placement {
                 // Icon, gap, and value are laid out as one group against the leading edge, and the

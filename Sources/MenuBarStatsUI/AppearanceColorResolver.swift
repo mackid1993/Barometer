@@ -40,8 +40,9 @@ enum AppearanceColorResolver {
     private static func dynamic(light: String, dark: String, fallback: NSColor) -> Color {
         let lightColor = NSColor(hex: light) ?? fallback
         let darkColor = NSColor(hex: dark) ?? fallback
-        return Color(nsColor: NSColor(name: nil) { appearance in
-            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? darkColor : lightColor
-        })
+        return Color(
+            nsColor: NSColor(name: nil) { appearance in
+                appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? darkColor : lightColor
+            })
     }
 }

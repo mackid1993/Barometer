@@ -47,7 +47,8 @@ public actor TimeMonitor: Monitor {
     public func sample() async -> TimeSample {
         let now = Date()
         let authorization = await calendarSource.authorizationState
-        let events = includesCalendarEvents && authorization == .fullAccess
+        let events =
+            includesCalendarEvents && authorization == .fullAccess
             ? await calendarSource.events(from: now, limit: calendarEventCount)
             : []
         return TimeSample(

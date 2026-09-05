@@ -117,57 +117,69 @@ public struct BatterySource: Sendable {
 
         let currentCapacity = Self.double(summary[Self.currentCapacityKey]) ?? 0
         let maximumCapacity = Self.double(summary[Self.maximumCapacityKey]) ?? 100
-        let chargePercent = maximumCapacity > 0
+        let chargePercent =
+            maximumCapacity > 0
             ? min(100, max(0, currentCapacity / maximumCapacity * 100))
             : min(100, max(0, currentCapacity))
-        let isCharging = Self.bool(summary[Self.isChargingKey])
+        let isCharging =
+            Self.bool(summary[Self.isChargingKey])
             ?? Self.bool(detail["IsCharging"])
             ?? false
-        let isFullyCharged = Self.bool(summary[Self.isChargedKey])
+        let isFullyCharged =
+            Self.bool(summary[Self.isChargedKey])
             ?? Self.bool(detail["FullyCharged"])
             ?? false
-        let isExternalConnected = Self.string(summary[Self.powerSourceStateKey]) == Self.acPowerValue
+        let isExternalConnected =
+            Self.string(summary[Self.powerSourceStateKey]) == Self.acPowerValue
             || Self.bool(detail["ExternalConnected"]) == true
-        let state: BatteryChargeState = if isCharging {
-            .charging
-        } else if isFullyCharged {
-            .full
-        } else if isExternalConnected {
-            .onAC
-        } else {
-            .discharging
-        }
+        let state: BatteryChargeState =
+            if isCharging {
+                .charging
+            } else if isFullyCharged {
+                .full
+            } else if isExternalConnected {
+                .onAC
+            } else {
+                .discharging
+            }
 
-        let fullChargeCapacity = Self.double(batteryData["FullChargeCapacity"])
+        let fullChargeCapacity =
+            Self.double(batteryData["FullChargeCapacity"])
             ?? Self.double(packData["AppleRawMaxCapacity"])
             ?? Self.double(packData["FccComp1"])
-        let designCapacity = Self.double(batteryData["DesignCapacity"])
+        let designCapacity =
+            Self.double(batteryData["DesignCapacity"])
             ?? Self.double(packData["DesignCapacity"])
         let healthPercent = Self.healthPercent(
             fullChargeCapacity: fullChargeCapacity,
             designCapacity: designCapacity
         )
-        let voltageMillivolts = Self.double(detail["Voltage"])
+        let voltageMillivolts =
+            Self.double(detail["Voltage"])
             ?? Self.double(packData["Voltage"])
-        let rawAmperage = Self.unsignedInteger(detail["InstantAmperage"])
+        let rawAmperage =
+            Self.unsignedInteger(detail["InstantAmperage"])
             ?? Self.unsignedInteger(detail["Amperage"])
             ?? Self.unsignedInteger(packData["InstantAmperage"])
             ?? Self.unsignedInteger(packData["Amperage"])
         let amperageAmps = rawAmperage.map { Double(Self.signedMilliamps(raw: $0)) / 1_000 }
         let voltageVolts = voltageMillivolts.map { $0 / 1_000 }
         // Nothing is plugged in unless the power source says so, whatever the registry still holds.
-        let adapter = isExternalConnected
+        let adapter =
+            isExternalConnected
             ? Self.adapter(from: Self.dictionary(detail["AdapterDetails"]))
             : nil
 
         // The public summary is authoritative when it has an estimate. AppleSmartBattery's running
         // averages are the fallback, and both publish sentinels rather than omitting the key while
         // macOS is still computing: -1 from IOPS, 65535 from the registry.
-        let timeToEmpty = Self.minutes(summary[Self.timeToEmptyKey])
+        let timeToEmpty =
+            Self.minutes(summary[Self.timeToEmptyKey])
             ?? Self.minutes(detail["AvgTimeToEmpty"])
             ?? Self.minutes(batteryData["AvgTimeToEmpty"])
             ?? Self.minutes(packData["AvgTimeToEmpty"])
-        let timeToFull = Self.minutes(summary[Self.timeToFullKey])
+        let timeToFull =
+            Self.minutes(summary[Self.timeToFullKey])
             ?? Self.minutes(detail["AvgTimeToFull"])
             ?? Self.minutes(batteryData["AvgTimeToFull"])
             ?? Self.minutes(packData["AvgTimeToFull"])
@@ -269,8 +281,9 @@ public struct BatterySource: Sendable {
             return nil
         }
         for source in sources {
-            guard let description = IOPSGetPowerSourceDescription(information, source)?.takeUnretainedValue()
-                as? [String: Any]
+            guard
+                let description = IOPSGetPowerSourceDescription(information, source)?.takeUnretainedValue()
+                    as? [String: Any]
             else {
                 continue
             }
@@ -292,7 +305,7 @@ public struct BatterySource: Sendable {
         defer { IOObjectRelease(service) }
         var properties: Unmanaged<CFMutableDictionary>?
         guard IORegistryEntryCreateCFProperties(service, &properties, nil, 0) == KERN_SUCCESS,
-              let values = properties?.takeRetainedValue() as? [String: Any]
+            let values = properties?.takeRetainedValue() as? [String: Any]
         else {
             return nil
         }

@@ -1,21 +1,21 @@
 import Foundation
 import Synchronization
 
-/// Process-wide cache of configured `DateFormatter` instances.
+/// Process-wide cache of configured DateFormatter instances.
 ///
-/// `DateFormatter` is expensive to create and is not `Sendable`, so callers describe the formatter they need with
-/// a hashable ``Configuration`` and the cache formats or parses inside its lock. Formatters never escape the lock,
+/// DateFormatter is expensive to create and is not Sendable, so callers describe the formatter they need with
+/// a hashable Configuration and the cache formats or parses inside its lock. Formatters never escape the lock,
 /// which keeps the cache safe to use from any isolation domain.
 package enum DateFormatterCache {
     /// Everything that distinguishes one configured formatter from another.
     package struct Configuration: Hashable, Sendable {
         /// How the formatter derives its pattern.
         package enum Pattern: Hashable, Sendable {
-            /// A literal `dateFormat` pattern.
+            /// A literal dateFormat pattern.
             case format(String)
-            /// A template passed through `setLocalizedDateFormatFromTemplate`.
+            /// A template passed through setLocalizedDateFormatFromTemplate.
             case localizedTemplate(String)
-            /// Locale-driven `dateStyle` and `timeStyle`.
+            /// Locale-driven dateStyle and timeStyle.
             case styles(date: DateFormatter.Style, time: DateFormatter.Style)
         }
 
@@ -26,7 +26,7 @@ package enum DateFormatterCache {
         package var amSymbol: String?
         package var pmSymbol: String?
 
-        /// Creates a configuration; unset fields keep `DateFormatter` defaults.
+        /// Creates a configuration; unset fields keep DateFormatter defaults.
         package init(
             pattern: Pattern,
             timeZone: TimeZone = .current,
@@ -73,12 +73,12 @@ package enum DateFormatterCache {
 
     // MARK: - Formatting
 
-    /// Formats a date with the formatter described by `configuration`.
+    /// Formats a date with the formatter described by configuration.
     package static func string(from date: Date, _ configuration: Configuration) -> String {
         withFormatter(configuration) { $0.string(from: date) }
     }
 
-    /// Formats a date with locale-driven `dateStyle` and `timeStyle`.
+    /// Formats a date with locale-driven dateStyle and timeStyle.
     package static func string(
         from date: Date,
         dateStyle: DateFormatter.Style = .none,
@@ -88,7 +88,7 @@ package enum DateFormatterCache {
         string(from: date, Configuration(pattern: .styles(date: dateStyle, time: timeStyle), timeZone: timeZone))
     }
 
-    /// Formats a date with a literal `dateFormat` pattern.
+    /// Formats a date with a literal dateFormat pattern.
     package static func string(
         from date: Date,
         format: String,
@@ -98,7 +98,7 @@ package enum DateFormatterCache {
         string(from: date, Configuration(pattern: .format(format), timeZone: timeZone, locale: locale))
     }
 
-    /// Formats a date with a localized template such as `"EEEE MMM d"`.
+    /// Formats a date with a localized template such as "EEEE MMM d".
     package static func string(
         from date: Date,
         template: String,
@@ -110,7 +110,7 @@ package enum DateFormatterCache {
 
     // MARK: - Parsing
 
-    /// Parses a string with the formatter described by `configuration`.
+    /// Parses a string with the formatter described by configuration.
     package static func date(from string: String, _ configuration: Configuration) -> Date? {
         withFormatter(configuration) { $0.date(from: string) }
     }

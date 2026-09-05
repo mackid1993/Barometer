@@ -304,7 +304,7 @@ public protocol MenuBarRenderer {
     func render(in context: RenderContext) -> NSImage
 }
 
-/// Builds a template-aware menu bar image of the context thickness and draws `drawing` into it.
+/// Builds a template-aware menu bar image of the context thickness and draws drawing into it.
 @MainActor
 func makeImage(
     width: CGFloat,

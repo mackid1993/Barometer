@@ -136,12 +136,13 @@ public final class StatusItemController<Sample: HistoryProjecting> {
                 appearance: appearance,
                 geometry: geometry
             )
-            reservedFontWeightWidth = renderContent(
-                store.latestSample,
-                history,
-                moduleSettings,
-                sizingContext
-            ).image.size.width
+            reservedFontWeightWidth =
+                renderContent(
+                    store.latestSample,
+                    history,
+                    moduleSettings,
+                    sizingContext
+                ).image.size.width
         } else {
             reservedFontWeightWidth = content.image.size.width
         }

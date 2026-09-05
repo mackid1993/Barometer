@@ -48,14 +48,17 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
         let reservedBottomValue = NSAttributedString(string: reservedBottomParts.value, attributes: attributes)
         // Rows without a leading arrow reserve no marker column at all. Keeping the gap would push
         // every value one gap off center, which is visible on a two-row item that has no arrows.
-        let hasMarker = !(topParts.marker.isEmpty && bottomParts.marker.isEmpty
+        let hasMarker =
+            !(topParts.marker.isEmpty && bottomParts.marker.isEmpty
             && reservedTopParts.marker.isEmpty && reservedBottomParts.marker.isEmpty)
         let markerWidth = ceil(
-            max(topMarker.size().width, bottomMarker.size().width, reservedTopMarker.size().width,
+            max(
+                topMarker.size().width, bottomMarker.size().width, reservedTopMarker.size().width,
                 reservedBottomMarker.size().width)
         )
         let valueWidth = ceil(
-            max(topValue.size().width, bottomValue.size().width, reservedTopValue.size().width,
+            max(
+                topValue.size().width, bottomValue.size().width, reservedTopValue.size().width,
                 reservedBottomValue.size().width)
         )
         let pairGap = hasMarker ? metrics.densePairGap : 0
@@ -74,10 +77,12 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
         // string apply to no characters, so it reports the default system font's line height rather
         // than this renderer's compact one, and taking the maximum pushed both rows below the row
         // every other two-row item uses.
-        let topTextHeight = topParts.marker.isEmpty
+        let topTextHeight =
+            topParts.marker.isEmpty
             ? topValue.size().height
             : max(topMarker.size().height, topValue.size().height)
-        let bottomTextHeight = bottomParts.marker.isEmpty
+        let bottomTextHeight =
+            bottomParts.marker.isEmpty
             ? bottomValue.size().height
             : max(bottomMarker.size().height, bottomValue.size().height)
         let groupWidth = markerWidth + pairGap + max(ceil(topValue.size().width), ceil(bottomValue.size().width))

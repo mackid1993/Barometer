@@ -19,29 +19,32 @@ public final class NetworkConfigurationWatcher {
             release: nil,
             copyDescription: nil
         )
-        guard let store = SCDynamicStoreCreate(
-            nil,
-            "com.barometer.app.network-configuration" as CFString,
-            { _, _, context in
-                guard let context else {
-                    return
-                }
-                let watcher = Unmanaged<NetworkConfigurationWatcher>.fromOpaque(context).takeUnretainedValue()
-                MainActor.assumeIsolated {
-                    watcher.onChange?()
-                }
-            },
-            &context
-        ) else {
+        guard
+            let store = SCDynamicStoreCreate(
+                nil,
+                "com.barometer.app.network-configuration" as CFString,
+                { _, _, context in
+                    guard let context else {
+                        return
+                    }
+                    let watcher = Unmanaged<NetworkConfigurationWatcher>.fromOpaque(context).takeUnretainedValue()
+                    MainActor.assumeIsolated {
+                        watcher.onChange?()
+                    }
+                },
+                &context
+            )
+        else {
             return
         }
-        let keys = [
-            "State:/Network/Global/IPv4",
-            "State:/Network/Global/IPv6",
-            "State:/Network/Global/DNS",
-        ] as CFArray
+        let keys =
+            [
+                "State:/Network/Global/IPv4",
+                "State:/Network/Global/IPv6",
+                "State:/Network/Global/DNS",
+            ] as CFArray
         guard SCDynamicStoreSetNotificationKeys(store, keys, nil),
-              let source = SCDynamicStoreCreateRunLoopSource(nil, store, 0)
+            let source = SCDynamicStoreCreateRunLoopSource(nil, store, 0)
         else {
             return
         }

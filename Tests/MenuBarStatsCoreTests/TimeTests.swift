@@ -1,6 +1,7 @@
 import Foundation
-@testable import MenuBarStatsCore
 import Testing
+
+@testable import MenuBarStatsCore
 
 @Suite("TimeTests")
 struct TimeTests {
@@ -25,20 +26,24 @@ struct TimeTests {
         let date = Date(timeIntervalSince1970: 1_704_110_400)
         let zone = try #require(TimeZone(identifier: "America/New_York"))
 
-        #expect(normalizedWhitespace(TimeFormatEngine.render(
-            date: date,
-            timeZone: zone,
-            template: "{time}",
-            showsSeconds: false,
-            locale: Locale(identifier: "en_US_POSIX")
-        )) == "7:00 AM")
-        #expect(normalizedWhitespace(TimeFormatEngine.render(
-            date: date,
-            timeZone: zone,
-            template: "{time}",
-            showsSeconds: true,
-            locale: Locale(identifier: "en_US_POSIX")
-        )) == "7:00:00 AM")
+        #expect(
+            normalizedWhitespace(
+                TimeFormatEngine.render(
+                    date: date,
+                    timeZone: zone,
+                    template: "{time}",
+                    showsSeconds: false,
+                    locale: Locale(identifier: "en_US_POSIX")
+                )) == "7:00 AM")
+        #expect(
+            normalizedWhitespace(
+                TimeFormatEngine.render(
+                    date: date,
+                    timeZone: zone,
+                    template: "{time}",
+                    showsSeconds: true,
+                    locale: Locale(identifier: "en_US_POSIX")
+                )) == "7:00:00 AM")
     }
 
     @Test("time settings normalize world clock identifiers")

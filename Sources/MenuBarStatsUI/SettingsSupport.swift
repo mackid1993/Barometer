@@ -3,7 +3,7 @@ import MenuBarStatsCore
 extension ModuleID {
     /// Sidebar and pane title.
     ///
-    /// Separate from `displayName`, which is the permanent accessibility label a menu bar manager
+    /// Separate from displayName, which is the permanent accessibility label a menu bar manager
     /// pairs with an autosave name and can never change.
     var settingsTitle: String {
         self == .combined ? "Stacks" : displayName

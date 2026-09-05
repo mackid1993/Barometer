@@ -2832,3 +2832,83 @@ Verification:
   146.3 MB peak during the tours, then flat 80.6 MB for the final 90 seconds with no growth. The pre-fix
   build settled at 351 MB after a single tour, and the originally reported instance held 291 MB. The
   throwaway capture scripts under dist/ were removed after this check.
+
+### P8-T29: Cached date formatters, Mutex-guarded process name cache, shared dedupe and sort helpers
+
+Sixteen sites built a fresh DateFormatter on every call, nine of them inside dropdown view helpers that run
+on each render, and OpenMeteoClient parsed every forecast timestamp with a new formatter. Literal patterns
+and the one localized template now use Date.VerbatimFormatStyle and Date.FormatStyle, which a scratch
+comparison across seven locales, four time zones, and three dates showed produce identical strings. Sites
+that rely on dateStyle and timeStyle keep a DateFormatter, because FormatStyle diverges from those styles
+outside en_US, and take it from a new DateFormatterCache in MenuBarStatsCore that holds one configured
+instance per configuration behind a Mutex. ProcessSource.displayNameCache dropped its NSLock plus
+nonisolated(unsafe) pair for a single Mutex, so Sources has no nonisolated(unsafe) left. StackSettings and
+SensorSettings share one uniquedByID helper, and eight localizedStandardCompare sort closures became
+sorted(using: KeyPathComparator(..., comparator: .localizedStandard)).
+
+Verification:
+
+- swift build completed with zero warnings; git diff --check completed successfully.
+- swift test: 29 tests in 3 suites, 58 in 6, and 108 in 19 all passed.
+
+### P8-T30: CPU and Memory presenters and a per-module pipeline in the coordinator
+
+CPU and Memory were the only modules still rendered inline in MonitoringCoordinator; they now have
+CPUMenuBarPresenter and MemoryMenuBarPresenter alongside the other presenters, with the coordinator's
+renderCPU and renderMemory kept as one-line forwarders because the renderer tests call them. A private
+ModulePipeline type bundles each module's status item controller, dropdown controller, and sample task,
+collapsing twenty-four parallel optionals into eight properties, and one consume helper replaces the eight
+copied for-await loops while keeping the weak self capture, the cancellation check, and the Combined store
+heartbeat at each sample's timestamp. DiskSample gained totalRates and graphScale so the coordinator, the
+disk dropdown, and the disk presenter no longer carry their own copies. The coordinator went from 1359 to
+1239 lines.
+
+Verification:
+
+- swift build completed with zero warnings; git diff --check completed successfully.
+- swift test: 29 tests in 3 suites, 58 in 6, and 108 in 19 all passed.
+
+### P8-T31: One file per menu bar renderer
+
+MenuBarRenderer.swift held thirteen renderer types across 1358 lines. The protocol, appearance, palette,
+render context, and layout metrics stay in MenuBarRenderer.swift (334 lines); each renderer moved verbatim
+into Rendering/Renderers, SymbolInkMeasurer into its own file, and the two combined renderers now share one
+combinedWidth helper instead of duplicating the reduce. makeImage and MenuBarFontWeight.nsWeight became
+internal because every renderer uses them.
+
+Verification:
+
+- swift build completed with zero warnings; git diff --check completed successfully.
+- swift test: 29 tests in 3 suites, 58 in 6, and 108 in 19 all passed.
+
+### P8-T32: Settings window panes in their own files
+
+SettingsWindowController.swift dropped from 790 to 175 lines. GeneralSettingsView, AboutSettingsView, and
+ModuleSettingsView now live in files named after them like the other panes, and the ModuleID settings title
+and symbol helpers moved to SettingsSupport.swift. The three pane structs became internal so the root view
+can reach them; everything else kept its access level. NSColor.hexRGB stays a fileprivate copy in the two
+files that use it because SensorSettingsView already declares its own.
+
+Verification:
+
+- swift build completed with zero warnings; git diff --check completed successfully.
+- swift test: 29 tests in 3 suites, 58 in 6, and 108 in 19 all passed.
+
+### P8-T33: swift-format adoption, lint in CI and the Makefile
+
+The Check workflow ran tests and packaging but never linted. A .swift-format configuration now pins the
+repository style (120 columns, four-space indentation), make lint and make format wrap the toolchain's
+swift format, make check runs build, test, and lint together, and the Tests workflow runs make lint after
+the suite. The first repository-wide format touched 75 files, all whitespace, line breaks, and moving
+access modifiers from extensions onto their members. Two lint rules needed source changes: the coordinator's
+consume calls pass the timestamp closure as a labeled argument, and the air quality field pm2_5 became pm25
+with the wire key kept in CodingKeys. Backticks were removed from the doc comments added in P8-T29 through
+P8-T32. The Makefile test target lost the framework flags that Package.swift already sets and the deprecated
+enable-swift-testing switch, install no longer sleeps before opening the app, and the probe target's
+variable is ARGS.
+
+Verification:
+
+- swift build completed with zero warnings; git diff --check completed successfully.
+- swift test: 29 tests in 3 suites, 58 in 6, and 108 in 19 all passed.
+- make lint exited 0.

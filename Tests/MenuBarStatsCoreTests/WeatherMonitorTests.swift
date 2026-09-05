@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MenuBarStatsCore
 
 @Suite("WeatherMonitorTests")
@@ -156,7 +157,7 @@ private actor StubWeatherClient: WeatherClient {
             throw StubWeatherError.unavailable
         }
         switch forecasts.removeFirst() {
-        case let .success(forecast):
+        case .success(let forecast):
             completedForecasts += 1
             return forecast
         case .failure:

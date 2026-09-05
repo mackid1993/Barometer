@@ -70,9 +70,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func claimSingleInstance() -> Bool {
         let currentProcessIdentifier = ProcessInfo.processInfo.processIdentifier
-        guard let existingApplication = NSRunningApplication
-            .runningApplications(withBundleIdentifier: Self.bundleIdentifier)
-            .first(where: { $0.processIdentifier != currentProcessIdentifier })
+        guard
+            let existingApplication =
+                NSRunningApplication
+                .runningApplications(withBundleIdentifier: Self.bundleIdentifier)
+                .first(where: { $0.processIdentifier != currentProcessIdentifier })
         else {
             return true
         }
@@ -94,10 +96,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let actualExecutable = bundle.executableURL?.lastPathComponent ?? "none"
         let isApplicationBundle = bundle.bundleURL.pathExtension == "app"
         guard actualIdentifier == Self.bundleIdentifier,
-              actualExecutable == Self.executableName,
-              isApplicationBundle
+            actualExecutable == Self.executableName,
+            isApplicationBundle
         else {
-            let message = "Refusing unbundled launch: bundle=\(actualIdentifier) "
+            let message =
+                "Refusing unbundled launch: bundle=\(actualIdentifier) "
                 + "executable=\(actualExecutable) isAppBundle=\(isApplicationBundle)"
             Self.logger.fault("\(message, privacy: .public)")
             return false

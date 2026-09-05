@@ -33,18 +33,20 @@ public final class PowerSourceWatcher {
     /// Starts observing power-source notifications.
     public init() {
         let context = Unmanaged.passUnretained(self).toOpaque()
-        guard let source = IOPSNotificationCreateRunLoopSource(
-            { context in
-                guard let context else {
-                    return
-                }
-                let watcher = Unmanaged<PowerSourceWatcher>.fromOpaque(context).takeUnretainedValue()
-                MainActor.assumeIsolated {
-                    watcher.handleChange()
-                }
-            },
-            context
-        )?.takeRetainedValue() else {
+        guard
+            let source = IOPSNotificationCreateRunLoopSource(
+                { context in
+                    guard let context else {
+                        return
+                    }
+                    let watcher = Unmanaged<PowerSourceWatcher>.fromOpaque(context).takeUnretainedValue()
+                    MainActor.assumeIsolated {
+                        watcher.handleChange()
+                    }
+                },
+                context
+            )?.takeRetainedValue()
+        else {
             return
         }
         runLoopSource = source

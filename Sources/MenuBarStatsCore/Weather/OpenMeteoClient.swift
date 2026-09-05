@@ -23,8 +23,8 @@ public enum OpenMeteoError: Error, LocalizedError, Sendable {
         switch self {
         case .invalidURL: "Unable to construct the Open-Meteo request URL."
         case .invalidResponse: "Open-Meteo returned an invalid response."
-        case let .server(statusCode, reason): "Open-Meteo returned HTTP \(statusCode): \(reason)"
-        case let .invalidTime(value): "Open-Meteo returned an invalid local time: \(value)"
+        case .server(let statusCode, let reason): "Open-Meteo returned HTTP \(statusCode): \(reason)"
+        case .invalidTime(let value): "Open-Meteo returned an invalid local time: \(value)"
         }
     }
 }
@@ -58,34 +58,40 @@ public actor OpenMeteoClient: WeatherClient {
             "rain", "showers", "snowfall", "weather_code", "cloud_cover", "pressure_msl", "surface_pressure",
             "wind_speed_10m", "wind_direction_10m", "wind_gusts_10m",
         ]
-        let hourly = [
-            "temperature_2m", "apparent_temperature", "precipitation_probability", "precipitation",
-            "weather_code", "wind_speed_10m", "wind_direction_10m", "uv_index", "is_day",
-            "relative_humidity_2m", "dew_point_2m", "visibility", "cloud_cover",
-        ] + HourlyWeatherMetric.allCases.map(\.rawValue)
-        let daily = [
-            "weather_code", "temperature_2m_max", "temperature_2m_min", "apparent_temperature_max",
-            "apparent_temperature_min", "sunrise", "sunset", "uv_index_max", "precipitation_sum",
-            "precipitation_probability_max", "wind_speed_10m_max", "wind_gusts_10m_max",
-        ] + DailyWeatherMetric.allCases.map(\.rawValue) + ["moonrise", "moonset"]
-        let url = try Self.url(base: Self.forecastURL, items: [
-            URLQueryItem(name: "latitude", value: String(location.latitude)),
-            URLQueryItem(name: "longitude", value: String(location.longitude)),
-            URLQueryItem(name: "timezone", value: "auto"),
-            URLQueryItem(name: "forecast_days", value: "10"),
-            URLQueryItem(name: "temperature_unit", value: units.temperature.rawValue),
-            URLQueryItem(name: "wind_speed_unit", value: units.windSpeed.rawValue),
-            URLQueryItem(name: "precipitation_unit", value: units.precipitation.queryValue),
-            URLQueryItem(name: "current", value: current.joined(separator: ",")),
-            URLQueryItem(name: "hourly", value: hourly.joined(separator: ",")),
-            URLQueryItem(name: "daily", value: daily.joined(separator: ",")),
-        ])
+        let hourly =
+            [
+                "temperature_2m", "apparent_temperature", "precipitation_probability", "precipitation",
+                "weather_code", "wind_speed_10m", "wind_direction_10m", "uv_index", "is_day",
+                "relative_humidity_2m", "dew_point_2m", "visibility", "cloud_cover",
+            ] + HourlyWeatherMetric.allCases.map(\.rawValue)
+        let daily =
+            [
+                "weather_code", "temperature_2m_max", "temperature_2m_min", "apparent_temperature_max",
+                "apparent_temperature_min", "sunrise", "sunset", "uv_index_max", "precipitation_sum",
+                "precipitation_probability_max", "wind_speed_10m_max", "wind_gusts_10m_max",
+            ] + DailyWeatherMetric.allCases.map(\.rawValue) + ["moonrise", "moonset"]
+        let url = try Self.url(
+            base: Self.forecastURL,
+            items: [
+                URLQueryItem(name: "latitude", value: String(location.latitude)),
+                URLQueryItem(name: "longitude", value: String(location.longitude)),
+                URLQueryItem(name: "timezone", value: "auto"),
+                URLQueryItem(name: "forecast_days", value: "10"),
+                URLQueryItem(name: "temperature_unit", value: units.temperature.rawValue),
+                URLQueryItem(name: "wind_speed_unit", value: units.windSpeed.rawValue),
+                URLQueryItem(name: "precipitation_unit", value: units.precipitation.queryValue),
+                URLQueryItem(name: "current", value: current.joined(separator: ",")),
+                URLQueryItem(name: "hourly", value: hourly.joined(separator: ",")),
+                URLQueryItem(name: "daily", value: daily.joined(separator: ",")),
+            ])
         let forecast = try Self.decodeForecast(try await data(from: url), for: location, units: units)
-        guard let current = await currentConsensus(
-            for: location,
-            units: units,
-            fallback: forecast.current
-        ) else {
+        guard
+            let current = await currentConsensus(
+                for: location,
+                units: units,
+                fallback: forecast.current
+            )
+        else {
             return forecast
         }
         return Forecast(
@@ -101,23 +107,27 @@ public actor OpenMeteoClient: WeatherClient {
 
     /// Searches Open-Meteo's geocoding index.
     public func geocode(_ query: String) async throws -> [GeocodingResult] {
-        let url = try Self.url(base: Self.geocodingURL, items: [
-            URLQueryItem(name: "name", value: query),
-            URLQueryItem(name: "count", value: "10"),
-            URLQueryItem(name: "language", value: "en"),
-            URLQueryItem(name: "format", value: "json"),
-        ])
+        let url = try Self.url(
+            base: Self.geocodingURL,
+            items: [
+                URLQueryItem(name: "name", value: query),
+                URLQueryItem(name: "count", value: "10"),
+                URLQueryItem(name: "language", value: "en"),
+                URLQueryItem(name: "format", value: "json"),
+            ])
         return try Self.decodeGeocoding(try await data(from: url))
     }
 
     /// Fetches current U.S. AQI and principal pollutant measurements.
     public func airQuality(for location: Location) async throws -> AirQuality {
-        let url = try Self.url(base: Self.airQualityURL, items: [
-            URLQueryItem(name: "latitude", value: String(location.latitude)),
-            URLQueryItem(name: "longitude", value: String(location.longitude)),
-            URLQueryItem(name: "timezone", value: "auto"),
-            URLQueryItem(name: "current", value: "us_aqi,pm2_5,pm10,ozone"),
-        ])
+        let url = try Self.url(
+            base: Self.airQualityURL,
+            items: [
+                URLQueryItem(name: "latitude", value: String(location.latitude)),
+                URLQueryItem(name: "longitude", value: String(location.longitude)),
+                URLQueryItem(name: "timezone", value: "auto"),
+                URLQueryItem(name: "current", value: "us_aqi,pm2_5,pm10,ozone"),
+            ])
         return try Self.decodeAirQuality(try await data(from: url), for: location)
     }
 
@@ -161,10 +171,11 @@ public actor OpenMeteoClient: WeatherClient {
                     response.hourly.visibility[safe: index] ?? nil, unit: response.hourlyUnits?["visibility"]
                 ),
                 cloudCover: response.hourly.cloudCover[safe: index] ?? nil,
-                details: HourlyWeatherDetails(values: response.hourlyDetails.values(
-                    at: index, units: response.hourlyUnits,
-                    meterFields: [.snowDepth, .freezingLevelHeight]
-                ))
+                details: HourlyWeatherDetails(
+                    values: response.hourlyDetails.values(
+                        at: index, units: response.hourlyUnits,
+                        meterFields: [.snowDepth, .freezingLevelHeight]
+                    ))
             )
         }
         let daily = try response.daily.time.indices.map { index in
@@ -233,7 +244,7 @@ public actor OpenMeteoClient: WeatherClient {
             location: location,
             time: try parse(response.current.time, timeZone: timeZone, includesTime: true),
             usAQI: response.current.usAQI,
-            pm2_5: response.current.pm2_5,
+            pm25: response.current.pm25,
             pm10: response.current.pm10,
             ozone: response.current.ozone
         )
@@ -249,7 +260,8 @@ public actor OpenMeteoClient: WeatherClient {
             throw OpenMeteoError.invalidResponse
         }
         guard 200..<300 ~= httpResponse.statusCode else {
-            let reason = (try? JSONDecoder().decode(APIErrorResponse.self, from: data).reason)
+            let reason =
+                (try? JSONDecoder().decode(APIErrorResponse.self, from: data).reason)
                 ?? HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode)
             throw OpenMeteoError.server(statusCode: httpResponse.statusCode, reason: reason)
         }
@@ -297,16 +309,18 @@ public actor OpenMeteoClient: WeatherClient {
             "rain", "showers", "snowfall", "weather_code", "cloud_cover", "pressure_msl", "surface_pressure",
             "wind_speed_10m", "wind_direction_10m", "wind_gusts_10m",
         ]
-        let url = try url(base: forecastURL, items: [
-            URLQueryItem(name: "latitude", value: String(location.latitude)),
-            URLQueryItem(name: "longitude", value: String(location.longitude)),
-            URLQueryItem(name: "timezone", value: "auto"),
-            URLQueryItem(name: "temperature_unit", value: units.temperature.rawValue),
-            URLQueryItem(name: "wind_speed_unit", value: units.windSpeed.rawValue),
-            URLQueryItem(name: "precipitation_unit", value: units.precipitation.queryValue),
-            URLQueryItem(name: "current", value: fields.joined(separator: ",")),
-            URLQueryItem(name: "models", value: model),
-        ])
+        let url = try url(
+            base: forecastURL,
+            items: [
+                URLQueryItem(name: "latitude", value: String(location.latitude)),
+                URLQueryItem(name: "longitude", value: String(location.longitude)),
+                URLQueryItem(name: "timezone", value: "auto"),
+                URLQueryItem(name: "temperature_unit", value: units.temperature.rawValue),
+                URLQueryItem(name: "wind_speed_unit", value: units.windSpeed.rawValue),
+                URLQueryItem(name: "precipitation_unit", value: units.precipitation.queryValue),
+                URLQueryItem(name: "current", value: fields.joined(separator: ",")),
+                URLQueryItem(name: "models", value: model),
+            ])
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData)
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
@@ -352,7 +366,8 @@ public actor OpenMeteoClient: WeatherClient {
     }
 
     private static func currentConditions(from response: CurrentResponse, timeZone: TimeZone) throws
-        -> CurrentConditions {
+        -> CurrentConditions
+    {
         CurrentConditions(
             time: try parse(response.time, timeZone: timeZone, includesTime: true),
             temperature: response.temperature,
@@ -384,9 +399,11 @@ public actor OpenMeteoClient: WeatherClient {
 
     private static func consensusCode(_ values: [WMOCode]) -> WMOCode? {
         let counts = Dictionary(grouping: values, by: \WMOCode.rawValue).mapValues(\.count)
-        guard let winner = counts.max(by: { lhs, rhs in
-            lhs.value == rhs.value ? lhs.key > rhs.key : lhs.value < rhs.value
-        }), winner.value >= 2 else {
+        guard
+            let winner = counts.max(by: { lhs, rhs in
+                lhs.value == rhs.value ? lhs.key > rhs.key : lhs.value < rhs.value
+            }), winner.value >= 2
+        else {
             return nil
         }
         return WMOCode(rawValue: winner.key)
@@ -587,14 +604,14 @@ private struct AirQualityResponse: Decodable {
 private struct AirQualityCurrentResponse: Decodable {
     let time: String
     let usAQI: Int?
-    let pm2_5: Double?
+    let pm25: Double?
     let pm10: Double?
     let ozone: Double?
 
     private enum CodingKeys: String, CodingKey {
         case time, pm10, ozone
         case usAQI = "us_aqi"
-        case pm2_5
+        case pm25 = "pm2_5"
     }
 }
 
@@ -602,8 +619,8 @@ private struct APIErrorResponse: Decodable {
     let reason: String
 }
 
-private extension Collection {
-    subscript(safe index: Index) -> Element? {
+extension Collection {
+    fileprivate subscript(safe index: Index) -> Element? {
         indices.contains(index) ? self[index] : nil
     }
 }

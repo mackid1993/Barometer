@@ -48,7 +48,8 @@ public struct SensorWidgetSettings: Codable, Equatable, Identifiable, Sendable {
         id = max(1, try container.decodeIfPresent(Int.self, forKey: .id) ?? 1)
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
         mode = try container.decodeIfPresent(SensorWidgetMode.self, forKey: .mode) ?? .compactStack
-        sensorIDs = try container.decodeIfPresent([String].self, forKey: .sensorIDs)
+        sensorIDs =
+            try container.decodeIfPresent([String].self, forKey: .sensorIDs)
             ?? ["derived:temperature:hottest", "smc:fan:0"]
     }
 }

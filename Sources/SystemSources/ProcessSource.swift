@@ -99,7 +99,8 @@ public final class ProcessSource {
             if metadataMatches {
                 name = cached?.name ?? ""
             } else {
-                name = path.flatMap(Self.applicationDisplayName(forExecutablePath:))
+                name =
+                    path.flatMap(Self.applicationDisplayName(forExecutablePath:))
                     ?? processName(for: processIdentifier)
             }
 
@@ -159,7 +160,8 @@ public final class ProcessSource {
     public func identity(processIdentifier: pid_t, fallbackName: String) -> ProcessIdentitySnapshot {
         let path = processPath(for: processIdentifier)
         let processName = processName(for: processIdentifier)
-        let name = path.flatMap(Self.applicationDisplayName(forExecutablePath:))
+        let name =
+            path.flatMap(Self.applicationDisplayName(forExecutablePath:))
             ?? (processName.isEmpty ? nil : processName)
             ?? fallbackName
         return ProcessIdentitySnapshot(processIdentifier: processIdentifier, name: name, path: path)
@@ -249,7 +251,7 @@ public final class ProcessSource {
     /// so the resolved value is cached to keep those mapped files from accumulating in
     /// long-running sessions. The empty string caches a path with no display name.
     ///
-    /// A `Mutex` guards the dictionary because `readProcesses` runs on monitor tasks off the main actor.
+    /// A Mutex guards the dictionary because readProcesses runs on monitor tasks off the main actor.
     private static let displayNameCache = Mutex<[String: String]>([:])
     private static let displayNameCacheLimit = 512
 
@@ -272,7 +274,7 @@ public final class ProcessSource {
 
     private static func resolveApplicationDisplayName(forExecutablePath path: String) -> String? {
         guard let applicationURL = applicationBundleURL(forExecutablePath: path),
-              let bundle = Bundle(url: applicationURL)
+            let bundle = Bundle(url: applicationURL)
         else {
             return nil
         }
@@ -284,8 +286,8 @@ public final class ProcessSource {
     }
 }
 
-private extension Duration {
-    var timeInterval: TimeInterval {
+extension Duration {
+    fileprivate var timeInterval: TimeInterval {
         let value = components
         return TimeInterval(value.seconds) + TimeInterval(value.attoseconds) / 1e18
     }

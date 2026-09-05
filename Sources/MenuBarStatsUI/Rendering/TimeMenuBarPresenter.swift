@@ -12,7 +12,7 @@ public enum TimeMenuBarPresenter {
         context: RenderContext
     ) -> StatusItemContent {
         guard let sample,
-              let timeZone = TimeZone(identifier: sample.systemTimeZoneIdentifier)
+            let timeZone = TimeZone(identifier: sample.systemTimeZoneIdentifier)
         else {
             return StatusItemContent(
                 image: TextRenderer(

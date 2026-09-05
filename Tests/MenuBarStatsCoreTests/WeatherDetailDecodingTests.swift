@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MenuBarStatsCore
 
 @Suite("WeatherDetailDecodingTests")
@@ -55,7 +56,8 @@ struct WeatherDetailDecodingTests {
 
     @Test("older caches without details still decode")
     func oldCache() throws {
-        let forecast = try OpenMeteoClient.decodeForecast(try fixture("forecast-boston"), for: location, units: .imperial)
+        let forecast = try OpenMeteoClient.decodeForecast(
+            try fixture("forecast-boston"), for: location, units: .imperial)
         var raw = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(forecast)) as? [String: Any])
         for key in ["hourly", "daily"] {
             var points = try #require(raw[key] as? [[String: Any]])

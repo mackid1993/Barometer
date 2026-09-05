@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Testing
+
 @testable import MenuBarStatsCore
 @testable import MenuBarStatsUI
 
@@ -8,8 +9,9 @@ import Testing
 @MainActor
 struct MenuDetailPresenterTests {
     private func makeAnchor() -> NSWindow {
-        let window = NSWindow(contentRect: NSRect(x: 100, y: 700, width: 100, height: 30),
-                              styleMask: [.borderless], backing: .buffered, defer: false)
+        let window = NSWindow(
+            contentRect: NSRect(x: 100, y: 700, width: 100, height: 30),
+            styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = NSView(frame: NSRect(x: 0, y: 0, width: 100, height: 30))
         window.orderFront(nil)
@@ -17,14 +19,16 @@ struct MenuDetailPresenterTests {
     }
 
     private func weatherContent() throws -> WeatherDayDetailView {
-        let location = Location(id: "boston", name: "Boston", admin: nil, country: "US",
-                                latitude: 42.36, longitude: -71.05, timeZone: "America/New_York")
+        let location = Location(
+            id: "boston", name: "Boston", admin: nil, country: "US",
+            latitude: 42.36, longitude: -71.05, timeZone: "America/New_York")
         let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("MenuBarStatsCoreTests/Fixtures/forecast-rich-imperial.json")
         let forecast = try OpenMeteoClient.decodeForecast(Data(contentsOf: fixture), for: location, units: .imperial)
-        let sample = WeatherSample(timestamp: forecast.fetchedAt, forecast: forecast, airQuality: nil,
-                                   isStale: false, refreshError: nil)
+        let sample = WeatherSample(
+            timestamp: forecast.fetchedAt, forecast: forecast, airQuality: nil,
+            isStale: false, refreshError: nil)
         let day = try #require(forecast.daily.first)
         return WeatherDayDetailView(day: day, sample: sample, accent: .signature(for: .weather))
     }
@@ -34,9 +38,11 @@ struct MenuDetailPresenterTests {
         let view = WeatherHoverAnchor.HoverView()
         var entered = false
         view.show = { anchor in entered = anchor === view }
-        let event = try #require(NSEvent.enterExitEvent(with: .mouseEntered, location: .zero,
-            modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
-            eventNumber: 1, trackingNumber: 1, userData: nil))
+        let event = try #require(
+            NSEvent.enterExitEvent(
+                with: .mouseEntered, location: .zero,
+                modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+                eventNumber: 1, trackingNumber: 1, userData: nil))
         view.mouseEntered(with: event)
         #expect(entered)
         view.show = nil

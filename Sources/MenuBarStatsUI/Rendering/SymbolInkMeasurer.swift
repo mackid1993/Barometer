@@ -12,7 +12,7 @@ enum SymbolInkMeasurer {
         /// Center of the visible ink relative to the box origin, after scaling.
         let inkCenter: NSPoint
 
-        /// Scales the placement down so the ink is no wider than `width`.
+        /// Scales the placement down so the ink is no wider than width.
         func fitted(toWidth width: CGFloat) -> Placement {
             guard inkSize.width > width, inkSize.width > 0 else {
                 return self
@@ -28,7 +28,7 @@ enum SymbolInkMeasurer {
 
     private static var cache: [String: NSRect] = [:]
 
-    /// Scales `image` so its visible ink is `visibleHeight` tall and reports where that ink sits.
+    /// Scales image so its visible ink is visibleHeight tall and reports where that ink sits.
     static func placement(of image: NSImage, key: String, visibleHeight: CGFloat) -> Placement {
         let ink = inkRect(of: image, key: key)
         let factor = visibleHeight / max(1, ink.height)
@@ -39,7 +39,7 @@ enum SymbolInkMeasurer {
         )
     }
 
-    /// Opaque bounds of `image` in its own point coordinates (origin at the bottom left).
+    /// Opaque bounds of image in its own point coordinates (origin at the bottom left).
     static func inkRect(of image: NSImage, key: String) -> NSRect {
         if let cached = cache[key] {
             return cached

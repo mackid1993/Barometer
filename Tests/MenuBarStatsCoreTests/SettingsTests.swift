@@ -524,9 +524,10 @@ struct SettingsTests {
         // Only an item that was actually on migrates; someone who never enabled Combined gets no
         // stacks rather than one they never asked for.
         settings.modules[.combined]?.isEnabled = true
-        var object = try JSONSerialization.jsonObject(
-            with: try JSONEncoder().encode(settings)
-        ) as! [String: Any]
+        var object =
+            try JSONSerialization.jsonObject(
+                with: try JSONEncoder().encode(settings)
+            ) as! [String: Any]
         object.removeValue(forKey: "stacks")
 
         let decoded = try JSONDecoder().decode(

@@ -69,7 +69,8 @@ public enum DiskValueFormatter {
         rate: Bool
     ) -> String {
         let divisor = unitSystem == .decimal ? 1_000.0 : 1_024.0
-        let suffixes = unitSystem == .decimal
+        let suffixes =
+            unitSystem == .decimal
             ? ["B", "KB", "MB", "GB", "TB"]
             : ["B", "KiB", "MiB", "GiB", "TiB"]
         var value = rawValue
@@ -85,9 +86,9 @@ public enum DiskValueFormatter {
     }
 }
 
-public extension DiskSample {
+extension DiskSample {
     /// Volumes appropriate for user-facing presentation under the supplied settings.
-    func visibleVolumes(settings: DiskSettings) -> [DiskVolumeSample] {
+    public func visibleVolumes(settings: DiskSettings) -> [DiskVolumeSample] {
         volumes.filter { volume in
             guard volume.totalBytes > 0 else {
                 return false
@@ -102,7 +103,7 @@ public extension DiskSample {
     }
 
     /// Resolves the selected volume, falling back to the startup volume and then the first visible volume.
-    func selectedVolume(settings: DiskSettings) -> DiskVolumeSample? {
+    public func selectedVolume(settings: DiskSettings) -> DiskVolumeSample? {
         let visible = visibleVolumes(settings: settings)
         return settings.selectedVolumeID.flatMap { id in visible.first { $0.id == id } }
             ?? visible.first { $0.mountPoint == "/" }

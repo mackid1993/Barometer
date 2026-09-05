@@ -4,31 +4,32 @@ import Foundation
 import PackageDescription
 
 let strictConcurrency: [SwiftSetting] = [
-    .unsafeFlags(["-strict-concurrency=complete"]),
+    .unsafeFlags(["-strict-concurrency=complete"])
 ]
 
 let developerDirectory =
     ProcessInfo.processInfo.environment["DEVELOPER_DIR"]
     ?? "/Library/Developer/CommandLineTools"
 let selectedToolchainFrameworks = "\(developerDirectory)/Library/Developer/Frameworks"
-let testSwiftSettings = strictConcurrency + [
-    .unsafeFlags([
-        "-F", selectedToolchainFrameworks,
-        "-Xfrontend", "-disable-cross-import-overlays",
-    ]),
-]
+let testSwiftSettings =
+    strictConcurrency + [
+        .unsafeFlags([
+            "-F", selectedToolchainFrameworks,
+            "-Xfrontend", "-disable-cross-import-overlays",
+        ])
+    ]
 let testLinkerSettings: [LinkerSetting] = [
     .unsafeFlags([
         "-F", selectedToolchainFrameworks,
         "-Xlinker", "-rpath",
         "-Xlinker", selectedToolchainFrameworks,
-    ]),
+    ])
 ]
 
 let package = Package(
     name: "Barometer",
     platforms: [
-        .macOS("26.0"),
+        .macOS("26.0")
     ],
     products: [
         .executable(name: "Barometer", targets: ["Barometer"]),
@@ -42,7 +43,7 @@ let package = Package(
             name: "CSystemSources",
             publicHeadersPath: "include",
             linkerSettings: [
-                .linkedFramework("IOKit"),
+                .linkedFramework("IOKit")
             ]
         ),
         .target(
@@ -87,7 +88,7 @@ let package = Package(
             name: "MenuBarStatsCoreTests",
             dependencies: ["MenuBarStatsCore"],
             resources: [
-                .process("Fixtures"),
+                .process("Fixtures")
             ],
             swiftSettings: testSwiftSettings,
             linkerSettings: testLinkerSettings

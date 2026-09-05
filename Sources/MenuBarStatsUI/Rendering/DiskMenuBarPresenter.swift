@@ -22,9 +22,10 @@ enum DiskMenuBarPresenter {
                 reservedText: moduleSettings.usesFixedWidth ? "100%" : nil
             )
         case "freeBytes":
-            let free = volume.map {
-                DiskValueFormatter.capacity($0.availableBytes, unitSystem: diskSettings.unitSystem, compact: true)
-            } ?? "—"
+            let free =
+                volume.map {
+                    DiskValueFormatter.capacity($0.availableBytes, unitSystem: diskSettings.unitSystem, compact: true)
+                } ?? "—"
             renderer = TextRenderer(text: free, reservedText: moduleSettings.usesFixedWidth ? "999GiB" : nil)
         case "rates":
             let read = DiskValueFormatter.rate(
@@ -57,13 +58,14 @@ enum DiskMenuBarPresenter {
 
         let read = DiskValueFormatter.rate(rates.read, unitSystem: diskSettings.unitSystem)
         let write = DiskValueFormatter.rate(rates.write, unitSystem: diskSettings.unitSystem)
-        let volumeDescription = volume.map { selectedVolume in
-            let free = DiskValueFormatter.capacity(
-                selectedVolume.availableBytes,
-                unitSystem: diskSettings.unitSystem
-            )
-            return ", \(selectedVolume.name) \(free) free"
-        } ?? ""
+        let volumeDescription =
+            volume.map { selectedVolume in
+                let free = DiskValueFormatter.capacity(
+                    selectedVolume.availableBytes,
+                    unitSystem: diskSettings.unitSystem
+                )
+                return ", \(selectedVolume.name) \(free) free"
+            } ?? ""
         return StatusItemContent(
             image: renderer.render(in: context),
             accessibilityValue: "Disks read \(read), write \(write)\(volumeDescription)"

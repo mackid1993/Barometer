@@ -83,11 +83,11 @@ public struct ProcessNetworkSource: Sendable {
         for line in output.split(whereSeparator: \Character.isNewline) {
             let fields = csvFields(String(line))
             guard fields.count >= 3,
-                  let split = fields[0].lastIndex(of: "."),
-                  let processIdentifier = pid_t(fields[0][fields[0].index(after: split)...]),
-                  processIdentifier > 0,
-                  let receivedBytes = UInt64(fields[1]),
-                  let sentBytes = UInt64(fields[2])
+                let split = fields[0].lastIndex(of: "."),
+                let processIdentifier = pid_t(fields[0][fields[0].index(after: split)...]),
+                processIdentifier > 0,
+                let receivedBytes = UInt64(fields[1]),
+                let sentBytes = UInt64(fields[2])
             else {
                 continue
             }

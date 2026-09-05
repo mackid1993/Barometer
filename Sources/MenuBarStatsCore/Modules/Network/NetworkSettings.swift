@@ -79,10 +79,11 @@ public struct NetworkSettings: Codable, Equatable, Sendable {
         rateOrder = try container.decodeIfPresent(NetworkRateOrder.self, forKey: .rateOrder) ?? .uploadThenDownload
         showsPublicIP = try container.decodeIfPresent(Bool.self, forKey: .showsPublicIP) ?? false
         graphScale = try container.decodeIfPresent(NetworkGraphScale.self, forKey: .graphScale) ?? .automatic
-        fixedGraphMaximumBytesPerSecond = try container.decodeIfPresent(
-            Double.self,
-            forKey: .fixedGraphMaximumBytesPerSecond
-        ) ?? 10_000_000
+        fixedGraphMaximumBytesPerSecond =
+            try container.decodeIfPresent(
+                Double.self,
+                forKey: .fixedGraphMaximumBytesPerSecond
+            ) ?? 10_000_000
     }
 }
 
@@ -117,7 +118,8 @@ public enum NetworkRateFormatter {
     ) -> String {
         let clampedBytes = max(0, bytesPerSecond)
         let value = unit == .bits ? clampedBytes * 8 : clampedBytes
-        let suffixes = unit == .bits
+        let suffixes =
+            unit == .bits
             ? ["b/s", "Kb/s", "Mb/s", "Gb/s", "Tb/s"]
             : ["B/s", "KB/s", "MB/s", "GB/s", "TB/s"]
         let precision = min(2, max(0, decimalPlaces))

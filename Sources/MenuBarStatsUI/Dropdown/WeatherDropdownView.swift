@@ -465,10 +465,14 @@ private struct DailyForecastRow: View {
 
     var body: some View {
         row
-            .background(WeatherHoverAnchor { anchor in
-                showDetail(AnyView(WeatherDayDetailView(
-                    day: day, sample: sample, accent: accent, settingsStore: settingsStore)), anchor)
-            })
+            .background(
+                WeatherHoverAnchor { anchor in
+                    showDetail(
+                        AnyView(
+                            WeatherDayDetailView(
+                                day: day, sample: sample, accent: accent, settingsStore: settingsStore)), anchor)
+                }
+            )
             .accessibilityLabel("Details for \(WeatherDayDetailView.dateTitle(day.date, timeZone: timeZone))")
             .help("Hover to show daily and hourly forecast details")
     }
@@ -600,7 +604,7 @@ private struct AirQualitySection: View {
                         AQIScale(value: value)
                     }
                     HStack(spacing: 8) {
-                        if let value = airQuality.pm2_5 {
+                        if let value = airQuality.pm25 {
                             StatTile(
                                 symbol: "aqi.medium", label: "PM2.5", value: String(format: "%.1f µg/m³", value),
                                 tint: .teal)

@@ -82,8 +82,9 @@ private func runIdentityProbe() {
 private func printVersion() {
     let versionURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         .appendingPathComponent("VERSION")
-    guard let version = try? String(contentsOf: versionURL, encoding: .utf8)
-        .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard
+        let version = try? String(contentsOf: versionURL, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     else {
         writeError("Unable to read VERSION from \(versionURL.path)")
         exit(EXIT_FAILURE)
@@ -622,10 +623,10 @@ private enum ProbeMain {
                 printVersion()
             case .weather:
                 guard arguments.count == 5,
-                      arguments[1] == "--lat",
-                      let latitude = Double(arguments[2]),
-                      arguments[3] == "--lon",
-                      let longitude = Double(arguments[4])
+                    arguments[1] == "--lat",
+                    let latitude = Double(arguments[2]),
+                    arguments[3] == "--lon",
+                    let longitude = Double(arguments[4])
                 else {
                     writeError("usage: mbs-probe weather --lat N --lon N")
                     exit(EXIT_FAILURE)

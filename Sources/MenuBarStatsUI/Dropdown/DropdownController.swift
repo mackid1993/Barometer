@@ -54,14 +54,17 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
         hostingView.frame = NSRect(x: 0, y: 0, width: contentWidth, height: contentHeight)
         super.init()
 
-        hostingView.rootView = AnyView(rootView.environment(\.showMenuDetail, { [weak self] content, rowAnchor in
-            guard let self else { return }
-            if self.usesPopover {
-                self.detailPresenter.present(content, anchoredTo: rowAnchor, edge: .maxX)
-            } else if let anchor = self.detailAnchor {
-                self.detailPresenter.show(content, from: self.menu, anchoredTo: anchor)
-            }
-        }))
+        hostingView.rootView = AnyView(
+            rootView.environment(
+                \.showMenuDetail,
+                { [weak self] content, rowAnchor in
+                    guard let self else { return }
+                    if self.usesPopover {
+                        self.detailPresenter.present(content, anchoredTo: rowAnchor, edge: .maxX)
+                    } else if let anchor = self.detailAnchor {
+                        self.detailPresenter.show(content, from: self.menu, anchoredTo: anchor)
+                    }
+                }))
         menu.delegate = self
         menu.minimumWidth = contentWidth
 

@@ -167,11 +167,11 @@ public actor IOReportSource {
         let active = activeStates.reduce(0.0) { $0 + Double(max(0, $1.residency)) }
         let activePercent = total > 0 ? active / total * 100 : 0
         guard active > 0,
-              let table = Self.frequencyTable(
-                  stateCount: activeStates.count,
-                  candidates: candidates,
-                  kind: kind
-              )
+            let table = Self.frequencyTable(
+                stateCount: activeStates.count,
+                candidates: candidates,
+                kind: kind
+            )
         else {
             return (nil, activePercent)
         }
@@ -210,13 +210,14 @@ public actor IOReportSource {
     }
 
     private static func makeSubscription(group: String, subgroup: String?) throws -> Subscription {
-        guard let copied = mbs_ioreport_copy_channels_in_group(
-            group as CFString,
-            subgroup as CFString?
-        )?.takeRetainedValue(),
-              let channels = CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, copied),
-              let dictionary = channels as? [String: Any],
-              dictionary["IOReportChannels"] != nil
+        guard
+            let copied = mbs_ioreport_copy_channels_in_group(
+                group as CFString,
+                subgroup as CFString?
+            )?.takeRetainedValue(),
+            let channels = CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, copied),
+            let dictionary = channels as? [String: Any],
+            dictionary["IOReportChannels"] != nil
         else {
             throw IOReportSourceError.channelsUnavailable
         }
@@ -233,10 +234,12 @@ public actor IOReportSource {
 
     private func makeSamples() throws -> [CFDictionary] {
         try subscriptions.map { subscription in
-            guard let sample = mbs_ioreport_create_samples(
-                subscription.reference,
-                subscription.channels
-            )?.takeRetainedValue() else {
+            guard
+                let sample = mbs_ioreport_create_samples(
+                    subscription.reference,
+                    subscription.channels
+                )?.takeRetainedValue()
+            else {
                 throw IOReportSourceError.sampleUnavailable
             }
             return sample
@@ -266,7 +269,8 @@ public actor IOReportSource {
             let group = string(mbs_ioreport_channel_get_group(item))
             let subgroup = string(mbs_ioreport_channel_get_subgroup(item))
             let channel = string(mbs_ioreport_channel_get_name(item))
-            guard subgroup == "CPU Core Performance States" || subgroup == "CPU Complex Performance States"
+            guard
+                subgroup == "CPU Core Performance States" || subgroup == "CPU Complex Performance States"
                     || subgroup == "GPU Performance States"
             else {
                 continue
@@ -314,14 +318,14 @@ public actor IOReportSource {
         var readings: [IOReportTemperatureReading] = []
         for sample in samples {
             guard let dictionary = sample as? [String: Any],
-                  let channels = dictionary["IOReportChannels"] as? NSArray
+                let channels = dictionary["IOReportChannels"] as? NSArray
             else {
                 continue
             }
             for object in channels {
                 let item = unsafeBitCast(object as AnyObject, to: CFDictionary.self)
                 guard string(mbs_ioreport_channel_get_group(item)) == "GPU Stats",
-                      string(mbs_ioreport_channel_get_subgroup(item)) == "Temperature"
+                    string(mbs_ioreport_channel_get_subgroup(item)) == "Temperature"
                 else {
                     continue
                 }
@@ -362,7 +366,7 @@ public actor IOReportSource {
         var result: [(key: EnergyChannelKey, value: Double)] = []
         for sample in samples {
             guard let dictionary = sample as? [String: Any],
-                  let channels = dictionary["IOReportChannels"] as? NSArray
+                let channels = dictionary["IOReportChannels"] as? NSArray
             else {
                 continue
             }
@@ -370,7 +374,8 @@ public actor IOReportSource {
                 let item = unsafeBitCast(object as AnyObject, to: CFDictionary.self)
                 let group = string(mbs_ioreport_channel_get_group(item))
                 let subgroup = string(mbs_ioreport_channel_get_subgroup(item))
-                guard isUnit(group, "Energy Model")
+                guard
+                    isUnit(group, "Energy Model")
                         || (isUnit(group, "PMP") && isUnit(subgroup, "Energy Counters"))
                 else {
                     continue
@@ -403,11 +408,13 @@ public actor IOReportSource {
         return selectors.compactMap { name, matches in
             let matching = energy.filter { matches($0.key.channel) }
             let converted = matching.compactMap { reading -> (channel: String, watts: Double)? in
-                guard let value = watts(
-                    energy: reading.value,
-                    unit: reading.key.unit,
-                    elapsedSeconds: elapsedSeconds
-                ) else {
+                guard
+                    let value = watts(
+                        energy: reading.value,
+                        unit: reading.key.unit,
+                        elapsedSeconds: elapsedSeconds
+                    )
+                else {
                     return nil
                 }
                 return (reading.key.channel, value)
@@ -533,7 +540,7 @@ public actor IOReportSource {
                 as: UTF8.self
             )
             guard serviceName == "pmgr",
-                  let properties = properties(for: service)
+                let properties = properties(for: service)
             else {
                 continue
             }

@@ -166,8 +166,8 @@ public actor SMCClient {
         }
         return (0..<max(0, Int(count))).compactMap { id in
             guard let current = try? read("F\(id)Ac").numericValue,
-                  current.isFinite,
-                  current >= 0
+                current.isFinite,
+                current >= 0
             else {
                 return nil
             }
@@ -211,7 +211,8 @@ public actor SMCClient {
             guard bytes.count >= 4 else {
                 return nil
             }
-            let bits = UInt32(bytes[0])
+            let bits =
+                UInt32(bytes[0])
                 | UInt32(bytes[1]) << 8
                 | UInt32(bytes[2]) << 16
                 | UInt32(bytes[3]) << 24
@@ -233,9 +234,9 @@ public actor SMCClient {
             break
         }
         guard normalizedType.count == 4,
-              let fractionCharacter = normalizedType.last,
-              let fractionBits = Int(String(fractionCharacter), radix: 16),
-              bytes.count >= 2
+            let fractionCharacter = normalizedType.last,
+            let fractionBits = Int(String(fractionCharacter), radix: 16),
+            bytes.count >= 2
         else {
             return nil
         }

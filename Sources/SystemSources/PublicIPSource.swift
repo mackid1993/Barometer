@@ -48,9 +48,9 @@ public struct PublicIPSource: Sendable {
         }
         let (data, response) = try await session.data(from: url)
         guard let response = response as? HTTPURLResponse,
-              (200..<300).contains(response.statusCode),
-              let address = Self.address(from: data),
-              Self.isValid(address: address, family: family)
+            (200..<300).contains(response.statusCode),
+            let address = Self.address(from: data),
+            Self.isValid(address: address, family: family)
         else {
             throw PublicIPSourceError.invalidResponse
         }
