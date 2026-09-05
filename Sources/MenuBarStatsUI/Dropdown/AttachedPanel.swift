@@ -70,6 +70,10 @@ final class AttachedPanel: NSPanel {
 
     func releaseAndClose() {
         orderOut(nil)
+        // Clear SwiftUI's rendered graph before detaching the AppKit host. AppKit and Core Animation
+        // can keep the host alive briefly after a window closes; leaving the rich root view attached
+        // keeps its observation graph and backing allocations alive for that entire deferred lifetime.
+        hostedView?.rootView = AnyView(EmptyView())
         contentView = nil
         hostedView = nil
         close()

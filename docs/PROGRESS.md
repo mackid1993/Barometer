@@ -3157,3 +3157,26 @@ Verification before local installation:
 - The panel/graph regression passed at 48.0 MiB peak, below its 128 MiB gate
   (`dist/p8-t39-popover-memory.log`).
 - Interactive validation of the installed build is required before another GitHub push.
+
+## P8-T40 Persistent graph history and deferred panel teardown
+
+CPU and GPU samples now survive normal restarts and application updates in a compact binary property list under
+Barometer's Application Support directory. Startup restores only valid samples from the preceding 24 hours, and a
+five-minute coalesced save plus the termination save preserves the rolling graph without inventing data from before
+Barometer collected it. The General page permanently displays the global sampling control, including its current
+interval, while retaining the battery-rate option.
+
+Attached panels now replace their rich SwiftUI root with an empty view before detaching the host. Memory pressure
+relief runs once after the initial AppKit teardown and again after SwiftUI and Core Animation finish their deferred
+work. This does not change panel layout, shapes, gradients, or glow.
+
+Verification before local installation:
+
+- Source invariants and `git diff --check` passed.
+- The focused graph persistence, Settings lifecycle, and menu-detail lifecycle run passed all 11 tests in three
+  suites (`dist/p8-t40-focused.log`). The detail lifecycle includes 100 consecutive rich Weather presentations and
+  verifies that the panels and hosting views deallocate.
+- The rich-panel benchmark completed ten Weather, day-detail, and shared-graph cycles at about 35.3 MiB after each
+  close and a 47.8 MiB peak (`dist/p8-t40-popover-memory.log`).
+- An instrumented installed-app cycle measured 39.6 MiB physical footprint with all windows closed, 0.2% CPU, and
+  zero leaked blocks. Interactive validation of the new installed build is required before any GitHub push.

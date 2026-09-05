@@ -25,6 +25,19 @@ public final class ModuleStore<Sample: HistoryProjecting> {
         history.append(sample.graphValue, at: timestamp)
     }
 
+    /// Restores previously collected graph entries without replacing the latest live sample.
+    public func restoreHistory(
+        _ entries: [HistoryEntry<Sample.GraphValue>],
+        since cutoff: Date,
+        through end: Date = Date()
+    ) {
+        for entry in entries.sorted(by: { $0.timestamp < $1.timestamp })
+        where entry.timestamp >= cutoff && entry.timestamp <= end {
+            history.append(entry.value, at: entry.timestamp)
+        }
+        revision &+= 1
+    }
+
     /// Advances the view revision while a dropdown is tracking.
     public func tick() {
         revision &+= 1

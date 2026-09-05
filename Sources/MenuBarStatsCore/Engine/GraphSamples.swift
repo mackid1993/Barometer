@@ -12,9 +12,14 @@ public protocol HistoryProjecting: Sendable {
 // MARK: - Scalar graphs
 
 /// CPU utilization without per-core or process snapshots.
-public struct CPUHistoryValue: Sendable {
+public struct CPUHistoryValue: Codable, Sendable {
     /// Total CPU utilization in percent.
     public let totalPercent: Double
+
+    /// Creates a compact CPU history value.
+    public init(totalPercent: Double) {
+        self.totalPercent = totalPercent
+    }
 }
 
 /// Memory graph readings without process snapshots or unused counters.
@@ -26,9 +31,14 @@ public struct MemoryHistoryValue: Sendable {
 }
 
 /// GPU utilization without device metadata or memory counters.
-public struct GPUHistoryValue: Sendable {
+public struct GPUHistoryValue: Codable, Sendable {
     /// Device utilization in percent.
     public let deviceUtilizationPercent: Double
+
+    /// Creates a compact GPU history value.
+    public init(deviceUtilizationPercent: Double) {
+        self.deviceUtilizationPercent = deviceUtilizationPercent
+    }
 }
 
 /// Aggregate disk throughput without volume and device metadata.

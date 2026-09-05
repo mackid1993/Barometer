@@ -226,17 +226,16 @@ private struct GeneralSettingsView: View {
                     .help("Doubles sampling intervals while the Mac is running on battery power.")
             }
 
-            Section("Sampling") {
-                Toggle("Use one interval for every module", isOn: globalSamplingEnabledBinding)
-                if settingsStore.settings.globalSamplingInterval != nil {
-                    HStack {
-                        Text("Global interval")
-                        Slider(value: globalSamplingIntervalBinding, in: 0.5...10, step: 0.5)
-                        Text(String(format: "%.1f s", globalSamplingIntervalBinding.wrappedValue))
-                            .monospacedDigit()
-                            .frame(width: 42, alignment: .trailing)
-                    }
+            Section("Global Sampling Rate") {
+                Toggle("Override per-module rates", isOn: globalSamplingEnabledBinding)
+                HStack {
+                    Text("Interval")
+                    Slider(value: globalSamplingIntervalBinding, in: 0.5...10, step: 0.5)
+                    Text(String(format: "%.1f s", globalSamplingIntervalBinding.wrappedValue))
+                        .monospacedDigit()
+                        .frame(width: 42, alignment: .trailing)
                 }
+                .disabled(settingsStore.settings.globalSamplingInterval == nil)
                 SamplingIntervalNote()
             }
 

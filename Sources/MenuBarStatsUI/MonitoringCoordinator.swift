@@ -2,12 +2,15 @@ import AppKit
 import CoreLocation
 import MenuBarStatsCore
 import Observation
+import OSLog
 import SwiftUI
 
 /// Wires active monitors, stores, schedulers, and status item controllers together.
 @MainActor
 public final class MonitoringCoordinator {
-    // CPU and Memory expose day-long graphs. Other histories retain only the largest window
+    private static let historyLogger = Logger(subsystem: "com.barometer.app", category: "graph-history")
+
+    // CPU, GPU, and Memory expose day-long graphs. Other histories retain only the largest window
     // consumed by their dropdown or status-item graph; full details stay in latestSample.
 
     /// Observable CPU state used by status items and dropdowns.
@@ -124,6 +127,8 @@ public final class MonitoringCoordinator {
     private var isTrackingCurrentLocation = false
     private var lastPublicIPEnabled: Bool?
     private var hasActivatedStatusItems = false
+    private let graphHistoryURL: URL?
+    private var graphHistorySaveTask: Task<Void, Never>?
 
     /// Creates and starts application monitoring.
     public init(
@@ -136,6 +141,7 @@ public final class MonitoringCoordinator {
         self.settingsStore = settingsStore
         self.settingsAction = settingsAction
         self.quitAction = quitAction
+        graphHistoryURL = GraphHistoryPersistence.defaultURL()
         let cpuMonitor = CPUMonitor(collectsProcessDetails: false)
         self.cpuMonitor = cpuMonitor
         cpuScheduler = Scheduler(monitor: cpuMonitor)
@@ -154,6 +160,7 @@ public final class MonitoringCoordinator {
         let timeMonitor = TimeMonitor()
         self.timeMonitor = timeMonitor
         timeScheduler = Scheduler(monitor: timeMonitor)
+        restoreGraphHistory()
 
         cpuController = StatusItemController(
             module: .cpu,
@@ -402,6 +409,9 @@ public final class MonitoringCoordinator {
 
     /// Stops monitor tasks and finishes their streams.
     public func stop() {
+        graphHistorySaveTask?.cancel()
+        graphHistorySaveTask = nil
+        saveGraphHistory()
         combinedUpdateTask?.cancel()
         combinedUpdateTask = nil
         combinedUpdateCoalescer = CombinedUpdateCoalescer()
@@ -483,6 +493,56 @@ public final class MonitoringCoordinator {
         }
     }
 
+    private func restoreGraphHistory(now: Date = Date()) {
+        guard let graphHistoryURL,
+              FileManager.default.fileExists(atPath: graphHistoryURL.path)
+        else { return }
+        do {
+            let archive = try GraphHistoryPersistence.load(from: graphHistoryURL)
+            let cutoff = now.addingTimeInterval(-HistoryRange.twentyFourHours.duration)
+            cpuStore.restoreHistory(archive.cpu, since: cutoff, through: now)
+            gpuStore.restoreHistory(archive.gpu, since: cutoff, through: now)
+        } catch {
+            let message = "Unable to restore graph history: \(String(describing: error))"
+            Self.historyLogger.error("\(message, privacy: .public)")
+        }
+    }
+
+    private func scheduleGraphHistorySave() {
+        guard graphHistorySaveTask == nil else { return }
+        graphHistorySaveTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(300))
+            } catch {
+                return
+            }
+            guard let self else { return }
+            graphHistorySaveTask = nil
+            saveGraphHistory()
+        }
+    }
+
+    private func saveGraphHistory(now: Date = Date()) {
+        guard let graphHistoryURL else { return }
+        let cutoff = now.addingTimeInterval(-HistoryRange.twentyFourHours.duration)
+        let archive = GraphHistoryArchive(
+            cpu: cpuStore.history.downsampled(
+                to: GraphHistoryRetention.capacity(for: .cpu),
+                since: cutoff
+            ),
+            gpu: gpuStore.history.downsampled(
+                to: GraphHistoryRetention.capacity(for: .gpu),
+                since: cutoff
+            )
+        )
+        do {
+            try GraphHistoryPersistence.save(archive, to: graphHistoryURL)
+        } catch {
+            let message = "Unable to save graph history: \(String(describing: error))"
+            Self.historyLogger.error("\(message, privacy: .public)")
+        }
+    }
+
     private func startSampleConsumption() {
         let cpuSamples = cpuScheduler.samples
         cpuSampleTask = Task { [weak self] in
@@ -491,6 +551,7 @@ public final class MonitoringCoordinator {
                     break
                 }
                 self?.cpuStore.receive(sample, at: sample.timestamp)
+                self?.scheduleGraphHistorySave()
                 self?.recordCombinedUpdate(from: .cpu, at: sample.timestamp)
             }
         }
@@ -511,6 +572,7 @@ public final class MonitoringCoordinator {
             for await sample in gpuSamples {
                 guard !Task.isCancelled else { break }
                 self?.gpuStore.receive(sample, at: sample.timestamp)
+                self?.scheduleGraphHistorySave()
                 self?.recordCombinedUpdate(from: .gpu, at: sample.timestamp)
             }
         }

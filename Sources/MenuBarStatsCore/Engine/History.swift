@@ -15,6 +15,8 @@ public struct HistoryEntry<Value: Sendable>: Sendable {
     }
 }
 
+extension HistoryEntry: Codable where Value: Codable {}
+
 /// A fixed-capacity ring buffer for timestamped samples.
 public struct History<Value: Sendable>: Sendable {
     /// Maximum number of entries retained by the buffer.
