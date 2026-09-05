@@ -243,7 +243,35 @@ public final class ProcessSource {
         return nil
     }
 
+    /// Resolved display names are stable per executable path, and resolving one maps the
+    /// application bundle's property lists. Every refresh cycle walks hundreds of processes,
+    /// so the resolved value is cached to keep those mapped files from accumulating in
+    /// long-running sessions. The empty string caches a path with no display name.
+    // Protected by displayNameCacheLock; readProcesses runs on monitor tasks off the main actor.
+    private static let displayNameCacheLock = NSLock()
+    private nonisolated(unsafe) static var displayNameCache: [String: String] = [:]
+    private static let displayNameCacheLimit = 512
+
     static func applicationDisplayName(forExecutablePath path: String) -> String? {
+        displayNameCacheLock.lock()
+        if let cached = displayNameCache[path] {
+            displayNameCacheLock.unlock()
+            return cached.isEmpty ? nil : cached
+        }
+        displayNameCacheLock.unlock()
+
+        let resolved = resolveApplicationDisplayName(forExecutablePath: path)
+
+        displayNameCacheLock.lock()
+        if displayNameCache.count >= displayNameCacheLimit, let oldest = displayNameCache.keys.first {
+            displayNameCache.removeValue(forKey: oldest)
+        }
+        displayNameCache[path] = resolved ?? ""
+        displayNameCacheLock.unlock()
+        return resolved
+    }
+
+    private static func resolveApplicationDisplayName(forExecutablePath path: String) -> String? {
         guard let applicationURL = applicationBundleURL(forExecutablePath: path),
               let bundle = Bundle(url: applicationURL)
         else {

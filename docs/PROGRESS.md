@@ -2789,3 +2789,46 @@ At David's request, reran both checks against committed revision c30073a before 
   grew 16,384 bytes (12,403,264 to 12,419,648), below the 5 MiB plateau threshold. This is isolated history storage.
   Output: dist/pre-push-memory.log.
 - git diff --check passed. No code changed after these checks; this entry records the pre-push results.
+
+### P8-T28: Closed-menu accessibility churn and process display-name caching
+
+David's `leaks` report on the installed 1.0.1 showed a 291 MB physical footprint with a 422 MB peak, and the
+report's 415 "leaks" were 19.9 KB of system AppIntents XPC cycles that macOS creates in every app. The real
+signal was ~259 MB of retained heap. Diagnosing required an ad-hoc re-sign without the hardened runtime so
+vmmap, heap, and malloc_history could attach; MallocStackLogging named the allocators.
+
+Two Barometer-side causes came out of the traces. First, macOS populates closed menus whenever accessibility
+clients such as menu bar managers inspect them, and every one of those populate calls ran the dropdown's tick
+and a full SwiftUI layout pass through `intrinsicContentSize`. Thaw polls continuously, so closed menus paid
+for a layout they never showed, and the framework keeps AttributeGraph, CoreSVG, and font pages it grew for
+each pass. `menuNeedsUpdate` now does nothing while the menu is closed; `menuWillOpen` still ticks and fits
+for a real open, and the hosted content stays current on its own through the observable stores. Second,
+`ProcessSource.applicationDisplayName` opened every application bundle's property lists on each process
+refresh, mapping hundreds of files per minute; resolved names are now cached per executable path under a
+lock, capped at 512 entries, with the empty string caching a path that has no display name.
+
+The remaining UI footprint is one-time framework warm-up, not growth. A captured session where David opened
+dropdowns and Settings rose from 36 MB to a 439 MB peak and settled at 351 MB; the settled state is mostly
+file-backed CoreUI, Metal, and LaunchServices mappings the system can evict, plus AttributeGraph regions for
+each surface opened once. The Settings window controller is already created lazily once and its window is
+not released on close, so repeated sessions do not compound. Idle footprint on this build measured 36 MB
+after eight minutes against 75.6 MB on the pre-rebase build, which also carries the bounded graph history
+from P8-T23 and the bounded process icon cache from P8-T26.
+
+Verification:
+
+- `swift build` and `swift build -c release` (via `make app`) completed successfully; `git diff --check`
+  completed successfully.
+- `swift test`: 108 tests in 19 suites, 58 in 6, and 29 in 3 all passed on the rebased tree with these
+  changes.
+- Idle soak, eight minutes, no interaction: 24.7 MB at launch, flat 35.7 MB through the window, 36.5 MB at
+  the end (MallocStackLogging enabled, so the clean number is lower).
+- One-minute UI capture while opening CPU, GPU, and Memory dropdowns and the Settings window: 36.5 MB flat
+  until first interaction, 268.5 MB at four seconds, 439.3 MB peak, settled 351.5 MB. malloc_history
+  attributes the settled state to one-time system mappings (117 MB CoreUI catalog, 36 MB ICU locale,
+  30 MB and 16.6 MB Metal archives, 15.9 MB LaunchServices database copy) and one-time AttributeGraph
+  regions (12.6 MB for Settings), all of which recur no further once paid.
+- Repeat-session ratchet check on the installed build with two UI tours in one window: 18.1 MB baseline,
+  146.3 MB peak during the tours, then flat 80.6 MB for the final 90 seconds with no growth. The pre-fix
+  build settled at 351 MB after a single tour, and the originally reported instance held 291 MB. The
+  throwaway capture scripts under dist/ were removed after this check.

@@ -7,6 +7,11 @@ import SwiftUI
 /// The hosted view is sized to its SwiftUI content every time the menu is about to open and
 /// on each tracking tick, so panels never clip. Menus taller than the screen scroll through
 /// AppKit's own menu scrolling. Status-item identity and menu attachment are unchanged.
+///
+/// macOS also populates closed menus when accessibility clients such as menu bar managers
+/// inspect them, and each of those calls previously forced a full SwiftUI layout pass. The
+/// hosted content stays current on its own through the observable stores, so closed menus
+/// refresh only through menuWillOpen when a person actually opens the panel.
 @MainActor
 public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     private let moduleName: String
@@ -22,6 +27,7 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
     private weak var detailAnchor: NSView?
     private let usesPopover: Bool
     private var rootPopover: NSPopover?
+    private var isTracking = false
 
     /// Creates and installs a hosted menu for one permanent status item.
     public init(
@@ -130,12 +136,20 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
     }
 
     public func menuNeedsUpdate(_ menu: NSMenu) {
+        // Accessibility population of a closed menu reaches this delegate before any open
+        // sequence, and menuWillOpen performs the tick and fit for a real open anyway. Doing
+        // the work here for every inspection made each accessibility poll allocate a full
+        // layout pass whose memory the framework keeps.
+        guard isTracking else {
+            return
+        }
         tickAction()
         fitContent()
     }
 
     public func menuWillOpen(_ menu: NSMenu) {
         detailPresenter.close()
+        isTracking = true
         fitContent()
         trackingTimer?.invalidate()
         let timer = Timer(timeInterval: 0.5, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
@@ -146,6 +160,7 @@ public final class DropdownController: NSObject, NSMenuDelegate, NSPopoverDelega
     }
 
     public func menuDidClose(_ menu: NSMenu) {
+        isTracking = false
         trackingTimer?.invalidate()
         trackingTimer = nil
         logger.debug("closed module=\(self.moduleName, privacy: .public)")
