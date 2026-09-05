@@ -1,8 +1,49 @@
 # Barometer 1.0.2
 
-1.0.2 ended up being a pretty big update. Weather got the biggest change, but there is also real CPU and GPU
-history now, an updater, better sampling controls, and a long list of fixes for memory use, CPU use, dropdowns,
-Calendar access, and menu bar managers.
+1.0.2 is a big optimization-focused release. Most of the work went into getting memory and idle CPU use down,
+cleaning up panels after they close, and fixing the bugs we found while profiling the app on real hardware. The
+visual design, card shapes, gradients, and glow are still there.
+
+It is not only an optimization release. There is also a built-in updater, much richer Weather data, real CPU and GPU
+history, better sampling controls, working Calendar access, and a working Network interface picker.
+
+## The big memory and CPU work
+
+The biggest memory fix was getting SwiftUI Canvas out of the graphs. In testing, opening one Canvas-backed panel
+could leave more than 160 MiB of rendering data behind after the panel closed. Every graph was rebuilt with regular
+SwiftUI views that draw the graphs with vector paths. The lines, fills, markers, card shapes, and glow still look the
+same and stay crisp at any size. This was the main change that stopped opening a graph-heavy panel from causing a
+huge memory spike that never came back down.
+
+A few other problems were contributing to the high memory reports:
+
+- Graph history used to preallocate and retain much larger samples than the graphs needed. History now stores small
+  graph-specific values and grows as samples arrive.
+- Weather, Combined, Network, CPU, and Settings release their SwiftUI content after closing.
+- Attached panels no longer run an unnecessary half-second redraw loop.
+- Closed menus do not build hidden views when Accessibility tools inspect them.
+- Process names, process icons, and date formatters use bounded caches.
+- Network resolves interface names in one pass instead of repeatedly asking the system for the same list.
+- Sensor, GPU, Network, and process details are collected only when something visible needs them.
+- Numeric updates no longer trigger pointless implicit animations. Hover effects and the existing visual design are
+  unchanged.
+
+The compact history benchmark uses about 93% less memory than the old version and stops growing after its 24-hour
+window is full. The final local build averaged 0.61% CPU over a settled 41-second run with every panel closed. After
+opening and closing Sensors, it measured 24.0 MiB current and 37.2 MiB peak physical memory with no leaked blocks.
+Those numbers will vary depending on your hardware, enabled items, sampling interval, and which panel is open.
+
+## Built-in updater
+
+There is now a **Check for Updates…** button in About. Automatic checks happen quietly after launch, and you can turn
+them off or back on from the same page.
+
+When an update is available, you can install it, wait until later, or skip that version. Barometer downloads the DMG
+from the project's GitHub release and checks GitHub's SHA-256 digest. It also checks the app identifier, executable,
+symlinks, and code signature before replacing anything.
+
+The updater stages the new copy in Applications, keeps a rollback copy while it swaps the app, and relaunches
+Barometer when it is done.
 
 ## Weather
 
@@ -57,18 +98,6 @@ down after the panel closes.
 CPU, Memory, and Network do not scan processes unless you have a related detail panel open. GPU and Network also skip
 their more expensive extra details while their panels are closed.
 
-## Updates
-
-There is now a **Check for Updates…** button in About. Automatic checks happen quietly after launch, and you can turn
-them off or back on from the same page.
-
-When an update is available, you can install it, wait until later, or skip that version. Barometer downloads the DMG
-from the project's GitHub release and checks GitHub's SHA-256 digest. It also checks the app identifier, executable,
-symlinks, and code signature before replacing anything.
-
-The updater stages the new copy in Applications, keeps a rollback copy while it swaps the app, and relaunches
-Barometer when it is done.
-
 ## Bugs fixed
 
 - **Allow Calendar Access** actually requests access now. This works from Settings and from the Time dropdown. The app
@@ -96,31 +125,6 @@ There was also a less obvious problem where a menu bar manager could inspect a c
 Accessibility. AppKit made that look like a real menu open. Barometer would build hidden SwiftUI views and start
 polling even though nothing was on screen. That inspection path is ignored now. A real menu click still opens as
 usual.
-
-## Memory and CPU use
-
-The biggest memory fix was getting SwiftUI Canvas out of the graphs. In testing, opening one Canvas-backed panel
-could leave more than 160 MiB of rendering data behind after the panel closed. Every graph was rebuilt with normal
-SwiftUI shape paths. The lines, fills, markers, card shapes, and glow still look the same. This was the main change
-that stopped opening a graph-heavy panel from causing a huge memory spike that never came back down.
-
-A few other problems were contributing to the high memory reports:
-
-- Graph history used to preallocate and retain much larger samples than the graphs needed. History now stores small
-  graph-specific values and grows as samples arrive.
-- Weather, Combined, Network, CPU, and Settings release their SwiftUI content after closing.
-- Attached panels no longer run an unnecessary half-second redraw loop.
-- Closed menus do not build hidden views when Accessibility tools inspect them.
-- Process names, process icons, and date formatters use bounded caches.
-- Network resolves interface names in one pass instead of repeatedly asking the system for the same list.
-- Sensor, GPU, Network, and process details are collected only when something visible needs them.
-- Numeric updates no longer trigger pointless implicit animations. Hover effects and the existing visual design are
-  unchanged.
-
-The compact history benchmark uses about 93% less memory than the old version and stops growing after its 24-hour
-window is full. The final local build averaged 0.61% CPU over a settled 41-second run with every panel closed. After
-opening and closing Sensors, it measured 24.0 MiB current and 37.2 MiB peak physical memory with no leaked blocks.
-Those numbers will vary depending on your hardware, enabled items, sampling interval, and which panel is open.
 
 ## Testing and build changes
 

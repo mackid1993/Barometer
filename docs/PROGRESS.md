@@ -3341,4 +3341,5 @@ Downloaded the workflow artifact and independently verified the DMG checksum, DM
 signature, version 1.0.2, bundle identifier `com.barometer.app`, and Developer ID team `BQNYYA2UND`. The downloaded
 DMG SHA-256 is `61fde3429c4dea53604386f9920b7f000662faa1651d65a56a786b94901ed133`. The release notes now call out the
 replacement of Canvas-backed graphs as the largest memory fix and explain the measured retained allocation it
-removed. No release workflow was run and no release was created.
+removed. The final order leads with the optimization work, followed by the built-in updater and the other feature
+and bug-fix sections. No release workflow was run and no release was created.
