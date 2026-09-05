@@ -3270,3 +3270,45 @@ Verification before local installation:
   cumulative totals (`dist/p8-t43-network-probe.log`).
 - `python3 Scripts/benchmark-memory.py dist/memory-baseline` passed with a 92.8% lower one-hour footprint and zero
   growth from simulated hours 24 to 48 (`dist/p8-t43-history-memory.log`). No push.
+
+## P8-T44 Ignore Accessibility menu inspection
+
+A production sample with every Barometer panel visibly closed traced intermittent 6–8% CPU and 75–93 MiB resident
+memory to menu bar manager Accessibility inspection. AppKit simulates opening a closed `NSMenu` while enumerating
+its Accessibility children, which previously ran Barometer's real `menuWillOpen` path. One 12-second sample recorded
+370 simulated opens, repeatedly creating SwiftUI hosts, fitting content, and entering the dropdown polling path even
+though no Barometer window was visible.
+
+Native dropdowns now accept `menuWillOpen` only between that menu's AppKit begin- and end-tracking notifications.
+Accessibility simulation does not post begin tracking, so it performs no allocation, visibility change, sample tick,
+or timer creation. A genuine tracked menu still follows the existing open, hover-dismissal, and teardown behavior.
+The bundle identity, status-item identity, menu attachment, layout, materials, card shapes, gradients, and glows are
+unchanged.
+
+Verification before local installation:
+
+- `python3 Scripts/check-source-invariants.py` and `git diff --check` passed.
+- A focused regression passed for both paths: Accessibility inspection keeps a closed menu unallocated and idle,
+  while a genuine tracked open still creates content, refreshes it, and releases it on close.
+- `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer` with `POPOVER_SNAPSHOT_DIRECTORY` set to
+  `dist/p8-t44-panel-screens-v3` ran `make test` and executed all 242 tests: 32 SystemSources, 85 UI, and 125 Core
+  tests passed (`dist/p8-t44-tests-v3.log`).
+- The screen suite produced 128 nontransparent captures. All 40 CPU range/corner/appearance captures and
+  representative Weather, day-detail top/hourly/bottom, Network, and Combined captures were inspected. They are
+  aligned, unclipped, scroll to the true bottom, and preserve the existing Liquid Glass cards and glow. The capture
+  harness now requests layout immediately before capture and retries up to five transient blank WindowServer frames.
+- `python3 Scripts/benchmark-popover-memory.py` completed ten rich-panel cycles at 35.6 MiB current and a 47.8 MiB
+  peak, below the 128 MiB gate (`dist/p8-t44-popover-memory.log`).
+- `python3 Scripts/benchmark-memory.py dist/memory-baseline` passed with a 92.7% lower one-hour footprint and zero
+  growth from simulated hours 24 to 48 (`dist/p8-t44-history-memory.log`).
+- The Apple Swift Async Algorithms package was evaluated for the polling path. Barometer's scheduler already uses an
+  `AsyncStream`, `ContinuousClock`, cancellation, aligned sleeps, and timer tolerance, so replacing it with
+  `AsyncTimerSequence` would not address this measured AppKit Accessibility hot path. No dependency was added.
+- Installed build 141 is version 1.0.2 with a valid signature. After an interactive Sensors open and close, a
+  20-second stack sample measured 24.1 MiB current / 37.2 MiB peak physical footprint and kept the main thread idle
+  in 99.7% of samples. It contained no `menuWillOpen`, `_simulateOpening`, `_openForInspection`, or `NSHostingView`
+  allocation stack (`dist/p8-t44-installed-141.sample`).
+- A separate settled 41-second run with every panel closed averaged 0.61% CPU, with a 3.2% brief maximum and about
+  24 MiB final physical footprint (`dist/p8-t44-idle-top-141-settled.log`). `leaks` then reported 24.0 MiB current /
+  37.2 MiB peak and zero leaked blocks (`dist/p8-t44-installed-141-leaks.log`). Thaw was not running during these
+  measurements, so its live Accessibility-inspection check remains pending. No push.

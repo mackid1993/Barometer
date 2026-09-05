@@ -13,11 +13,12 @@ func dropdownVisibility(module: String) {
         moduleName: module, statusItem: nil, rootView: AnyView(Text("CPU")), contentHeight: 100,
         visibilityAction: { visibility.append($0) }, tickAction: { ticks += 1 }, settingsAction: {}, quitAction: {}
     )
-    let menu = NSMenu()
+    let menu = controller.representedMenu
     #expect(!controller.hasAllocatedHostingView)
     controller.menuNeedsUpdate(menu)
     #expect(visibility.isEmpty)
     #expect(ticks == 0)
+    NotificationCenter.default.post(name: NSMenu.didBeginTrackingNotification, object: menu)
     controller.menuWillOpen(menu)
     #expect(controller.hasAllocatedHostingView)
     #expect(ticks == 1)
@@ -25,6 +26,7 @@ func dropdownVisibility(module: String) {
     #expect(visibility == [true])
     #expect(ticks == 2)
     controller.menuDidClose(menu)
+    NotificationCenter.default.post(name: NSMenu.didEndTrackingNotification, object: menu)
     #expect(visibility == [true, false])
     #expect(!controller.hasAllocatedHostingView)
 }
@@ -42,14 +44,39 @@ func dropdownExclusivity() {
         moduleName: "Memory", statusItem: nil, rootView: AnyView(Text("Memory")), contentHeight: 100,
         visibilityAction: { secondVisibility.append($0) }, tickAction: {}, settingsAction: {}, quitAction: {}
     )
-    let firstMenu = NSMenu()
-    let secondMenu = NSMenu()
+    let firstMenu = first.representedMenu
+    let secondMenu = second.representedMenu
+    NotificationCenter.default.post(name: NSMenu.didBeginTrackingNotification, object: firstMenu)
     first.menuWillOpen(firstMenu)
+    NotificationCenter.default.post(name: NSMenu.didBeginTrackingNotification, object: secondMenu)
     second.menuWillOpen(secondMenu)
     #expect(firstVisibility == [true, false])
     #expect(secondVisibility == [true])
     second.menuDidClose(secondMenu)
+    NotificationCenter.default.post(name: NSMenu.didEndTrackingNotification, object: firstMenu)
+    NotificationCenter.default.post(name: NSMenu.didEndTrackingNotification, object: secondMenu)
     #expect(secondVisibility == [true, false])
+}
+
+@MainActor
+@Test("Accessibility inspection does not allocate or poll a closed status menu")
+func accessibilityInspectionStaysLightweight() {
+    var visibility: [Bool] = []
+    var ticks = 0
+    let controller = DropdownController(
+        moduleName: "Memory", statusItem: nil, rootView: AnyView(Text("Memory")), contentHeight: 100,
+        visibilityAction: { visibility.append($0) }, tickAction: { ticks += 1 }, settingsAction: {}, quitAction: {}
+    )
+    let menu = controller.representedMenu
+
+    controller.menuNeedsUpdate(menu)
+    controller.menuWillOpen(menu)
+    controller.menuDidClose(menu)
+
+    #expect(!controller.hasAllocatedHostingView)
+    #expect(!controller.hasActiveTrackingTimer)
+    #expect(visibility.isEmpty)
+    #expect(ticks == 0)
 }
 
 @MainActor

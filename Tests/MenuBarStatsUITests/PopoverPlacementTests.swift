@@ -107,6 +107,7 @@ struct PopoverPlacementTests {
                                 RunLoop.main.run(
                                     until: Date(timeIntervalSinceNow: name.hasPrefix("cpu") ? 1 : 0.25)
                                 )
+                                panel.contentView?.layoutSubtreeIfNeeded()
                                 panel.displayIfNeeded()
                                 let baseName = "\(name)-\(appearance.rawValue)-\(corner)"
                                 try capture(panel, named: baseName, in: directory)
@@ -182,7 +183,7 @@ struct PopoverPlacementTests {
 
     private func capture(_ panel: NSPanel, named name: String, in directory: String) throws {
         let path = URL(fileURLWithPath: directory).appendingPathComponent("\(name).png").path
-        for attempt in 0..<3 {
+        for attempt in 0..<5 {
             let capture = Process()
             capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
             capture.arguments = ["-x", "-l", String(panel.windowNumber), path]
@@ -196,12 +197,14 @@ struct PopoverPlacementTests {
             if UnsafeBufferPointer(start: bitmapData, count: byteCount).contains(where: { $0 != 0 }) {
                 return
             }
-            if attempt < 2 {
-                RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+            if attempt < 4 {
+                panel.orderFront(nil)
+                RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.25))
+                panel.contentView?.layoutSubtreeIfNeeded()
                 panel.displayIfNeeded()
             }
         }
-        Issue.record("Window capture for \(name) was fully transparent after three attempts")
+        Issue.record("Window capture for \(name) was fully transparent after five attempts")
     }
 
     private static func verticalScrollView(in view: NSView?) -> NSScrollView? {

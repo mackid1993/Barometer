@@ -32,6 +32,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     private let dismissalMonitor = PopoverDismissalMonitor()
     private var activationHoverRegion: NSRect?
     private var isOpen = false
+    private var isMenuTracking = false
 
     /// Creates and installs a hosted menu for one permanent status item.
     public init(
@@ -76,6 +77,18 @@ public final class DropdownController: NSObject, NSMenuDelegate {
                     self?.detailPresenter.anchorDidExit(rowAnchor)
                 })
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(menuTrackingDidBegin),
+            name: NSMenu.didBeginTrackingNotification,
+            object: menu
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(menuTrackingDidEnd),
+            name: NSMenu.didEndTrackingNotification,
+            object: menu
+        )
         menu.delegate = self
         menu.minimumWidth = contentWidth
 
@@ -90,6 +103,10 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         quitItem.target = self
         menu.addItem(quitItem)
         if let statusItem { attach(statusItem: statusItem) }
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     /// Attaches this controller's permanent menu to a newly enabled status item.
@@ -144,6 +161,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
 
     var hasActiveTrackingTimer: Bool { trackingTimer != nil }
     var hasAllocatedHostingView: Bool { hostingView != nil }
+    var representedMenu: NSMenu { menu }
 
     static func attachedPanelHeight(contentHeight: CGFloat, availableHeight: CGFloat) -> CGFloat {
         min(BarometerDesign.maximumPanelHeight, contentHeight + 56, availableHeight)
@@ -180,6 +198,12 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     }
 
     public func menuWillOpen(_ menu: NSMenu) {
+        // Accessibility clients ask AppKit to simulate opening a closed status menu while they
+        // inspect its children. Only real menu tracking posts didBeginTrackingNotification.
+        guard isMenuTracking else {
+            logger.debug("ignored accessibility menu inspection module=\(self.moduleName, privacy: .public)")
+            return
+        }
         becomeActive()
         isOpen = true
         activationHoverRegion = Self.activationHoverRegion(
@@ -200,7 +224,16 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     }
 
     public func menuDidClose(_ menu: NSMenu) {
+        guard isOpen else { return }
         finishNativeMenuClose()
+    }
+
+    @objc private func menuTrackingDidBegin() {
+        isMenuTracking = true
+    }
+
+    @objc private func menuTrackingDidEnd() {
+        isMenuTracking = false
     }
 
     private func finishNativeMenuClose() {
