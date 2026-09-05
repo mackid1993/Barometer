@@ -3312,3 +3312,21 @@ Verification before local installation:
   24 MiB final physical footprint (`dist/p8-t44-idle-top-141-settled.log`). `leaks` then reported 24.0 MiB current /
   37.2 MiB peak and zero leaked blocks (`dist/p8-t44-installed-141-leaks.log`). Thaw was not running during these
   measurements, so its live Accessibility-inspection check remains pending. No push.
+
+## P8-T45 Detailed 1.0.2 release notes
+
+Added `docs/RELEASE_NOTES_1.0.2.md` with the complete user-facing changes since 1.0.1. The notes cover rich daily and
+hourly Weather details, configurable sections, CPU and GPU history, sampling controls, the DMG updater, Calendar and
+Network fixes, dropdown behavior, menu bar manager compatibility, and the measured CPU and memory improvements.
+They also credit `@diazdesandi` and link pull request #2 for the memory investigation and adapted work.
+
+The wording is intentionally direct and conversational. The document contains no em dashes or semicolons. Corrected
+`docs/RELEASING.md` to match the actual manual-only workflow triggers.
+
+Verification before pushing:
+
+- `python3 Scripts/check-source-invariants.py` passed.
+- `git diff --check` passed.
+- Confirmed the release notes contain zero em dashes, en dashes, or semicolons.
+- The GitHub Build macOS workflow with notarization disabled will provide the requested remote test and compilation
+  check after this commit reaches `master`.

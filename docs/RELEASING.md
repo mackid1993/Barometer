@@ -1,7 +1,7 @@
 # Releasing Barometer
 
-Barometer's build and release workflows run only when manually dispatched; the test workflow also runs on pushes to
-`master`. A build produces a Developer ID-signed DMG.
+Barometer's build, check, and release workflows run only when manually dispatched. A build produces a Developer
+ID-signed DMG.
 The Check and Build macOS workflows share a required Tests job. Packaging and certificate import start only
 when that job passes; Release inherits this gate through Build macOS. `make test` executes Swift Testing even
 with the Command Line Tools installation used for local development.
