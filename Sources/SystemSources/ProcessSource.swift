@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import Synchronization
 
 /// One process observation derived from libproc.
 public struct ProcessSnapshot: Sendable {
@@ -247,27 +248,25 @@ public final class ProcessSource {
     /// application bundle's property lists. Every refresh cycle walks hundreds of processes,
     /// so the resolved value is cached to keep those mapped files from accumulating in
     /// long-running sessions. The empty string caches a path with no display name.
-    // Protected by displayNameCacheLock; readProcesses runs on monitor tasks off the main actor.
-    private static let displayNameCacheLock = NSLock()
-    private nonisolated(unsafe) static var displayNameCache: [String: String] = [:]
+    ///
+    /// A `Mutex` guards the dictionary because `readProcesses` runs on monitor tasks off the main actor.
+    private static let displayNameCache = Mutex<[String: String]>([:])
     private static let displayNameCacheLimit = 512
 
     static func applicationDisplayName(forExecutablePath path: String) -> String? {
-        displayNameCacheLock.lock()
-        if let cached = displayNameCache[path] {
-            displayNameCacheLock.unlock()
+        let cached = displayNameCache.withLock { $0[path] }
+        if let cached {
             return cached.isEmpty ? nil : cached
         }
-        displayNameCacheLock.unlock()
 
         let resolved = resolveApplicationDisplayName(forExecutablePath: path)
 
-        displayNameCacheLock.lock()
-        if displayNameCache.count >= displayNameCacheLimit, let oldest = displayNameCache.keys.first {
-            displayNameCache.removeValue(forKey: oldest)
+        displayNameCache.withLock { cache in
+            if cache.count >= displayNameCacheLimit, let oldest = cache.keys.first {
+                cache.removeValue(forKey: oldest)
+            }
+            cache[path] = resolved ?? ""
         }
-        displayNameCache[path] = resolved ?? ""
-        displayNameCacheLock.unlock()
         return resolved
     }
 

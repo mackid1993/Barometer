@@ -110,8 +110,7 @@ public struct SensorSettings: Codable, Equatable, Sendable {
     }
 
     private static func normalized(_ widgets: [SensorWidgetSettings]) -> [SensorWidgetSettings] {
-        var seen: Set<Int> = []
-        let unique = widgets.filter { seen.insert($0.id).inserted }
-        return (unique.isEmpty ? [SensorWidgetSettings(id: 1)] : unique).sorted { $0.id < $1.id }
+        let unique = widgets.uniquedByID()
+        return unique.isEmpty ? [SensorWidgetSettings(id: 1)] : unique
     }
 }

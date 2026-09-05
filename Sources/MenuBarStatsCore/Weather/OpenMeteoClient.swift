@@ -415,12 +415,15 @@ public actor OpenMeteoClient: WeatherClient {
     }
 
     private static func parse(_ value: String, timeZone: TimeZone, includesTime: Bool) throws -> Date {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = timeZone
-        formatter.dateFormat = includesTime ? "yyyy-MM-dd'T'HH:mm" : "yyyy-MM-dd"
-        guard let date = formatter.date(from: value) else { throw OpenMeteoError.invalidTime(value) }
+        let configuration = DateFormatterCache.Configuration(
+            pattern: .format(includesTime ? "yyyy-MM-dd'T'HH:mm" : "yyyy-MM-dd"),
+            timeZone: timeZone,
+            locale: Locale(identifier: "en_US_POSIX"),
+            calendarIdentifier: .gregorian
+        )
+        guard let date = DateFormatterCache.date(from: value, configuration) else {
+            throw OpenMeteoError.invalidTime(value)
+        }
         return date
     }
 }

@@ -432,16 +432,19 @@ private func runWeatherProbe(latitude: Double, longitude: Double) async throws {
             + "wind \(format(forecast.current.windSpeed, suffix: " mph")); "
             + "AQI \(airQuality.usAQI.map(String.init) ?? "unavailable")"
     )
-    let formatter = DateFormatter()
-    formatter.timeZone = forecast.timeZone
-    formatter.dateFormat = "EEE MMM d"
+    let dayStyle = Date.VerbatimFormatStyle(
+        format: "\(weekday: .abbreviated) \(month: .abbreviated) \(day: .defaultDigits)",
+        locale: .current,
+        timeZone: forecast.timeZone,
+        calendar: .current
+    )
     print("10-day forecast:")
     for day in forecast.daily {
         let high = format(day.high, suffix: "°")
         let low = format(day.low, suffix: "°")
         let precipitation = format(day.precipitationProbability, suffix: "%")
         let condition = day.code?.description ?? "Unknown"
-        print("  \(formatter.string(from: day.date)): \(condition), \(high)/\(low), rain \(precipitation)")
+        print("  \(day.date.formatted(dayStyle)): \(condition), \(high)/\(low), rain \(precipitation)")
     }
 }
 

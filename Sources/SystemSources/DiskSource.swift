@@ -135,7 +135,7 @@ public struct DiskSource: Sendable {
             IOObjectRelease(service)
             service = IOIteratorNext(iterator)
         }
-        return devices.sorted { $0.bsdName.localizedStandardCompare($1.bsdName) == .orderedAscending }
+        return devices.sorted(using: KeyPathComparator(\.bsdName, comparator: .localizedStandard))
     }
 
     private static func deviceSnapshot(service: io_registry_entry_t) -> DiskDeviceSnapshot? {

@@ -60,10 +60,7 @@ struct WeatherDayDetailView: View {
     }
 
     nonisolated static func dateTitle(_ date: Date, timeZone: TimeZone) -> String {
-        let formatter = DateFormatter()
-        formatter.timeZone = timeZone
-        formatter.setLocalizedDateFormatFromTemplate("EEEE MMM d")
-        return formatter.string(from: date)
+        date.formatted(Date.FormatStyle(timeZone: timeZone).weekday(.wide).month(.abbreviated).day())
     }
 
     // MARK: - Day overview
@@ -228,10 +225,7 @@ struct WeatherDayDetailView: View {
     // MARK: - Formatting
 
     private func hourLabel(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.timeZone = forecast.timeZone
-        formatter.dateFormat = "h a z"
-        return formatter.string(from: date)
+        DateFormatterCache.string(from: date, format: "h a z", timeZone: forecast.timeZone)
     }
 
     private func detail(_ label: String, _ value: String) -> some View {

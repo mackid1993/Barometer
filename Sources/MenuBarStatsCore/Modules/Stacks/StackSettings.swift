@@ -196,7 +196,6 @@ public struct StacksSettings: Codable, Equatable, Sendable {
 
     /// Removes duplicate identities and keeps stacks in permanent identity order.
     private static func normalized(_ stacks: [StackSettings]) -> [StackSettings] {
-        var seen: Set<Int> = []
-        return stacks.filter { seen.insert($0.id).inserted }.sorted { $0.id < $1.id }
+        stacks.uniquedByID()
     }
 }

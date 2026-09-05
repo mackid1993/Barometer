@@ -98,11 +98,12 @@ public struct WeatherDropdownView: View {
     ) -> String {
         var calendar = Calendar.current
         calendar.timeZone = timeZone
-        let formatter = DateFormatter()
-        formatter.dateStyle = calendar.isDate(fetchedAt, inSameDayAs: now) ? .none : .medium
-        formatter.timeStyle = .short
-        formatter.timeZone = timeZone
-        let absoluteTime = formatter.string(from: fetchedAt)
+        let absoluteTime = DateFormatterCache.string(
+            from: fetchedAt,
+            dateStyle: calendar.isDate(fetchedAt, inSameDayAs: now) ? .none : .medium,
+            timeStyle: .short,
+            timeZone: timeZone
+        )
         let fetchedMinute = floor(fetchedAt.timeIntervalSince1970 / 60)
         let currentMinute = floor(now.timeIntervalSince1970 / 60)
         let elapsedMinutes = max(0, Int(currentMinute - fetchedMinute))
@@ -687,29 +688,26 @@ enum WeatherValue {
     }
 
     static func hour(_ date: Date, timeZone: TimeZone) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "ha"
-        formatter.amSymbol = "am"
-        formatter.pmSymbol = "pm"
-        formatter.timeZone = timeZone
-        return formatter.string(from: date).lowercased()
+        let configuration = DateFormatterCache.Configuration(
+            pattern: .format("ha"),
+            timeZone: timeZone,
+            amSymbol: "am",
+            pmSymbol: "pm"
+        )
+        return DateFormatterCache.string(from: date, configuration).lowercased()
     }
 
     static func weekday(_ date: Date, timeZone: TimeZone) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEE"
-        formatter.timeZone = timeZone
-        return formatter.string(from: date)
+        date.formatted(
+            Date.VerbatimFormatStyle(
+                format: "\(weekday: .abbreviated)", locale: .current, timeZone: timeZone, calendar: .current))
     }
 
     static func time(_ date: Date?, timeZone: TimeZone) -> String {
         guard let date else {
             return "—"
         }
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        formatter.timeZone = timeZone
-        return formatter.string(from: date)
+        return DateFormatterCache.string(from: date, timeStyle: .short, timeZone: timeZone)
     }
 
     static func pressure(_ value: Double?, units: WeatherUnits) -> String {

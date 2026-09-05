@@ -305,7 +305,7 @@ public actor IOReportSource {
             elapsedSeconds: elapsedSeconds,
             energy: energyReadings,
             power: powerReadings(from: energy, elapsedSeconds: elapsedSeconds),
-            frequencies: frequencies.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending },
+            frequencies: frequencies.sorted(using: KeyPathComparator(\.name, comparator: .localizedStandard)),
             temperatures: temperatureReadings(from: currentSamples)
         )
     }
@@ -336,7 +336,7 @@ public actor IOReportSource {
                 readings.append(IOReportTemperatureReading(name: name, celsius: celsius))
             }
         }
-        return readings.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        return readings.sorted(using: KeyPathComparator(\.name, comparator: .localizedStandard))
     }
 
     static func normalizedTemperature(_ raw: Int64) -> Double? {

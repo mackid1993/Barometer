@@ -74,7 +74,7 @@ public actor HIDTemperatureSource {
                 sampleCount: values.count
             )
         }
-        .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        .sorted(using: KeyPathComparator(\.name, comparator: .localizedStandard))
     }
 
     /// Drops the cached services so the next read discovers the current hardware set.

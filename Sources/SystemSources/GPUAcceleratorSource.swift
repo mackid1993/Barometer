@@ -52,7 +52,7 @@ public struct GPUAcceleratorSource: Sendable {
         guard !snapshots.isEmpty else {
             throw GPUAcceleratorSourceError.statisticsUnavailable
         }
-        return snapshots.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        return snapshots.sorted(using: KeyPathComparator(\.name, comparator: .localizedStandard))
     }
 
     static func snapshot(name: String, statistics: [String: Any]) -> GPUAcceleratorSnapshot? {

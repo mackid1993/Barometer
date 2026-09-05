@@ -240,7 +240,7 @@ public actor SensorsMonitor: Monitor {
         }
         let energy = energyAccumulator.joules.map { id, joules in
             SensorEnergyReading(id: id, name: Self.energyName(for: id), joules: joules)
-        }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        }.sorted(using: KeyPathComparator(\.name, comparator: .localizedStandard))
         return SensorSample(
             timestamp: timestamp,
             readings: readings.sorted(by: Self.readingOrder),
