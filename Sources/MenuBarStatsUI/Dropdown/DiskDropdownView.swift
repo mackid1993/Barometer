@@ -24,7 +24,7 @@ public struct DiskDropdownView: View {
         let accent = ModuleAccent.resolve(settingsStore.settings, module: .disks)
         let readAccent = ModuleAccent(primary: accent.primary, secondary: accent.primary.opacity(0.7))
         let writeAccent = ModuleAccent(primary: accent.secondary, secondary: accent.secondary.opacity(0.7))
-        let rates = aggregateRates(sample)
+        let rates = sample?.totalRates ?? (read: 0, write: 0)
         let selected = sample?.selectedVolume(settings: settings)
 
         DropdownScaffold(size: Self.contentSize) {
@@ -120,13 +120,6 @@ public struct DiskDropdownView: View {
                     .foregroundStyle(.red)
             }
         }
-    }
-
-    private func aggregateRates(_ sample: DiskSample?) -> (read: Double, write: Double) {
-        sample?.devices.reduce(into: (read: 0.0, write: 0.0)) { result, device in
-            result.read += device.readBytesPerSecond
-            result.write += device.writeBytesPerSecond
-        } ?? (0, 0)
     }
 
     private func eject(_ volume: DiskVolumeSample) {
@@ -242,7 +235,7 @@ private struct DiskHistoryGraph: View {
         let values = samples.suffix(300).map { entry in
             entry.value
         }
-        let maximum = max(1, values.reduce(0) { max($0, $1.read, $1.write) } * 1.1)
+        let maximum = DiskSample.graphScale(for: values)
         MirroredAreaGraph(
             upper: values.map { min(1, $0.read / maximum) },
             lower: values.map { min(1, $0.write / maximum) },

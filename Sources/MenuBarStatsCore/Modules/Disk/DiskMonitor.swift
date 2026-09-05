@@ -108,6 +108,25 @@ public struct DiskSample: Equatable, Sendable {
         self.volumes = volumes
         self.devices = devices
     }
+
+    // MARK: Aggregates
+
+    /// Read and write throughput summed across every physical device, in bytes per second.
+    public var totalRates: (read: Double, write: Double) {
+        devices.reduce(into: (read: 0.0, write: 0.0)) { totals, device in
+            totals.read += device.readBytesPerSecond
+            totals.write += device.writeBytesPerSecond
+        }
+    }
+
+    /// The bytes-per-second value that maps to a full-height graph for the supplied history.
+    ///
+    /// The scale sits 10 percent above the largest read or write rate so the peak never touches the
+    /// top edge, and never drops below one so an idle disk draws a flat baseline instead of dividing
+    /// by zero.
+    public static func graphScale(for values: [DiskHistoryValue]) -> Double {
+        max(1, values.reduce(0) { max($0, $1.read, $1.write) } * 1.1)
+    }
 }
 
 /// Converts cumulative block-driver statistics into live disk throughput and operation rates.

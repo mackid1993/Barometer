@@ -12,7 +12,7 @@ enum DiskMenuBarPresenter {
         context: RenderContext
     ) -> StatusItemContent {
         let volume = sample?.selectedVolume(settings: diskSettings)
-        let rates = sample.map(aggregateRates) ?? (read: 0, write: 0)
+        let rates = sample?.totalRates ?? (read: 0, write: 0)
         let renderer: any MenuBarRenderer
         switch moduleSettings.mode {
         case "freePercentage":
@@ -70,13 +70,6 @@ enum DiskMenuBarPresenter {
         )
     }
 
-    private static func aggregateRates(_ sample: DiskSample) -> (read: Double, write: Double) {
-        sample.devices.reduce(into: (read: 0.0, write: 0.0)) { result, device in
-            result.read += device.readBytesPerSecond
-            result.write += device.writeBytesPerSecond
-        }
-    }
-
     private static func freePercent(_ volume: DiskVolumeSample) -> Double {
         volume.totalBytes > 0 ? Double(volume.availableBytes) / Double(volume.totalBytes) * 100 : 0
     }
@@ -85,7 +78,7 @@ enum DiskMenuBarPresenter {
         _ history: [HistoryEntry<DiskSample.GraphValue>]
     ) -> (reads: [Double], writes: [Double]) {
         let rates = history.map { $0.value }
-        let maximum = max(1, rates.reduce(0) { max($0, $1.read, $1.write) } * 1.1)
+        let maximum = DiskSample.graphScale(for: rates)
         return (
             reads: rates.map { min(1, max(0, $0.read / maximum)) },
             writes: rates.map { min(1, max(0, $0.write / maximum)) }
