@@ -5,12 +5,17 @@ set -eu
 project_directory=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$project_directory"
 
-version=$(tr -d '[:space:]' < VERSION)
+version=${BAROMETER_VERSION:-$(tr -d '[:space:]' < VERSION)}
 build=$(git rev-list --count HEAD 2>/dev/null || printf '1')
 application_directory="$project_directory/dist/Barometer.app"
 contents_directory="$application_directory/Contents"
 macos_directory="$contents_directory/MacOS"
 resources_directory="$contents_directory/Resources"
+
+if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    echo "Barometer version '$version' is not major.minor.patch" >&2
+    exit 1
+fi
 
 swift build -c release --product Barometer
 binary_directory=$(swift build -c release --show-bin-path)
@@ -55,10 +60,16 @@ fi
 
 bundle_identifier=$(plutil -extract CFBundleIdentifier raw -o - "$contents_directory/Info.plist")
 bundle_executable=$(plutil -extract CFBundleExecutable raw -o - "$contents_directory/Info.plist")
+bundle_version=$(plutil -extract CFBundleShortVersionString raw -o - "$contents_directory/Info.plist")
 executable_count=$(find "$contents_directory" -type f -perm -111 | wc -l | tr -d '[:space:]')
 
 if [ "$bundle_identifier" != "com.barometer.app" ] || [ "$bundle_executable" != "Barometer" ]; then
     echo "Barometer bundle identity validation failed" >&2
+    exit 1
+fi
+
+if [ "$bundle_version" != "$version" ]; then
+    echo "Barometer version stamping failed: expected $version, found $bundle_version" >&2
     exit 1
 fi
 

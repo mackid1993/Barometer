@@ -36,7 +36,9 @@ certificate.
 4. Download the `barometer-dmg` artifact after the job succeeds.
 
 The workflow imports the certificate into an ephemeral keychain, signs the single `Barometer.app` executable with
-the hardened runtime, builds `Barometer-VERSION.dmg`, verifies both artifacts, and deletes the temporary certificate.
+the hardened runtime, stamps the requested version into the app bundle, builds `Barometer-VERSION.dmg`, verifies the
+stamped version and both artifacts, and deletes the temporary certificate. CI supplies the release version directly;
+the repository `VERSION` file is only the fallback for local development builds.
 
 ## Prepare a release
 

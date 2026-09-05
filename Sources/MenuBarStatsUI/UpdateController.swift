@@ -26,6 +26,7 @@ public final class UpdateController {
     private let logger = Logger(subsystem: "com.barometer.app", category: "updates")
     private var checkGeneration = 0
     private var isPresentingOffer = false
+    private var offerWindowController: UpdateOfferWindowController?
 
     /// Creates the updater. Tests can supply a private defaults suite and service.
     public init(
@@ -125,27 +126,23 @@ public final class UpdateController {
         guard !isPresentingOffer else { return }
         isPresentingOffer = true
         NSApp.activate()
-        let alert = NSAlert()
-        alert.alertStyle = .informational
-        alert.messageText = "Barometer \(release.version) Is Available"
-        alert.informativeText =
-            "Barometer will download and verify the disk image, replace the app in Applications, "
-            + "then reopen automatically."
-        alert.accessoryView = Self.releaseNotesView(release.notes)
-        alert.addButton(withTitle: "Download and Install")
-        alert.addButton(withTitle: "Later")
-        alert.addButton(withTitle: "Skip This Version")
-        let response = alert.runModal()
-        isPresentingOffer = false
-        switch response {
-        case .alertFirstButtonReturn:
-            download(release)
-        case .alertThirdButtonReturn:
-            defaults.set(release.version.description, forKey: Self.skippedVersionKey)
-            statusMessage = "Skipped Barometer \(release.version)"
-        default:
-            break
+        let controller = UpdateOfferWindowController(release: release) { [weak self] choice in
+            guard let self else { return }
+            self.isPresentingOffer = false
+            self.offerWindowController = nil
+            switch choice {
+            case .install:
+                self.download(release)
+            case .skip:
+                self.defaults.set(release.version.description, forKey: Self.skippedVersionKey)
+                self.statusMessage = "Skipped Barometer \(release.version)"
+            case .later:
+                break
+            }
         }
+        offerWindowController = controller
+        controller.showWindow(nil)
+        controller.window?.makeKeyAndOrderFront(nil)
     }
 
     private func download(_ release: UpdateRelease) {
@@ -182,35 +179,6 @@ public final class UpdateController {
         alert.informativeText = message
         alert.addButton(withTitle: "OK")
         alert.runModal()
-    }
-
-    private static func releaseNotesView(_ notes: String) -> NSView {
-        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 480, height: 250))
-        scrollView.hasVerticalScroller = true
-        scrollView.autohidesScrollers = true
-        scrollView.drawsBackground = false
-
-        let textView = NSTextView(frame: scrollView.bounds)
-        textView.isEditable = false
-        textView.isSelectable = true
-        textView.drawsBackground = false
-        textView.textContainerInset = NSSize(width: 4, height: 6)
-        textView.textContainer?.widthTracksTextView = true
-        textView.isVerticallyResizable = true
-        textView.isHorizontallyResizable = false
-        textView.autoresizingMask = [.width]
-        if let markdown = try? AttributedString(
-            markdown: notes,
-            options: .init(interpretedSyntax: .full)
-        ) {
-            textView.textStorage?.setAttributedString(NSAttributedString(markdown))
-        } else {
-            textView.string = notes
-        }
-        textView.font = .systemFont(ofSize: NSFont.systemFontSize)
-        textView.textColor = .labelColor
-        scrollView.documentView = textView
-        return scrollView
     }
 
     private static func message(for error: Error) -> String {

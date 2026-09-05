@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to build, for example 0.1.0"
+        description: "Version to build, for example 1.2.3"
         required: true
         type: string
       notarize:
@@ -48,11 +48,18 @@ jobs:
             echo "::error::Version '$VERSION' is not major.minor.patch" >&2
             exit 1
           fi
-          printf '%s\n' "$VERSION" > VERSION
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "BAROMETER_VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Build app
-        run: make app
+        run: |
+          make app
+          STAMPED_VERSION=$(plutil -extract CFBundleShortVersionString raw -o - \
+            dist/Barometer.app/Contents/Info.plist)
+          if [ "$STAMPED_VERSION" != "$VERSION" ]; then
+            echo "::error::Expected app version $VERSION, found $STAMPED_VERSION" >&2
+            exit 1
+          fi
 
       - name: Import Developer ID certificate
         env:

@@ -111,6 +111,30 @@ struct CalendarPackagingTests {
         }
     }
 
+    @Test("CI stamps and verifies the requested release version")
+    func releaseVersionStamping() throws {
+        let appScript = try String(
+            contentsOf: repository.appendingPathComponent("Scripts/make-app.sh"),
+            encoding: .utf8
+        )
+        let diskImageScript = try String(
+            contentsOf: repository.appendingPathComponent("Scripts/create-dmg.sh"),
+            encoding: .utf8
+        )
+        let workflow = try String(
+            contentsOf: repository.appendingPathComponent(".github/workflows/macos.yml"),
+            encoding: .utf8
+        )
+
+        #expect(appScript.contains("BAROMETER_VERSION"))
+        #expect(appScript.contains("bundle_version"))
+        #expect(diskImageScript.contains("BAROMETER_VERSION"))
+        #expect(diskImageScript.contains("Refusing to package"))
+        #expect(workflow.contains("BAROMETER_VERSION=$VERSION"))
+        #expect(workflow.contains("STAMPED_VERSION"))
+        #expect(!workflow.contains("printf '%s\\n' \"$VERSION\" > VERSION"))
+    }
+
     private func dictionary(at path: String) throws -> [String: Any] {
         let data = try Data(contentsOf: repository.appendingPathComponent(path))
         return try #require(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])

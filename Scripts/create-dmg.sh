@@ -5,12 +5,23 @@ set -eu
 project_directory=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$project_directory"
 
-version=$(tr -d '[:space:]' < VERSION)
+version=${BAROMETER_VERSION:-$(tr -d '[:space:]' < VERSION)}
 application_path=${1:-dist/Barometer.app}
 output_path=${2:-dist/Barometer-$version.dmg}
 
+if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    echo "Barometer version '$version' is not major.minor.patch" >&2
+    exit 1
+fi
+
 if [ ! -d "$application_path" ]; then
     echo "Barometer app bundle not found at $application_path" >&2
+    exit 1
+fi
+
+bundle_version=$(plutil -extract CFBundleShortVersionString raw -o - "$application_path/Contents/Info.plist")
+if [ "$bundle_version" != "$version" ]; then
+    echo "Refusing to package Barometer $bundle_version as $version" >&2
     exit 1
 fi
 

@@ -3549,3 +3549,41 @@ Local release verification before dispatch:
 - `make dmg` created `dist/Barometer-1.0.3.dmg`; the nested app passed strict Developer ID signature verification and
   `hdiutil verify` validated the image checksum. The local DMG remains unsigned by design. The GitHub job imports the
   distribution identity, signs the app and DMG, notarizes, staples, and verifies the final artifact.
+
+## P8-T54 Prepare Barometer 1.0.4
+
+Replaced the modal update alert with a dedicated Barometer update window. Release notes are parsed once into a native
+formatted document, the secondary button opens the exact GitHub release page, and the automatic path clearly names
+GitHub as the disk-image source. The update offer remains modeless so it does not block the normal application event
+loop.
+
+Live trackpad profiling on macOS 27 found that `NSScrollView` started concurrent display-link scrolling workers even
+when its normal wheel handler was overridden. Those workers caused sticky scrolling and CPU use that remained high
+after scrolling stopped. The final release-note viewport contains no `NSScrollView`: it uses a plain clip view, a
+read-only wrapping label, a standalone scrollbar, and direct precise and momentum deltas. David manually tested the
+installed build with a physical trackpad. Scrolling briefly reached about 11% CPU while visible text repainted and
+immediately returned to the normal idle range; he approved that behavior for release. The macOS 27 field guide now
+records this implementation boundary so a future refactor does not restore the broken scrolling path.
+
+GitHub Actions now supplies the requested release version directly to application and DMG packaging. Both stages
+validate semantic version syntax and stop if the finished bundle and disk-image versions disagree. Weather requests
+also identify the installed bundle version rather than an old development value. Bumped the source version to 1.0.4
+and added complete user-facing release notes with no development-assistant narrative, competitor references, or
+private signing identity.
+
+Release verification before dispatch:
+
+- `python3 Scripts/check-source-invariants.py` passed.
+- `make security-audit` passed.
+- `make test` passed all 259 tests: 35 SystemSources, 93 UI, and 131 Core tests.
+- The snapshot-enabled suite generated 192 light and dark placement captures. Two CPU captures were transiently
+  transparent during the first full run; the exact placement test then passed all captures on retry. Representative
+  CPU and Weather top and bottom images were inspected for alignment, clipping, scrolling, card shapes, gradients,
+  and glows.
+- `python3 Scripts/benchmark-popover-memory.py` passed ten rich-panel and shared-graph cycles at a 47.8 MiB peak,
+  below the 128 MiB gate.
+- The installed 1.0.2-stamped test build displayed the public 1.0.3 update and complete release notes. Live profiling
+  confirmed that the final viewport creates no AppKit concurrent scrolling worker.
+- `make dmg` built `dist/Barometer-1.0.4.dmg`; the nested app reports version 1.0.4, passes strict signature
+  verification, and `hdiutil verify` validates the image checksum. The local DMG is ad hoc signed by design; GitHub
+  Actions performs the Developer ID signature, notarization, stapling, and final assessment.

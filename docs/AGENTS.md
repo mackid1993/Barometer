@@ -239,6 +239,19 @@ A menu bar manager's new-item policy is not an application failure. Bartender on
 placed newly discovered items in its hidden section. First prove that a stable item exists, then have the user move
 it according to their manager policy.
 
+## Updater scrolling on macOS 27
+
+Do not put the updater's release-note document inside `NSScrollView`. On the tested macOS 27 build, trackpad input
+started AppKit's concurrent display-link scrolling workers even when the scroll view's wheel handler was overridden.
+The workers caused sticky two-finger scrolling and CPU use that remained elevated after the visible content stopped.
+
+`ReleaseNotesViewport` deliberately uses a plain `NSClipView`, a wrapping read-only label, and a standalone
+`NSScroller`. Precise and momentum deltas from `NSEvent` move the clip view directly. Formatting and document height
+are computed once per width, and neither wheel events nor scrolling may rebuild the attributed string or trigger
+layout preparation. Keep the regression test that proves the updater contains no `NSScrollView` and exercises a
+long stream of precise pixel deltas. A brief repaint spike while text moves is expected; CPU must return immediately
+to the application's normal idle range when scrolling stops.
+
 ## Hardware-source findings on macOS 27
 
 Private interfaces must each stay behind one wrapper in `SystemSources`, be runtime-checked, and degrade to

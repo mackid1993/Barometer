@@ -34,8 +34,6 @@ public actor OpenMeteoClient: WeatherClient {
     private static let forecastURL = URL(string: "https://api.open-meteo.com/v1/forecast")
     private static let geocodingURL = URL(string: "https://geocoding-api.open-meteo.com/v1/search")
     private static let airQualityURL = URL(string: "https://air-quality-api.open-meteo.com/v1/air-quality")
-    private static let userAgent = "Barometer/0.1.0 (com.barometer.app)"
-
     private let session: URLSession
 
     /// Creates a client, optionally using an injected URL session for tests.
@@ -46,9 +44,15 @@ public actor OpenMeteoClient: WeatherClient {
             let configuration = URLSessionConfiguration.ephemeral
             configuration.timeoutIntervalForRequest = 15
             configuration.timeoutIntervalForResource = 15
-            configuration.httpAdditionalHeaders = ["User-Agent": Self.userAgent]
+            configuration.httpAdditionalHeaders = ["User-Agent": Self.userAgent()]
             self.session = URLSession(configuration: configuration)
         }
+    }
+
+    private static func userAgent(bundle: Bundle = .main) -> String {
+        let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+            ?? "Development"
+        return "Barometer/\(version) (com.barometer.app)"
     }
 
     /// Fetches a detailed 10-day forecast for a saved location.
@@ -241,7 +245,7 @@ public actor OpenMeteoClient: WeatherClient {
 
     private func data(from url: URL) async throws -> Data {
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData)
-        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(Self.userAgent(), forHTTPHeaderField: "User-Agent")
         request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
         request.setValue("no-cache", forHTTPHeaderField: "Pragma")
         let (data, response) = try await session.data(for: request)
@@ -308,7 +312,7 @@ public actor OpenMeteoClient: WeatherClient {
             URLQueryItem(name: "models", value: model),
         ])
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData)
-        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(userAgent(), forHTTPHeaderField: "User-Agent")
         request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
         request.setValue("no-cache", forHTTPHeaderField: "Pragma")
         let (data, response) = try await session.data(for: request)
