@@ -18,6 +18,7 @@ objects = []
 for target in ['MenuBarStatsUI', 'MenuBarStatsCore', 'SystemSources', 'CSystemSources']:
     objects.extend(str(p) for p in sorted((binary_path / f'{target}.build').glob('*.o')))
 binary = root / 'dist' / 'popover-memory-benchmark'
+binary.parent.mkdir(parents=True, exist_ok=True)
 command = ['swiftc', '-parse-as-library', '-O', '-I', str(binary_path / 'Modules'),
            '-I', str(binary_path / 'CSystemSources.build'), str(root / 'Tools/PopoverMemoryBenchmark.swift'),
            *objects, '-o', str(binary)]

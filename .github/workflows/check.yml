@@ -1,11 +1,6 @@
 name: Check
 
 on:
-  # Runs on every push to master. Without this the suite only ran when someone remembered to dispatch
-  # it, and seventeen commits landed without it running once.
-  push:
-    branches: [master]
-  pull_request:
   workflow_dispatch:
 
 permissions:

@@ -67,7 +67,7 @@ struct SettingsTests {
         )
         let migrated = try JSONDecoder().decode(AppSettings.self, from: versionZero)
 
-        #expect(migrated.schemaVersion == 14)
+        #expect(migrated.schemaVersion == 15)
         #expect(!migrated.reducesSamplingOnBattery)
         #expect(!migrated.isMonochrome)
         #expect(migrated.fontSize == 12)
@@ -91,7 +91,7 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.schemaVersion == 14)
+        #expect(migrated.schemaVersion == 15)
         #expect(migrated.weather.refreshIntervalMinutes == 15)
         #expect(migrated.weather.units.temperature == .fahrenheit)
         #expect(migrated.sensorTemperatureUnit == .celsius)
@@ -117,7 +117,7 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.schemaVersion == 14)
+        #expect(migrated.schemaVersion == 15)
         #expect(migrated.network == NetworkSettings())
         #expect(migrated.modules[.network]?.mode == "twoLine")
         #expect(migrated.disks == DiskSettings())
@@ -159,7 +159,7 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.schemaVersion == 14)
+        #expect(migrated.schemaVersion == 15)
         #expect(migrated.disks == DiskSettings())
         #expect(migrated.modules[.disks]?.mode == "activityGraph")
     }
@@ -183,7 +183,7 @@ struct SettingsTests {
         let oldData = try JSONSerialization.data(withJSONObject: object)
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
-        #expect(migrated.schemaVersion == 14)
+        #expect(migrated.schemaVersion == 15)
         #expect(migrated.sensors == SensorSettings())
         #expect(migrated.modules[.sensors]?.mode == "compactStack")
     }
@@ -276,6 +276,39 @@ struct SettingsTests {
 
         #expect(migrated.effectiveMenuBarScale == 1.15)
         #expect(migrated.fontSize == 12)
+    }
+
+    @Test("legacy default sampling intervals migrate to three seconds")
+    func migrateDefaultSamplingIntervals() throws {
+        var original = AppSettings()
+        original.modules[.cpu]?.interval = 1
+        original.modules[.memory]?.interval = 2
+        original.modules[.gpu]?.interval = 1
+        original.modules[.network]?.interval = 1
+        original.modules[.disks]?.interval = 1
+        original.modules[.battery]?.interval = 7
+        let encoded = try JSONEncoder().encode(original)
+        var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        object["presentationDefaultsVersion"] = 3
+
+        let oldData = try JSONSerialization.data(withJSONObject: object)
+        let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
+
+        #expect(migrated.modules[.cpu]?.interval == 3)
+        #expect(migrated.modules[.memory]?.interval == 3)
+        #expect(migrated.modules[.gpu]?.interval == 3)
+        #expect(migrated.modules[.network]?.interval == 3)
+        #expect(migrated.modules[.disks]?.interval == 3)
+        #expect(migrated.modules[.battery]?.interval == 7)
+    }
+
+    @Test("global sampling interval survives settings round trip")
+    func globalSamplingIntervalRoundTrip() throws {
+        let decoded = try JSONDecoder().decode(
+            AppSettings.self,
+            from: JSONEncoder().encode(AppSettings(globalSamplingInterval: 3))
+        )
+        #expect(decoded.globalSamplingInterval == 3)
     }
 
     @Test("settings store persists immediately")

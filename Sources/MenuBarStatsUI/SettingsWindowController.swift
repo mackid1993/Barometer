@@ -226,6 +226,20 @@ private struct GeneralSettingsView: View {
                     .help("Doubles sampling intervals while the Mac is running on battery power.")
             }
 
+            Section("Sampling") {
+                Toggle("Use one interval for every module", isOn: globalSamplingEnabledBinding)
+                if settingsStore.settings.globalSamplingInterval != nil {
+                    HStack {
+                        Text("Global interval")
+                        Slider(value: globalSamplingIntervalBinding, in: 0.5...10, step: 0.5)
+                        Text(String(format: "%.1f s", globalSamplingIntervalBinding.wrappedValue))
+                            .monospacedDigit()
+                            .frame(width: 42, alignment: .trailing)
+                    }
+                }
+                SamplingIntervalNote()
+            }
+
             Section("Appearance") {
                 Picker("Theme", selection: appearancePresetBinding) {
                     ForEach(AppearancePreset.allCases.filter { $0 != .custom }, id: \.self) { preset in
@@ -374,6 +388,28 @@ private struct GeneralSettingsView: View {
             set: { value in
                 var settings = settingsStore.settings
                 settings[keyPath: keyPath] = value
+                settingsStore.settings = settings
+            }
+        )
+    }
+
+    private var globalSamplingEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { settingsStore.settings.globalSamplingInterval != nil },
+            set: { enabled in
+                var settings = settingsStore.settings
+                settings.globalSamplingInterval = enabled ? (settings.globalSamplingInterval ?? 3) : nil
+                settingsStore.settings = settings
+            }
+        )
+    }
+
+    private var globalSamplingIntervalBinding: Binding<Double> {
+        Binding(
+            get: { settingsStore.settings.globalSamplingInterval ?? 3 },
+            set: { interval in
+                var settings = settingsStore.settings
+                settings.globalSamplingInterval = interval
                 settingsStore.settings = settings
             }
         )
@@ -558,10 +594,7 @@ private struct AboutSettingsView: View {
                         .font(.system(size: 34, weight: .bold, design: .rounded))
                     Chip(text: "Version \(version) (\(build))", color: accent.primary, symbol: "tag.fill")
                 }
-                Text(
-                    "A detailed, customizable system monitor for the macOS menu bar, built to stay stable with "
-                        + "menu bar managers on macOS 27."
-                )
+                Text("A detailed, customizable system monitor for the macOS menu bar.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: 420)
@@ -686,6 +719,7 @@ private struct ModuleSettingsView: View {
                         .monospacedDigit()
                         .frame(width: 42, alignment: .trailing)
                 }
+                SamplingIntervalNote()
             }
 
             Section("Dropdown") {

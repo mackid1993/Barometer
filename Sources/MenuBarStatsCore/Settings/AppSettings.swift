@@ -132,7 +132,7 @@ public struct ModuleSettings: Codable, Equatable, Sendable {
     public init(
         isEnabled: Bool = false,
         mode: String = "percentage",
-        interval: Double = 1,
+        interval: Double = 3,
         graphStyle: GraphStyle = .line,
         usesFixedWidth: Bool = true,
         showsProcesses: Bool = true,
@@ -171,7 +171,7 @@ public struct ModuleSettings: Codable, Equatable, Sendable {
 /// Versioned application settings persisted as JSON in the app defaults domain.
 public struct AppSettings: Codable, Equatable, Sendable {
     /// Current settings schema version.
-    public static let currentSchemaVersion = 14
+    public static let currentSchemaVersion = 15
 
     /// Supported menu bar font-size range in points.
     public static let menuBarFontSizeRange = 9.0...12.0
@@ -181,6 +181,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
     /// Whether normal sampling intervals double while running on battery.
     public var reducesSamplingOnBattery: Bool
+
+    /// Optional sampling interval applied to every local hardware monitor.
+    public var globalSamplingInterval: Double?
 
     /// Whether renderers produce template images without explicit colors.
     public var isMonochrome: Bool
@@ -260,6 +263,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public init(
         schemaVersion: Int = AppSettings.currentSchemaVersion,
         reducesSamplingOnBattery: Bool = true,
+        globalSamplingInterval: Double? = nil,
         isMonochrome: Bool = true,
         usesGlobalColors: Bool = false,
         globalLightColor: String = "#2F7CF6",
@@ -289,6 +293,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     ) {
         self.schemaVersion = schemaVersion
         self.reducesSamplingOnBattery = reducesSamplingOnBattery
+        self.globalSamplingInterval = globalSamplingInterval
         self.isMonochrome = isMonochrome
         self.usesGlobalColors = usesGlobalColors
         self.globalLightColor = globalLightColor
@@ -315,7 +320,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.time = time
         self.combined = combined
         self.stacks = stacks
-        presentationDefaultsVersion = 3
+        presentationDefaultsVersion = 4
     }
 
     /// Default module settings, with CPU and Memory enabled for Phase 1.
@@ -324,12 +329,12 @@ public struct AppSettings: Codable, Equatable, Sendable {
             uniqueKeysWithValues: ModuleID.allCases.map { module in
                 (module, ModuleSettings())
             })
-        values[.cpu] = ModuleSettings(isEnabled: true, mode: "stacked", interval: 1)
-        values[.memory] = ModuleSettings(isEnabled: true, mode: "stacked", interval: 2)
-        values[.gpu] = ModuleSettings(isEnabled: false, mode: "percentage", interval: 1)
+        values[.cpu] = ModuleSettings(isEnabled: true, mode: "stacked", interval: 3)
+        values[.memory] = ModuleSettings(isEnabled: true, mode: "stacked", interval: 3)
+        values[.gpu] = ModuleSettings(isEnabled: false, mode: "percentage", interval: 3)
         values[.weather] = ModuleSettings(isEnabled: false, mode: "iconTemperature", interval: 900)
-        values[.network] = ModuleSettings(isEnabled: false, mode: "twoLine", interval: 1)
-        values[.disks] = ModuleSettings(isEnabled: false, mode: "activityGraph", interval: 1)
+        values[.network] = ModuleSettings(isEnabled: false, mode: "twoLine", interval: 3)
+        values[.disks] = ModuleSettings(isEnabled: false, mode: "activityGraph", interval: 3)
         values[.sensors] = ModuleSettings(isEnabled: false, mode: "compactStack", interval: 5)
         values[.battery] = ModuleSettings(isEnabled: false, mode: "glyphPercentage", interval: 10)
         values[.time] = ModuleSettings(isEnabled: false, mode: "custom", interval: 60)
@@ -340,6 +345,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case schemaVersion
         case reducesSamplingOnBattery
+        case globalSamplingInterval
         case isMonochrome
         case usesGlobalColors
         case globalLightColor
@@ -382,6 +388,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
                     Bool.self,
                     forKey: .reducesSamplingOnBattery
                 ) ?? true
+            globalSamplingInterval = nil
             isMonochrome = try container.decodeIfPresent(Bool.self, forKey: .isMonochrome) ?? true
             usesGlobalColors = false
             globalLightColor = "#2F7CF6"
@@ -408,10 +415,11 @@ public struct AppSettings: Codable, Equatable, Sendable {
             time = TimeSettings()
             combined = CombinedSettings()
             stacks = StacksSettings()
-            presentationDefaultsVersion = 3
+            presentationDefaultsVersion = 4
         case 1...Self.currentSchemaVersion:
             schemaVersion = Self.currentSchemaVersion
             reducesSamplingOnBattery = try container.decode(Bool.self, forKey: .reducesSamplingOnBattery)
+            globalSamplingInterval = try container.decodeIfPresent(Double.self, forKey: .globalSamplingInterval)
             isMonochrome = try container.decode(Bool.self, forKey: .isMonochrome)
             usesGlobalColors = try container.decodeIfPresent(Bool.self, forKey: .usesGlobalColors) ?? false
             globalLightColor = try container.decodeIfPresent(String.self, forKey: .globalLightColor) ?? "#2F7CF6"
@@ -501,6 +509,19 @@ public struct AppSettings: Codable, Equatable, Sendable {
             }
             if presentationDefaultsVersion < 3 {
                 presentationDefaultsVersion = 3
+            }
+            if presentationDefaultsVersion < 4 {
+                let priorDefaults: [ModuleID: Double] = [
+                    .cpu: 1,
+                    .memory: 2,
+                    .gpu: 1,
+                    .network: 1,
+                    .disks: 1,
+                ]
+                for (module, priorDefault) in priorDefaults where modules[module]?.interval == priorDefault {
+                    modules[module]?.interval = 3
+                }
+                presentationDefaultsVersion = 4
             }
             // Weather has exactly one presentation now, so every saved mode resolves to it.
             modules[.weather]?.mode = "iconTemperature"

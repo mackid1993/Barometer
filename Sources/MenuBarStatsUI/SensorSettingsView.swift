@@ -126,6 +126,7 @@ public struct SensorSettingsView: View {
                 Text("A five-second minimum keeps private hardware polling energy-efficient.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                SamplingIntervalNote()
             }
 
             Section("Menu Bar Colors") {

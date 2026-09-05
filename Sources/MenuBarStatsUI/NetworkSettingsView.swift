@@ -106,6 +106,7 @@ struct NetworkSettingsView: View {
                         .monospacedDigit()
                         .frame(width: 42, alignment: .trailing)
                 }
+                SamplingIntervalNote()
             }
         }
         .formStyle(.grouped)

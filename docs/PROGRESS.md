@@ -1542,6 +1542,7 @@ Verification:
 - Cross-checked the field guide against `docs/DESIGN.md`, the full chronological evidence in this progress log, the
   current status-item implementation, and the repository's standing instructions.
 - `git diff --check` passed.
+
 - The new field guide contains no line longer than 120 columns and passed the American-spelling scan.
 - All repository-relative files named by the guide exist.
 
@@ -3131,3 +3132,28 @@ Verification before the production install:
   request to install the production build for interactive checking. Full screenshots and benchmarks remain due
   before the eventual push (`dist/p8-t38-full-screen-tests.log`).
 - `git diff --check` passed.
+
+## P8-T39 Time-aware CPU and GPU history
+
+CPU history no longer stretches the same recent samples across every selected interval. Each sample now retains its
+true horizontal position within the selected 1-minute, 5-minute, 30-minute, 3-hour, or 24-hour window. GPU now uses
+the same range control and day-long compact history for consistent behavior.
+
+Changed the production default for CPU, Memory, GPU, Network, and Disks from their prior one- or two-second values
+to three seconds. Existing saved settings migrate only when they still equal those prior defaults. Added an optional
+global sampling interval and concise CPU-cost guidance to the global and per-module sampling controls. The About
+page description no longer calls out menu bar managers or a specific macOS version.
+
+The first `master` CI run passed all 232 tests, then exposed that the memory benchmark did not create `dist/` on a
+clean checkout. The benchmark now creates its output directory before linking. The release workflow was canceled
+before building or publishing, and no 1.0.2 tag or release was created. The Check workflow is manual-dispatch only;
+pushing `master` does not automatically start CI.
+
+Verification before local installation:
+
+- Source invariants and `git diff --check` passed.
+- Focused Settings and renderer coverage passed all 86 tests, including default sampling migration, global interval
+  persistence, and time-aware graph placement (`dist/p8-t39-focused.log`).
+- The panel/graph regression passed at 48.0 MiB peak, below its 128 MiB gate
+  (`dist/p8-t39-popover-memory.log`).
+- Interactive validation of the installed build is required before another GitHub push.

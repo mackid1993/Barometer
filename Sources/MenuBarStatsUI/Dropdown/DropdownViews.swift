@@ -24,6 +24,26 @@ enum HistoryRange: String, CaseIterable, Identifiable {
     }
 }
 
+struct TimelineGraphData {
+    let values: [Double]
+    let xPositions: [Double]
+
+    static func make<Value: Sendable>(
+        entries: [HistoryEntry<Value>],
+        endingAt end: Date,
+        duration: TimeInterval,
+        value: (Value) -> Double
+    ) -> TimelineGraphData {
+        guard duration > 0 else { return TimelineGraphData(values: [], xPositions: []) }
+        let start = end.addingTimeInterval(-duration)
+        let visible = entries.filter { $0.timestamp >= start && $0.timestamp <= end }
+        return TimelineGraphData(
+            values: visible.map { value($0.value) },
+            xPositions: visible.map { min(1, max(0, $0.timestamp.timeIntervalSince(start) / duration)) }
+        )
+    }
+}
+
 // MARK: - CPU
 
 /// Live CPU details shown inside the CPU status-item menu.
@@ -50,9 +70,14 @@ public struct CPUDropdownView: View {
 
     public var body: some View {
         let sample = store.latestSample
-        let cutoff = Date().addingTimeInterval(-range.duration)
-        let values = store.history.downsampled(to: 300, since: cutoff)
-            .map { $0.value.totalPercent / 100 }
+        let end = sample?.timestamp ?? Date()
+        let cutoff = end.addingTimeInterval(-range.duration)
+        let graph = TimelineGraphData.make(
+            entries: store.history.downsampled(to: 300, since: cutoff),
+            endingAt: end,
+            duration: range.duration,
+            value: { $0.totalPercent / 100 }
+        )
         let _ = store.revision
         let settings = settingsStore.settings.modules[.cpu] ?? ModuleSettings()
         let accent = ModuleAccent.resolve(settingsStore.settings, module: .cpu)
@@ -76,7 +101,7 @@ public struct CPUDropdownView: View {
                             accent: accent
                         )
                     }
-                    AreaGraph(values: values, accent: accent)
+                    AreaGraph(values: graph.values, accent: accent, xPositions: graph.xPositions)
                         .frame(height: 84)
                     if let sample {
                         HStack(spacing: 6) {

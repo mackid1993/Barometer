@@ -8,18 +8,33 @@ public struct GPUDropdownView: View {
 
     private let store: ModuleStore<GPUSample>
     private let settingsStore: SettingsStore
+    @State private var range: HistoryRange = .fiveMinutes
 
     /// Creates the GPU dropdown.
     public init(store: ModuleStore<GPUSample>, settingsStore: SettingsStore) {
         self.store = store
         self.settingsStore = settingsStore
+        _range = State(initialValue: .fiveMinutes)
+    }
+
+    init(store: ModuleStore<GPUSample>, settingsStore: SettingsStore, initialRange: HistoryRange) {
+        self.store = store
+        self.settingsStore = settingsStore
+        _range = State(initialValue: initialRange)
     }
 
     public var body: some View {
         let sample = store.latestSample
         let _ = store.revision
         let accent = ModuleAccent.resolve(settingsStore.settings, module: .gpu)
-        let history = store.history.recent(300).map { min(1, max(0, $0.value.deviceUtilizationPercent / 100)) }
+        let end = sample?.timestamp ?? Date()
+        let cutoff = end.addingTimeInterval(-range.duration)
+        let graph = TimelineGraphData.make(
+            entries: store.history.downsampled(to: 300, since: cutoff),
+            endingAt: end,
+            duration: range.duration,
+            value: { min(1, max(0, $0.deviceUtilizationPercent / 100)) }
+        )
 
         DropdownScaffold(size: Self.contentSize) {
             HeroHeader(
@@ -33,11 +48,14 @@ public struct GPUDropdownView: View {
             GlassCard(tint: accent.primary) {
                 VStack(alignment: .leading, spacing: 8) {
                     SectionLabel("History") {
-                        Text("Device utilization")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        CapsulePicker(
+                            options: HistoryRange.allCases,
+                            selection: $range,
+                            label: \.rawValue,
+                            accent: accent
+                        )
                     }
-                    AreaGraph(values: history, accent: accent)
+                    AreaGraph(values: graph.values, accent: accent, xPositions: graph.xPositions)
                         .frame(height: 96)
                 }
             }

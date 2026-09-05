@@ -629,6 +629,7 @@ public final class MonitoringCoordinator {
     private func observeSettings() {
         withObservationTracking {
             _ = settingsStore.settings.reducesSamplingOnBattery
+            _ = settingsStore.settings.globalSamplingInterval
             _ = settingsStore.settings.modules
             _ = settingsStore.settings.combined
             _ = settingsStore.settings.stacks
@@ -707,13 +708,14 @@ public final class MonitoringCoordinator {
     }
 
     private func applySamplingIntervals() {
-        let cpuSeconds = settingsStore.settings.modules[.cpu]?.interval ?? 1
-        let memorySeconds = settingsStore.settings.modules[.memory]?.interval ?? 2
-        let gpuSeconds = settingsStore.settings.modules[.gpu]?.interval ?? 1
-        let networkSeconds = settingsStore.settings.modules[.network]?.interval ?? 1
-        let diskSeconds = settingsStore.settings.modules[.disks]?.interval ?? 1
-        let sensorSeconds = settingsStore.settings.modules[.sensors]?.interval ?? 5
-        let batterySeconds = settingsStore.settings.modules[.battery]?.interval ?? 10
+        let globalSeconds = settingsStore.settings.globalSamplingInterval
+        let cpuSeconds = globalSeconds ?? settingsStore.settings.modules[.cpu]?.interval ?? 3
+        let memorySeconds = globalSeconds ?? settingsStore.settings.modules[.memory]?.interval ?? 3
+        let gpuSeconds = globalSeconds ?? settingsStore.settings.modules[.gpu]?.interval ?? 3
+        let networkSeconds = globalSeconds ?? settingsStore.settings.modules[.network]?.interval ?? 3
+        let diskSeconds = globalSeconds ?? settingsStore.settings.modules[.disks]?.interval ?? 3
+        let sensorSeconds = globalSeconds ?? settingsStore.settings.modules[.sensors]?.interval ?? 5
+        let batterySeconds = globalSeconds ?? settingsStore.settings.modules[.battery]?.interval ?? 10
         let timeShowsSeconds = settingsStore.settings.time.showsSeconds
         let timeShowsCalendarEvents = settingsStore.settings.time.showsCalendarEvents
         let calendarEventCount = settingsStore.settings.time.calendarEventCount

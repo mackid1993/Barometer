@@ -87,6 +87,7 @@ struct DiskSettingsView: View {
                         .monospacedDigit()
                         .frame(width: 42, alignment: .trailing)
                 }
+                SamplingIntervalNote()
             }
         }
         .formStyle(.grouped)

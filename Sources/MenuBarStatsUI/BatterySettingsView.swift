@@ -55,6 +55,7 @@ struct BatterySettingsView: View {
                 Text("Power connection changes refresh immediately.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                SamplingIntervalNote()
             }
             Section("Devices") {
                 Toggle("Show Bluetooth batteries", isOn: batteryBinding(\.showsBluetoothDevices))

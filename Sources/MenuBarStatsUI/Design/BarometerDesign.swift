@@ -27,6 +27,14 @@ enum BarometerDesign {
     static let valueFont = Font.callout.monospacedDigit()
 }
 
+struct SamplingIntervalNote: View {
+    var body: some View {
+        Text("Shorter intervals increase CPU usage.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+    }
+}
+
 // MARK: - Accents
 
 /// Two-color accent used for a module's tiles, graphs, and highlights.
@@ -474,9 +482,26 @@ struct ProgressRing<Label: View>: View {
 struct AreaGraph: View {
     let values: [Double]
     let accent: ModuleAccent
+    var xPositions: [Double]?
     var lineWidth: CGFloat = 1.75
     var showsGrid = true
     var showsMarker = true
+
+    init(
+        values: [Double],
+        accent: ModuleAccent,
+        xPositions: [Double]? = nil,
+        lineWidth: CGFloat = 1.75,
+        showsGrid: Bool = true,
+        showsMarker: Bool = true
+    ) {
+        self.values = values
+        self.accent = accent
+        self.xPositions = xPositions
+        self.lineWidth = lineWidth
+        self.showsGrid = showsGrid
+        self.showsMarker = showsMarker
+    }
 
     var body: some View {
         ZStack {
@@ -489,6 +514,7 @@ struct AreaGraph: View {
             }
             NormalizedGraphSeries(
                 values: values,
+                xPositions: xPositions,
                 accent: accent,
                 lineWidth: lineWidth,
                 showsMarker: showsMarker
@@ -583,6 +609,7 @@ private struct NormalizedGraphGrid: Shape {
 
 private struct NormalizedGraphSeries: View {
     let values: [Double]
+    var xPositions: [Double]? = nil
     let accent: ModuleAccent
     let lineWidth: CGFloat
     let showsMarker: Bool
@@ -595,12 +622,14 @@ private struct NormalizedGraphSeries: View {
             let horizontalInset: CGFloat = showsMarker ? 4 : 0
             let line = NormalizedGraphLine(
                 values: values,
+                xPositions: xPositions,
                 horizontalInset: horizontalInset,
                 verticalInset: verticalInset
             )
             ZStack {
                 NormalizedGraphArea(
                     values: values,
+                    xPositions: xPositions,
                     horizontalInset: horizontalInset,
                     verticalInset: verticalInset
                 )
@@ -628,6 +657,7 @@ private struct NormalizedGraphSeries: View {
                    let point = NormalizedGraphGeometry.point(
                     at: values.count - 1,
                     values: values,
+                    xPositions: xPositions,
                     size: geometry.size,
                     horizontalInset: horizontalInset,
                     verticalInset: verticalInset
@@ -648,6 +678,7 @@ private struct NormalizedGraphSeries: View {
 
 private struct NormalizedGraphLine: Shape {
     let values: [Double]
+    var xPositions: [Double]?
     let horizontalInset: CGFloat
     let verticalInset: CGFloat
 
@@ -657,6 +688,7 @@ private struct NormalizedGraphLine: Shape {
             guard let point = NormalizedGraphGeometry.point(
                 at: index,
                 values: values,
+                xPositions: xPositions,
                 size: rect.size,
                 horizontalInset: horizontalInset,
                 verticalInset: verticalInset
@@ -669,6 +701,7 @@ private struct NormalizedGraphLine: Shape {
 
 private struct NormalizedGraphArea: Shape {
     let values: [Double]
+    var xPositions: [Double]?
     let horizontalInset: CGFloat
     let verticalInset: CGFloat
 
@@ -677,6 +710,7 @@ private struct NormalizedGraphArea: Shape {
               let first = NormalizedGraphGeometry.point(
                 at: 0,
                 values: values,
+                xPositions: xPositions,
                 size: rect.size,
                 horizontalInset: horizontalInset,
                 verticalInset: verticalInset
@@ -684,12 +718,14 @@ private struct NormalizedGraphArea: Shape {
               let last = NormalizedGraphGeometry.point(
                 at: values.count - 1,
                 values: values,
+                xPositions: xPositions,
                 size: rect.size,
                 horizontalInset: horizontalInset,
                 verticalInset: verticalInset
               ) else { return Path() }
         var area = NormalizedGraphLine(
             values: values,
+            xPositions: xPositions,
             horizontalInset: horizontalInset,
             verticalInset: verticalInset
         ).path(in: rect)
@@ -704,12 +740,18 @@ enum NormalizedGraphGeometry {
     static func point(
         at index: Int,
         values: [Double],
+        xPositions: [Double]? = nil,
         size: CGSize,
         horizontalInset: CGFloat,
         verticalInset: CGFloat
     ) -> CGPoint? {
         guard values.count > 1, values.indices.contains(index) else { return nil }
-        let fraction = CGFloat(index) / CGFloat(values.count - 1)
+        let fraction: CGFloat
+        if let xPositions, xPositions.indices.contains(index), xPositions.count == values.count {
+            fraction = CGFloat(xPositions[index])
+        } else {
+            fraction = CGFloat(index) / CGFloat(values.count - 1)
+        }
         let value = CGFloat(min(1, max(0, values[index])))
         let plotHeight = size.height - verticalInset * 2
         let plotWidth = size.width - horizontalInset * 2

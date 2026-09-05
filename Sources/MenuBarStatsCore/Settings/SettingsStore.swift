@@ -282,6 +282,10 @@ public final class SettingsStore {
         guard settings.modules.values.allSatisfy({ $0.interval >= 0.25 && $0.processCount > 0 }) else {
             throw SettingsImportError.valueOutOfRange("module sampling or process count")
         }
+        if let globalInterval = settings.globalSamplingInterval,
+           !(0.5...60).contains(globalInterval) {
+            throw SettingsImportError.valueOutOfRange("global sampling interval")
+        }
 
         let globalColors = [
             settings.globalLightColor, settings.globalDarkColor,

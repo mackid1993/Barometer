@@ -597,6 +597,39 @@ struct MenuBarRendererTests {
     }
 
     @Test
+    func timelineGraphPositionsRecentDataWithinTheSelectedWindow() throws {
+        let end = Date(timeIntervalSince1970: 1_000)
+        let entries = [
+            HistoryEntry(timestamp: end.addingTimeInterval(-60), value: CPUHistoryValue(totalPercent: 20)),
+            HistoryEntry(timestamp: end, value: CPUHistoryValue(totalPercent: 80)),
+        ]
+        let fiveMinutes = TimelineGraphData.make(
+            entries: entries,
+            endingAt: end,
+            duration: HistoryRange.fiveMinutes.duration,
+            value: { $0.totalPercent / 100 }
+        )
+        let oneMinute = TimelineGraphData.make(
+            entries: entries,
+            endingAt: end,
+            duration: HistoryRange.oneMinute.duration,
+            value: { $0.totalPercent / 100 }
+        )
+
+        #expect(fiveMinutes.xPositions == [0.8, 1])
+        #expect(oneMinute.xPositions == [0, 1])
+        let fiveMinuteStart = try #require(NormalizedGraphGeometry.point(
+            at: 0,
+            values: fiveMinutes.values,
+            xPositions: fiveMinutes.xPositions,
+            size: CGSize(width: 300, height: 84),
+            horizontalInset: 4,
+            verticalInset: 3
+        ))
+        #expect(abs(fiveMinuteStart.x - 237.6) < 0.001)
+    }
+
+    @Test
     func peerRowsKeepTheSameGeometryWhenSwapped() {
         let first = NetworkRateStackRenderer(
             download: "1.2MB/s",
