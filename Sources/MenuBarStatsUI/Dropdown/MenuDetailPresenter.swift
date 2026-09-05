@@ -87,7 +87,7 @@ final class MenuDetailPresenter: NSObject, NSPopoverDelegate {
         if row.insetBy(dx: -4, dy: -4).contains(point)
             || detailWindow.frame.insetBy(dx: -4, dy: -4).contains(point) {
             lastHoverTime = time
-        } else if time - lastHoverTime >= 0.2 {
+        } else if time - lastHoverTime >= PopoverDismissalMonitor.hoverExitDelay {
             // Brief grace permits crossing the gap between the row and its scrollable popover.
             close()
         }

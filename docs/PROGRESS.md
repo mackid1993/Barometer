@@ -2929,3 +2929,22 @@ Verification:
 - Closed-dropdown CPU measurement: after discarding initialization and 30 startup intervals, the final 15 one-second
   samples averaged 3.46%, median 3.0%, range 1.6–6.5%. Previous short run averaged 3.84%. This is a modest observed
   change, not evidence of near-zero idle CPU; live sampling and rendering remain active.
+
+### P8-T33 — Compare user memory report and lengthen hover dismissal
+
+Compared installed build 127 with the supplied build 124 report (80.7M current, 146.3M peak at about 78 seconds).
+The existing process at 105 seconds measured 25.8M current / 28.3M peak. A fresh launch measured at 78 seconds
+reported 64.5M current / 200.1M peak. Thus current footprint beat the supplied report in both observations, but
+peak footprint did not consistently meet it. Interaction history and settings were not controlled against the
+other user's app. Both runs reported zero detected leaks with the restricted-process warning; this does not
+establish absence of leaks. Evidence: dist/user-memory-comparison.txt and dist/user-memory-78s.txt.
+
+Increased hover exit grace to a shared 0.8 seconds for all root dropdowns and weather details, preserving immediate
+outside-click dismissal. Regression checks now verify survival at 0.7 seconds outside and dismissal at 0.9 seconds.
+
+Verification:
+- make test: 210 tests in 31 suites passed (dist/hover-delay-tests.log).
+- python3 Scripts/benchmark-memory.py dist/memory-baseline: passed; 92.8% lower isolated history footprint,
+  16 KB growth between simulated hours 24 and 48 (dist/hover-delay-memory.log).
+- make app passed; copied to Applications, verified strict signature, and relaunched (dist/hover-delay-build.log).
+- git diff --check passed. No push.

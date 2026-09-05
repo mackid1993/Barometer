@@ -3,6 +3,8 @@ import AppKit
 /// Watches clicks only while a popover is open, including clicks delivered to another application.
 @MainActor
 final class PopoverDismissalMonitor {
+    static let hoverExitDelay: TimeInterval = 0.8
+
     private var hoverTimer: Timer?
     private var lastInsideTime: TimeInterval = 0
     private var localMonitor: Any?
@@ -49,7 +51,7 @@ final class PopoverDismissalMonitor {
         guard let containsPoint else { return }
         if containsPoint(point) {
             lastInsideTime = time
-        } else if time - lastInsideTime >= 0.3 {
+        } else if time - lastInsideTime >= Self.hoverExitDelay {
             handleClick(at: point)
         }
     }
