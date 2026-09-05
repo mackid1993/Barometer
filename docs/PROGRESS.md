@@ -2778,3 +2778,14 @@ Verification before packaging:
   interactive review; automated event and lifecycle tests cannot establish those visual results.
 - After the clean suite, make app passed; copied to /Applications/Barometer.app, passed strict codesign verification,
   stopped the previous process, and launched the Applications copy for local review.
+
+### P8-T27 pre-push verification
+
+At David's request, reran both checks against committed revision c30073a before pushing:
+
+- make test: all 195 tests in 28 suites passed, including the real weather popover lifecycle and memory tests.
+  Output: dist/pre-push-tests.log.
+- Scripts/benchmark-memory.py dist/memory-baseline: PASS, one-hour footprint reduced 92.8%; simulated hours 24 to 48
+  grew 16,384 bytes (12,403,264 to 12,419,648), below the 5 MiB plateau threshold. This is isolated history storage.
+  Output: dist/pre-push-memory.log.
+- git diff --check passed. No code changed after these checks; this entry records the pre-push results.
