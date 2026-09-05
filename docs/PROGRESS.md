@@ -3389,3 +3389,24 @@ Verification before local installation:
   growth between simulated hours 24 and 48.
 - `swift build -c release`, `git diff --check`, and the status item width invariant passed. Production still has one
   `statusItem.length` assignment at launch.
+
+## P8-T48 Publish Barometer 1.0.2
+
+Pushed commit `4eb34d1` to `master` and manually dispatched GitHub Actions Release run `33949312695` for version
+1.0.2 with notarization enabled and the complete contents of `docs/RELEASE_NOTES_1.0.2.md`. The source invariant
+gate, all 245 tests, the panel and graph memory regression gate, the production build, Developer ID signing, Apple
+notarization, stapling, and release preparation completed successfully.
+
+Before publication, corrected the unpublished `v1.0.2` tag from the earlier draft commit to `4eb34d1`, matching the
+workflow's tested source and packaged application. Independently downloaded and mounted the draft asset and verified:
+
+- DMG SHA-256: `a60d12ee8ee0fda20830f02903b569935be3540d0f6c63c20ec1189537ae2e16`.
+- The stapled ticket validates successfully.
+- Gatekeeper accepts the application with `source=Notarized Developer ID`.
+- The nested application passes strict code-signature verification with bundle identifier `com.barometer.app`,
+  version 1.0.2, and Developer ID team `BQNYYA2UND`.
+- The GitHub release targets `4eb34d1`, contains the complete checked-in notes, and has one asset named
+  `Barometer-1.0.2.dmg`.
+
+Published [Barometer 1.0.2](https://github.com/mackid1993/Barometer/releases/tag/v1.0.2) as a non-prerelease public
+release and marked it Latest.
