@@ -41,19 +41,40 @@ public struct WeatherSettings: Codable, Equatable, Sendable {
     /// Forecast refresh interval, constrained by the UI to 5 through 60 minutes.
     public var refreshIntervalMinutes: Int
 
+    /// Section visibility in the selected-day forecast; independent of forecast fetching.
+    public var detailSections: WeatherDetailSettings
+
     /// Creates Weather settings.
     public init(
         locations: [Location] = [],
         primaryLocationID: String? = nil,
         usesCurrentLocation: Bool = false,
         units: WeatherUnits = .imperial,
-        refreshIntervalMinutes: Int = 15
+        refreshIntervalMinutes: Int = 15,
+        detailSections: WeatherDetailSettings = WeatherDetailSettings()
     ) {
         self.locations = locations
         self.primaryLocationID = primaryLocationID
         self.usesCurrentLocation = usesCurrentLocation
         self.units = units
         self.refreshIntervalMinutes = refreshIntervalMinutes
+        self.detailSections = detailSections
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case locations, primaryLocationID, usesCurrentLocation, units, refreshIntervalMinutes, detailSections
+    }
+
+    /// Decodes saved locations and units while giving older configurations all detail sections.
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        locations = try values.decodeIfPresent([Location].self, forKey: .locations) ?? []
+        primaryLocationID = try values.decodeIfPresent(String.self, forKey: .primaryLocationID)
+        usesCurrentLocation = try values.decodeIfPresent(Bool.self, forKey: .usesCurrentLocation) ?? false
+        units = try values.decodeIfPresent(WeatherUnits.self, forKey: .units) ?? .imperial
+        refreshIntervalMinutes = try values.decodeIfPresent(Int.self, forKey: .refreshIntervalMinutes) ?? 15
+        detailSections = try values.decodeIfPresent(WeatherDetailSettings.self, forKey: .detailSections)
+            ?? WeatherDetailSettings()
     }
 
     /// The selected location, falling back to the first saved location.

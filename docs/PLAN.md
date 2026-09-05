@@ -454,6 +454,18 @@ allow `.combined` instances.
   synthetic sample workloads against P8-T22 with `Scripts/benchmark-memory.py`. Record both measurements
   and any baseline failures in the progress log.
 
+### P8-T24 Rich daily weather with configurable detail
+
+- Open a day-specific forecast fly-out from each daily row, using the location's date and time zone.
+- Put conditions, precipitation, temperature, wind, hourly forecasts, and comfort ahead of optional astronomy
+  and technical detail. Use chevrons for secondary information; lunar details start collapsed.
+- Extend the existing forecast request with supported optional surface-weather and daily summary fields,
+  including provider moon phase/rise/set. Preserve old caches, missing values, and independent units.
+- Offer All details or Custom in Weather settings, remembering custom section choices across mode changes.
+- Verify: weather model, decoding, visibility, and presentation tests; captured real metric/imperial fixtures;
+  light/dark rendering; full suite; signed local build and installed-app review. Wait for David's approval before
+  pushing these changes or starting another GitHub build.
+
 ---
 
 ## Phase 9: After v1

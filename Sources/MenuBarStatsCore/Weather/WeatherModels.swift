@@ -206,6 +206,8 @@ public struct HourlyPoint: Codable, Equatable, Identifiable, Sendable {
     public let dewPoint: Double?
     public let visibility: Double?
     public let cloudCover: Double?
+    /// Additional optional forecast metrics, absent from older caches.
+    public var details: HourlyWeatherDetails? = nil
 }
 
 /// One daily forecast point.
@@ -224,6 +226,8 @@ public struct DailyPoint: Codable, Equatable, Identifiable, Sendable {
     public let precipitationProbability: Double?
     public let windSpeedMax: Double?
     public let windGustsMax: Double?
+    /// Additional optional daily summaries and lunar events, absent from older caches.
+    public var details: DailyWeatherDetails? = nil
 }
 
 /// A complete weather forecast for one saved location.
@@ -309,13 +313,16 @@ public enum MoonPhase: String, Codable, CaseIterable, Sendable {
         }
     }
 
+    /// Fraction of the mean synodic cycle since a known new moon, normalized before and after the epoch.
+    static func cycleFraction(for date: Date) -> Double {
+        let epoch = Date(timeIntervalSince1970: 947_182_440)
+        let cycle = date.timeIntervalSince(epoch) / (29.530_588_853 * 86_400)
+        return ((cycle.truncatingRemainder(dividingBy: 1) + 1).truncatingRemainder(dividingBy: 1))
+    }
+
     /// Calculates the nearest eighth of the synodic lunar month.
     public static func calculate(for date: Date) -> MoonPhase {
-        let epoch = Date(timeIntervalSince1970: 947_182_440)
-        let synodicMonth = 29.530_588_853
-        let elapsedDays = date.timeIntervalSince(epoch) / 86_400
-        let normalized = ((elapsedDays / synodicMonth).truncatingRemainder(dividingBy: 1) + 1)
-            .truncatingRemainder(dividingBy: 1)
+        let normalized = cycleFraction(for: date)
         let index = Int((normalized * 8 + 0.5).rounded(.down)) % 8
         return allCases[index]
     }

@@ -2668,3 +2668,29 @@ execute tests, but packaging, signing, and release preparation cannot run follow
 - `CODESIGN_IDENTITY=- make app` built the release configuration and packaged `dist/Barometer.app`;
   `codesign --verify --deep --strict --verbose=2 dist/Barometer.app` passed. The installed application was not replaced.
 - `git diff --check` passed.
+
+### P8-T24: Rich daily weather with configurable detail
+
+Added a scrollable daily forecast popover and expanded the existing Open-Meteo request with 31 optional hourly
+metrics and 25 optional daily metrics, plus moonrise and moonset. Checked supported fields against the official
+https://open-meteo.com/en/docs and captured live metric and imperial fixtures. Normalize provider feet to meters
+for internal visibility, freezing level, and snow depth. Missing fields and older caches remain supported.
+
+Conditions, key readings, precipitation, air/comfort, and hourly forecasts appear first and start expanded.
+Sun information follows; Moon and advanced atmospheric details start collapsed. Weather settings offers All details
+or Custom, preserving custom selections across mode changes. Display preferences update without another fetch.
+
+Verification on 2026-09-04:
+
+- Full suite: 189 tests executed, 188 passed. All 20 added weather/model/settings/presentation tests passed.
+  The only failure is the previously reproduced baseline weather-glyph margin assertion (2 points versus 1).
+  Output: dist/weather-final-tests.log. No assertion was weakened.
+- Reviewed light/dark forecast, hourly detail, and chart captures in dist/. ImageRenderer cannot capture the native
+  scroll view and attribution link together; chart content was captured separately. Interactive review remains David's.
+- make install completed the signed release build, but macOS denied replacing files in /Applications/Barometer.app.
+  Launched the complete packaged dist/Barometer.app directly with open instead. Verified exactly one Barometer app
+  process, PID 72623, running /Users/david/MenuBarStats/dist/Barometer.app/Contents/MacOS/Barometer.
+- codesign --verify --deep --strict --verbose=2 dist/Barometer.app passed.
+- git diff --check passed.
+- Earlier memory-change GitHub Check run 33934059122 passed its test and package jobs. This weather change stays
+  local pending David's review; no weather push or GitHub build was started.

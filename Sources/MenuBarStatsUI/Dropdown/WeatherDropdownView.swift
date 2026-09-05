@@ -29,7 +29,7 @@ public struct WeatherDropdownView: View {
             if let sample = store.latestSample {
                 CurrentWeatherCard(sample: sample)
                 HourlyForecastSection(sample: sample, accent: accent)
-                DailyForecastSection(sample: sample, accent: accent)
+                DailyForecastSection(sample: sample, accent: accent, settingsStore: settingsStore)
                 SunMoonSection(sample: sample, accent: accent)
                 AirQualitySection(sample: sample)
                 WeatherDetailsSection(sample: sample, accent: accent)
@@ -304,7 +304,7 @@ private struct HourlyForecastSection: View {
     }
 }
 
-private struct HourlyForecastChart: View {
+struct HourlyForecastChart: View {
     let points: [HourlyPoint]
     let units: WeatherUnits
     let timeZone: TimeZone
@@ -427,6 +427,7 @@ private struct HourlyForecastChart: View {
 private struct DailyForecastSection: View {
     let sample: WeatherSample
     let accent: ModuleAccent
+    let settingsStore: SettingsStore
 
     var body: some View {
         let daily = sample.forecast.daily
@@ -438,8 +439,9 @@ private struct DailyForecastSection: View {
                 ForEach(daily) { day in
                     DailyForecastRow(
                         day: day,
-                        units: sample.forecast.units,
-                        timeZone: sample.forecast.timeZone,
+                        sample: sample,
+                        accent: accent,
+                        settingsStore: settingsStore,
                         overallMinimum: minimum,
                         overallMaximum: maximum
                     )
@@ -451,13 +453,27 @@ private struct DailyForecastSection: View {
 
 private struct DailyForecastRow: View {
     let day: DailyPoint
-    let units: WeatherUnits
-    let timeZone: TimeZone
+    let sample: WeatherSample
+    let accent: ModuleAccent
+    let settingsStore: SettingsStore
+    private var timeZone: TimeZone { sample.forecast.timeZone }
+    @State private var showsDetails = false
     let overallMinimum: Double
     let overallMaximum: Double
     @State private var isHovering = false
 
     var body: some View {
+        Button { showsDetails.toggle() } label: { row }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Details for \(WeatherDayDetailView.dateTitle(day.date, timeZone: timeZone))")
+            .help("Show daily and hourly forecast details")
+            .onChange(of: sample.forecast.location.id) { showsDetails = false }
+            .popover(isPresented: $showsDetails, arrowEdge: .trailing) {
+                WeatherDayDetailView(day: day, sample: sample, accent: accent, settingsStore: settingsStore)
+            }
+    }
+
+    private var row: some View {
         HStack(spacing: 9) {
             Text(WeatherValue.weekday(day.date, timeZone: timeZone))
                 .font(.callout.weight(.medium))
@@ -487,6 +503,12 @@ private struct DailyForecastRow: View {
                 .font(.callout.monospacedDigit())
                 .frame(width: 32, alignment: .trailing)
         }
+        .overlay(alignment: .trailing) {
+            Image(systemName: "chevron.right").font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(.tertiary).offset(x: 8)
+        }
+        .padding(.trailing, 8)
+        .contentShape(Rectangle())
         .padding(.vertical, 3)
         .padding(.horizontal, 6)
         .background(
@@ -665,7 +687,7 @@ private struct WeatherDetailsSection: View {
     }
 }
 
-private enum WeatherValue {
+enum WeatherValue {
     static func temperature(_ value: Double, units: WeatherUnits) -> String {
         String(format: "%.0f%@", value, units.temperature.symbol)
     }

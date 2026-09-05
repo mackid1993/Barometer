@@ -62,12 +62,12 @@ public actor OpenMeteoClient: WeatherClient {
             "temperature_2m", "apparent_temperature", "precipitation_probability", "precipitation",
             "weather_code", "wind_speed_10m", "wind_direction_10m", "uv_index", "is_day",
             "relative_humidity_2m", "dew_point_2m", "visibility", "cloud_cover",
-        ]
+        ] + HourlyWeatherMetric.allCases.map(\.rawValue)
         let daily = [
             "weather_code", "temperature_2m_max", "temperature_2m_min", "apparent_temperature_max",
             "apparent_temperature_min", "sunrise", "sunset", "uv_index_max", "precipitation_sum",
             "precipitation_probability_max", "wind_speed_10m_max", "wind_gusts_10m_max",
-        ]
+        ] + DailyWeatherMetric.allCases.map(\.rawValue) + ["moonrise", "moonset"]
         let url = try Self.url(base: Self.forecastURL, items: [
             URLQueryItem(name: "latitude", value: String(location.latitude)),
             URLQueryItem(name: "longitude", value: String(location.longitude)),
@@ -157,8 +157,14 @@ public actor OpenMeteoClient: WeatherClient {
                 isDay: (response.hourly.isDay[safe: index] ?? nil).map { $0 == 1 },
                 humidity: response.hourly.humidity[safe: index] ?? nil,
                 dewPoint: response.hourly.dewPoint[safe: index] ?? nil,
-                visibility: response.hourly.visibility[safe: index] ?? nil,
-                cloudCover: response.hourly.cloudCover[safe: index] ?? nil
+                visibility: Self.meters(
+                    response.hourly.visibility[safe: index] ?? nil, unit: response.hourlyUnits?["visibility"]
+                ),
+                cloudCover: response.hourly.cloudCover[safe: index] ?? nil,
+                details: HourlyWeatherDetails(values: response.hourlyDetails.values(
+                    at: index, units: response.hourlyUnits,
+                    meterFields: [.snowDepth, .freezingLevelHeight]
+                ))
             )
         }
         let daily = try response.daily.time.indices.map { index in
@@ -175,7 +181,19 @@ public actor OpenMeteoClient: WeatherClient {
                 precipitation: response.daily.precipitation[safe: index] ?? nil,
                 precipitationProbability: response.daily.precipitationProbability[safe: index] ?? nil,
                 windSpeedMax: response.daily.windSpeedMax[safe: index] ?? nil,
-                windGustsMax: response.daily.windGustsMax[safe: index] ?? nil
+                windGustsMax: response.daily.windGustsMax[safe: index] ?? nil,
+                details: DailyWeatherDetails(
+                    values: response.dailyDetails.values(
+                        at: index, units: response.dailyUnits, meterFields: [.visibilityMean, .visibilityMin]
+                    ),
+                    moonrise: try optionalTime(
+                        response.dailyDetails.moonrise?[safe: index] ?? nil, timeZone: timeZone
+                    ),
+                    moonset: try optionalTime(
+                        response.dailyDetails.moonset?[safe: index] ?? nil, timeZone: timeZone
+                    ),
+                    moonEventsAvailable: response.dailyDetails.hasMoonEvents
+                )
             )
         }
         return Forecast(
@@ -187,6 +205,10 @@ public actor OpenMeteoClient: WeatherClient {
             daily: daily,
             fetchedAt: Date()
         )
+    }
+
+    private static func meters(_ value: Double?, unit: String?) -> Double? {
+        value.map { unit == "ft" ? $0 * 0.3048 : $0 }
     }
 
     static func decodeGeocoding(_ data: Data) throws -> [GeocodingResult] {
@@ -408,6 +430,28 @@ private struct ForecastResponse: Decodable {
     let current: CurrentResponse
     let hourly: HourlyResponse
     let daily: DailyResponse
+    let hourlyDetails: WeatherDetailResponse<HourlyWeatherMetric>
+    let dailyDetails: WeatherDetailResponse<DailyWeatherMetric>
+    let hourlyUnits: [String: String]?
+    let dailyUnits: [String: String]?
+
+    private enum CodingKeys: String, CodingKey {
+        case timezone, current, hourly, daily
+        case hourlyUnits = "hourly_units"
+        case dailyUnits = "daily_units"
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        timezone = try values.decode(String.self, forKey: .timezone)
+        current = try values.decode(CurrentResponse.self, forKey: .current)
+        hourly = try values.decode(HourlyResponse.self, forKey: .hourly)
+        daily = try values.decode(DailyResponse.self, forKey: .daily)
+        hourlyDetails = try values.decode(WeatherDetailResponse<HourlyWeatherMetric>.self, forKey: .hourly)
+        dailyDetails = try values.decode(WeatherDetailResponse<DailyWeatherMetric>.self, forKey: .daily)
+        hourlyUnits = try values.decodeIfPresent([String: String].self, forKey: .hourlyUnits)
+        dailyUnits = try values.decodeIfPresent([String: String].self, forKey: .dailyUnits)
+    }
 }
 
 private struct CurrentForecastResponse: Decodable {

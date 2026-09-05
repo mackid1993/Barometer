@@ -80,6 +80,8 @@ struct WeatherSettingsView: View {
                 }
             }
 
+            WeatherDetailSettingsSection(preferences: weatherBinding(\.detailSections))
+
             Section("Refresh") {
                 Stepper(value: refreshIntervalBinding, in: 5...60, step: 5) {
                     LabeledContent("Interval", value: "\(weather.refreshIntervalMinutes) minutes")
