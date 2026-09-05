@@ -29,7 +29,11 @@ env:
   DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
 
 jobs:
+  check:
+    uses: ./.github/workflows/tests.yml
+
   build:
+    needs: check
     runs-on: macos-26
     timeout-minutes: 45
     steps:
@@ -47,11 +51,8 @@ jobs:
           printf '%s\n' "$VERSION" > VERSION
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
-      - name: Test and build app
-        run: |
-          swift --version
-          swift test
-          make app
+      - name: Build app
+        run: make app
 
       - name: Import Developer ID certificate
         env:

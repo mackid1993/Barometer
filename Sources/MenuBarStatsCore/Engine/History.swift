@@ -20,8 +20,12 @@ public struct History<Value: Sendable>: Sendable {
     /// Maximum number of entries retained by the buffer.
     public let capacity: Int
 
-    private var storage: [HistoryEntry<Value>?]
+    private var storage: [HistoryEntry<Value>]
     private var startIndex = 0
+    private var timestampsAreOrdered = true
+
+    // Internal allocation diagnostic for regression tests; an empty history reserves no slots.
+    var allocatedCapacity: Int { storage.capacity }
 
     /// Number of entries currently stored.
     public private(set) var count = 0
@@ -30,7 +34,7 @@ public struct History<Value: Sendable>: Sendable {
     public init(capacity: Int) {
         precondition(capacity > 0, "History capacity must be positive")
         self.capacity = capacity
-        storage = Array(repeating: nil, count: capacity)
+        storage = []
     }
 
     /// Entries in chronological order.
@@ -55,17 +59,18 @@ public struct History<Value: Sendable>: Sendable {
         var result: [HistoryEntry<Value>] = []
         result.reserveCapacity(wanted)
         for offset in (count - wanted)..<count {
-            if let entry = storage[(startIndex + offset) % capacity] {
-                result.append(entry)
-            }
+            result.append(storage[(startIndex + offset) % count])
         }
         return result
     }
 
     /// Appends a value, replacing the oldest entry when the buffer is full.
     public mutating func append(_ value: Value, at timestamp: Date = Date()) {
+        if count > 0, timestamp < entry(at: count - 1).timestamp {
+            timestampsAreOrdered = false
+        }
         if count < capacity {
-            storage[(startIndex + count) % capacity] = HistoryEntry(timestamp: timestamp, value: value)
+            storage.append(HistoryEntry(timestamp: timestamp, value: value))
             count += 1
         } else {
             storage[startIndex] = HistoryEntry(timestamp: timestamp, value: value)
@@ -79,22 +84,61 @@ public struct History<Value: Sendable>: Sendable {
         return entries.filter { $0.timestamp >= cutoff && $0.timestamp <= now }
     }
 
-    /// Returns at most `targetCount` chronologically distributed entries, preserving both endpoints.
-    public func downsampled(to targetCount: Int) -> [HistoryEntry<Value>] {
+    /// Returns at most `targetCount` entries in a time window without copying the full history.
+    /// Both endpoints are preserved, including when the wall clock has moved backward.
+    public func downsampled(to targetCount: Int, since cutoff: Date? = nil) -> [HistoryEntry<Value>] {
         precondition(targetCount > 0, "Downsample target must be positive")
-        let orderedEntries = entries
-        guard orderedEntries.count > targetCount else {
-            return orderedEntries
+        guard count > 0 else { return [] }
+        if let cutoff, !timestampsAreOrdered {
+            return downsampleUnordered(to: targetCount, since: cutoff)
         }
-        guard targetCount > 1 else {
-            return [orderedEntries[orderedEntries.count - 1]]
+        var lower = 0
+        if let cutoff {
+            var upper = count
+            while lower < upper {
+                let middle = lower + (upper - lower) / 2
+                if entry(at: middle).timestamp < cutoff {
+                    lower = middle + 1
+                } else {
+                    upper = middle
+                }
+            }
         }
+        let available = count - lower
+        let wanted = min(targetCount, available)
+        guard wanted > 0 else { return [] }
+        guard wanted > 1 else { return [entry(at: count - 1)] }
+        return (0..<wanted).map { index in
+            let offset = Int((Double(index) * Double(available - 1) / Double(wanted - 1)).rounded())
+            return entry(at: lower + offset)
+        }
+    }
 
-        let lastIndex = orderedEntries.count - 1
-        return (0..<targetCount).map { outputIndex in
-            let position = Double(outputIndex) * Double(lastIndex) / Double(targetCount - 1)
-            return orderedEntries[Int(position.rounded())]
+    // Clock corrections can make timestamps nonmonotonic. Scan twice in that rare case,
+    // retaining only output points rather than allocating a full filtered history.
+    private func downsampleUnordered(to targetCount: Int, since cutoff: Date) -> [HistoryEntry<Value>] {
+        let available = (0..<count).reduce(0) { $0 + (entry(at: $1).timestamp >= cutoff ? 1 : 0) }
+        let wanted = min(targetCount, available)
+        guard wanted > 0 else { return [] }
+        var result: [HistoryEntry<Value>] = []
+        result.reserveCapacity(wanted)
+        var rank = 0
+        for index in 0..<count {
+            let candidate = entry(at: index)
+            guard candidate.timestamp >= cutoff else { continue }
+            let target = wanted == 1 ? available - 1
+                : Int((Double(result.count) * Double(available - 1) / Double(wanted - 1)).rounded())
+            if rank == target {
+                result.append(candidate)
+                if result.count == wanted { break }
+            }
+            rank += 1
         }
+        return result
+    }
+
+    private func entry(at index: Int) -> HistoryEntry<Value> {
+        storage[(startIndex + index) % count]
     }
 }
 

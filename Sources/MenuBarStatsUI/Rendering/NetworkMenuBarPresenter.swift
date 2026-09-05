@@ -6,7 +6,7 @@ import MenuBarStatsCore
 enum NetworkMenuBarPresenter {
     static func content(
         sample: NetworkSample?,
-        history: [HistoryEntry<NetworkSample>],
+        history: [HistoryEntry<NetworkSample.GraphValue>],
         moduleSettings: ModuleSettings,
         networkSettings: NetworkSettings,
         context: RenderContext
@@ -90,7 +90,7 @@ enum NetworkMenuBarPresenter {
     }
 
     private static func graphValues(
-        history: [HistoryEntry<NetworkSample>],
+        history: [HistoryEntry<NetworkSample.GraphValue>],
         selectedInterfaceName: String?,
         settings: NetworkSettings
     ) -> [Double] {

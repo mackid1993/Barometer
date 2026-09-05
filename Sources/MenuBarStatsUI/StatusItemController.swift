@@ -20,12 +20,12 @@ public struct StatusItemContent {
 
 /// Observes one module store and applies rendered images to its permanent status item.
 @MainActor
-public final class StatusItemController<Sample: Sendable> {
+public final class StatusItemController<Sample: HistoryProjecting> {
     /// Rendering closure specialized for a module's sample type.
     public typealias Render =
         @MainActor (
             Sample?,
-            [HistoryEntry<Sample>],
+            [HistoryEntry<Sample.GraphValue>],
             ModuleSettings,
             RenderContext
         ) -> StatusItemContent

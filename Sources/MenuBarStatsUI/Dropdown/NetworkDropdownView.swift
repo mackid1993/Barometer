@@ -79,7 +79,7 @@ public struct NetworkDropdownView: View {
                         )
                     }
                     NetworkHistoryGraph(
-                        samples: store.history.entries,
+                        samples: store.history.recent(300),
                         selectedInterfaceName: settings.selectedInterfaceName,
                         settings: settings,
                         downloadAccent: downloadAccent,
@@ -414,7 +414,7 @@ private struct RateTile: View {
 }
 
 private struct NetworkHistoryGraph: View {
-    let samples: [HistoryEntry<NetworkSample>]
+    let samples: [HistoryEntry<NetworkSample.GraphValue>]
     let selectedInterfaceName: String?
     let settings: NetworkSettings
     let downloadAccent: ModuleAccent

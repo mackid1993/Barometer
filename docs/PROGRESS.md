@@ -2604,3 +2604,67 @@ Verification:
 - `git ls-remote --symref origin HEAD refs/heads/main refs/heads/master` confirmed HEAD targets master and
   there is no remote main branch.
 - `git diff --check` passed. Runtime tests were not needed for documentation and a CI branch-filter change.
+
+
+### P8-T23 bound graph-history memory and gate builds on tests
+
+Replaced retained full samples with module-specific graph values. Latest samples still contain all current detail;
+CPU history holds only utilization, Memory holds used fraction and pressure, and other graphs retain only the
+rates or sensor values they draw. CPU and Memory retain their existing day-long sample capacities. GPU, Network,
+and Disk retain 300 samples, Sensors 240, and Battery 720; Weather and Time do not retain forecast/calendar payloads.
+`GraphHistoryRetention` supplies the same limits to the application and benchmark.
+
+History arrays now grow as samples arrive rather than filling every slot with nil at startup. Dropdowns request
+bounded windows or downsample directly from the ring. CPU time-window selection preserves both endpoints and
+handles backward wall-clock corrections without allocating a complete filtered history. Process icons use a
+128-entry, 512 KiB-cost cache of 32-by-32 thumbnails keyed by application/executable path when available, so PID
+turnover does not retain another full icon for the same executable. NSCache limits remain eviction hints rather
+than a hard process-memory limit.
+
+Regression tests cover empty-buffer allocation, copy-on-write wrapping, full-day display bounds and endpoints,
+clock corrections, release of old full-sample payloads, missing sensor readings, selected network interfaces, and
+shared thumbnail dimensions. Existing renderer tests now consume projected history values while keeping their
+presentation assertions.
+
+Local `swift test` had compiled its generated runner without finding Testing.framework, silently executing no tests.
+`make test` now explicitly enables Swift Testing and supplies the framework search path to all compilation targets,
+including the generated runner. This produces real test counts and a failing exit status when an assertion fails.
+
+Verification on 2026-09-04:
+
+- `make test`: 169 tests executed, 168 passed, one existing weather-glyph assertion failed: leading-margin spread
+  was 2 points against a 1-point limit. Running the unchanged P8-T22 baseline's renderer suite with the same
+  framework flags reproduced that exact failure (47 tests, one failure). The assertion was not weakened.
+- Focused execution using `swift test --enable-swift-testing -Xswiftc -F -Xswiftc
+  /Library/Developer/CommandLineTools/Library/Developer/Frameworks --filter
+  'MemoryHistoryTests|HistoryTests|NetworkTests|processIconsUseSmallSharedThumbnails'`: 16 tests passed.
+- `Scripts/benchmark-memory.py` builds the identical `Tools/MemoryHistoryBenchmark.swift` against the current
+  modules and a `git archive b05e457` baseline, in separate processes. Both initialize all seven hardware stores
+  and feed identical CPU (14 cores, five processes), Network (16 interfaces), and Sensors (300 readings every
+  five simulated seconds) samples. Memory, GPU, Disk, and Battery stores remain empty in this workload.
+- Final benchmark output (physical footprint, decimal bytes):
+
+  | Simulated elapsed time | Baseline | Compact history |
+  | --- | ---: | ---: |
+  | Startup | 61,604,440 | 2,490,920 |
+  | Six minutes | 69,272,152 | 5,112,360 |
+  | One hour | 136,888,968 | 9,994,816 |
+  | 24 hours | Not run | 12,681,816 |
+  | 48 hours | Not run | 12,681,816 |
+
+  The one-hour footprint decreased 92.7%; measured growth from simulated hours 24 to 48 was zero bytes.
+  The benchmark automatically fails if the reduction is below 50% or plateau growth exceeds 5 MiB.
+  This is an accelerated storage workload, not a whole-app or real-time 48-hour measurement. It does not attribute
+  the earlier heap's remaining non-object allocations or predict the reporter's complete UI footprint.
+
+David also requested checks before builds. Added a reusable Tests workflow invoked by both Check and Build macOS.
+Check packaging requires its test job; the signed build requires its check job before packaging or certificate import;
+Release already requires the reusable macOS build, so it inherits the test gate. Test compilation is necessary to
+execute tests, but packaging, signing, and release preparation cannot run following a failed gate.
+
+- Ruby/Psych parsed all four workflow YAML files and verified the Check → Tests, Build → Tests, and Release → Build
+  dependencies, shared `make test` entry point, and absence of `if`/`continue-on-error` job-level bypasses.
+
+- `CODESIGN_IDENTITY=- make app` built the release configuration and packaged `dist/Barometer.app`;
+  `codesign --verify --deep --strict --verbose=2 dist/Barometer.app` passed. The installed application was not replaced.
+- `git diff --check` passed.

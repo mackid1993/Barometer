@@ -16,6 +16,10 @@ env:
 
 jobs:
   test:
+    uses: ./.github/workflows/tests.yml
+
+  package:
+    needs: test
     runs-on: macos-26
     timeout-minutes: 20
     steps:
@@ -23,9 +27,6 @@ jobs:
 
       - name: Report toolchain
         run: swift --version
-
-      - name: Test
-        run: swift test
 
       - name: Build app and DMG
         run: make dmg

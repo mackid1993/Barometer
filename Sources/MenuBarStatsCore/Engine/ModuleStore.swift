@@ -4,12 +4,12 @@ import Observation
 /// Main-actor observable state for one module's latest sample and history.
 @MainActor
 @Observable
-public final class ModuleStore<Sample: Sendable> {
+public final class ModuleStore<Sample: HistoryProjecting> {
     /// The most recently received sample.
     public private(set) var latestSample: Sample?
 
-    /// The module's bounded sample history.
-    public private(set) var history: History<Sample>
+    /// The module's bounded, compact graph history; full details live only in latestSample.
+    public private(set) var history: History<Sample.GraphValue>
 
     /// A revision advanced by menu tracking timers so hosted views keep refreshing.
     public private(set) var revision = 0
@@ -22,7 +22,7 @@ public final class ModuleStore<Sample: Sendable> {
     /// Records a new sample.
     public func receive(_ sample: Sample, at timestamp: Date = Date()) {
         latestSample = sample
-        history.append(sample, at: timestamp)
+        history.append(sample.graphValue, at: timestamp)
     }
 
     /// Advances the view revision while a dropdown is tracking.

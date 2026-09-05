@@ -52,7 +52,7 @@ public struct DiskDropdownView: View {
                             value: DiskValueFormatter.rate(rates.write, unitSystem: settings.unitSystem),
                             color: accent.secondary)
                     }
-                    DiskHistoryGraph(samples: store.history.entries, readAccent: readAccent, writeAccent: writeAccent)
+                    DiskHistoryGraph(samples: store.history.recent(300), readAccent: readAccent, writeAccent: writeAccent)
                         .frame(height: 90)
                 }
             }
@@ -234,16 +234,13 @@ private struct DiskRateTile: View {
 }
 
 private struct DiskHistoryGraph: View {
-    let samples: [HistoryEntry<DiskSample>]
+    let samples: [HistoryEntry<DiskSample.GraphValue>]
     let readAccent: ModuleAccent
     let writeAccent: ModuleAccent
 
     var body: some View {
         let values = samples.suffix(300).map { entry in
-            entry.value.devices.reduce(into: (read: 0.0, write: 0.0)) { result, device in
-                result.read += device.readBytesPerSecond
-                result.write += device.writeBytesPerSecond
-            }
+            entry.value
         }
         let maximum = max(1, values.reduce(0) { max($0, $1.read, $1.write) } * 1.1)
         MirroredAreaGraph(

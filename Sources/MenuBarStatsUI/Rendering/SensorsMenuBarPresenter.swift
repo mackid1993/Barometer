@@ -6,7 +6,7 @@ public enum SensorsMenuBarPresenter {
     /// Produces one independently movable Sensors widget.
     public static func content(
         sample: SensorSample?,
-        history: [HistoryEntry<SensorSample>],
+        history: [HistoryEntry<SensorSample.GraphValue>],
         moduleSettings: ModuleSettings,
         sensorSettings: SensorSettings,
         widget: SensorWidgetSettings,
@@ -36,7 +36,7 @@ public enum SensorsMenuBarPresenter {
             let values =
                 primary.map { reading in
                     history.suffix(90).compactMap { entry in
-                        entry.value.reading(id: reading.id).map { normalized($0) }
+                        entry.value.reading(id: reading.id).map { normalized($0, kind: reading.kind) }
                     }
                 } ?? []
             renderer = GraphRenderer(values: values, style: moduleSettings.graphStyle)
@@ -170,13 +170,13 @@ public enum SensorsMenuBarPresenter {
             .compactMap { $0 }
     }
 
-    private static func normalized(_ reading: SensorReading) -> Double {
-        switch reading.kind {
-        case .temperature: min(1, max(0, reading.value / 125))
-        case .fan: min(1, max(0, reading.value / 6_000))
-        case .power: min(1, max(0, reading.value / 150))
-        case .voltage: min(1, max(0, reading.value / 20))
-        case .current: min(1, max(0, abs(reading.value) / 20))
+    private static func normalized(_ value: Double, kind: SensorKind) -> Double {
+        switch kind {
+        case .temperature: min(1, max(0, value / 125))
+        case .fan: min(1, max(0, value / 6_000))
+        case .power: min(1, max(0, value / 150))
+        case .voltage: min(1, max(0, value / 20))
+        case .current: min(1, max(0, abs(value) / 20))
         }
     }
 }

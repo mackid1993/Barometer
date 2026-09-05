@@ -1,0 +1,23 @@
+name: Tests
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
+
+jobs:
+  test:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Report toolchain
+        run: swift --version
+
+      - name: Run tests
+        run: make test

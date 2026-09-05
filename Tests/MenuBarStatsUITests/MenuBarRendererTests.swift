@@ -337,6 +337,17 @@ struct MenuBarRendererTests {
     }
 
     @Test
+    func processIconsUseSmallSharedThumbnails() {
+        let first = ProcessIconResolver.image(processIdentifier: 1, path: "/usr/bin/true")
+        let second = ProcessIconResolver.image(processIdentifier: 2, path: "/usr/bin/true")
+        #expect(first === second)
+        #expect(first.size == NSSize(width: 16, height: 16))
+        #expect(first.representations.count == 1)
+        #expect(first.representations.first?.pixelsWide == 32)
+        #expect(first.representations.first?.pixelsHigh == 32)
+    }
+
+    @Test
     func helperProcessesUseTheirOwningApplicationIcon() {
         let discordHelper =
             "/Applications/Discord.app/Contents/Frameworks/"
@@ -395,7 +406,7 @@ struct MenuBarRendererTests {
             )
             let full = MonitoringCoordinator.renderCPU(
                 sample: cpu,
-                history: [HistoryEntry(timestamp: cpu.timestamp, value: cpu)],
+                history: [HistoryEntry(timestamp: cpu.timestamp, value: cpu.graphValue)],
                 settings: settings,
                 context: context
             )
@@ -412,7 +423,7 @@ struct MenuBarRendererTests {
             )
             let full = MonitoringCoordinator.renderMemory(
                 sample: memory,
-                history: [HistoryEntry(timestamp: memory.timestamp, value: memory)],
+                history: [HistoryEntry(timestamp: memory.timestamp, value: memory.graphValue)],
                 settings: settings,
                 context: context
             )
@@ -485,7 +496,7 @@ struct MenuBarRendererTests {
             wifi: nil,
             publicIP: nil
         )
-        let history = [HistoryEntry(timestamp: sample.timestamp, value: sample)]
+        let history = [HistoryEntry(timestamp: sample.timestamp, value: sample.graphValue)]
 
         for mode in ["twoLine", "arrows", "stacked", "graph"] {
             let settings = ModuleSettings(isEnabled: true, mode: mode)
@@ -677,7 +688,7 @@ struct MenuBarRendererTests {
             unit: .rpm
         )
         let sample = SensorSample(timestamp: .now, readings: [temperature, fan], sessionEnergy: [])
-        let history = [HistoryEntry(timestamp: sample.timestamp, value: sample)]
+        let history = [HistoryEntry(timestamp: sample.timestamp, value: sample.graphValue)]
 
         for mode in SensorWidgetMode.allCases {
             let widget = SensorWidgetSettings(id: 1, mode: mode)
@@ -719,7 +730,7 @@ struct MenuBarRendererTests {
             powerWatts: 3.5,
             temperatureCelsius: 52
         )
-        let history = [HistoryEntry(timestamp: sample.timestamp, value: sample)]
+        let history = [HistoryEntry(timestamp: sample.timestamp, value: sample.graphValue)]
 
         for mode in ["percentage", "graph", "combinedCPU"] {
             let settings = ModuleSettings(isEnabled: true, mode: mode)
@@ -779,7 +790,7 @@ struct MenuBarRendererTests {
             volumes: [volume],
             devices: [device]
         )
-        let history = [HistoryEntry(timestamp: sample.timestamp, value: sample)]
+        let history = [HistoryEntry(timestamp: sample.timestamp, value: sample.graphValue)]
 
         for mode in ["activityGraph", "freePercentage", "freeBytes", "rates"] {
             let settings = ModuleSettings(isEnabled: true, mode: mode)

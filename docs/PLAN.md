@@ -444,6 +444,16 @@ allow `.combined` instances.
   Apply bar is used. Reserved widths come from one catalog shared with the renderer.
 - Verify: opening a stack shows the same detail the module's own item shows; the preview matches the rendered item.
 
+### P8-T23 Bound graph-history memory
+
+- Keep full details only in the latest sample and retain compact numeric graph history.
+- Allocate history incrementally, preserve CPU and Memory day-long windows, and cap other buffers at the
+  largest window actually displayed. Downsample long dropdown graphs without copying the full history.
+- Bound process-icon caching and retain only row-sized thumbnails.
+- Verify: execute the history and thumbnail tests, run the full suite, build the app, and compare identical
+  synthetic sample workloads against P8-T22 with `Scripts/benchmark-memory.py`. Record both measurements
+  and any baseline failures in the progress log.
+
 ---
 
 ## Phase 9: After v1

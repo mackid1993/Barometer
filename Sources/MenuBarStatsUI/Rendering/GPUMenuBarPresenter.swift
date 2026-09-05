@@ -6,7 +6,7 @@ public enum GPUMenuBarPresenter {
     /// Renders the selected GPU presentation mode.
     public static func content(
         sample: GPUSample?,
-        history: [HistoryEntry<GPUSample>],
+        history: [HistoryEntry<GPUSample.GraphValue>],
         cpuPercent: Double?,
         settings: ModuleSettings,
         context: RenderContext

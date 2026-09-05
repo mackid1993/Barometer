@@ -44,8 +44,7 @@ public struct CPUDropdownView: View {
     public var body: some View {
         let sample = store.latestSample
         let cutoff = Date().addingTimeInterval(-range.duration)
-        let values = store.history.entries
-            .filter { $0.timestamp >= cutoff }
+        let values = store.history.downsampled(to: 300, since: cutoff)
             .map { $0.value.totalPercent / 100 }
         let _ = store.revision
         let settings = settingsStore.settings.modules[.cpu] ?? ModuleSettings()
@@ -244,7 +243,7 @@ public struct MemoryDropdownView: View {
 
     public var body: some View {
         let sample = store.latestSample
-        let values = store.history.entries.map { $0.value.pressurePercent / 100 }
+        let values = store.history.downsampled(to: 300).map { $0.value.pressurePercent / 100 }
         let _ = store.revision
         let settings = settingsStore.settings.modules[.memory] ?? ModuleSettings()
         let accent = ModuleAccent.resolve(settingsStore.settings, module: .memory)
@@ -419,22 +418,47 @@ struct ProcessIcon: View {
 
 @MainActor
 enum ProcessIconResolver {
-    private static let cache = NSCache<NSString, NSImage>()
+    private static let cache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 128
+        cache.totalCostLimit = 128 * 32 * 32 * 4
+        return cache
+    }()
 
     static func image(processIdentifier: pid_t, path: String?) -> NSImage {
-        let cacheKey = "\(processIdentifier):\(path ?? "")" as NSString
+        let application = applicationURL(for: path)
+        let cacheKey = (application?.path ?? path ?? "pid:\(processIdentifier)") as NSString
         if let cached = cache.object(forKey: cacheKey) {
             return cached
         }
 
         let image =
-            applicationURL(for: path).map { NSWorkspace.shared.icon(forFile: $0.path) }
+            application.map { NSWorkspace.shared.icon(forFile: $0.path) }
             ?? NSRunningApplication(processIdentifier: processIdentifier)?.icon
             ?? path.map { NSWorkspace.shared.icon(forFile: $0) }
             ?? NSImage(systemSymbolName: "terminal.fill", accessibilityDescription: "Command-line process")
             ?? NSImage()
-        cache.setObject(image, forKey: cacheKey)
-        return image
+        let thumbnail = thumbnail(image)
+        cache.setObject(thumbnail, forKey: cacheKey, cost: 32 * 32 * 4)
+        return thumbnail
+    }
+
+    /// Rasterizes only the pixels the 16-point row needs, releasing the full application icon.
+    private static func thumbnail(_ image: NSImage) -> NSImage {
+        guard let bitmap = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: 32, pixelsHigh: 32, bitsPerSample: 8,
+            samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+            bytesPerRow: 0, bitsPerPixel: 0
+        ), let context = NSGraphicsContext(bitmapImageRep: bitmap) else {
+            return NSImage()
+        }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        image.draw(in: NSRect(x: 0, y: 0, width: 32, height: 32))
+        NSGraphicsContext.restoreGraphicsState()
+        let result = NSImage(size: NSSize(width: 16, height: 16))
+        result.addRepresentation(bitmap)
+        return result
     }
 
     static func applicationURL(for path: String?) -> URL? {

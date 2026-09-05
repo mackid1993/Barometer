@@ -6,7 +6,7 @@ import MenuBarStatsCore
 enum DiskMenuBarPresenter {
     static func content(
         sample: DiskSample?,
-        history: [HistoryEntry<DiskSample>],
+        history: [HistoryEntry<DiskSample.GraphValue>],
         moduleSettings: ModuleSettings,
         diskSettings: DiskSettings,
         context: RenderContext
@@ -81,8 +81,10 @@ enum DiskMenuBarPresenter {
         volume.totalBytes > 0 ? Double(volume.availableBytes) / Double(volume.totalBytes) * 100 : 0
     }
 
-    private static func graphValues(_ history: [HistoryEntry<DiskSample>]) -> (reads: [Double], writes: [Double]) {
-        let rates = history.map { aggregateRates($0.value) }
+    private static func graphValues(
+        _ history: [HistoryEntry<DiskSample.GraphValue>]
+    ) -> (reads: [Double], writes: [Double]) {
+        let rates = history.map { $0.value }
         let maximum = max(1, rates.reduce(0) { max($0, $1.read, $1.write) } * 1.1)
         return (
             reads: rates.map { min(1, max(0, $0.read / maximum)) },

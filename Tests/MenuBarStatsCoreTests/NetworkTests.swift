@@ -75,6 +75,9 @@ struct NetworkTests {
         #expect(sample.interface(named: "utun3") == vpn)
         #expect(sample.interface(named: "missing") == ethernet)
         #expect(sample.interface(named: nil) == ethernet)
+        #expect(sample.graphValue.interface(named: "utun3")?.downloadBytesPerSecond == 20)
+        #expect(sample.graphValue.interface(named: "missing")?.downloadBytesPerSecond == 10)
+        #expect(sample.graphValue.interface(named: nil)?.name == "en0")
     }
 
     @Test("counter resets never become impossible transfer spikes")

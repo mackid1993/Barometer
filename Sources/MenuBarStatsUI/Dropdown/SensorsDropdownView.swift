@@ -124,7 +124,7 @@ public struct SensorsDropdownView: View {
     }
 
     private func history(for reading: SensorReading) -> [Double] {
-        let raw = store.history.recent(60).compactMap { $0.value.reading(id: reading.id)?.value }
+        let raw = store.history.recent(60).compactMap { $0.value.reading(id: reading.id) }
         guard let minimum = raw.min(), let maximum = raw.max(), maximum > minimum else {
             return raw.map { _ in 0.5 }
         }

@@ -4,7 +4,8 @@ build:
 	swift build
 
 test:
-	swift test
+	swift test --enable-swift-testing -Xswiftc -F \
+		-Xswiftc "$${DEVELOPER_DIR:-/Library/Developer/CommandLineTools}/Library/Developer/Frameworks"
 
 app:
 	./Scripts/make-app.sh

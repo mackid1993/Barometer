@@ -7,35 +7,58 @@ import SwiftUI
 /// Wires active monitors, stores, schedulers, and status item controllers together.
 @MainActor
 public final class MonitoringCoordinator {
+    // CPU and Memory expose day-long graphs. Other histories retain only the largest window
+    // consumed by their dropdown or status-item graph; full details stay in latestSample.
+
     /// Observable CPU state used by status items and dropdowns.
-    public let cpuStore = ModuleStore<CPUSample>(historyCapacity: 86_400)
+    public let cpuStore = ModuleStore<CPUSample>(
+        historyCapacity: GraphHistoryRetention.capacity(for: .cpu)
+    )
 
     /// Observable Memory state used by status items and dropdowns.
-    public let memoryStore = ModuleStore<MemorySample>(historyCapacity: 43_200)
+    public let memoryStore = ModuleStore<MemorySample>(
+        historyCapacity: GraphHistoryRetention.capacity(for: .memory)
+    )
 
     /// Observable GPU state used by its status item, dropdown, and settings.
-    public let gpuStore = ModuleStore<GPUSample>(historyCapacity: 86_400)
+    public let gpuStore = ModuleStore<GPUSample>(
+        historyCapacity: GraphHistoryRetention.capacity(for: .gpu)
+    )
 
     /// Observable Weather state used by its status item and dropdown.
-    public let weatherStore = ModuleStore<WeatherSample>(historyCapacity: 192)
+    public let weatherStore = ModuleStore<WeatherSample>(
+        historyCapacity: GraphHistoryRetention.capacity(for: .weather)
+    )
 
     /// Observable Network state used by its status item, dropdown, and settings.
-    public let networkStore = ModuleStore<NetworkSample>(historyCapacity: 86_400)
+    public let networkStore = ModuleStore<NetworkSample>(
+        historyCapacity: GraphHistoryRetention.capacity(for: .network)
+    )
 
     /// Observable Disk state used by its status item, dropdown, and settings.
-    public let diskStore = ModuleStore<DiskSample>(historyCapacity: 86_400)
+    public let diskStore = ModuleStore<DiskSample>(
+        historyCapacity: GraphHistoryRetention.capacity(for: .disks)
+    )
 
     /// Observable Sensors state shared by every independently movable Sensors widget.
-    public let sensorStore = ModuleStore<SensorSample>(historyCapacity: 28_800)
+    public let sensorStore = ModuleStore<SensorSample>(
+        historyCapacity: GraphHistoryRetention.capacity(for: .sensors)
+    )
 
     /// Observable Battery state used by its status item, dropdown, and settings.
-    public let batteryStore = ModuleStore<BatterySample>(historyCapacity: 8_640)
+    public let batteryStore = ModuleStore<BatterySample>(
+        historyCapacity: GraphHistoryRetention.capacity(for: .battery)
+    )
 
     /// Observable Time state used by its status item, dropdown, and settings.
-    public let timeStore = ModuleStore<TimeSample>(historyCapacity: 120)
+    public let timeStore = ModuleStore<TimeSample>(
+        historyCapacity: GraphHistoryRetention.capacity(for: .time)
+    )
 
     /// Redraw state for the Combined status item.
-    public let combinedStore = ModuleStore<CombinedSample>(historyCapacity: 2)
+    public let combinedStore = ModuleStore<CombinedSample>(
+        historyCapacity: GraphHistoryRetention.capacity(for: .combined)
+    )
 
     /// Shared application settings.
     public let settingsStore: SettingsStore
@@ -1019,7 +1042,7 @@ public final class MonitoringCoordinator {
 
     static func renderCPU(
         sample: CPUSample?,
-        history: [HistoryEntry<CPUSample>],
+        history: [HistoryEntry<CPUSample.GraphValue>],
         settings: ModuleSettings,
         context: RenderContext
     ) -> StatusItemContent {
@@ -1061,7 +1084,7 @@ public final class MonitoringCoordinator {
 
     static func renderMemory(
         sample: MemorySample?,
-        history: [HistoryEntry<MemorySample>],
+        history: [HistoryEntry<MemorySample.GraphValue>],
         settings: ModuleSettings,
         context: RenderContext
     ) -> StatusItemContent {
@@ -1078,7 +1101,7 @@ public final class MonitoringCoordinator {
         case "graph":
             renderer = GraphRenderer(
                 values: history.map { value in
-                    value.value.total > 0 ? Double(value.value.used) / Double(value.value.total) : 0
+                    value.value.usedFraction
                 },
                 style: settings.graphStyle
             )
@@ -1283,7 +1306,7 @@ public final class MonitoringCoordinator {
 
     static func renderWeather(
         sample: WeatherSample?,
-        history: [HistoryEntry<WeatherSample>],
+        history: [HistoryEntry<WeatherSample.GraphValue>],
         settings: ModuleSettings,
         context: RenderContext
     ) -> StatusItemContent {
