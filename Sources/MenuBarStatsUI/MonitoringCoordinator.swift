@@ -1219,7 +1219,7 @@ public final class MonitoringCoordinator {
             CurrentLocationProvider.shared.stop()
             return
         }
-        CurrentLocationProvider.shared.start { [weak self] location in
+        CurrentLocationProvider.shared.start(requestsAuthorization: false) { [weak self] location in
             self?.updateCurrentLocation(location)
         } failure: { [weak self] _ in
             guard let self else {

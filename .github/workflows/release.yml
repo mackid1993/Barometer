@@ -17,6 +17,11 @@ on:
         required: false
         default: false
         type: boolean
+      replace_published:
+        description: "Replace the published release asset and retarget its tag"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -64,12 +69,12 @@ jobs:
             printf 'Barometer %s\n' "$VERSION" > notes.md
           fi
 
-      # The release is left as a draft. Nothing becomes public, and nothing is marked latest, until
-      # a person reviews the notes and the notarized DMG and presses Publish. `--latest` is set at
-      # publish time by GitHub, so it is deliberately not passed here.
-      - name: Create draft GitHub release
+      # New releases remain drafts. An already-published release is immutable unless the manual
+      # dispatch explicitly enables replacement; that path also retargets the tag to the tested source.
+      - name: Prepare GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          REPLACE_PUBLISHED: ${{ inputs.replace_published }}
         run: |
           TAG="v${VERSION}"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
@@ -79,17 +84,18 @@ jobs:
               --title "Barometer ${VERSION}" \
               --notes-file notes.md
           else
-            # An existing draft is refreshed. A release that is already public is never rewritten
-            # here: re-running would otherwise silently replace what people have downloaded.
             if [ "$(gh release view "$TAG" --json isDraft -q .isDraft)" != "true" ]; then
-              echo "::error::$TAG is already published; bump the version instead of re-releasing" >&2
-              exit 1
+              if [ "$REPLACE_PUBLISHED" != "true" ]; then
+                echo "::error::$TAG is already published; enable the explicit replacement input or bump the version" >&2
+                exit 1
+              fi
+              gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG}" \
+                -f sha="$GITHUB_SHA" \
+                -F force=true >/dev/null
             fi
             gh release edit "$TAG" \
-              --draft=true \
               --title "Barometer ${VERSION}" \
               --notes-file notes.md
           fi
           gh release upload "$TAG" "staging/Barometer-${VERSION}.dmg" --clobber
-          echo "Draft release $TAG is ready for review at $(gh release view "$TAG" --json url -q .url)" \
-            >> "$GITHUB_STEP_SUMMARY"
+          echo "Release $TAG is ready at $(gh release view "$TAG" --json url -q .url)" >> "$GITHUB_STEP_SUMMARY"

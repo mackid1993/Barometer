@@ -8,6 +8,7 @@ struct SensorsTests {
     private func reading(
         id: String = "derived:temperature:cpu",
         name: String = "CPU Temperature",
+        rawName: String = "test",
         value: Double = 52.25,
         unit: SensorUnit = .celsius,
         source: SensorSourceKind = .derived
@@ -16,12 +17,34 @@ struct SensorsTests {
             id: id,
             name: name,
             shortName: "CPU",
-            rawName: "test",
+            rawName: rawName,
             kind: unit == .celsius ? .temperature : .power,
             source: source,
             value: value,
             unit: unit
         )
+    }
+
+    @Test("recognized GPU temperatures do not require advanced firmware sensors")
+    func gpuTemperatureIsFriendly() {
+        let gpu = reading(
+            id: "smc:temperature:Tg0a",
+            name: "GPU Temperature",
+            rawName: "Tg0a",
+            value: 53.4,
+            source: .smc
+        )
+        let unknown = reading(
+            id: "smc:temperature:ZZZZ",
+            name: "ZZZZ",
+            rawName: "ZZZZ",
+            value: 41,
+            source: .smc
+        )
+        let sample = SensorSample(timestamp: .now, readings: [gpu, unknown], sessionEnergy: [])
+
+        #expect(sample.displayReadings(hidesDuplicates: false).map(\.id) == [gpu.id])
+        #expect(sample.displayReadings(hidesDuplicates: false, showsRawNames: true).count == 2)
     }
 
     @Test("temperature formatting supports both systems and fixed precision")

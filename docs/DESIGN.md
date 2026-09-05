@@ -28,7 +28,9 @@ Weather is a first-class module, not an add-on.
 
 Consequences:
 
-- Everything must build with `swift build` from a Swift package. There is no `.xcodeproj`, no `xcodebuild`, and no Xcode-only features (no entitlements, no WeatherKit, no storyboards). The `.app` bundle is assembled by a script.
+- Everything must build with `swift build` from a Swift package. There is no `.xcodeproj`, no `xcodebuild`, and no
+  Xcode-only project configuration. The bundle script applies the minimum Calendar and Location entitlements directly;
+  there is no WeatherKit or storyboard dependency.
 - The SDK is 26.2, so the code compiles against macOS 26 headers and runs on 27. Do not depend on any macOS 27-only API.
 - Development builds use ad-hoc signing. The v1 release uses Developer ID Application signing, the hardened runtime,
   and Apple notarization. TCC grants can still reset during ad-hoc development, so Location and Calendars remain
@@ -401,7 +403,8 @@ Every source below has been checked on the target machine unless marked "expecte
   `dist/Barometer.app/Contents/{MacOS,Resources}`, copies that binary without renaming it, writes `Info.plist` with
   version substitution, copies resources, and verifies there is exactly one executable in the bundle. It signs with
   `CODESIGN_IDENTITY` when supplied, otherwise the first valid Developer ID Application identity in the login
-  keychain, and uses an ad-hoc signature only as a fallback.
+  keychain, and uses an ad-hoc signature only as a fallback. Both signing paths apply and verify the Calendar and
+  Location privacy entitlements.
 - `Info.plist` keys: `CFBundleIdentifier`, `CFBundleName`, `CFBundleDisplayName`, `CFBundleExecutable`, `CFBundlePackageType=APPL`, `CFBundleShortVersionString`, `CFBundleVersion`, `LSMinimumSystemVersion=26.0`, `LSUIElement=true`, `NSHumanReadableCopyright`, `NSLocationUsageDescription`, `NSCalendarsFullAccessUsageDescription`, `NSSupportsAutomaticTermination=false`, `NSSupportsSuddenTermination=false`.
 - `make run` kills any running instance, rebuilds, and opens the app with `open dist/Barometer.app`. `make install` copies to `/Applications`.
 - Launch at login uses `SMAppService.mainApp.register()`; it requires the app to be in a stable location, so Settings warns when running from `dist/`.

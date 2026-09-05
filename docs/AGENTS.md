@@ -340,6 +340,13 @@ universal performance guarantee.
 
 - Ad hoc development signatures can reset TCC grants. Location and Calendar paths must tolerate missing permission
   and saved-data fallback.
+- Hardened-runtime builds must contain both `com.apple.security.personal-information.location` and
+  `com.apple.security.personal-information.calendars`. `Scripts/make-app.sh` verifies the signed entitlements instead
+  of trusting the source plist.
+- A direct Location request must activate the LSUIElement application before calling
+  `requestWhenInUseAuthorization()`. Keep current-location callbacks registered at launch when the saved setting is
+  on, but never initiate an undetermined permission request until the user selects **Use current location** or
+  **Allow Location**.
 - CoreWLAN returning a nil SSID does not prove Location access is denied. Retain Barometer's shared
   `CLLocationManager` whenever Network is active, inspect its authorization state, and invalidate the cached Wi-Fi
   sample after authorization changes. Never display a permission-required message when Core Location already reports

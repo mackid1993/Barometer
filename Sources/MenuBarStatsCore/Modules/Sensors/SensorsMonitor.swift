@@ -563,7 +563,7 @@ public actor SensorsMonitor: Monitor {
             return "CPU \(key)"
         }
         if key.hasPrefix("Tg") || key.hasPrefix("TG") {
-            return "GPU \(key)"
+            return "GPU Temperature"
         }
         if key.hasPrefix("TB") { return "Battery \(key)" }
         if key.hasPrefix("TS") || key.hasPrefix("Ts") { return "Storage \(key)" }
@@ -711,6 +711,9 @@ extension SensorReading {
             return true
         case .smc:
             if kind == .fan {
+                return true
+            }
+            if kind == .temperature && (rawName.hasPrefix("Tg") || rawName.hasPrefix("TG")) {
                 return true
             }
             return ["PSTR", "PDTR", "PPBR"].contains(rawName)

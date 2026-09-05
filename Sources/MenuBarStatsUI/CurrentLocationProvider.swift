@@ -1,4 +1,5 @@
 @preconcurrency import CoreLocation
+import AppKit
 import Foundation
 
 /// Location authorization states used by features that do not need coordinates themselves.
@@ -38,15 +39,21 @@ final class CurrentLocationProvider: NSObject, @preconcurrency CLLocationManager
         guard manager.authorizationStatus == .notDetermined else {
             return
         }
+        // Core Location only presents its sheet while the requesting app is in the foreground.
+        // LSUIElement applications do not become active merely because a menu or settings control
+        // was clicked, so make the direct user action explicit before asking the system.
+        NSApp.activate(ignoringOtherApps: true)
         manager.requestWhenInUseAuthorization()
     }
 
-    func start(update: @escaping Update, failure: @escaping Failure) {
+    func start(requestsAuthorization: Bool, update: @escaping Update, failure: @escaping Failure) {
         self.update = update
         self.failure = failure
         switch manager.authorizationStatus {
         case .notDetermined:
-            manager.requestWhenInUseAuthorization()
+            if requestsAuthorization {
+                requestAuthorizationIfNeeded()
+            }
         case .authorized, .authorizedAlways:
             manager.startUpdatingLocation()
         case .denied, .restricted:

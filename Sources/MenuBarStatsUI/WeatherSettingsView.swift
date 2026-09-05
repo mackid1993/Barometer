@@ -282,7 +282,7 @@ struct WeatherSettingsView: View {
 
     private func requestCurrentLocation() {
         locationError = nil
-        CurrentLocationProvider.shared.start { value in
+        CurrentLocationProvider.shared.start(requestsAuthorization: true) { value in
             let location = Location(
                 id: "current-location",
                 name: "Current Location",

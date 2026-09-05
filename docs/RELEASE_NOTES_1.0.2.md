@@ -107,6 +107,11 @@ their more expensive extra details while their panels are closed.
   bar manager is arranging items.
 - **Allow Calendar Access** actually requests access now. This works from Settings and from the Time dropdown. The app
   bundle also has the Calendar entitlement and permission description it needs.
+- **Use current location** and **Allow Location** now present the macOS permission sheet reliably. Barometer activates
+  itself for the direct request, and the signed app includes the Location entitlement required by the hardened
+  runtime. It still never asks for Location merely because the app launched.
+- Recognized GPU temperature readings are now available in the normal Sensors choices. They no longer require turning
+  on advanced firmware sensors; those controls remain reserved for undocumented raw keys.
 - The Network interface picker works again. You can choose Automatic, a physical interface, or a VPN interface from
   the picker inside the Network panel.
 - Dropdowns stay open while your pointer is over the menu bar item or the dropdown itself. They close one second after

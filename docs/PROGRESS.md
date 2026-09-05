@@ -3410,3 +3410,30 @@ workflow's tested source and packaged application. Independently downloaded and 
 
 Published [Barometer 1.0.2](https://github.com/mackid1993/Barometer/releases/tag/v1.0.2) as a non-prerelease public
 release and marked it Latest.
+
+## P8-T49 Repair Location authorization and normal GPU temperature discovery
+
+The first published 1.0.2 bundle contained `NSLocationUsageDescription` but omitted the hardened-runtime Location
+entitlement. It also requested authorization without first activating the LSUIElement application, even though macOS
+only presents the sheet for a foreground requester. Added `com.apple.security.personal-information.location` beside
+the existing Calendar entitlement, made the bundle script fail if either signed entitlement is absent, and activated
+Barometer before the two direct user-triggered Location requests. Restoring automatic current-location tracking at
+launch now registers its callbacks without initiating an undetermined permission request.
+
+Recognized SMC GPU temperature keys in the `Tg` and `TG` families now use the plain-language name **GPU Temperature**
+and remain available without enabling advanced firmware sensors. Unknown SMC keys remain hidden behind the advanced
+option. Added a regression test for that boundary.
+
+The manual Release workflow now has an explicit, default-off published-release replacement input. Without it, a
+published tag remains protected. With it, the workflow runs every existing test and packaging gate, retargets the tag
+to the tested commit, replaces the same-version DMG, and refreshes the full release notes.
+
+Verification before the GitHub Actions binary replacement:
+
+- `python3 Scripts/check-source-invariants.py` passed.
+- `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift test` passed all 246 tests in 34 suites,
+  including the privacy packaging and GPU temperature visibility regressions.
+- `make app` completed a production build and strict code-signature verification passed.
+- The built 1.0.2 application's signed entitlements contain both Calendar and Location access, and its Info.plist
+  retains the macOS Location usage description.
+- The Release workflow YAML parsed successfully and `git diff --check` passed.

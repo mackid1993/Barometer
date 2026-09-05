@@ -69,12 +69,18 @@ fi
 
 codesign --verify --strict "$application_directory"
 
-# A valid signature alone does not prove that hardened-runtime Calendar prompts are permitted.
+# A valid signature alone does not prove that hardened-runtime privacy prompts are permitted.
 signed_entitlements="$project_directory/dist/signed-entitlements.plist"
 codesign --display --entitlements - --xml "$application_directory" > "$signed_entitlements"
 calendar_access=$(plutil -extract 'com\.apple\.security\.personal-information\.calendars' raw -o - \
     "$signed_entitlements")
 if [ "$calendar_access" != "true" ]; then
     echo "Barometer.app is missing its Calendar access entitlement" >&2
+    exit 1
+fi
+location_access=$(plutil -extract 'com\.apple\.security\.personal-information\.location' raw -o - \
+    "$signed_entitlements")
+if [ "$location_access" != "true" ]; then
+    echo "Barometer.app is missing its Location access entitlement" >&2
     exit 1
 fi
