@@ -3627,3 +3627,17 @@ Verification:
 - `python3 Scripts/check-source-invariants.py`, `make security-audit`, and `git diff --check` passed.
 - `BAROMETER_VERSION=1.0.4 make dmg` rebuilt `dist/Barometer-1.0.4.dmg`; its nested app reports 1.0.4 and
   `hdiutil verify` validated the disk image.
+
+## P8-T57 Publish Barometer 1.0.4
+
+GitHub Actions run 33979820671 completed successfully from commit `e7e577b`. CI reran the source, security, test, and
+memory gates; stamped the application as 1.0.4; signed the app and DMG; received Apple's notarization acceptance;
+stapled the ticket; passed Gatekeeper assessment; and created the GitHub release with the complete notes.
+
+Independent verification downloaded the draft artifact before publication and confirmed:
+
+- SHA-256 `2fc80235bb5f1f1eb01a946f9f34d9eb9eb29839051f3749c1aacb7e91f9a27c` matches GitHub's asset digest.
+- `Barometer-1.0.4.dmg` has a valid signature, valid staple, valid disk-image checksum, and passes Gatekeeper.
+- The nested app has bundle identifier `com.barometer.app`, version 1.0.4, and exactly one executable.
+- The nested app passes strict signature and Gatekeeper checks and carries both Calendar and Location entitlements.
+- The published tag and release target commit `e7e577b`, and the release contains exactly the expected DMG.
