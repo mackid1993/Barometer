@@ -19,6 +19,9 @@ final class MenuDetailPresenter: NSObject, NSPopoverDelegate {
     private var presentationTimer: Timer?
     private var pendingContent: AnyView?
     private weak var pendingAnchor: NSView?
+    private weak var hoverAnchor: NSView?
+    private var hoverTimer: Timer?
+    private var lastHoverTime: TimeInterval = 0
 
     func show(_ content: AnyView, from menu: NSMenu, anchoredTo anchor: NSView) {
         close()
@@ -48,14 +51,42 @@ final class MenuDetailPresenter: NSObject, NSPopoverDelegate {
         detail.animates = false
         detail.delegate = self
         let height = min(640, max(300, (anchor.window?.screen?.visibleFrame.height ?? 900) - 100))
-        let content = content.environment(\.closeMenuDetail, { [weak self] in self?.close() })
         PopoverPlacement.configure(detail, content: content, size: NSSize(width: 380, height: height))
         popover = detail
         detail.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: edge)
         PopoverPlacement.constrain(detail, to: anchor.window?.screen)
+        hoverAnchor = anchor
+        lastHoverTime = ProcessInfo.processInfo.systemUptime
+        let timer = Timer(timeInterval: 0.05, target: self, selector: #selector(checkHover),
+                          userInfo: nil, repeats: true)
+        RunLoop.main.add(timer, forMode: .common)
+        hoverTimer = timer
+    }
+
+    @objc private func checkHover() {
+        updateHover(at: NSEvent.mouseLocation, time: ProcessInfo.processInfo.systemUptime)
+    }
+
+    func updateHover(at point: NSPoint, time: TimeInterval) {
+        guard let anchor = hoverAnchor, let anchorWindow = anchor.window,
+              let detailWindow = popover?.contentViewController?.view.window else {
+            close()
+            return
+        }
+        let row = anchorWindow.convertToScreen(anchor.convert(anchor.visibleRect, to: nil))
+        if row.insetBy(dx: -4, dy: -4).contains(point)
+            || detailWindow.frame.insetBy(dx: -4, dy: -4).contains(point) {
+            lastHoverTime = time
+        } else if time - lastHoverTime >= 0.2 {
+            // Brief grace permits crossing the gap between the row and its scrollable popover.
+            close()
+        }
     }
 
     func close() {
+        hoverTimer?.invalidate()
+        hoverTimer = nil
+        hoverAnchor = nil
         presentationTimer?.invalidate()
         presentationTimer = nil
         pendingContent = nil
@@ -72,16 +103,5 @@ final class MenuDetailPresenter: NSObject, NSPopoverDelegate {
     func popoverDidClose(_ notification: Notification) {
         guard let detail = notification.object as? NSPopover, detail === popover else { return }
         close()
-    }
-}
-
-private struct CloseMenuDetailKey: EnvironmentKey {
-    static let defaultValue: @MainActor () -> Void = {}
-}
-
-extension EnvironmentValues {
-    var closeMenuDetail: @MainActor () -> Void {
-        get { self[CloseMenuDetailKey.self] }
-        set { self[CloseMenuDetailKey.self] = newValue }
     }
 }

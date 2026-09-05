@@ -8,7 +8,6 @@ struct WeatherDayDetailView: View {
     let sample: WeatherSample
     let accent: ModuleAccent
     var settingsStore: SettingsStore? = nil
-    @Environment(\.closeMenuDetail) private var dismiss
 
     private var forecast: Forecast { sample.forecast }
     private var detailSettings: WeatherDetailSettings {
@@ -22,11 +21,6 @@ struct WeatherDayDetailView: View {
                 Text(Self.dateTitle(day.date, timeZone: forecast.timeZone))
                     .font(.system(.title3, design: .rounded).weight(.semibold))
                 Spacer()
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Close daily forecast")
             }
             .padding(14)
             Divider()
@@ -45,8 +39,6 @@ struct WeatherDayDetailView: View {
             hourlyForecast(details.hourly)
             sunAndMoon(details)
             extraSection(.atmosphere)
-            Text("Times in \(forecast.timeZone.identifier). — means unavailable.")
-                .font(.caption2).foregroundStyle(.secondary)
             if let url = URL(string: "https://open-meteo.com/") {
                 Link("Weather data by Open-Meteo.com", destination: url)
                     .font(.caption2).foregroundStyle(.secondary)

@@ -2814,3 +2814,23 @@ Verification before packaging:
 - git diff --check passed. Logs: dist/weather-placement-tests.log and dist/weather-placement-memory.log.
 - After the clean tests, make app passed, the signed bundle was copied to /Applications/Barometer.app, strict
   codesign verification passed, and the Applications copy was relaunched. This correction remains local.
+
+### P8-T29: Dismiss weather details when hover ends
+
+David reported persistent day popovers that required an X to dismiss. Added pointer-region checks while a day
+popover is open: remain visible over its source row or its own frame, then dismiss after a 200 ms grace period
+outside both. This permits crossing into the popover to scroll. The timer is invalidated on every close/replacement;
+no pointer monitor persists after dismissal. Removed the X and its now-unused environment dismissal action.
+Removed the technical time-zone/unavailable footer; retained provider attribution.
+
+Verification before packaging:
+
+- make test: all 199 tests in 29 suites passed. New hover-exit test checks crossing the gap, staying inside for
+  scrolling, leaving both regions, dismissal, and hosted-content release. Existing 100-cycle release tests passed.
+- Reran real screen captures for all popover types, both appearances, and four corners; inspected the updated day
+  screenshot to confirm the header no longer contains an X. All window-containment checks passed.
+- Memory benchmark passed: 92.7% lower one-hour history footprint and zero growth from simulated hours 24 to 48.
+  This is isolated history storage, not a whole-app memory claim.
+- git diff --check passed. Logs: dist/weather-hover-exit-tests.log and dist/weather-hover-exit-memory.log.
+- After the clean checks, signed make app passed, copied the bundle to Applications, verified its strict signature,
+  and relaunched /Applications/Barometer.app. This correction remains local.

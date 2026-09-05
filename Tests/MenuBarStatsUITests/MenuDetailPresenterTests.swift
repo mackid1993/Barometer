@@ -42,6 +42,31 @@ struct MenuDetailPresenterTests {
         view.show = nil
     }
 
+    @Test("Leaving the row and detail dismisses it, but moving into the detail keeps it open")
+    func hoverExitDismissal() throws {
+        let anchorWindow = makeAnchor()
+        defer { anchorWindow.close() }
+        let anchor = try #require(anchorWindow.contentView)
+        let presenter = MenuDetailPresenter()
+        defer { presenter.close() }
+        presenter.present(AnyView(Text("Forecast")), anchoredTo: anchor)
+        let detail = try #require(presenter.popover)
+        let detailWindow = try #require(detail.contentViewController?.view.window)
+        let row = anchorWindow.convertToScreen(anchor.bounds)
+        let start = ProcessInfo.processInfo.systemUptime
+        presenter.updateHover(at: NSPoint(x: row.midX, y: row.midY), time: start)
+        let outside = NSPoint(x: -100_000, y: -100_000)
+        presenter.updateHover(at: outside, time: start + 0.1)
+        #expect(detail.isShown)
+        presenter.updateHover(at: NSPoint(x: detailWindow.frame.midX, y: detailWindow.frame.midY), time: start + 0.15)
+        presenter.updateHover(at: NSPoint(x: detailWindow.frame.midX, y: detailWindow.frame.midY), time: start + 5)
+        #expect(detail.isShown)
+        presenter.updateHover(at: outside, time: start + 5.25)
+        #expect(!detail.isShown)
+        #expect(presenter.popover == nil)
+        #expect(detail.contentViewController == nil)
+    }
+
     @Test("Presentation waits until the menu tracking run loop ends")
     func menuHandoff() throws {
         let anchorWindow = makeAnchor()
