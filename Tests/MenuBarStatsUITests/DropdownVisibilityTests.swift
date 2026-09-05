@@ -21,3 +21,26 @@ func dropdownVisibility(module: String) {
     controller.menuDidClose(menu)
     #expect(visibility == [true, false])
 }
+
+@MainActor
+@Test("Opening another Barometer dropdown closes the previous hosted UI")
+func dropdownExclusivity() {
+    var firstVisibility: [Bool] = []
+    var secondVisibility: [Bool] = []
+    let first = DropdownController(
+        moduleName: "CPU", statusItem: nil, rootView: AnyView(Text("CPU")), contentHeight: 100,
+        visibilityAction: { firstVisibility.append($0) }, tickAction: {}, settingsAction: {}, quitAction: {}
+    )
+    let second = DropdownController(
+        moduleName: "Memory", statusItem: nil, rootView: AnyView(Text("Memory")), contentHeight: 100,
+        visibilityAction: { secondVisibility.append($0) }, tickAction: {}, settingsAction: {}, quitAction: {}
+    )
+    let firstMenu = NSMenu()
+    let secondMenu = NSMenu()
+    first.menuWillOpen(firstMenu)
+    second.menuWillOpen(secondMenu)
+    #expect(firstVisibility == [true, false])
+    #expect(secondVisibility == [true])
+    second.menuDidClose(secondMenu)
+    #expect(secondVisibility == [true, false])
+}

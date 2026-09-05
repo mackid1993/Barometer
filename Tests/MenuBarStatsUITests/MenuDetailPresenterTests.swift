@@ -60,9 +60,15 @@ struct MenuDetailPresenterTests {
         presenter.updateHover(at: NSPoint(x: detail.frame.midX, y: detail.frame.midY), time: start + 0.15)
         presenter.updateHover(at: NSPoint(x: detail.frame.midX, y: detail.frame.midY), time: start + 5)
         #expect(detail.isVisible)
-        presenter.updateHover(at: outside, time: start + 5.7)
+        presenter.updateHover(
+            at: outside,
+            time: start + 5 + PopoverDismissalMonitor.hoverExitDelay - 0.1
+        )
         #expect(detail.isVisible)
-        presenter.updateHover(at: outside, time: start + 5.9)
+        presenter.updateHover(
+            at: outside,
+            time: start + 5 + PopoverDismissalMonitor.hoverExitDelay + 0.1
+        )
         #expect(!detail.isVisible)
         #expect(presenter.panel == nil)
         #expect(detail.contentView == nil)

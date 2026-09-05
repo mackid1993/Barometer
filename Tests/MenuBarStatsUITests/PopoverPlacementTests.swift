@@ -72,6 +72,10 @@ struct PopoverPlacementTests {
                                    let document = scroll.documentView {
                                     let maximumY = max(0, document.frame.height - scroll.contentView.bounds.height)
                                     if maximumY > 1 {
+                                        if name.hasPrefix("day") {
+                                            Self.scroll(scroll, to: maximumY * 0.55)
+                                            try capture(panel, named: "\(baseName)-hourly", in: directory)
+                                        }
                                         Self.scrollToBottom(scroll)
                                         try capture(panel, named: "\(baseName)-bottom", in: directory)
                                         let finalMaximumY = max(
@@ -130,6 +134,12 @@ struct PopoverPlacementTests {
                 previousMaximumY = maximumY
             }
         }
+    }
+
+    private static func scroll(_ scroll: NSScrollView, to y: CGFloat) {
+        scroll.contentView.scroll(to: NSPoint(x: 0, y: y))
+        scroll.reflectScrolledClipView(scroll.contentView)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
     }
 
     @Test("Oversized and off-screen frames fit displays with positive and negative origins")

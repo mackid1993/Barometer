@@ -9,6 +9,7 @@ struct WeatherDayDetailView: View {
     let accent: ModuleAccent
     var settingsStore: SettingsStore? = nil
     @State private var selectedHour: Date?
+    @State private var hoveredHour: Date?
 
     private var forecast: Forecast { sample.forecast }
     private var detailSettings: WeatherDetailSettings {
@@ -171,36 +172,43 @@ struct WeatherDayDetailView: View {
                             .frame(width: max(336, CGFloat(points.count) * 28), height: 150)
                     }
                     .insetPlate()
-                    Text("Blue bars show precipitation chance.")
-                        .font(.caption2).foregroundStyle(.secondary)
                     // Keep every hour immediately visible while realizing the advanced fields for one hour at a time.
                     ScrollView(.horizontal, showsIndicators: true) {
                         LazyHStack(spacing: 8) {
                             ForEach(points) { point in
-                                Button {
-                                    selectedHour = point.time
-                                } label: {
-                                    VStack(spacing: 5) {
-                                        Text(compactHourLabel(point.time))
-                                        Image(systemName: point.code?.symbolName(isDay: point.isDay ?? true)
-                                              ?? "questionmark.circle")
-                                            .symbolRenderingMode(.multicolor)
-                                        Text(temperature(point.temperature)).fontWeight(.semibold)
-                                        Label(percent(point.precipitationProbability), systemImage: "drop.fill")
-                                            .foregroundStyle(.blue)
+                                VStack(spacing: 5) {
+                                    Text(compactHourLabel(point.time))
+                                    Image(systemName: point.code?.symbolName(isDay: point.isDay ?? true)
+                                          ?? "questionmark.circle")
+                                        .symbolRenderingMode(.multicolor)
+                                    Text(temperature(point.temperature)).fontWeight(.semibold)
+                                    Label(percent(point.precipitationProbability), systemImage: "drop.fill")
+                                        .foregroundStyle(.blue)
+                                }
+                                .font(.caption.monospacedDigit())
+                                .padding(8)
+                                .frame(width: 72)
+                                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                                .background {
+                                    let shape = RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                    ZStack {
+                                        shape.fill(isSelected(point)
+                                            ? accent.primary.opacity(0.16) : Color.primary.opacity(0.04))
+                                        if isHovered(point) {
+                                            shape.stroke(accent.primary.opacity(0.55), lineWidth: 1)
+                                                .shadow(color: accent.primary.opacity(0.45), radius: 8)
+                                        }
                                     }
-                                    .font(.caption.monospacedDigit())
-                                    .padding(8)
-                                    .frame(width: 72)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                            .fill(isSelected(point) ? accent.primary.opacity(0.16) : Color.primary.opacity(0.04))
-                                    )
                                 }
-                                .buttonStyle(.plain)
                                 .onHover { hovering in
-                                    if hovering { selectedHour = point.time }
+                                    if hovering {
+                                        hoveredHour = point.time
+                                        selectedHour = point.time
+                                    } else if hoveredHour == point.time {
+                                        hoveredHour = nil
+                                    }
                                 }
+                                .animation(.easeOut(duration: 0.12), value: hoveredHour)
                             }
                         }
                         .padding(.vertical, 2)
@@ -264,6 +272,10 @@ struct WeatherDayDetailView: View {
 
     private func isSelected(_ point: HourlyPoint) -> Bool {
         selectedHour.map { $0 == point.time } ?? (forecast.hourly.first?.time == point.time)
+    }
+
+    private func isHovered(_ point: HourlyPoint) -> Bool {
+        hoveredHour == point.time
     }
 
     private func detail(_ label: String, _ value: String) -> some View {

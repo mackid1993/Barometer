@@ -9,6 +9,8 @@ import SwiftUI
 /// AppKit's own menu scrolling. Status-item identity and menu attachment are unchanged.
 @MainActor
 public final class DropdownController: NSObject, NSMenuDelegate {
+    private static weak var activeController: DropdownController?
+
     private let moduleName: String
     private let visibilityAction: @MainActor (Bool) -> Void
     private let tickAction: @MainActor () -> Void
@@ -26,6 +28,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     private let usesAttachedPanel: Bool
     private var rootPanel: AttachedPanel?
     private let dismissalMonitor = PopoverDismissalMonitor()
+    private var isOpen = false
 
     /// Creates and installs a hosted menu for one permanent status item.
     public init(
@@ -102,6 +105,8 @@ public final class DropdownController: NSObject, NSMenuDelegate {
             return
         }
         guard let anchor = detailAnchor else { return }
+        becomeActive()
+        isOpen = true
         visibilityAction(true)
         tickAction()
         let height = min(720, (anchor.window?.screen?.visibleFrame.height ?? 900) - 100)
@@ -131,13 +136,16 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     }
 
     private func closeRootPanel() {
+        let wasOpen = isOpen
+        isOpen = false
         dismissalMonitor.stop()
-        visibilityAction(false)
+        if wasOpen { visibilityAction(false) }
         detailPresenter.close()
         trackingTimer?.invalidate()
         trackingTimer = nil
         rootPanel?.releaseAndClose()
         rootPanel = nil
+        resignActive()
     }
 
     public func menuNeedsUpdate(_ menu: NSMenu) {
@@ -147,6 +155,8 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     }
 
     public func menuWillOpen(_ menu: NSMenu) {
+        becomeActive()
+        isOpen = true
         prepareContent()
         visibilityAction(true)
         detailPresenter.close()
@@ -161,13 +171,43 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     }
 
     public func menuDidClose(_ menu: NSMenu) {
+        finishNativeMenuClose()
+    }
+
+    private func finishNativeMenuClose() {
+        let wasOpen = isOpen
+        isOpen = false
         dismissalMonitor.stop()
-        visibilityAction(false)
+        if wasOpen { visibilityAction(false) }
         trackingTimer?.invalidate()
         trackingTimer = nil
         hostingView.rootView = AnyView(EmptyView())
         hasHostedContent = false
+        resignActive()
         logger.debug("closed module=\(self.moduleName, privacy: .public)")
+    }
+
+    private func becomeActive() {
+        let previous = Self.activeController
+        Self.activeController = self
+        if let previous, previous !== self {
+            previous.dismiss()
+        }
+    }
+
+    private func resignActive() {
+        if Self.activeController === self {
+            Self.activeController = nil
+        }
+    }
+
+    private func dismiss() {
+        if usesAttachedPanel {
+            closeRootPanel()
+        } else {
+            menu.cancelTracking()
+            finishNativeMenuClose()
+        }
     }
 
     private func prepareContent() {
@@ -188,7 +228,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
                 } == true
         }, dismiss: { [weak self] in
             guard let self else { return }
-            if self.usesAttachedPanel { self.closeRootPanel() } else { self.menu.cancelTracking() }
+            self.dismiss()
         })
     }
 

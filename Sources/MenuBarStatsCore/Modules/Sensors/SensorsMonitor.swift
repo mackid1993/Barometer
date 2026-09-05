@@ -174,8 +174,10 @@ public actor SensorsMonitor: Monitor {
     private let smcSource: SMCClient?
     private let ioReportSource: IOReportSource?
     private var energyAccumulator = SensorEnergyAccumulator()
+    private var cachedHIDReadings: [SensorReading] = []
     private var cachedSMCReadings: [SensorReading] = []
     private var cachedIOReportReadings: [SensorReading] = []
+    private var lastHIDRefresh: Date?
     private var lastSMCRefresh: Date?
     private var lastIOReportRefresh: Date?
 
@@ -202,11 +204,18 @@ public actor SensorsMonitor: Monitor {
         var readings: [SensorReading] = []
         let timestamp = Date()
 
-        do {
-            readings.append(contentsOf: Self.hidReadings(try await hidSource.read()))
-        } catch {
-            Self.logger.debug("IOHID sensor read unavailable: \(String(describing: error), privacy: .public)")
+        // Reading every IOHID temperature service is one of the most expensive idle operations.
+        // Temperatures do not need a five-second hardware query to remain useful in the menu bar,
+        // so reuse the normalized readings between ten-second refreshes.
+        if Self.shouldRefresh(lastRefresh: lastHIDRefresh, now: timestamp, interval: 10) {
+            lastHIDRefresh = timestamp
+            do {
+                cachedHIDReadings = Self.hidReadings(try await hidSource.read())
+            } catch {
+                Self.logger.debug("IOHID sensor read unavailable: \(String(describing: error), privacy: .public)")
+            }
         }
+        readings.append(contentsOf: cachedHIDReadings)
 
         if let smcSource, Self.shouldRefresh(lastRefresh: lastSMCRefresh, now: timestamp, interval: 10) {
             lastSMCRefresh = timestamp

@@ -2981,3 +2981,40 @@ Verification before installation:
 - The history benchmark passed with a 92.7% lower one-hour footprint and zero growth from simulated hours 24 to 48.
 - `swift build`, `git diff --check`, development signing, strict bundle verification, and the Calendar entitlement
   check passed. Runtime CPU, repeated installed-app peaks, and the interactive Thaw check follow on build 130.
+
+### P8-T35 — Release overlapping dropdown UI and make hourly cards hover-only
+
+The reported 297–380 MB state was reproduced in a process sample after Weather interaction. Although its visible
+panels had closed, the main thread remained nested in AppKit's status-menu tracking loop, and rich SwiftUI drawing
+work remained active. A separate clean build 130 launch measured 27.2 MB current / 27.3 MB peak and spent almost
+all sampled main-thread time asleep, isolating the high footprint and CPU to a stuck, overlapping UI lifecycle.
+
+Only one Barometer root dropdown may now be active. Opening another dismisses the previous menu or attached panel,
+stops its timers, releases its hosted view, and clears detail sampling. A menu-manager press has two seconds to hand
+the pointer into the real menu or panel; otherwise Barometer cancels the invisible tracking session. Once entered,
+the requested hover-exit grace is one second. This leaves the stable autosave, accessibility, length, visibility,
+and bundle identity contract unchanged. The launch identity report no longer asks AppKit to encode every status
+image as TIFF solely to count diagnostic bytes.
+
+The hourly Weather strip is no longer made of buttons. Hovering a tile updates the complete hourly detail and adds
+the existing Weather-blue stroke and glow; moving away removes the glow. The redundant “Blue bars show
+precipitation chance” sentence is gone. The chart's existing gradient and glow are unchanged. A conditional hover
+layer ensures only the hovered tile creates a shadow backing. IOHID temperature readings are reused for ten seconds
+instead of querying every service on each five-second sensor sample, reducing closed-dropdown polling work while
+preserving the configured sample cadence and current readings.
+
+Verification before installation:
+
+- `make test`: all 215 tests in 31 suites passed. New regressions cover root-dropdown exclusivity, an unentered
+  manager handoff that cannot track forever, entry before the handoff deadline, and the longer shared hover grace.
+- The screen suite captured Weather, Combined, and both rich day panels at all four display corners in light and
+  dark appearances, including top, hourly, and true-bottom scroll positions: 80 full-resolution captures. All
+  frames stayed inside the display. Reviewed hourly captures show aligned chart, tiles, selected detail, scrollbar,
+  and no explanatory sentence or clipped content.
+- The strengthened panel benchmark keeps the full Weather root and a rich day panel open concurrently, scrolls the
+  detail, closes both, and repeats five cycles. Peak was 47.5 MiB, below the 128 MiB gate, and the final current
+  footprint remained 37.1 MiB without cycle growth (`dist/weather-panel-memory-regression-concurrent.txt`).
+- `python3 Scripts/benchmark-memory.py dist/memory-baseline`: passed with a 92.7% lower isolated one-hour footprint
+  and 16 KB growth between simulated hours 24 and 48 (`dist/history-memory-final-hover.log`).
+- `git diff --check` passed. Runtime installed-app memory, CPU, signature, Calendar entitlement, and manager
+  interaction checks follow on build 131. No push.

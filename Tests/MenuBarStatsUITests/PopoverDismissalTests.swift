@@ -16,9 +16,9 @@ func hoverDismissal() {
     monitor.handleHover(at: NSPoint(x: 405, y: 200), time: start + 0.1)
     #expect(dismissals == 0)
     monitor.handleHover(at: NSPoint(x: 500, y: 200), time: start + 0.2)
-    monitor.handleHover(at: .zero, time: start + 0.9)
-    #expect(dismissals == 0)
     monitor.handleHover(at: .zero, time: start + 1.1)
+    #expect(dismissals == 0)
+    monitor.handleHover(at: .zero, time: start + 1.3)
     #expect(dismissals == 1)
     monitor.handleClick(at: .zero)
     #expect(dismissals == 1)
@@ -38,17 +38,28 @@ func outsideClickDismissal() {
 }
 
 @MainActor
-@Test("Manager-synthesized click outside the real item does not start hover dismissal before entry")
+@Test("Manager handoff permits entry but cannot leave an invisible menu tracking forever")
 func managerPointerHandoff() {
     let monitor = PopoverDismissalMonitor()
     var dismissed = false
     monitor.start(containsPoint: { $0.x > 100 }, dismiss: { dismissed = true })
     let start = ProcessInfo.processInfo.systemUptime
-    monitor.handleHover(at: .zero, time: start + 10)
+    monitor.handleHover(at: .zero, time: start + 1.9)
     #expect(!dismissed)
-    monitor.handleHover(at: NSPoint(x: 200, y: 200), time: start + 11)
-    monitor.handleHover(at: .zero, time: start + 11.7)
+    monitor.handleHover(at: .zero, time: start + 2.1)
+    #expect(dismissed)
+}
+
+@MainActor
+@Test("Entering through a manager hands control to the longer hover-exit grace")
+func managerPointerEntry() {
+    let monitor = PopoverDismissalMonitor()
+    var dismissed = false
+    monitor.start(containsPoint: { $0.x > 100 }, dismiss: { dismissed = true })
+    let start = ProcessInfo.processInfo.systemUptime
+    monitor.handleHover(at: NSPoint(x: 200, y: 200), time: start + 1.9)
+    monitor.handleHover(at: .zero, time: start + 2.1)
     #expect(!dismissed)
-    monitor.handleHover(at: .zero, time: start + 11.9)
+    monitor.handleHover(at: .zero, time: start + 3.0)
     #expect(dismissed)
 }

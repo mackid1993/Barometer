@@ -15,6 +15,13 @@ struct WeatherPanelMemoryBenchmark {
         let forecast = try OpenMeteoClient.decodeForecast(data, for: location, units: .imperial)
         let sample = WeatherSample(timestamp: forecast.fetchedAt, forecast: forecast, airQuality: nil,
                                    isStale: false, refreshError: nil)
+        let suite = "PopoverMemoryBenchmark-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suite) else { exit(2) }
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(try JSONEncoder().encode(AppSettings()), forKey: SettingsStore.defaultsKey)
+        let settingsStore = SettingsStore(defaults: defaults)
+        let weatherStore = ModuleStore<WeatherSample>(historyCapacity: 1)
+        weatherStore.receive(sample)
         let anchorWindow = NSWindow(contentRect: NSRect(x: 100, y: 700, width: 100, height: 30),
                                     styleMask: [.borderless], backing: .buffered, defer: false)
         anchorWindow.isReleasedWhenClosed = false
@@ -25,6 +32,13 @@ struct WeatherPanelMemoryBenchmark {
         report(-1)
         for cycle in 0..<5 {
             for day in forecast.daily.prefix(2) {
+                let rootContent = AnyView(
+                    WeatherDropdownView(store: weatherStore, settingsStore: settingsStore, refreshAction: {})
+                        .frame(width: 380, height: 720)
+                )
+                let root = AttachedPanel(content: rootContent, size: NSSize(width: 380, height: 720))
+                root.show(relativeTo: anchorWindow.convertToScreen(anchor.bounds), preferredEdge: .minY,
+                          on: anchorWindow.screen)
                 let content = AnyView(WeatherDayDetailView(
                     day: day, sample: sample, accent: .signature(for: .weather)))
                 presenter.present(content, anchoredTo: anchor)
@@ -41,6 +55,7 @@ struct WeatherPanelMemoryBenchmark {
                     }
                 }
                 presenter.close()
+                root.releaseAndClose()
                 try await Task.sleep(for: .milliseconds(100))
             }
             report(cycle)

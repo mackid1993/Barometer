@@ -142,7 +142,6 @@ public final class StatusItemRegistry: NSObject {
                     imageSize: button.image.map { DiagnosticSize($0.size) },
                     imageIsTemplate: button.image?.isTemplate,
                     imageRepresentationCount: button.image?.representations.count,
-                    imageTIFFByteCount: button.image?.tiffRepresentation?.count,
                     windowTitle: windowTitle,
                     accessibilityIdentifier: identifier,
                     accessibilityLabel: label,
@@ -215,7 +214,6 @@ private struct StatusItemDiagnosticRecord: Encodable {
     let imageSize: DiagnosticSize?
     let imageIsTemplate: Bool?
     let imageRepresentationCount: Int?
-    let imageTIFFByteCount: Int?
     let windowTitle: String
     let accessibilityIdentifier: String
     let accessibilityLabel: String

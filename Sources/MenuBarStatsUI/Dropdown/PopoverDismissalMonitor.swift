@@ -6,10 +6,12 @@ import AppKit
 /// global click monitor competes with the event taps used by menu bar managers.
 @MainActor
 final class PopoverDismissalMonitor {
-    static let hoverExitDelay: TimeInterval = 0.8
+    static let hoverExitDelay: TimeInterval = 1.0
+    static let managerHandoffDelay: TimeInterval = 2.0
 
     private var hoverTimer: Timer?
     private var hasEntered = false
+    private var startedAt: TimeInterval = 0
     private var lastInsideTime: TimeInterval = 0
     private var containsPoint: (@MainActor (NSPoint) -> Bool)?
     private var dismiss: (@MainActor () -> Void)?
@@ -20,7 +22,8 @@ final class PopoverDismissalMonitor {
         self.containsPoint = containsPoint
         self.dismiss = dismiss
         hasEntered = false
-        lastInsideTime = ProcessInfo.processInfo.systemUptime
+        startedAt = ProcessInfo.processInfo.systemUptime
+        lastInsideTime = startedAt
         let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.handleHover(at: NSEvent.mouseLocation, time: ProcessInfo.processInfo.systemUptime)
@@ -44,6 +47,10 @@ final class PopoverDismissalMonitor {
             lastInsideTime = time
         } else if hasEntered, time - lastInsideTime >= Self.hoverExitDelay {
             dismissOutside()
+        } else if !hasEntered, time - startedAt >= Self.managerHandoffDelay {
+            // A manager can synthesize the press away from the real status-item frame. If AppKit
+            // never exposes a window under that pointer, do not leave an invisible menu tracking.
+            dismissOutside()
         }
     }
 
@@ -56,6 +63,9 @@ final class PopoverDismissalMonitor {
     func stop() {
         hoverTimer?.invalidate()
         hoverTimer = nil
+        startedAt = 0
+        lastInsideTime = 0
+        hasEntered = false
         containsPoint = nil
         dismiss = nil
     }
