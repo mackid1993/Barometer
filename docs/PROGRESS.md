@@ -2562,3 +2562,45 @@ Verification:
   passed because GitHub applies it when a person publishes.
 - `docs/RELEASING.md` now describes preparing and then publishing a release, including the refusal to rewrite a
   published version.
+
+
+### P8-T22 investigate reported memory use and rename the default branch
+
+David supplied a build 116 report: 291.4 MB physical footprint, 422.2 MB peak, and 415 reported leaks totaling
+19,904 bytes after approximately six minutes. The report also warns that the process is not debuggable. Those
+reported leaked bytes do not explain the footprint, and the screenshot cannot establish the allocation owners.
+
+Read-only inspection of the already-running local Barometer (PID 55680, version 1.0.1 build 1, approximately
+54 minutes uptime) confirmed substantial history retention. This is a different build and session from the report.
+`vmmap -summary 55680` reported 278.0 MB footprint, 523.9 MB peak. `heap -sortBySize 55680` subsequently reported
+416.5 MB footprint and 255,657,518 allocated bytes across 679,417 nodes. These snapshots do not establish a growth
+rate; footprint measurements can differ during inspection.
+
+Largest identified application allocations in that heap snapshot:
+
+- Preallocated optional history-entry arrays: Network 22,822,912 bytes; GPU 15,908,864; CPU 9,682,944;
+  Memory 4,849,664; Disk 2,768,896; Battery 2,146,304; Sensors 933,888 (about 56.4 MiB combined).
+- 656 SensorReading arrays: 31,957,952 bytes. SensorsMonitor assembles complete reading arrays on each sample,
+  and the store retains up to 28,800 complete SensorSample values.
+- 3,248 NetworkInterfaceSample arrays: 8,314,880 bytes. The Network store retains up to 86,400 full samples.
+- 111,479,845 bytes were classified as non-object allocations and were not attributed to a specific source.
+
+MonitoringCoordinator creates these buffers even for disabled modules. History initializes every slot immediately.
+CPU, Memory, Disk, and Network dropdowns still materialize complete histories; the earlier P8-T17 optimization
+bounded status-item rendering only. ProcessIconResolver also caches full NSImage objects under PID/path keys
+without a configured count or cost limit, a secondary candidate rather than a measured primary cause.
+
+Recommended repair: separate compact graph history from full current samples, allocate history as needed, bound
+or downsample dropdown rendering, and limit the process-icon cache. Preserve the designed 24-hour CPU graph
+window through compact/downsampled data. No runtime code was changed in this diagnostic task. Attribution of the
+remaining allocations and verification against the reporter's exact binary remain open.
+
+Renamed the GitHub default branch through the branch-rename API, renamed the local branch to master, set its
+upstream to origin/master, and updated origin/HEAD, the Check push trigger, and release instructions.
+
+Verification:
+
+- `vmmap -summary 55680` and `heap -sortBySize 55680` completed; selected measurements are recorded above.
+- `git ls-remote --symref origin HEAD refs/heads/main refs/heads/master` confirmed HEAD targets master and
+  there is no remote main branch.
+- `git diff --check` passed. Runtime tests were not needed for documentation and a CI branch-filter change.

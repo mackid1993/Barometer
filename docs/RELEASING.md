@@ -1,7 +1,7 @@
 # Releasing Barometer
 
 Barometer's build and release workflows run only when manually dispatched; the test workflow also runs on pushes to
-`main`. A build produces a Developer ID-signed DMG.
+`master`. A build produces a Developer ID-signed DMG.
 Notarization is disabled by default and runs only when the person dispatching the workflow explicitly enables it.
 
 ## Repository secrets
