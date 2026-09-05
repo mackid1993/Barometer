@@ -152,7 +152,10 @@ public final class StatusItemController<Sample: HistoryProjecting> {
         let naturalLength = max(StatusItemRendering.itemLength(for: content.image), reservedFontWeightWidth)
         let proposedLength = StatusItemRendering.roundedLength(naturalLength)
         let lengthDecision = lengthLatch.resolve(proposedLength)
-        let displayedImage = StatusItemRendering.image(content.image, framedTo: lengthDecision.length)
+        let framedImage = StatusItemRendering.image(content.image, framedTo: lengthDecision.length)
+        let prepared = StatusItemRendering.preparedImage(
+            framedImage, scale: button.window?.backingScaleFactor ?? 2)
+        let displayedImage = prepared.image
         // AppKit derives the button's AX label from its replacement image. Reapply the
         // permanent child label on every render so dynamic images never collapse distinct
         // Barometer widgets into one accessibility identity.
@@ -160,7 +163,7 @@ public final class StatusItemController<Sample: HistoryProjecting> {
         // Replacing the image makes AppKit redraw the item, so an unchanged image is skipped. The
         // fingerprint is the drawn pixels, not the reading, so graphs that move while their value
         // reads the same still update.
-        let fingerprint = displayedImage.tiffRepresentation?.hashValue
+        let fingerprint = prepared.fingerprint
         if fingerprint == nil || fingerprint != appliedImageFingerprint {
             button.image = displayedImage
             appliedImageFingerprint = fingerprint
@@ -297,6 +300,31 @@ enum StatusItemRendering {
         }
         fitted.isTemplate = image.isTemplate
         return fitted
+    }
+
+    /// Rasterizes once at display scale and hashes raw pixels without an image-file encoder.
+    static func preparedImage(_ image: NSImage, scale: CGFloat) -> (image: NSImage, fingerprint: Int?) {
+        let pixelScale = max(1, scale)
+        let width = max(1, Int(ceil(image.size.width * pixelScale)))
+        let height = max(1, Int(ceil(image.size.height * pixelScale)))
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+                                      bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+              let bytes = context.data else { return (image, nil) }
+        context.scaleBy(x: pixelScale, y: pixelScale)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+        image.draw(in: NSRect(origin: .zero, size: image.size))
+        NSGraphicsContext.restoreGraphicsState()
+        guard let pixels = context.makeImage() else { return (image, nil) }
+        var hash = Hasher()
+        hash.combine(width)
+        hash.combine(height)
+        hash.combine(image.isTemplate)
+        hash.combine(bytes: UnsafeRawBufferPointer(start: bytes, count: width * height * 4))
+        let raster = NSImage(cgImage: pixels, size: image.size)
+        raster.isTemplate = image.isTemplate
+        return (raster, hash.finalize())
     }
 
     static func context(

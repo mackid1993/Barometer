@@ -1,5 +1,6 @@
 import EventKit
 import Foundation
+import OSLog
 
 /// User-visible Calendar authorization states.
 public enum CalendarAuthorizationState: String, Codable, CaseIterable, Equatable, Sendable {
@@ -59,13 +60,21 @@ public actor CalendarEventSource {
 
     /// Requests full event access only after a user-initiated UI action.
     @discardableResult
-    public func requestFullAccess() async -> CalendarAuthorizationState {
+    public func requestFullAccess() async throws -> CalendarAuthorizationState {
         do {
             _ = try await store.requestFullAccessToEvents()
         } catch {
-            return authorizationState
+            Logger(subsystem: "com.barometer.app", category: "calendar")
+                .error("Calendar access request failed: \(error.localizedDescription, privacy: .public)")
+            throw error
         }
-        return authorizationState
+        let state = authorizationState
+        guard state != .notDetermined else {
+            Logger(subsystem: "com.barometer.app", category: "calendar")
+                .error("Calendar access request completed without an authorization decision")
+            throw CalendarAccessError.noAuthorizationDecision
+        }
+        return state
     }
 
     /// Returns upcoming events, or an empty list unless full access has already been granted.
@@ -88,5 +97,14 @@ public actor CalendarEventSource {
                     calendarTitle: event.calendar.title
                 )
             }
+    }
+}
+
+/// An access request that macOS did not present or resolve must not silently look successful.
+public enum CalendarAccessError: LocalizedError, Sendable {
+    case noAuthorizationDecision
+
+    public var errorDescription: String? {
+        "macOS did not complete the Calendar access request. Try again, or check Calendar access in System Settings."
     }
 }

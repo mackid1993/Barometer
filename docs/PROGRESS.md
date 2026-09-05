@@ -2852,3 +2852,53 @@ David reported approximately 3% CPU and requested measurement. Read-only audit o
 - No production code, settings, sampling intervals, or installed binary changed. The recorded earlier baseline was
   3.75%, but different workloads prevent interpreting that as a controlled before/after comparison.
 - Evidence: dist/cpu-review-top.txt, dist/cpu-review-unprofiled.txt, dist/cpu-review-sample.txt.
+
+### P8-T31: Reduce background CPU work and repair Calendar authorization
+
+CPU changes: GPU temperature fallback now filters runtime-discovered SMC key names before reading values. It no
+longer reads unrelated temperature, voltage, current, and power keys. Combined readings now update only when a source
+used by an enabled stack changes; the user's CPU/GPU stack previously redrew for memory, network, disk, sensor,
+battery, time, and weather samples too. Sampling intervals and displayed data remain unchanged.
+
+On-device SMC comparison over 20 warmed reads: full reads returned 10,300 values and consumed 0.174141 process-CPU
+seconds; targeted reads returned 560 values and consumed 0.026851 CPU seconds. GPU key coverage matched exactly
+(28 GPU keys among 515 total sensor keys). This is an 84.6% reduction in this specific read operation, not whole-app CPU.
+
+Calendar changes by the requested sub-agent: the installed Developer ID app used hardened runtime without the
+Calendar entitlement. Added com.apple.security.personal-information.calendars to both signing paths and verify it
+in the signed artifact. Errors are logged and surfaced rather than swallowed; duplicate requests are guarded and
+Settings refreshes authorization even when Time sampling is disabled. Both UI buttons already shared this path.
+Source: https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.personal-information.calendars
+
+Verification:
+
+- make test: all 203 tests in 30 suites passed, including new SMC key selection, stack source filtering, and Calendar
+  packaging checks. A nondeterministic hover test exposed dependence on the user's actual pointer; injected a pointer
+  reader for deterministic test inputs while production still reads NSEvent.mouseLocation.
+- Memory benchmark passed: 92.7% lower isolated history footprint at one simulated hour and zero growth from hours
+  24 to 48. Logs: dist/cpu-calendar-tests.log, dist/cpu-calendar-memory.log, dist/cpu-smc-benchmark.log.
+- Signed make app passed. Its first verification attempt caught codesign's human-readable default entitlement output;
+  corrected extraction to explicit --xml, reran the full suite, and packaged successfully.
+- Copied to /Applications/Barometer.app, verified strict signature and the Calendar entitlement in the installed
+  signature, and relaunched it (PID 88829).
+- Actual Calendar prompt click cannot be automated here: Accessibility preflight returned false; did not request a
+  new TCC category. The entitlement and failure handling are verified; user confirmation of the OS dialog is pending.
+- git diff --check passed. No push.
+
+The first installed optimization had no reliable whole-app CPU improvement: after discarding the first 30 intervals,
+15 one-second samples averaged 4.45%, versus 4.37% in the prior unprofiled run. Do not attribute a system-wide CPU
+reduction to the SMC microbenchmark alone.
+
+The profile also showed TIFF encoding in StatusItemController's unchanged-image check. Replaced file encoding with
+one display-scale rasterization and a hash of raw RGBA pixels, then reused that raster for the status item. Preserve
+logical size, template mode, fixed status-item geometry, and subpoint graph changes. A new test checks identical
+fingerprints, Retina pixel dimensions, and detection of a half-point movement.
+
+Final checks before the second package: all 204 tests in 30 suites passed; memory benchmark passed with a 92.7%
+one-hour reduction and zero 24-to-48-hour growth. Signed build and installed Calendar entitlement verification passed.
+Installed and relaunched the final Applications binary (PID 89721). Final CPU observation follows below.
+- Final closed-popover CPU capture, after discarding 30 startup intervals: 15 one-second samples averaged 3.84%,
+  median 3.1%, range 1.1–7.3%. Prior unprofiled baseline averaged 4.37%, median 3.6%. This is a modest observed
+  reduction in short, separate runs, not proof of a precise percentage improvement or near-zero idle CPU.
+  Evidence: dist/cpu-after-raster.txt. Further reduction would require additional profiling and demand-based detail
+  collection; live menu-bar sampling continues while popovers are closed.

@@ -47,7 +47,7 @@ struct MenuDetailPresenterTests {
         let anchorWindow = makeAnchor()
         defer { anchorWindow.close() }
         let anchor = try #require(anchorWindow.contentView)
-        let presenter = MenuDetailPresenter()
+        let presenter = MenuDetailPresenter(pointerLocation: { NSPoint(x: 150, y: 715) })
         defer { presenter.close() }
         presenter.present(AnyView(Text("Forecast")), anchoredTo: anchor)
         let detail = try #require(presenter.popover)
@@ -72,7 +72,7 @@ struct MenuDetailPresenterTests {
         let anchorWindow = makeAnchor()
         defer { anchorWindow.close() }
         let anchor = try #require(anchorWindow.contentView)
-        let presenter = MenuDetailPresenter()
+        let presenter = MenuDetailPresenter(pointerLocation: { NSPoint(x: 150, y: 715) })
         defer { presenter.close() }
         presenter.show(AnyView(Text("Day forecast")), from: NSMenu(), anchoredTo: anchor)
         RunLoop.main.run(mode: .eventTracking, before: Date(timeIntervalSinceNow: 0.02))
@@ -99,7 +99,7 @@ struct MenuDetailPresenterTests {
         defer { anchorWindow.close() }
         let anchor = try #require(anchorWindow.contentView)
         autoreleasepool {
-            let presenter = MenuDetailPresenter()
+            let presenter = MenuDetailPresenter(pointerLocation: { NSPoint(x: 150, y: 715) })
             releasedPresenter = presenter
             for _ in 0..<100 {
                 autoreleasepool {
@@ -123,7 +123,7 @@ struct MenuDetailPresenterTests {
         let anchorWindow = makeAnchor()
         defer { anchorWindow.close() }
         let anchor = try #require(anchorWindow.contentView)
-        let presenter = MenuDetailPresenter()
+        let presenter = MenuDetailPresenter(pointerLocation: { NSPoint(x: 150, y: 715) })
         let parent = NSPopover()
         parent.behavior = .transient
         parent.animates = false
@@ -161,7 +161,7 @@ struct MenuDetailPresenterTests {
         let anchorWindow = makeAnchor()
         defer { anchorWindow.close() }
         let anchor = try #require(anchorWindow.contentView)
-        let presenter = MenuDetailPresenter()
+        let presenter = MenuDetailPresenter(pointerLocation: { NSPoint(x: 150, y: 715) })
         presenter.present(AnyView(Text("Detail")), anchoredTo: anchor)
         let panel = try #require(presenter.popover)
         #expect(panel.isShown)
@@ -178,7 +178,7 @@ struct MenuDetailPresenterTests {
         let anchorWindow = makeAnchor()
         defer { anchorWindow.close() }
         let anchor = try #require(anchorWindow.contentView)
-        let presenter = MenuDetailPresenter()
+        let presenter = MenuDetailPresenter(pointerLocation: { NSPoint(x: 150, y: 715) })
         presenter.present(AnyView(Text("First")), anchoredTo: anchor)
         let old = try #require(presenter.popover)
         presenter.present(AnyView(Text("Second")), anchoredTo: anchor)

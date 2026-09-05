@@ -141,6 +141,11 @@ public struct StacksSettings: Codable, Equatable, Sendable {
         stacks.removeAll { $0.id == id }
     }
 
+    /// Whether a source update can change any enabled stack's readings.
+    public func needsSample(from module: ModuleID) -> Bool {
+        stacks.contains { $0.isEnabled && $0.metrics.contains { $0.module == module } }
+    }
+
     /// Modules that at least one enabled stack needs sampled.
     public var activeSourceModules: Set<ModuleID> {
         stacks.filter(\.isEnabled).reduce(into: Set<ModuleID>()) { result, stack in

@@ -73,6 +73,7 @@ public final class MonitoringCoordinator {
     private let sensorsScheduler: Scheduler<SensorsMonitor>
     private let batteryScheduler: Scheduler<BatteryMonitor>
     private let timeMonitor: TimeMonitor
+    private var isRequestingCalendarAccess = false
     private let timeScheduler: Scheduler<TimeMonitor>
     private let registry: StatusItemRegistry
     private let settingsAction: @MainActor (ModuleID) -> Void
@@ -407,10 +408,29 @@ public final class MonitoringCoordinator {
 
     /// Requests full Calendar access after an explicit user action, then refreshes Time.
     public func requestCalendarAccess() {
+        guard !isRequestingCalendarAccess else { return }
+        isRequestingCalendarAccess = true
+        NSApp.activate(ignoringOtherApps: true)
         Task {
-            _ = await timeMonitor.requestCalendarAccess()
-            await timeScheduler.refresh()
+            defer { isRequestingCalendarAccess = false }
+            do {
+                _ = try await timeMonitor.requestCalendarAccess()
+                // Settings can request access even when Time is disabled and its scheduler is paused.
+                timeStore.receive(await timeMonitor.sample())
+            } catch {
+                let alert = NSAlert()
+                alert.messageText = "Calendar access could not be requested"
+                alert.informativeText = error.localizedDescription
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+            }
         }
+    }
+
+    private func recordCombinedUpdate(from module: ModuleID, at timestamp: Date) {
+        guard settingsStore.settings.stacks.needsSample(from: module) else { return }
+        combinedStore.receive(CombinedSample(), at: timestamp)
     }
 
     private func startSampleConsumption() {
@@ -421,7 +441,7 @@ public final class MonitoringCoordinator {
                     break
                 }
                 self?.cpuStore.receive(sample, at: sample.timestamp)
-                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
+                self?.recordCombinedUpdate(from: .cpu, at: sample.timestamp)
             }
         }
 
@@ -432,7 +452,7 @@ public final class MonitoringCoordinator {
                     break
                 }
                 self?.memoryStore.receive(sample, at: sample.timestamp)
-                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
+                self?.recordCombinedUpdate(from: .memory, at: sample.timestamp)
             }
         }
 
@@ -441,7 +461,7 @@ public final class MonitoringCoordinator {
             for await sample in gpuSamples {
                 guard !Task.isCancelled else { break }
                 self?.gpuStore.receive(sample, at: sample.timestamp)
-                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
+                self?.recordCombinedUpdate(from: .gpu, at: sample.timestamp)
             }
         }
 
@@ -452,7 +472,7 @@ public final class MonitoringCoordinator {
                     break
                 }
                 self?.networkStore.receive(sample, at: sample.timestamp)
-                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
+                self?.recordCombinedUpdate(from: .network, at: sample.timestamp)
             }
         }
 
@@ -463,7 +483,7 @@ public final class MonitoringCoordinator {
                     break
                 }
                 self?.diskStore.receive(sample, at: sample.timestamp)
-                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
+                self?.recordCombinedUpdate(from: .disks, at: sample.timestamp)
             }
         }
 
@@ -474,7 +494,7 @@ public final class MonitoringCoordinator {
                     break
                 }
                 self?.sensorStore.receive(sample, at: sample.timestamp)
-                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
+                self?.recordCombinedUpdate(from: .sensors, at: sample.timestamp)
             }
         }
 
@@ -483,7 +503,7 @@ public final class MonitoringCoordinator {
             for await sample in batterySamples {
                 guard !Task.isCancelled else { break }
                 self?.batteryStore.receive(sample, at: sample.timestamp)
-                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
+                self?.recordCombinedUpdate(from: .battery, at: sample.timestamp)
             }
         }
 
@@ -492,7 +512,7 @@ public final class MonitoringCoordinator {
             for await sample in timeSamples {
                 guard !Task.isCancelled else { break }
                 self?.timeStore.receive(sample, at: sample.timestamp)
-                self?.combinedStore.receive(CombinedSample(), at: sample.timestamp)
+                self?.recordCombinedUpdate(from: .time, at: sample.timestamp)
             }
         }
     }
@@ -985,7 +1005,7 @@ public final class MonitoringCoordinator {
                     break
                 }
                 self.weatherStore.receive(sample, at: sample.timestamp)
-                self.combinedStore.receive(CombinedSample(), at: sample.timestamp)
+                self.recordCombinedUpdate(from: .weather, at: sample.timestamp)
             }
         }
     }

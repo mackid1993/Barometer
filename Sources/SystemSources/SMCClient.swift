@@ -159,6 +159,15 @@ public actor SMCClient {
         try availableSensorKeys().compactMap { try? read($0) }
     }
 
+    /// Reads only matching runtime-discovered keys, avoiding unrelated hardware calls.
+    public func sensorValues(keyPrefixes: [String]) throws -> [SMCValue] {
+        try Self.matchingSensorKeys(allKeys(), prefixes: keyPrefixes).compactMap { try? read($0) }
+    }
+
+    static func matchingSensorKeys(_ keys: [String], prefixes: [String]) -> [String] {
+        keys.filter { key in prefixes.contains { !($0.isEmpty) && key.hasPrefix($0) } }
+    }
+
     /// Reads all fans discovered through `FNum`; fanless Macs return an empty array.
     public func fans() throws -> [SMCFanReading] {
         guard let count = try? read("FNum").numericValue else {

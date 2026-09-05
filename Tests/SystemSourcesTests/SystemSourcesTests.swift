@@ -246,3 +246,11 @@ import Testing
     #expect(keys.contains("#KEY"))
     #expect(fans.allSatisfy { $0.currentRPM >= 0 })
 }
+
+@Test("GPU temperature reads select keys before performing hardware calls")
+func gpuTemperatureKeySelection() {
+    let keys = ["TC0P", "Tg0P", "TG0D", "PCPC", "VC0C", "IC0C", "F0Ac", "#KEY"]
+    #expect(SMCClient.matchingSensorKeys(keys, prefixes: ["Tg", "TG"]) == ["Tg0P", "TG0D"])
+    #expect(SMCClient.matchingSensorKeys(keys, prefixes: []) == [])
+    #expect(SMCClient.matchingSensorKeys(keys, prefixes: [""]) == [])
+}

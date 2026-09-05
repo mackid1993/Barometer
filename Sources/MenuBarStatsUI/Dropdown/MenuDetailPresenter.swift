@@ -22,6 +22,12 @@ final class MenuDetailPresenter: NSObject, NSPopoverDelegate {
     private weak var hoverAnchor: NSView?
     private var hoverTimer: Timer?
     private var lastHoverTime: TimeInterval = 0
+    private let pointerLocation: @MainActor () -> NSPoint
+
+    init(pointerLocation: @escaping @MainActor () -> NSPoint = { NSEvent.mouseLocation }) {
+        self.pointerLocation = pointerLocation
+        super.init()
+    }
 
     func show(_ content: AnyView, from menu: NSMenu, anchoredTo anchor: NSView) {
         close()
@@ -64,7 +70,7 @@ final class MenuDetailPresenter: NSObject, NSPopoverDelegate {
     }
 
     @objc private func checkHover() {
-        updateHover(at: NSEvent.mouseLocation, time: ProcessInfo.processInfo.systemUptime)
+        updateHover(at: pointerLocation(), time: ProcessInfo.processInfo.systemUptime)
     }
 
     func updateHover(at point: NSPoint, time: TimeInterval) {

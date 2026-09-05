@@ -69,8 +69,8 @@ public actor TimeMonitor: Monitor {
     }
 
     /// Requests Calendar access. Call only from a user-initiated action.
-    public func requestCalendarAccess() async -> CalendarAuthorizationState {
-        await calendarSource.requestFullAccess()
+    public func requestCalendarAccess() async throws -> CalendarAuthorizationState {
+        try await calendarSource.requestFullAccess()
     }
 
     static func secondsUntilNextMinute(date: Date) -> Double {
