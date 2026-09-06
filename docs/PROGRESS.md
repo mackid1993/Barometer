@@ -3751,3 +3751,21 @@ Local release verification before dispatch:
 - `CODESIGN_IDENTITY=- make dmg` created the local ad hoc `Barometer-1.0.6.dmg`. Its nested app reports version 1.0.6,
   bundle identifier `com.barometer.app`, and passes strict signature verification. `hdiutil verify` validated the
   image, whose local SHA-256 is `5fe8dfeb105ae42afca43ff9ad18c57acf45e81efe0c9cbddd25f30369878b35`.
+
+## P8-T62 Publish Barometer 1.0.6
+
+GitHub Actions run 34012575864 completed successfully from commit `661113f`. CI reran the Swift 6.4 source,
+security, test, and panel-memory gates, stamped the application as 1.0.6, signed the app and DMG, received Apple's
+notarization acceptance, stapled the ticket, passed Gatekeeper assessment, and prepared the GitHub draft with the
+checked-in release notes.
+
+Independent verification downloaded the draft artifact before publication and confirmed:
+
+- SHA-256 `170ffb371ca017b43307c46996f9d84040e221a2013cdf7afde258a5522d22f9` matches GitHub's asset digest.
+- `Barometer-1.0.6.dmg` has a valid signature, valid staple, valid disk-image checksum, and passes Gatekeeper.
+- The nested app has bundle identifier `com.barometer.app`, version 1.0.6, and exactly one executable.
+- The nested app passes strict signature and Gatekeeper checks and carries both Calendar and Location entitlements.
+- The published tag and release target commit `661113f`, and the release contains exactly the expected DMG and notes.
+
+Published [Barometer 1.0.6](https://github.com/mackid1993/Barometer/releases/tag/v1.0.6) as a non-prerelease public
+release and marked it Latest.
