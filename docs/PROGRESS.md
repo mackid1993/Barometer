@@ -3677,3 +3677,37 @@ Verification:
   layouts. `python3 Scripts/benchmark-memory.py dist/memory-baseline` passed: the compact history reduced the
   one-hour footprint by 92.8% and grew zero bytes between simulated hours 24 and 48.
 - `git diff --check` passed.
+
+## P8-T59 Smooth calendar browsing and add a selected-day agenda
+
+Calendar browsing now keeps a fixed six-week grid for every month, so moving between four-, five-, and six-row month
+shapes never moves the rest of the dropdown. Trackpad and wheel deltas pass through a bounded step limiter that keeps
+macOS momentum while allowing only one evenly paced page transition at a time. Month changes use a short directional
+animation, and the full grid remains clipped to its stable frame throughout the transition.
+
+Separated the visible month from the selected event date. Scrolling and navigation buttons now browse without
+silently changing the user's agenda selection. Clicking a day explicitly selects it and loads events overlapping that
+local calendar day. A selected-day card appears immediately below the calendar with a loading state, a clear action,
+and either its events or an explicit empty state. The existing upcoming list remains available and omits events already
+shown for the selected day. Upcoming rows now show an approachable weekday, date, and time, or a clearly labeled
+all-day value.
+
+Selected-day EventKit queries remain user-initiated, use the existing Calendar permission, and are generation-guarded
+so a slower old selection cannot replace a newer one. The Time monitor preserves the independent upcoming-event cache
+while loading a selected day, and its history continues to retain only the existing empty graph projection.
+
+Verification:
+
+- `python3 Scripts/check-source-invariants.py` and `make security-audit` passed.
+- Focused Calendar and Time suites passed 18 tests covering fixed 49-cell grids for every possible month shape,
+  readable event dates, paced momentum, non-destructive browsing, selected-day loading, and upcoming-cache stability.
+- `make test` passed every test target, including 133 Core tests and the complete UI and SystemSources suites.
+- The snapshot-enabled placement suite passed all three placement tests and generated 192 captures with populated
+  selected-day and upcoming-event fixtures. Representative Time top and bottom captures were inspected in both light
+  and dark appearances; the fixed grid, event cards, labels, dates, scroll range, and card boundaries are visible and
+  unclipped.
+- `python3 Scripts/benchmark-popover-memory.py` passed repeated Weather, Time, and graph panel cycles at a 47.8 MiB
+  peak, below the 128 MiB gate, with no continuing growth.
+- `python3 Scripts/benchmark-memory.py dist/memory-baseline` reduced the simulated one-hour footprint by 92.7% and
+  reported zero growth between simulated hours 24 and 48.
+- `git diff --check` passed.

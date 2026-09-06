@@ -15,6 +15,7 @@ struct PopoverPlacementTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         var settings = AppSettings()
         settings.stacks = StacksSettings(stacks: [StackSettings(id: 1, metrics: [.weatherTemperature])])
+        settings.time.showsCalendarEvents = true
         defaults.set(try JSONEncoder().encode(settings), forKey: SettingsStore.defaultsKey)
         let settingsStore = SettingsStore(defaults: defaults)
         let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
@@ -56,11 +57,30 @@ struct PopoverPlacementTests {
         let batteryStore = ModuleStore<BatterySample>(historyCapacity: 60)
         batteryStore.receive(Self.batterySample(timestamp: Date()))
         let timeStore = ModuleStore<TimeSample>(historyCapacity: 2)
+        let timeNow = Date()
+        let selectedEvent = CalendarEventSnapshot(
+            id: "selected-event",
+            title: "Design review",
+            startDate: timeNow.addingTimeInterval(3_600),
+            endDate: timeNow.addingTimeInterval(5_400),
+            isAllDay: false,
+            calendarTitle: "Work"
+        )
+        let upcomingEvent = CalendarEventSnapshot(
+            id: "upcoming-event",
+            title: "Project milestone",
+            startDate: timeNow.addingTimeInterval(2 * 86_400),
+            endDate: timeNow.addingTimeInterval(2 * 86_400 + 3_600),
+            isAllDay: true,
+            calendarTitle: "Projects"
+        )
         timeStore.receive(TimeSample(
-            timestamp: Date(),
+            timestamp: timeNow,
             systemTimeZoneIdentifier: "America/New_York",
             calendarAuthorization: .fullAccess,
-            upcomingEvents: []
+            upcomingEvents: [selectedEvent, upcomingEvent],
+            selectedCalendarDate: timeNow,
+            selectedDayEvents: [selectedEvent]
         ))
         var views: [(String, () -> AnyView, CGFloat)] = HistoryRange.allCases.map { range in
             (

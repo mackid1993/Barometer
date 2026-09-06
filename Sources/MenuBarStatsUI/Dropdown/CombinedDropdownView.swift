@@ -27,6 +27,7 @@ public struct CombinedDropdownView: View {
     private let weatherRefreshAction: @MainActor () -> Void
     private let resetEnergyAction: @MainActor () -> Void
     private let requestCalendarAccess: @MainActor () -> Void
+    private let selectCalendarDate: @MainActor (Date) -> Void
     @State private var selection: ModuleID = .cpu
 
     /// Creates a stack dropdown over existing module stores.
@@ -46,7 +47,8 @@ public struct CombinedDropdownView: View {
         locationAction: @escaping @MainActor () -> Void,
         weatherRefreshAction: @escaping @MainActor () -> Void,
         resetEnergyAction: @escaping @MainActor () -> Void,
-        requestCalendarAccess: @escaping @MainActor () -> Void
+        requestCalendarAccess: @escaping @MainActor () -> Void,
+        selectCalendarDate: @escaping @MainActor (Date) -> Void = { _ in }
     ) {
         self.stackID = stackID
         self.cpuStore = cpuStore
@@ -64,6 +66,7 @@ public struct CombinedDropdownView: View {
         self.weatherRefreshAction = weatherRefreshAction
         self.resetEnergyAction = resetEnergyAction
         self.requestCalendarAccess = requestCalendarAccess
+        self.selectCalendarDate = selectCalendarDate
     }
 
     /// The name the person who created this stack gave it.
@@ -162,7 +165,8 @@ public struct CombinedDropdownView: View {
                 store: timeStore,
                 weatherStore: weatherStore,
                 settingsStore: settingsStore,
-                requestCalendarAccess: requestCalendarAccess
+                requestCalendarAccess: requestCalendarAccess,
+                selectCalendarDate: selectCalendarDate
             )
         case .combined:
             EmptyView()

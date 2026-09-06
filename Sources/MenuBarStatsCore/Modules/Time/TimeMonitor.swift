@@ -22,18 +22,24 @@ public struct TimeSample: Equatable, Sendable {
     public let systemTimeZoneIdentifier: String
     public let calendarAuthorization: CalendarAuthorizationState
     public let upcomingEvents: [CalendarEventSnapshot]
+    public let selectedCalendarDate: Date?
+    public let selectedDayEvents: [CalendarEventSnapshot]
 
     /// Creates one wall-clock sample.
     public init(
         timestamp: Date = Date(),
         systemTimeZoneIdentifier: String = TimeZone.current.identifier,
         calendarAuthorization: CalendarAuthorizationState = .notDetermined,
-        upcomingEvents: [CalendarEventSnapshot] = []
+        upcomingEvents: [CalendarEventSnapshot] = [],
+        selectedCalendarDate: Date? = nil,
+        selectedDayEvents: [CalendarEventSnapshot] = []
     ) {
         self.timestamp = timestamp
         self.systemTimeZoneIdentifier = systemTimeZoneIdentifier
         self.calendarAuthorization = calendarAuthorization
         self.upcomingEvents = upcomingEvents
+        self.selectedCalendarDate = selectedCalendarDate
+        self.selectedDayEvents = selectedDayEvents
     }
 }
 
@@ -45,6 +51,9 @@ public actor TimeMonitor: Monitor {
     private let calendarSource: any CalendarEventProviding
     private var cachedCalendarAuthorization: CalendarAuthorizationState?
     private var cachedUpcomingEvents: [CalendarEventSnapshot] = []
+    private var selectedCalendarDate: Date?
+    private var cachedSelectedDayEvents: [CalendarEventSnapshot] = []
+    private var calendarSelectionGeneration = 0
     private var nextCalendarRefresh: Date?
 
     static let calendarRefreshInterval: TimeInterval = 60
@@ -82,11 +91,7 @@ public actor TimeMonitor: Monitor {
                 : []
             nextCalendarRefresh = now.addingTimeInterval(Self.calendarRefreshInterval)
         }
-        return TimeSample(
-            timestamp: now,
-            calendarAuthorization: cachedCalendarAuthorization ?? .unavailable,
-            upcomingEvents: cachedUpcomingEvents
-        )
+        return makeSample(at: now)
     }
 
     /// Changes tick precision for the selected format.
@@ -98,9 +103,47 @@ public actor TimeMonitor: Monitor {
     public func setCalendarConfiguration(isEnabled: Bool, count: Int) {
         let normalizedCount = min(10, max(1, count))
         guard includesCalendarEvents != isEnabled || calendarEventCount != normalizedCount else { return }
+        calendarSelectionGeneration += 1
         includesCalendarEvents = isEnabled
         calendarEventCount = normalizedCount
+        if !isEnabled {
+            selectedCalendarDate = nil
+            cachedSelectedDayEvents = []
+        }
         nextCalendarRefresh = nil
+    }
+
+    /// Loads events overlapping one user-selected local calendar day without changing the upcoming-event window.
+    public func selectCalendarDate(_ date: Date) async -> TimeSample {
+        calendarSelectionGeneration += 1
+        let generation = calendarSelectionGeneration
+        let calendar = Calendar.current
+        guard let interval = calendar.dateInterval(of: .day, for: date) else {
+            return makeSample(at: Date())
+        }
+        let authorization = await calendarSource.authorizationState
+        let events = includesCalendarEvents && authorization == .fullAccess
+            ? await calendarSource.events(from: interval.start, limit: 50).filter {
+                $0.startDate < interval.end && $0.endDate > interval.start
+            }
+            : []
+        guard generation == calendarSelectionGeneration else {
+            return makeSample(at: Date())
+        }
+        cachedCalendarAuthorization = authorization
+        selectedCalendarDate = interval.start
+        cachedSelectedDayEvents = events
+        return makeSample(at: Date())
+    }
+
+    private func makeSample(at date: Date) -> TimeSample {
+        TimeSample(
+            timestamp: date,
+            calendarAuthorization: cachedCalendarAuthorization ?? .unavailable,
+            upcomingEvents: cachedUpcomingEvents,
+            selectedCalendarDate: selectedCalendarDate,
+            selectedDayEvents: cachedSelectedDayEvents
+        )
     }
 
     /// Requests Calendar access. Call only from a user-initiated action.

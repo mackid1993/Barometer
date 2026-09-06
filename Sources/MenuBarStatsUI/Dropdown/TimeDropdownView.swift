@@ -13,18 +13,23 @@ public struct TimeDropdownView: View {
     private let weatherStore: ModuleStore<WeatherSample>
     private let settingsStore: SettingsStore
     private let requestCalendarAccess: @MainActor () -> Void
+    private let selectCalendarDate: @MainActor (Date) -> Void
+    @State private var selectedCalendarDate: Date?
 
     /// Creates the Time dropdown.
     public init(
         store: ModuleStore<TimeSample>,
         weatherStore: ModuleStore<WeatherSample>,
         settingsStore: SettingsStore,
-        requestCalendarAccess: @escaping @MainActor () -> Void
+        requestCalendarAccess: @escaping @MainActor () -> Void,
+        selectCalendarDate: @escaping @MainActor (Date) -> Void = { _ in }
     ) {
         self.store = store
         self.weatherStore = weatherStore
         self.settingsStore = settingsStore
         self.requestCalendarAccess = requestCalendarAccess
+        self.selectCalendarDate = selectCalendarDate
+        _selectedCalendarDate = State(initialValue: store.latestSample?.selectedCalendarDate)
     }
 
     public var body: some View {
@@ -47,8 +52,33 @@ public struct TimeDropdownView: View {
                 MonthCalendar(
                     date: now,
                     accent: accent,
-                    weekStart: settingsStore.settings.time.calendarWeekStart
+                    weekStart: settingsStore.settings.time.calendarWeekStart,
+                    selectedDate: $selectedCalendarDate,
+                    selectDate: { selectedDate in
+                        selectCalendarDate(selectedDate)
+                    }
                 )
+            }
+
+            if settingsStore.settings.time.showsCalendarEvents,
+               let selectedCalendarDate {
+                GlassCard(tint: accent.primary) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        SectionLabel(Self.selectedDayTitle(selectedCalendarDate)) {
+                            Button("Clear") {
+                                self.selectedCalendarDate = nil
+                            }
+                            .buttonStyle(.plain)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(accent.primary)
+                        }
+                        selectedDayCalendarContent(
+                            sample: store.latestSample,
+                            selectedDate: selectedCalendarDate,
+                            accent: accent
+                        )
+                    }
+                }
             }
 
             if !settingsStore.settings.time.worldClockIdentifiers.isEmpty {
@@ -98,7 +128,11 @@ public struct TimeDropdownView: View {
                 GlassCard {
                     VStack(alignment: .leading, spacing: 4) {
                         SectionLabel("Upcoming events")
-                        calendarContent(sample: store.latestSample, accent: accent)
+                        upcomingCalendarContent(
+                            sample: store.latestSample,
+                            excluding: selectedCalendarDate,
+                            accent: accent
+                        )
                     }
                 }
             }
@@ -110,15 +144,73 @@ public struct TimeDropdownView: View {
     }
 
     @ViewBuilder
-    private func calendarContent(sample: TimeSample?, accent: ModuleAccent) -> some View {
+    private func upcomingCalendarContent(
+        sample: TimeSample?,
+        excluding selectedDate: Date?,
+        accent: ModuleAccent
+    ) -> some View {
         switch sample?.calendarAuthorization ?? .notDetermined {
         case .fullAccess:
-            if let events = sample?.upcomingEvents, !events.isEmpty {
+            let selectedIDs: Set<String> = if let selectedDate,
+                                              let loadedDate = sample?.selectedCalendarDate,
+                                              Calendar.current.isDate(loadedDate, inSameDayAs: selectedDate) {
+                Set(sample?.selectedDayEvents.map(\.id) ?? [])
+            } else {
+                []
+            }
+            let events = sample?.upcomingEvents.filter { !selectedIDs.contains($0.id) } ?? []
+            if !events.isEmpty {
                 ForEach(events) { event in
                     CalendarEventRow(event: event, accent: accent)
                 }
             } else {
-                Text("No events in the next 14 days.").font(.caption).foregroundStyle(.secondary)
+                Text(selectedIDs.isEmpty ? "No events in the next 14 days." : "No other upcoming events.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        case .notDetermined:
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Calendar access has not been requested.").font(.caption).foregroundStyle(.secondary)
+                Button("Allow Calendar Access…", action: requestCalendarAccess)
+                    .buttonStyle(.glassProminent)
+                    .controlSize(.small)
+            }
+        case .denied, .restricted, .writeOnly:
+            Text(
+                "Calendar events are unavailable. Allow full access in "
+                    + "System Settings > Privacy & Security > Calendars."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        case .unavailable:
+            Text("Calendar events are unavailable on this system.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func selectedDayCalendarContent(
+        sample: TimeSample?,
+        selectedDate: Date,
+        accent: ModuleAccent
+    ) -> some View {
+        switch sample?.calendarAuthorization ?? .notDetermined {
+        case .fullAccess:
+            if let loadedDate = sample?.selectedCalendarDate,
+               Calendar.current.isDate(loadedDate, inSameDayAs: selectedDate) {
+                if let events = sample?.selectedDayEvents, !events.isEmpty {
+                    ForEach(events) { event in
+                        CalendarEventRow(event: event, accent: accent)
+                    }
+                } else {
+                    Text("No events on this day.").font(.caption).foregroundStyle(.secondary)
+                }
+            } else {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading events…")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
         case .notDetermined:
             VStack(alignment: .leading, spacing: 6) {
@@ -152,6 +244,13 @@ public struct TimeDropdownView: View {
         formatter.timeZone = .current
         return formatter.string(from: date)
     }
+
+    private static func selectedDayTitle(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMM d"
+        formatter.timeZone = .current
+        return "Events on \(formatter.string(from: date))"
+    }
 }
 
 private struct CalendarEventRow: View {
@@ -165,7 +264,7 @@ private struct CalendarEventRow: View {
                 .frame(width: 3, height: 28)
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.title).font(.callout).lineLimit(1)
-                Text(event.isAllDay ? "All day" : Self.time(event.startDate))
+                Text(CalendarEventScheduleFormatter.string(for: event))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -175,12 +274,26 @@ private struct CalendarEventRow: View {
         .padding(.vertical, 3)
         .padding(.horizontal, 4)
     }
+}
 
-    private static func time(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+enum CalendarEventScheduleFormatter {
+    static func string(
+        for event: CalendarEventSnapshot,
+        locale: Locale = .current,
+        timeZone: TimeZone = .current
+    ) -> String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.locale = locale
+        dateFormatter.timeZone = timeZone
+        dateFormatter.dateFormat = "EEE, MMM d"
+        let date = dateFormatter.string(from: event.startDate)
+        guard !event.isAllDay else { return "\(date) • All day" }
+
+        let timeFormatter = DateFormatter()
+        timeFormatter.locale = locale
+        timeFormatter.timeZone = timeZone
+        timeFormatter.timeStyle = .short
+        return "\(date) • \(timeFormatter.string(from: event.startDate))"
     }
 }
 
@@ -188,25 +301,36 @@ private struct MonthCalendar: View {
     let date: Date
     let accent: ModuleAccent
     let weekStart: CalendarWeekStart
+    let selectDate: @MainActor (Date) -> Void
+    @Binding var selectedDate: Date?
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 3), count: 7)
     private let overviewColumns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 3)
     private let decadeColumns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 5)
     @State private var navigation: CalendarNavigation
     @State private var displayMode = CalendarDisplayMode.month
+    @State private var monthTransitionDirection = 1
 
-    init(date: Date, accent: ModuleAccent, weekStart: CalendarWeekStart) {
+    init(
+        date: Date,
+        accent: ModuleAccent,
+        weekStart: CalendarWeekStart,
+        selectedDate: Binding<Date?>,
+        selectDate: @escaping @MainActor (Date) -> Void
+    ) {
         self.date = date
         self.accent = accent
         self.weekStart = weekStart
+        self.selectDate = selectDate
+        _selectedDate = selectedDate
         _navigation = State(initialValue: CalendarNavigation(selectedDate: date))
     }
 
     var body: some View {
         let calendar = configuredCalendar
-        let displayedDate = navigation.selectedDate
-        let month = calendar.dateInterval(of: .month, for: displayedDate)
-        let first = month?.start ?? displayedDate
-        let dayRange = calendar.range(of: .day, in: .month, for: displayedDate) ?? 1..<2
+        let visibleDate = navigation.visibleDate
+        let month = calendar.dateInterval(of: .month, for: visibleDate)
+        let first = month?.start ?? visibleDate
+        let dayRange = calendar.range(of: .day, in: .month, for: visibleDate) ?? 1..<2
         let leading = (calendar.component(.weekday, from: first) - calendar.firstWeekday + 7) % 7
         let gridItems = CalendarGridItem.items(
             weekdayLabels: CalendarWeekdayLabel.labels(for: calendar),
@@ -216,10 +340,12 @@ private struct MonthCalendar: View {
         VStack(spacing: 8) {
             HStack {
                 Button {
-                    displayMode.zoomOut()
+                    withAnimation(.smooth(duration: 0.18)) {
+                        displayMode.zoomOut()
+                    }
                 } label: {
                     HStack(spacing: 4) {
-                        Text(Self.navigationTitle(displayedDate, mode: displayMode))
+                        Text(Self.navigationTitle(visibleDate, mode: displayMode))
                         if displayMode != .decade {
                             Image(systemName: "chevron.down")
                                 .font(.system(size: 8, weight: .bold))
@@ -232,13 +358,18 @@ private struct MonthCalendar: View {
                 Spacer()
                 if displayMode == .month {
                     Chip(
-                        text: "Week \(calendar.component(.weekOfYear, from: displayedDate))", color: accent.primary,
+                        text: "Week \(calendar.component(.weekOfYear, from: visibleDate))", color: accent.primary,
                         symbol: "calendar")
                 }
-                if displayMode != .month || !calendar.isDate(displayedDate, inSameDayAs: date) {
+                if displayMode != .month || !calendar.isDate(visibleDate, inSameDayAs: date) {
                     Button("Today") {
-                        navigation.reset(to: date)
-                        displayMode = .month
+                        monthTransitionDirection = date < visibleDate ? -1 : 1
+                        withAnimation(.smooth(duration: 0.18)) {
+                            navigation.reset(to: date)
+                            selectedDate = date
+                            displayMode = .month
+                        }
+                        selectDate(date)
                     }
                     .buttonStyle(.plain)
                     .font(.caption.weight(.semibold))
@@ -261,13 +392,20 @@ private struct MonthCalendar: View {
                                 Text(symbol).font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
                             case .leadingCell:
                                 Color.clear.frame(height: 24)
+                            case .trailingCell:
+                                Color.clear.frame(height: 24)
                             case .day(let day):
                                 let cellDate = calendar.date(byAdding: .day, value: day - 1, to: first) ?? first
                                 let isToday = calendar.isDate(cellDate, inSameDayAs: date)
-                                let isSelected = calendar.isDate(cellDate, inSameDayAs: displayedDate)
+                                let isSelected = selectedDate.map {
+                                    calendar.isDate(cellDate, inSameDayAs: $0)
+                                } ?? false
                                 let isWeekend = calendar.isDateInWeekend(cellDate)
                                 Button {
-                                    navigation.select(day: day, calendar: calendar)
+                                    withAnimation(.smooth(duration: 0.12)) {
+                                        selectedDate = cellDate
+                                    }
+                                    selectDate(cellDate)
                                 } label: {
                                     Text("\(day)")
                                         .font(
@@ -294,13 +432,17 @@ private struct MonthCalendar: View {
                             }
                         }
                     }
+                    .id(Self.monthIdentity(visibleDate, calendar: calendar))
+                    .transition(monthTransition)
                 case .year:
                     LazyVGrid(columns: overviewColumns, spacing: 10) {
                         ForEach(1...12, id: \.self) { month in
-                            let isSelected = month == calendar.component(.month, from: displayedDate)
+                            let isSelected = month == calendar.component(.month, from: visibleDate)
                             Button(Self.monthName(month, calendar: calendar)) {
-                                navigation.select(month: month, calendar: calendar)
-                                displayMode = .month
+                                withAnimation(.smooth(duration: 0.18)) {
+                                    navigation.select(month: month, calendar: calendar)
+                                    displayMode = .month
+                                }
                             }
                             .buttonStyle(.plain)
                             .font(.caption.weight(isSelected ? .bold : .regular))
@@ -314,11 +456,13 @@ private struct MonthCalendar: View {
                     }
                 case .decade:
                     LazyVGrid(columns: decadeColumns, spacing: 12) {
-                        ForEach(Self.yearsInDecade(displayedDate, calendar: calendar), id: \.self) { year in
-                            let isSelected = year == calendar.component(.year, from: displayedDate)
+                        ForEach(Self.yearsInDecade(visibleDate, calendar: calendar), id: \.self) { year in
+                            let isSelected = year == calendar.component(.year, from: visibleDate)
                             Button(String(year)) {
-                                navigation.select(year: year, calendar: calendar)
-                                displayMode = .year
+                                withAnimation(.smooth(duration: 0.18)) {
+                                    navigation.select(year: year, calendar: calendar)
+                                    displayMode = .year
+                                }
                             }
                             .buttonStyle(.plain)
                             .font(.caption.monospacedDigit().weight(isSelected ? .bold : .regular))
@@ -332,7 +476,8 @@ private struct MonthCalendar: View {
                     }
                 }
             }
-            .frame(minHeight: 174, alignment: .top)
+            .frame(height: 198, alignment: .top)
+            .clipped()
         }
         .background {
             CalendarScrollCapture { action in
@@ -379,6 +524,20 @@ private struct MonthCalendar: View {
         return start..<(start + 10)
     }
 
+    private static func monthIdentity(_ date: Date, calendar: Calendar) -> Int {
+        let components = calendar.dateComponents([.year, .month], from: date)
+        return (components.year ?? 0) * 100 + (components.month ?? 0)
+    }
+
+    private var monthTransition: AnyTransition {
+        let incoming: Edge = monthTransitionDirection < 0 ? .leading : .trailing
+        let outgoing: Edge = monthTransitionDirection < 0 ? .trailing : .leading
+        return .asymmetric(
+            insertion: .move(edge: incoming).combined(with: .opacity),
+            removal: .move(edge: outgoing).combined(with: .opacity)
+        )
+    }
+
     private var configuredCalendar: Calendar {
         var calendar = Calendar.current
         if let firstWeekday = weekStart.firstWeekday {
@@ -405,18 +564,24 @@ private struct MonthCalendar: View {
     }
 
     private func movePage(_ value: Int, calendar: Calendar) {
-        switch displayMode {
-        case .month: navigation.moveMonths(value, calendar: calendar)
-        case .year: navigation.moveYears(value, calendar: calendar)
-        case .decade: navigation.moveYears(value * 10, calendar: calendar)
+        monthTransitionDirection = value < 0 ? -1 : 1
+        withAnimation(.smooth(duration: 0.18)) {
+            switch displayMode {
+            case .month: navigation.moveMonths(value, calendar: calendar)
+            case .year: navigation.moveYears(value, calendar: calendar)
+            case .decade: navigation.moveYears(value * 10, calendar: calendar)
+            }
         }
     }
 
     private func moveVertical(_ value: Int, calendar: Calendar) {
-        switch displayMode {
-        case .month: navigation.moveWeeks(value, calendar: calendar)
-        case .year: navigation.moveYears(value, calendar: calendar)
-        case .decade: navigation.moveYears(value * 10, calendar: calendar)
+        monthTransitionDirection = value < 0 ? -1 : 1
+        withAnimation(.smooth(duration: 0.18)) {
+            switch displayMode {
+            case .month: navigation.moveWeeks(value, calendar: calendar)
+            case .year: navigation.moveYears(value, calendar: calendar)
+            case .decade: navigation.moveYears(value * 10, calendar: calendar)
+            }
         }
     }
 
@@ -464,39 +629,34 @@ enum CalendarDisplayMode: Equatable {
 }
 
 struct CalendarNavigation: Equatable {
-    private(set) var selectedDate: Date
+    private(set) var visibleDate: Date
 
-    mutating func reset(to date: Date) {
-        selectedDate = date
+    init(selectedDate: Date) {
+        visibleDate = selectedDate
     }
 
-    mutating func select(day: Int, calendar: Calendar) {
-        guard let monthStart = calendar.dateInterval(of: .month, for: selectedDate)?.start,
-              let selected = calendar.date(byAdding: .day, value: day - 1, to: monthStart),
-              calendar.isDate(selected, equalTo: monthStart, toGranularity: .month) else {
-            return
-        }
-        selectedDate = selected
+    mutating func reset(to date: Date) {
+        visibleDate = date
     }
 
     mutating func moveWeeks(_ value: Int, calendar: Calendar) {
         guard value != 0,
-              let moved = calendar.date(byAdding: .day, value: value * 7, to: selectedDate) else {
+              let moved = calendar.date(byAdding: .day, value: value * 7, to: visibleDate) else {
             return
         }
-        selectedDate = moved
+        visibleDate = moved
     }
 
     mutating func moveMonths(_ value: Int, calendar: Calendar) {
         guard value != 0,
-              let monthStart = calendar.dateInterval(of: .month, for: selectedDate)?.start,
+              let monthStart = calendar.dateInterval(of: .month, for: visibleDate)?.start,
               let movedMonth = calendar.date(byAdding: .month, value: value, to: monthStart),
               let dayRange = calendar.range(of: .day, in: .month, for: movedMonth) else {
             return
         }
-        let requestedDay = calendar.component(.day, from: selectedDate)
+        let requestedDay = calendar.component(.day, from: visibleDate)
         let day = min(requestedDay, dayRange.count)
-        selectedDate = calendar.date(byAdding: .day, value: day - 1, to: movedMonth) ?? movedMonth
+        visibleDate = calendar.date(byAdding: .day, value: day - 1, to: movedMonth) ?? movedMonth
     }
 
     mutating func moveYears(_ value: Int, calendar: Calendar) {
@@ -505,12 +665,12 @@ struct CalendarNavigation: Equatable {
     }
 
     mutating func select(month: Int, calendar: Calendar) {
-        let year = calendar.component(.year, from: selectedDate)
+        let year = calendar.component(.year, from: visibleDate)
         select(year: year, month: month, calendar: calendar)
     }
 
     mutating func select(year: Int, calendar: Calendar) {
-        let month = calendar.component(.month, from: selectedDate)
+        let month = calendar.component(.month, from: visibleDate)
         select(year: year, month: month, calendar: calendar)
     }
 
@@ -520,8 +680,8 @@ struct CalendarNavigation: Equatable {
               let dayRange = calendar.range(of: .day, in: .month, for: monthStart) else {
             return
         }
-        let requestedDay = calendar.component(.day, from: selectedDate)
-        selectedDate = calendar.date(
+        let requestedDay = calendar.component(.day, from: visibleDate)
+        visibleDate = calendar.date(
             byAdding: .day,
             value: min(requestedDay, dayRange.count) - 1,
             to: monthStart
@@ -535,6 +695,41 @@ enum CalendarBrowseAction: Equatable {
 
     static func vertical(steps: Int, optionKey: Bool) -> Self {
         optionKey ? .weeks(steps) : .months(steps)
+    }
+}
+
+struct CalendarScrollStepLimiter {
+    private(set) var accumulatedDelta: CGFloat = 0
+    private var lastEmissionTimestamp: TimeInterval?
+    let threshold: CGFloat
+    let minimumStepInterval: TimeInterval
+
+    init(threshold: CGFloat, minimumStepInterval: TimeInterval = 0.12) {
+        self.threshold = threshold
+        self.minimumStepInterval = minimumStepInterval
+    }
+
+    mutating func consume(delta: CGFloat, timestamp: TimeInterval) -> Int? {
+        accumulatedDelta += delta
+        accumulatedDelta = min(threshold * 2, max(-threshold * 2, accumulatedDelta))
+        guard abs(accumulatedDelta) >= threshold else { return nil }
+        if let lastEmissionTimestamp,
+           timestamp - lastEmissionTimestamp < minimumStepInterval {
+            return nil
+        }
+        let step = accumulatedDelta > 0 ? -1 : 1
+        accumulatedDelta -= accumulatedDelta > 0 ? threshold : -threshold
+        lastEmissionTimestamp = timestamp
+        return step
+    }
+
+    mutating func beginGesture() {
+        accumulatedDelta = 0
+        lastEmissionTimestamp = nil
+    }
+
+    mutating func endGesture() {
+        accumulatedDelta = 0
     }
 }
 
@@ -558,8 +753,8 @@ private struct CalendarScrollCapture: NSViewRepresentable {
 private final class CalendarScrollCaptureView: NSView {
     var action: @MainActor (CalendarBrowseAction) -> Void
     private var eventMonitor: Any?
-    private var accumulatedVerticalDelta: CGFloat = 0
-    private var accumulatedHorizontalDelta: CGFloat = 0
+    private var verticalLimiter = CalendarScrollStepLimiter(threshold: 28)
+    private var horizontalLimiter = CalendarScrollStepLimiter(threshold: 36)
 
     init(action: @escaping @MainActor (CalendarBrowseAction) -> Void) {
         self.action = action
@@ -585,8 +780,8 @@ private final class CalendarScrollCaptureView: NSView {
             NSEvent.removeMonitor(eventMonitor)
             self.eventMonitor = nil
         }
-        accumulatedVerticalDelta = 0
-        accumulatedHorizontalDelta = 0
+        verticalLimiter.beginGesture()
+        horizontalLimiter.beginGesture()
     }
 
     private func handle(_ event: NSEvent) -> NSEvent? {
@@ -595,44 +790,25 @@ private final class CalendarScrollCaptureView: NSView {
             return event
         }
         if event.phase.contains(.began) {
-            accumulatedVerticalDelta = 0
-            accumulatedHorizontalDelta = 0
+            verticalLimiter.beginGesture()
+            horizontalLimiter.beginGesture()
         }
         let multiplier: CGFloat = event.hasPreciseScrollingDeltas ? 1 : 28
         let horizontal = event.scrollingDeltaX * multiplier
         let vertical = event.scrollingDeltaY * multiplier
         if abs(horizontal) > abs(vertical) {
-            accumulatedHorizontalDelta += horizontal
-            emitSteps(from: &accumulatedHorizontalDelta, threshold: 36, months: true)
-        } else {
-            accumulatedVerticalDelta += vertical
-            emitVerticalSteps(
-                from: &accumulatedVerticalDelta,
-                threshold: 28,
-                optionKey: event.modifierFlags.contains(.option)
-            )
+            if let step = horizontalLimiter.consume(delta: horizontal, timestamp: event.timestamp) {
+                action(.months(step))
+            }
+        } else if let step = verticalLimiter.consume(delta: vertical, timestamp: event.timestamp) {
+            action(.vertical(steps: step, optionKey: event.modifierFlags.contains(.option)))
         }
-        if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
-            accumulatedVerticalDelta = 0
-            accumulatedHorizontalDelta = 0
+        if event.phase.contains(.ended) || event.phase.contains(.cancelled)
+            || event.momentumPhase.contains(.ended) || event.momentumPhase.contains(.cancelled) {
+            verticalLimiter.endGesture()
+            horizontalLimiter.endGesture()
         }
         return nil
-    }
-
-    private func emitSteps(from accumulator: inout CGFloat, threshold: CGFloat, months: Bool) {
-        guard abs(accumulator) >= threshold else { return }
-        let magnitude = min(4, Int(abs(accumulator) / threshold))
-        let steps = accumulator > 0 ? -magnitude : magnitude
-        accumulator -= CGFloat(accumulator > 0 ? magnitude : -magnitude) * threshold
-        action(months ? .months(steps) : .weeks(steps))
-    }
-
-    private func emitVerticalSteps(from accumulator: inout CGFloat, threshold: CGFloat, optionKey: Bool) {
-        guard abs(accumulator) >= threshold else { return }
-        let magnitude = min(4, Int(abs(accumulator) / threshold))
-        let steps = accumulator > 0 ? -magnitude : magnitude
-        accumulator -= CGFloat(accumulator > 0 ? magnitude : -magnitude) * threshold
-        action(.vertical(steps: steps, optionKey: optionKey))
     }
 }
 
@@ -654,17 +830,20 @@ enum CalendarGridItem: Identifiable, Equatable {
         case weekday(Int)
         case leadingCell(Int)
         case day(Int)
+        case trailingCell(Int)
     }
 
     case weekday(column: Int, symbol: String)
     case leadingCell(column: Int)
     case day(Int)
+    case trailingCell(column: Int)
 
     var id: ID {
         switch self {
         case .weekday(let column, _): .weekday(column)
         case .leadingCell(let column): .leadingCell(column)
         case .day(let day): .day(day)
+        case .trailingCell(let column): .trailingCell(column)
         }
     }
 
@@ -676,6 +855,9 @@ enum CalendarGridItem: Identifiable, Equatable {
         var items = weekdayLabels.map { Self.weekday(column: $0.id, symbol: $0.symbol) }
         items.append(contentsOf: (0..<max(0, leadingCellCount)).map(Self.leadingCell(column:)))
         items.append(contentsOf: days.map(Self.day))
+        let occupiedDayCells = max(0, leadingCellCount) + days.count
+        let trailingCellCount = max(0, 42 - occupiedDayCells)
+        items.append(contentsOf: (0..<trailingCellCount).map(Self.trailingCell(column:)))
         return items
     }
 }

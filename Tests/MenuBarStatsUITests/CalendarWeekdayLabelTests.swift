@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import MenuBarStatsCore
+import SystemSources
 import Testing
 @testable import MenuBarStatsUI
 
@@ -52,7 +53,7 @@ struct CalendarWeekdayLabelTests {
             days: 1..<31
         )
 
-        #expect(items.count == 39)
+        #expect(items.count == 49)
         #expect(Set(items.map(\.id)).count == items.count)
         #expect(Array(items.prefix(7)) == [
             .weekday(column: 0, symbol: "S"),
@@ -81,6 +82,23 @@ struct CalendarWeekdayLabelTests {
             .day(11),
             .day(12),
         ])
+        #expect(Array(items.suffix(10)) == (0..<10).map(CalendarGridItem.trailingCell(column:)))
+    }
+
+    @Test("Every month reserves six complete week rows")
+    func everyMonthHasStableGridHeight() {
+        let labels = (0..<7).map { CalendarWeekdayLabel(id: $0, symbol: String($0)) }
+        for leadingCellCount in 0...6 {
+            for dayCount in 28...31 {
+                let items = CalendarGridItem.items(
+                    weekdayLabels: labels,
+                    leadingCellCount: leadingCellCount,
+                    days: 1..<(dayCount + 1)
+                )
+                #expect(items.count == 49)
+                #expect(Set(items.map(\.id)).count == 49)
+            }
+        }
     }
 
     @Test("Calendar navigation crosses weeks and months without retaining month grids")
@@ -91,16 +109,14 @@ struct CalendarWeekdayLabelTests {
         var navigation = CalendarNavigation(selectedDate: start)
 
         navigation.moveWeeks(1, calendar: calendar)
-        #expect(calendar.dateComponents([.year, .month, .day], from: navigation.selectedDate)
+        #expect(calendar.dateComponents([.year, .month, .day], from: navigation.visibleDate)
             == DateComponents(year: 2026, month: 9, day: 12))
         navigation.moveWeeks(3, calendar: calendar)
-        #expect(calendar.dateComponents([.year, .month, .day], from: navigation.selectedDate)
+        #expect(calendar.dateComponents([.year, .month, .day], from: navigation.visibleDate)
             == DateComponents(year: 2026, month: 10, day: 3))
         navigation.moveMonths(-1, calendar: calendar)
-        #expect(calendar.dateComponents([.year, .month, .day], from: navigation.selectedDate)
+        #expect(calendar.dateComponents([.year, .month, .day], from: navigation.visibleDate)
             == DateComponents(year: 2026, month: 9, day: 3))
-        navigation.select(day: 30, calendar: calendar)
-        #expect(calendar.component(.day, from: navigation.selectedDate) == 30)
 
         let startCPU = processCPUTime()
         for _ in 0..<10_000 {
@@ -108,7 +124,8 @@ struct CalendarWeekdayLabelTests {
             navigation.moveWeeks(-1, calendar: calendar)
         }
         let consumedCPU = processCPUTime() - startCPU
-        #expect(calendar.component(.day, from: navigation.selectedDate) == 30)
+        #expect(calendar.dateComponents([.year, .month, .day], from: navigation.visibleDate)
+            == DateComponents(year: 2026, month: 9, day: 3))
         #expect(consumedCPU < 0.25, "20,000 navigation steps consumed \(consumedCPU) seconds of CPU time")
     }
 
@@ -121,10 +138,10 @@ struct CalendarWeekdayLabelTests {
 
         navigation.moveMonths(1, calendar: calendar)
 
-        #expect(calendar.dateComponents([.year, .month, .day], from: navigation.selectedDate)
+        #expect(calendar.dateComponents([.year, .month, .day], from: navigation.visibleDate)
             == DateComponents(year: 2027, month: 2, day: 28))
         navigation.reset(to: january)
-        #expect(navigation.selectedDate == january)
+        #expect(navigation.visibleDate == january)
     }
 
     @Test("Calendar drill-out navigates month, year, and decade levels")
@@ -142,13 +159,13 @@ struct CalendarWeekdayLabelTests {
         let start = try #require(calendar.date(from: DateComponents(year: 2026, month: 9, day: 30)))
         var navigation = CalendarNavigation(selectedDate: start)
         navigation.select(month: 2, calendar: calendar)
-        #expect(calendar.dateComponents([.year, .month, .day], from: navigation.selectedDate)
+        #expect(calendar.dateComponents([.year, .month, .day], from: navigation.visibleDate)
             == DateComponents(year: 2026, month: 2, day: 28))
         navigation.select(year: 2031, calendar: calendar)
-        #expect(calendar.dateComponents([.year, .month, .day], from: navigation.selectedDate)
+        #expect(calendar.dateComponents([.year, .month, .day], from: navigation.visibleDate)
             == DateComponents(year: 2031, month: 2, day: 28))
         navigation.moveYears(-10, calendar: calendar)
-        #expect(calendar.component(.year, from: navigation.selectedDate) == 2021)
+        #expect(calendar.component(.year, from: navigation.visibleDate) == 2021)
     }
 
     @Test("Ordinary vertical scrolling browses months and Option-scroll browses weeks")
@@ -159,11 +176,71 @@ struct CalendarWeekdayLabelTests {
         #expect(CalendarBrowseAction.vertical(steps: 1, optionKey: true) == .weeks(1))
     }
 
+    @Test("Trackpad momentum emits one evenly paced calendar step at a time")
+    func trackpadMomentumIsPaced() {
+        var limiter = CalendarScrollStepLimiter(threshold: 28, minimumStepInterval: 0.12)
+
+        #expect(limiter.consume(delta: 20, timestamp: 1) == nil)
+        #expect(limiter.consume(delta: 20, timestamp: 1.01) == -1)
+        #expect(limiter.consume(delta: 56, timestamp: 1.02) == nil)
+        #expect(limiter.accumulatedDelta == 56)
+        #expect(limiter.consume(delta: 0, timestamp: 1.14) == -1)
+        #expect(limiter.consume(delta: 0, timestamp: 1.27) == -1)
+        #expect(limiter.consume(delta: 0, timestamp: 1.40) == nil)
+
+        limiter.endGesture()
+        #expect(limiter.accumulatedDelta == 0)
+        limiter.beginGesture()
+        #expect(limiter.consume(delta: -28, timestamp: 2) == 1)
+    }
+
+    @Test("Upcoming event rows show an approachable weekday and date")
+    func eventRowsShowDates() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .gmt
+        let start = try #require(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 9,
+            day: 7,
+            hour: 9,
+            minute: 30
+        )))
+        let timed = CalendarEventSnapshot(
+            id: "timed",
+            title: "Planning",
+            startDate: start,
+            endDate: start.addingTimeInterval(3_600),
+            isAllDay: false,
+            calendarTitle: "Work"
+        )
+        let allDay = CalendarEventSnapshot(
+            id: "all-day",
+            title: "Holiday",
+            startDate: start,
+            endDate: start.addingTimeInterval(86_400),
+            isAllDay: true,
+            calendarTitle: "Home"
+        )
+        let locale = Locale(identifier: "en_US_POSIX")
+
+        #expect(normalizedWhitespace(
+            CalendarEventScheduleFormatter.string(for: timed, locale: locale, timeZone: .gmt)
+        ) == "Mon, Sep 7 • 9:30 AM")
+        #expect(CalendarEventScheduleFormatter.string(for: allDay, locale: locale, timeZone: .gmt)
+            == "Mon, Sep 7 • All day")
+    }
+
     private func processCPUTime() -> Double {
         var usage = rusage()
         getrusage(RUSAGE_SELF, &usage)
         let user = Double(usage.ru_utime.tv_sec) + Double(usage.ru_utime.tv_usec) / 1_000_000
         let system = Double(usage.ru_stime.tv_sec) + Double(usage.ru_stime.tv_usec) / 1_000_000
         return user + system
+    }
+
+    private func normalizedWhitespace(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\u{00A0}", with: " ")
+            .replacingOccurrences(of: "\u{202F}", with: " ")
     }
 }

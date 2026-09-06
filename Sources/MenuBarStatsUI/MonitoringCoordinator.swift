@@ -84,6 +84,7 @@ public final class MonitoringCoordinator {
     private let batteryScheduler: Scheduler<BatteryMonitor>
     private let timeMonitor: TimeMonitor
     private var isRequestingCalendarAccess = false
+    private var calendarSelectionGeneration = 0
     private let timeScheduler: Scheduler<TimeMonitor>
     private let registry: StatusItemRegistry
     private let settingsAction: @MainActor (ModuleID) -> Void
@@ -389,7 +390,8 @@ public final class MonitoringCoordinator {
                     store: timeStore,
                     weatherStore: weatherStore,
                     settingsStore: settingsStore,
-                    requestCalendarAccess: { [weak self] in self?.requestCalendarAccess() }
+                    requestCalendarAccess: { [weak self] in self?.requestCalendarAccess() },
+                    selectCalendarDate: { [weak self] date in self?.selectCalendarDate(date) }
                 )
             ),
             contentHeight: TimeDropdownView.contentSize.height,
@@ -468,6 +470,17 @@ public final class MonitoringCoordinator {
                 alert.addButton(withTitle: "OK")
                 alert.runModal()
             }
+        }
+    }
+
+    /// Loads the events for a day explicitly selected in the Time calendar.
+    public func selectCalendarDate(_ date: Date) {
+        calendarSelectionGeneration += 1
+        let generation = calendarSelectionGeneration
+        Task {
+            let sample = await timeMonitor.selectCalendarDate(date)
+            guard generation == calendarSelectionGeneration else { return }
+            timeStore.receive(sample)
         }
     }
 
@@ -987,7 +1000,8 @@ public final class MonitoringCoordinator {
                                 await self.sensorsScheduler.refresh()
                             }
                         },
-                        requestCalendarAccess: { [weak self] in self?.requestCalendarAccess() }
+                        requestCalendarAccess: { [weak self] in self?.requestCalendarAccess() },
+                        selectCalendarDate: { [weak self] date in self?.selectCalendarDate(date) }
                     )
                 ),
                 contentHeight: CombinedDropdownView.contentSize.height,

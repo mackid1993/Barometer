@@ -78,6 +78,31 @@ struct TimeTests {
         #expect(counts.events == 2)
     }
 
+    @Test("selecting a calendar day loads that day and preserves upcoming events")
+    func selectedDayEvents() async throws {
+        let source = CountingCalendarSource()
+        let monitor = TimeMonitor(calendarSource: source)
+        await monitor.setCalendarConfiguration(isEnabled: true, count: 5)
+        let selected = Date(timeIntervalSinceReferenceDate: 200_000)
+        let initial = await monitor.sample(at: selected.addingTimeInterval(-86_400))
+
+        let selection = await monitor.selectCalendarDate(selected)
+        let nextTick = await monitor.sample(at: selection.timestamp.addingTimeInterval(1))
+
+        let calendar = Calendar.current
+        let loadedDate = try #require(selection.selectedCalendarDate)
+        #expect(calendar.isDate(loadedDate, inSameDayAs: selected))
+        #expect(selection.selectedDayEvents.map(\.id) == ["event"])
+        #expect(selection.upcomingEvents == initial.upcomingEvents)
+        #expect(nextTick.selectedCalendarDate == selection.selectedCalendarDate)
+        #expect(nextTick.selectedDayEvents == selection.selectedDayEvents)
+
+        await monitor.setCalendarConfiguration(isEnabled: false, count: 5)
+        let disabled = await monitor.sample(at: nextTick.timestamp.addingTimeInterval(1))
+        #expect(disabled.selectedCalendarDate == nil)
+        #expect(disabled.selectedDayEvents.isEmpty)
+    }
+
     @Test("token expansion computes only fields present in the template")
     func tokenExpansionIsLazy() {
         var requested: [String] = []
