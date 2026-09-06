@@ -3711,3 +3711,24 @@ Verification:
 - `python3 Scripts/benchmark-memory.py dist/memory-baseline` reduced the simulated one-hour footprint by 92.7% and
   reported zero growth between simulated hours 24 and 48.
 - `git diff --check` passed.
+
+## P8-T60 Reserve scrolling for the Time pane
+
+Hands-on testing showed that calendar-level wheel handling competed with the dropdown's native scroll view: a flick
+could change months when the user meant to move through the pane. Removed the calendar's wheel-event monitor,
+momentum accumulator, Option-scroll behavior, and associated AppKit bridge. Trackpad and mouse-wheel input now belongs
+entirely to the enclosing pane, preserving native macOS scrolling and momentum. The calendar's existing left and right
+arrows are the sole controls for animated month, year, and decade navigation.
+
+The source invariant check now rejects any future local scroll-wheel monitor in the Time calendar. Arrow-navigation
+coverage exercises 20,000 alternating month changes under the existing 0.25-second CPU budget, while the fixed
+six-week calendar grid continues to prevent vertical layout movement between months.
+
+Verification:
+
+- `python3 Scripts/check-source-invariants.py` passed, including the new no-calendar-wheel-capture invariant.
+- The focused Calendar suite passed all nine tests; 20,000 month steps completed in 0.098 seconds with the full build.
+- `make test` passed every test target, including 133 Core tests and the complete UI and SystemSources suites.
+- The snapshot-enabled placement suite passed all three tests and generated 192 light and dark captures.
+- `python3 Scripts/benchmark-popover-memory.py` passed at a 47.9 MiB peak, below the 128 MiB gate.
+- `make security-audit` and `git diff --check` passed.

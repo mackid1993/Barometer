@@ -101,32 +101,32 @@ struct CalendarWeekdayLabelTests {
         }
     }
 
-    @Test("Calendar navigation crosses weeks and months without retaining month grids")
+    @Test("Calendar arrows cross months without retaining month grids")
     func calendarNavigationIsBounded() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(identifier: "America/New_York"))
         let start = try #require(calendar.date(from: DateComponents(year: 2026, month: 9, day: 5)))
         var navigation = CalendarNavigation(selectedDate: start)
 
-        navigation.moveWeeks(1, calendar: calendar)
+        navigation.moveMonths(1, calendar: calendar)
         #expect(calendar.dateComponents([.year, .month, .day], from: navigation.visibleDate)
-            == DateComponents(year: 2026, month: 9, day: 12))
-        navigation.moveWeeks(3, calendar: calendar)
+            == DateComponents(year: 2026, month: 10, day: 5))
+        navigation.moveMonths(3, calendar: calendar)
         #expect(calendar.dateComponents([.year, .month, .day], from: navigation.visibleDate)
-            == DateComponents(year: 2026, month: 10, day: 3))
-        navigation.moveMonths(-1, calendar: calendar)
+            == DateComponents(year: 2027, month: 1, day: 5))
+        navigation.moveMonths(-4, calendar: calendar)
         #expect(calendar.dateComponents([.year, .month, .day], from: navigation.visibleDate)
-            == DateComponents(year: 2026, month: 9, day: 3))
+            == DateComponents(year: 2026, month: 9, day: 5))
 
         let startCPU = processCPUTime()
         for _ in 0..<10_000 {
-            navigation.moveWeeks(1, calendar: calendar)
-            navigation.moveWeeks(-1, calendar: calendar)
+            navigation.moveMonths(1, calendar: calendar)
+            navigation.moveMonths(-1, calendar: calendar)
         }
         let consumedCPU = processCPUTime() - startCPU
         #expect(calendar.dateComponents([.year, .month, .day], from: navigation.visibleDate)
-            == DateComponents(year: 2026, month: 9, day: 3))
-        #expect(consumedCPU < 0.25, "20,000 navigation steps consumed \(consumedCPU) seconds of CPU time")
+            == DateComponents(year: 2026, month: 9, day: 5))
+        #expect(consumedCPU < 0.25, "20,000 month steps consumed \(consumedCPU) seconds of CPU time")
     }
 
     @Test("Month navigation clamps dates that do not exist")
@@ -166,32 +166,6 @@ struct CalendarWeekdayLabelTests {
             == DateComponents(year: 2031, month: 2, day: 28))
         navigation.moveYears(-10, calendar: calendar)
         #expect(calendar.component(.year, from: navigation.visibleDate) == 2021)
-    }
-
-    @Test("Ordinary vertical scrolling browses months and Option-scroll browses weeks")
-    func verticalScrollBehavior() {
-        #expect(CalendarBrowseAction.vertical(steps: -1, optionKey: false) == .months(-1))
-        #expect(CalendarBrowseAction.vertical(steps: 1, optionKey: false) == .months(1))
-        #expect(CalendarBrowseAction.vertical(steps: -1, optionKey: true) == .weeks(-1))
-        #expect(CalendarBrowseAction.vertical(steps: 1, optionKey: true) == .weeks(1))
-    }
-
-    @Test("Trackpad momentum emits one evenly paced calendar step at a time")
-    func trackpadMomentumIsPaced() {
-        var limiter = CalendarScrollStepLimiter(threshold: 28, minimumStepInterval: 0.12)
-
-        #expect(limiter.consume(delta: 20, timestamp: 1) == nil)
-        #expect(limiter.consume(delta: 20, timestamp: 1.01) == -1)
-        #expect(limiter.consume(delta: 56, timestamp: 1.02) == nil)
-        #expect(limiter.accumulatedDelta == 56)
-        #expect(limiter.consume(delta: 0, timestamp: 1.14) == -1)
-        #expect(limiter.consume(delta: 0, timestamp: 1.27) == -1)
-        #expect(limiter.consume(delta: 0, timestamp: 1.40) == nil)
-
-        limiter.endGesture()
-        #expect(limiter.accumulatedDelta == 0)
-        limiter.beginGesture()
-        #expect(limiter.consume(delta: -28, timestamp: 2) == 1)
     }
 
     @Test("Upcoming event rows show an approachable weekday and date")

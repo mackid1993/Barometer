@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 import MenuBarStatsCore
 import SwiftUI
@@ -479,17 +478,6 @@ private struct MonthCalendar: View {
             .frame(height: 198, alignment: .top)
             .clipped()
         }
-        .background {
-            CalendarScrollCapture { action in
-                switch action {
-                case .weeks(let value):
-                    moveVertical(value, calendar: calendar)
-                case .months(let value):
-                    moveHorizontal(value, calendar: calendar)
-                }
-            }
-        }
-        .help("Scroll to browse months. Hold Option while scrolling to move by week.")
     }
 
     private static func navigationTitle(_ date: Date, mode: CalendarDisplayMode) -> String {
@@ -574,20 +562,6 @@ private struct MonthCalendar: View {
         }
     }
 
-    private func moveVertical(_ value: Int, calendar: Calendar) {
-        monthTransitionDirection = value < 0 ? -1 : 1
-        withAnimation(.smooth(duration: 0.18)) {
-            switch displayMode {
-            case .month: navigation.moveWeeks(value, calendar: calendar)
-            case .year: navigation.moveYears(value, calendar: calendar)
-            case .decade: navigation.moveYears(value * 10, calendar: calendar)
-            }
-        }
-    }
-
-    private func moveHorizontal(_ value: Int, calendar: Calendar) {
-        movePage(value, calendar: calendar)
-    }
 }
 
 enum CalendarDisplayMode: Equatable {
@@ -639,14 +613,6 @@ struct CalendarNavigation: Equatable {
         visibleDate = date
     }
 
-    mutating func moveWeeks(_ value: Int, calendar: Calendar) {
-        guard value != 0,
-              let moved = calendar.date(byAdding: .day, value: value * 7, to: visibleDate) else {
-            return
-        }
-        visibleDate = moved
-    }
-
     mutating func moveMonths(_ value: Int, calendar: Calendar) {
         guard value != 0,
               let monthStart = calendar.dateInterval(of: .month, for: visibleDate)?.start,
@@ -686,129 +652,6 @@ struct CalendarNavigation: Equatable {
             value: min(requestedDay, dayRange.count) - 1,
             to: monthStart
         ) ?? monthStart
-    }
-}
-
-enum CalendarBrowseAction: Equatable {
-    case weeks(Int)
-    case months(Int)
-
-    static func vertical(steps: Int, optionKey: Bool) -> Self {
-        optionKey ? .weeks(steps) : .months(steps)
-    }
-}
-
-struct CalendarScrollStepLimiter {
-    private(set) var accumulatedDelta: CGFloat = 0
-    private var lastEmissionTimestamp: TimeInterval?
-    let threshold: CGFloat
-    let minimumStepInterval: TimeInterval
-
-    init(threshold: CGFloat, minimumStepInterval: TimeInterval = 0.12) {
-        self.threshold = threshold
-        self.minimumStepInterval = minimumStepInterval
-    }
-
-    mutating func consume(delta: CGFloat, timestamp: TimeInterval) -> Int? {
-        accumulatedDelta += delta
-        accumulatedDelta = min(threshold * 2, max(-threshold * 2, accumulatedDelta))
-        guard abs(accumulatedDelta) >= threshold else { return nil }
-        if let lastEmissionTimestamp,
-           timestamp - lastEmissionTimestamp < minimumStepInterval {
-            return nil
-        }
-        let step = accumulatedDelta > 0 ? -1 : 1
-        accumulatedDelta -= accumulatedDelta > 0 ? threshold : -threshold
-        lastEmissionTimestamp = timestamp
-        return step
-    }
-
-    mutating func beginGesture() {
-        accumulatedDelta = 0
-        lastEmissionTimestamp = nil
-    }
-
-    mutating func endGesture() {
-        accumulatedDelta = 0
-    }
-}
-
-private struct CalendarScrollCapture: NSViewRepresentable {
-    let action: @MainActor (CalendarBrowseAction) -> Void
-
-    func makeNSView(context: Context) -> CalendarScrollCaptureView {
-        CalendarScrollCaptureView(action: action)
-    }
-
-    func updateNSView(_ view: CalendarScrollCaptureView, context: Context) {
-        view.action = action
-    }
-
-    static func dismantleNSView(_ view: CalendarScrollCaptureView, coordinator: ()) {
-        view.stopMonitoring()
-    }
-}
-
-@MainActor
-private final class CalendarScrollCaptureView: NSView {
-    var action: @MainActor (CalendarBrowseAction) -> Void
-    private var eventMonitor: Any?
-    private var verticalLimiter = CalendarScrollStepLimiter(threshold: 28)
-    private var horizontalLimiter = CalendarScrollStepLimiter(threshold: 36)
-
-    init(action: @escaping @MainActor (CalendarBrowseAction) -> Void) {
-        self.action = action
-        super.init(frame: .zero)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("CalendarScrollCaptureView does not support storyboards")
-    }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        stopMonitoring()
-        guard window != nil else { return }
-        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-            self?.handle(event) ?? event
-        }
-    }
-
-    func stopMonitoring() {
-        if let eventMonitor {
-            NSEvent.removeMonitor(eventMonitor)
-            self.eventMonitor = nil
-        }
-        verticalLimiter.beginGesture()
-        horizontalLimiter.beginGesture()
-    }
-
-    private func handle(_ event: NSEvent) -> NSEvent? {
-        guard event.window === window,
-              bounds.contains(convert(event.locationInWindow, from: nil)) else {
-            return event
-        }
-        if event.phase.contains(.began) {
-            verticalLimiter.beginGesture()
-            horizontalLimiter.beginGesture()
-        }
-        let multiplier: CGFloat = event.hasPreciseScrollingDeltas ? 1 : 28
-        let horizontal = event.scrollingDeltaX * multiplier
-        let vertical = event.scrollingDeltaY * multiplier
-        if abs(horizontal) > abs(vertical) {
-            if let step = horizontalLimiter.consume(delta: horizontal, timestamp: event.timestamp) {
-                action(.months(step))
-            }
-        } else if let step = verticalLimiter.consume(delta: vertical, timestamp: event.timestamp) {
-            action(.vertical(steps: step, optionKey: event.modifierFlags.contains(.option)))
-        }
-        if event.phase.contains(.ended) || event.phase.contains(.cancelled)
-            || event.momentumPhase.contains(.ended) || event.momentumPhase.contains(.cancelled) {
-            verticalLimiter.endGesture()
-            horizontalLimiter.endGesture()
-        }
-        return nil
     }
 }
 
