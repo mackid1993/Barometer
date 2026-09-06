@@ -3732,3 +3732,22 @@ Verification:
 - The snapshot-enabled placement suite passed all three tests and generated 192 light and dark captures.
 - `python3 Scripts/benchmark-popover-memory.py` passed at a 47.9 MiB peak, below the 128 MiB gate.
 - `make security-audit` and `git diff --check` passed.
+
+## P8-T61 Prepare Barometer 1.0.6
+
+Bumped the source version to 1.0.6 and added complete user-facing release notes for the stable six-week calendar,
+month, year, and decade navigation, native Time-pane scrolling, and the selected-day event agenda. The notes preserve
+the existing compatibility and privacy promises and contain no competitor references, private signing identity, or
+development-assistant narrative.
+
+Local release verification before dispatch:
+
+- The embedded-signing-identity scan, README and release-note competitor scan, and release-note style scan passed.
+- `python3 Scripts/check-source-invariants.py`, `make security-audit`, and `git diff --check` passed.
+- The focused updater disk-image installation test passed after an initial transient disk-image read failure in the
+  full parallel run. A complete `make test` rerun then passed every SystemSources, UI, and Core test, including the
+  updater installation test.
+- `swift build -c release` completed under Swift 6.4.
+- `CODESIGN_IDENTITY=- make dmg` created the local ad hoc `Barometer-1.0.6.dmg`. Its nested app reports version 1.0.6,
+  bundle identifier `com.barometer.app`, and passes strict signature verification. `hdiutil verify` validated the
+  image, whose local SHA-256 is `5fe8dfeb105ae42afca43ff9ad18c57acf45e81efe0c9cbddd25f30369878b35`.
