@@ -3641,3 +3641,39 @@ Independent verification downloaded the draft artifact before publication and co
 - The nested app has bundle identifier `com.barometer.app`, version 1.0.4, and exactly one executable.
 - The nested app passes strict signature and Gatekeeper checks and carries both Calendar and Location entitlements.
 - The published tag and release target commit `e7e577b`, and the release contains exactly the expected DMG.
+
+## P8-T58 Stabilize calendar grid rows
+
+The month calendar used separate sibling `ForEach` collections whose weekday, leading-cell, and numbered-day IDs
+overlapped. SwiftUI consequently reused cells across collections: after all seven headings were restored, the first
+week of September 2026 could disappear while retaining its row height. The calendar now constructs one ordered grid
+model with disjoint weekday, leading-cell, and day identity namespaces.
+
+Made the calendar interactive without retaining a scrollable history of month views. Every day is selectable,
+previous and next buttons move by month, Today resets the selection, and ordinary wheel or trackpad movement browses
+backward and forward by month. Option-scroll moves week by week for finer navigation, while horizontal trackpad
+movement also pages months. The navigation state remains one date and the view continues to construct only the
+currently visible month's bounded grid. The panel memory benchmark now repeatedly opens and closes the Time dropdown
+in addition to its Weather and graph cycles.
+
+The month title now drills out to a 12-month year view, and the year title drills out to a ten-year decade view.
+Selecting a year or month drills back toward the day grid. Navigation buttons and scrolling advance by the unit shown
+at each level, and every overview is a fixed-size collection rather than retained calendar history.
+
+Verification:
+
+- `python3 Scripts/check-source-invariants.py` passed.
+- `make security-audit` passed.
+- `make test` passed every test target: 35 SystemSources tests, the complete UI suite, and 132 Core tests. The UI
+  coverage includes the September 2026 row regression, all seven configurable week starts, month/year/decade
+  drill-out, ordinary and Option-scroll behavior, invalid-day clamping, and 20,000 alternating week movements under
+  a 0.25-second process CPU budget.
+- `POPOVER_SNAPSHOT_DIRECTORY="$PWD/dist/p8-t58-calendar-screens" make test` passed and generated 192 placement
+  captures. Representative Time panels were inspected in light and dark appearances; all seven weekday headings and
+  every date row are visible, aligned, and unclipped.
+- `python3 Scripts/benchmark-popover-memory.py` passed after repeated Weather, Time, and graph panel cycles. Current
+  memory plateaued at 37.1 MiB and peak memory was 47.9 MiB, below the 128 MiB gate.
+- Updated `Scripts/benchmark-memory.py` for both legacy SwiftPM object directories and Swift 6.4 merged-object product
+  layouts. `python3 Scripts/benchmark-memory.py dist/memory-baseline` passed: the compact history reduced the
+  one-hour footprint by 92.8% and grew zero bytes between simulated hours 24 and 48.
+- `git diff --check` passed.

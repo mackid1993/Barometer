@@ -63,6 +63,32 @@ struct WeatherPanelMemoryBenchmark {
             report(cycle)
         }
 
+        let timeStore = ModuleStore<TimeSample>(historyCapacity: 2)
+        timeStore.receive(TimeSample(timestamp: Date(), systemTimeZoneIdentifier: TimeZone.current.identifier))
+        let timeController = DropdownController(
+            moduleName: "Time",
+            statusItem: nil,
+            rootView: AnyView(TimeDropdownView(
+                store: timeStore,
+                weatherStore: weatherStore,
+                settingsStore: settingsStore,
+                requestCalendarAccess: {}
+            )),
+            contentHeight: TimeDropdownView.contentSize.height,
+            contentWidth: TimeDropdownView.contentSize.width,
+            usesAttachedPanel: true,
+            tickAction: { timeStore.tick() },
+            settingsAction: {},
+            quitAction: {}
+        )
+        for cycle in 5..<10 {
+            timeController.presentAttachedPanel(anchoredTo: anchor)
+            try await Task.sleep(for: .milliseconds(200))
+            timeController.dismiss()
+            try await Task.sleep(for: .milliseconds(200))
+            report(cycle)
+        }
+
         let graphController = DropdownController(
             moduleName: "Graph regression",
             statusItem: nil,
@@ -74,7 +100,7 @@ struct WeatherPanelMemoryBenchmark {
             settingsAction: {},
             quitAction: {}
         )
-        for cycle in 5..<10 {
+        for cycle in 10..<15 {
             graphController.presentAttachedPanel(anchoredTo: anchor)
             try await Task.sleep(for: .milliseconds(200))
             graphController.dismiss()

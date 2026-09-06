@@ -17,11 +17,22 @@ for mode, checkout, seconds in [("baseline", baseline, "3600"), ("compact", root
         ["swift", "build", "--package-path", str(checkout), "--show-bin-path"], text=True).strip())
     objects = []
     for target in ["MenuBarStatsCore", "SystemSources", "CSystemSources"]:
-        objects.extend(str(p) for p in sorted((binary_path / f"{target}.build").glob("*.o")))
+        merged_object = binary_path / f"{target}.o"
+        if merged_object.exists():
+            objects.append(str(merged_object))
+        else:
+            objects.extend(str(p) for p in sorted((binary_path / f"{target}.build").glob("*.o")))
     binary = output / f"memory-{mode}-benchmark"
-    command = ["swiftc", "-parse-as-library", "-O", "-I", str(binary_path / "Modules"),
+    module_path = binary_path / "Modules"
+    command = ["swiftc", "-parse-as-library", "-O", "-I", str(module_path if module_path.exists() else binary_path),
                "-I", str(binary_path / "CSystemSources.build"), str(root / "Tools/MemoryHistoryBenchmark.swift"),
                *objects, "-o", str(binary)]
+    c_module_map = binary_path / "CSystemSources.build" / "module.modulemap"
+    if not c_module_map.exists():
+        c_module_map = binary_path.parent.parent / "Intermediates.noindex/GeneratedModuleMaps/CSystemSources.modulemap"
+    if c_module_map.exists():
+        command.extend(["-Xcc", f"-fmodule-map-file={c_module_map}",
+                        "-Xcc", f"-I{checkout / 'Sources/CSystemSources/include'}"])
     for framework in ["IOKit", "CoreWLAN", "EventKit", "Network", "SystemConfiguration"]:
         command.extend(["-framework", framework])
     if mode == "compact":
