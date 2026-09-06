@@ -377,6 +377,27 @@ struct SettingsTests {
         #expect(encoded["menuBarScale"] == nil)
         #expect(encoded["menuBarSpacing"] == nil)
         #expect(encoded["usesCompactLayout"] == nil)
+        // The live spacing preference must never reuse the removed integer key: decoding "3" as a
+        // string-backed case throws, and `SettingsStore` would silently fall back to defaults.
+        #expect(decoded.statusItemSpacing == .system)
+    }
+
+    @Test("a settings document carrying the removed integer spacing key still decodes fully")
+    func decodesAlongsideRemovedIntegerSpacingKey() throws {
+        var settings = AppSettings()
+        settings.isMonochrome = false
+        settings.modules[.gpu]?.isEnabled = true
+        var document = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(settings)) as? [String: Any]
+        )
+        document["menuBarSpacing"] = 3
+
+        let data = try JSONSerialization.data(withJSONObject: document)
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: data)
+
+        #expect(decoded.statusItemSpacing == .system)
+        #expect(decoded.isMonochrome == false)
+        #expect(decoded.modules[.gpu]?.isEnabled == true)
     }
 
     @Test("active widget count automatically limits effective font size")
@@ -539,6 +560,57 @@ struct SettingsTests {
         #expect(store.settings.time.showsSeconds)
         #expect(store.settings.modules[.time]?.usesFixedWidth == false)
         #expect(!store.hasPendingMenuBarChanges)
+    }
+
+    @Test("Menu bar spacing stages until Apply Changes")
+    @MainActor
+    func stagesStatusItemSpacing() {
+        let suiteName = "com.barometer.app.Tests.PendingStatusItemSpacing"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = SettingsStore(defaults: defaults)
+        #expect(store.statusItemSpacing == .system)
+        #expect(!store.hasPendingMenuBarChanges)
+
+        store.stageStatusItemSpacing(.tightest)
+
+        // AppKit reads the spacing defaults at status-item creation, so the saved value must not
+        // change until the reopen.
+        #expect(store.settings.statusItemSpacing == .system)
+        #expect(store.statusItemSpacing == .tightest)
+        #expect(store.settingsIncludingPendingMenuBarChanges.statusItemSpacing == .tightest)
+        #expect(store.hasPendingMenuBarChanges)
+
+        store.applyPendingMenuBarChanges()
+
+        #expect(store.settings.statusItemSpacing == .tightest)
+        #expect(!store.hasPendingMenuBarChanges)
+    }
+
+    @Test("Restaging the saved spacing clears the pending change")
+    @MainActor
+    func discardsRedundantStatusItemSpacingStage() {
+        let suiteName = "com.barometer.app.Tests.RedundantStatusItemSpacing"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = SettingsStore(defaults: defaults)
+        store.stageStatusItemSpacing(.tight)
+        #expect(store.hasPendingMenuBarChanges)
+
+        store.stageStatusItemSpacing(.system)
+
+        #expect(!store.hasPendingMenuBarChanges)
+        #expect(store.statusItemSpacing == .system)
+
+        store.stageStatusItemSpacing(.snug)
+        store.discardPendingMenuBarChanges()
+
+        #expect(!store.hasPendingMenuBarChanges)
+        #expect(store.statusItemSpacing == .system)
     }
 
     @Test("Sensors widget visibility uses the same apply boundary")

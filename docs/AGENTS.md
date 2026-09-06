@@ -158,10 +158,11 @@ The complete decision, algorithm, prohibited alternatives, and regression checks
 rendered widths, or status-item lifecycle code.
 
 Barometer adds zero horizontal padding around item canvases, including generic text, label/value stacks, sensor
-stacks, icon-and-text rows, symbols, and vertical icon stacks. Do not expose item-spacing controls: changing
-transparent padding inside an immutable frame only redistributes the same blank area and cannot change the actual item
-spacing. Standalone numeric readings remain trailing-aligned inside their reserved fields. Ordinary stacked
-label/value widgets share one leading edge; dense Sensors and Network pairs follow the compact rule below. Do not add
+stacks, icon-and-text rows, symbols, and vertical icon stacks. Do not create spacing controls that work by changing
+renderer padding: transparent padding inside an immutable frame only redistributes the same blank area and cannot
+change the actual item spacing. Standalone numeric readings remain trailing-aligned inside their reserved fields.
+Ordinary stacked label/value widgets share one leading edge; dense Sensors and Network pairs follow the compact rule
+below. Do not add
 generic width allowances, half-point insets, or renderer-specific side padding.
 
 Sensor stacks use explicit stable-width columns. Three logical points separate each label from its live reading,
@@ -171,10 +172,19 @@ never move an arrow. Snap prefix field edges to the device-pixel grid before add
 can otherwise consume it. Never add a trailing exception based on the following widget or synthesize spacing with
 flexible kerning.
 
-Do not set `NSStatusItemSpacing` or `NSStatusItemSelectionPadding` in Barometer or in the by-host global defaults.
-Before constructing `StatusItemRegistry`, remove application-domain values left by older Barometer builds so AppKit
-uses its normal spacing behavior. Never change another application's preferences. Do not compensate for system
-spacing with renderer-specific padding or assumptions about widget order.
+`NSStatusItemSpacing` and `NSStatusItemSelectionPadding` are set only by the **Item spacing** preference in General,
+and only in Barometer's own application domain, through `StatusItemSpacingPolicy.apply(_:)`. That call runs at launch
+after `SettingsStore` is created and before `StatusItemRegistry` exists, because AppKit reads the values while
+creating each status item window. The `system` default writes nothing and removes application-domain values left by
+older Barometer builds, so an unchanged preference is a byte-identical no-op. Spacing edits stage like visibility
+edits and take effect through the **Apply Changes** reopen.
+
+This works where renderer padding could not, because spacing is an additive shell around `statusItem.length`:
+narrowing it changes the visible gap without assigning a length a second time. It is one-sided by nature. The
+application domain scopes the value to Barometer, so two adjacent Barometer items close their gap fully while a gap
+beside another application's item closes only by Barometer's share. State that in the UI instead of compensating for
+it. Never write the by-host global values, never change another application's preferences, and do not compensate for
+system spacing with renderer-specific padding or assumptions about widget order.
 Never bring back a live-width slider. Show/hide controls are the deliberate exception to otherwise-live settings:
 stage those choices until the user selects **Apply Changes**, persist the complete set once, and perform a controlled
 application reopen. The reopen is required so automatic sizing is calculated from the final enabled-item count before

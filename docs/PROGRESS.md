@@ -3788,3 +3788,68 @@ Verification:
 - Competitor-name, development-assistant language, and release-note punctuation scans passed.
 - The release-note claims were checked against the changed production sources and regression tests.
 - GitHub reports the release as published and the DMG asset digest is unchanged.
+
+## P8-T64 Add an opt-in status item spacing preference
+
+David asked for a General-page control that tightens the gap between Barometer's menu bar items. The prior P7-T4
+attempt at this was removed for good reason, but it conflated two different levers. Narrowing renderer padding is
+genuinely dead: it only redistributes blank area inside an immutable outer frame. Writing `NSStatusItemSpacing` and
+`NSStatusItemSelectionPadding` in Barometer's application domain is a different mechanism, and P7-T4 itself recorded
+that AppKit honors it there. Spacing is an additive shell around `statusItem.length`, so narrowing it changes the
+visible gap without ever assigning a length a second time, which is what makes it compatible with the sizing contract.
+
+General now has a **Menu Bar Spacing** section with a four-way **Item spacing** picker: System, Snug, Tight, and
+Tightest, mapping to no override, 4, 2, and 0 points. A discrete picker rather than a slider because the effect
+appears only after a reopen, so a continuous control would invite one relaunch per drag. The default is System, which
+writes nothing and removes application-domain values left by older Barometer builds, so an unchanged preference is a
+byte-identical no-op for anyone who never opts in. The by-host global values and every other application's
+preferences remain untouched.
+
+The choice stages like the existing visibility and clock edits and commits through the same **Apply Changes** reopen.
+That boundary is required, not cosmetic: AppKit reads the spacing defaults while creating each status item window, so
+a live write would leave existing items in their old shells. `StatusItemSpacingPolicy.apply(_:)` therefore runs at
+launch after `SettingsStore` is constructed and before `StatusItemRegistry` exists, and `AppDelegate` was reordered
+for that. `StatusItemController` remains the only writer of `statusItem.length`, with exactly one assignment.
+
+The setting is one-sided by nature, and the UI says so rather than compensating for it. The application domain scopes
+the value to Barometer, so two adjacent Barometer items close their gap fully while a gap beside another
+application's item closes only by Barometer's share. That asymmetry is the most likely reading of the "interacted
+unpredictably" note in the P7-T4 revert.
+
+The persisted key is `statusItemSpacing`, deliberately not `menuBarSpacing`. The removed density control used
+`menuBarSpacing` for an integer, and `decodeIfPresent` throws on a type mismatch rather than returning nil, so reusing
+the name would have made any settings document still carrying the old integer fail to decode and silently reset every
+preference through the `try?` in `SettingsStore.init`. The existing "removed density settings" guard test caught this.
+
+Live measurement decided the scale. With five visible items, the app-domain key was applied at launch and the
+resulting geometry read from `identity.json`. At 8 points every status item window was exactly its item length plus 8
+and the visible run grew from 262 to 310 points. At 0, and at every negative value down to -8, every window was
+exactly its item length and the run stayed at 262. AppKit adds the spacing to the window but never shrinks a window
+below the length its owner assigned, so zero is the floor and negative values are indistinguishable from it. The
+shipped scale is therefore System, 4, 2, and 0, and the doc records the floor so nobody tries to beat it by shaving
+reserved canvas width.
+
+This has a direct consequence David hit immediately: he had been experimenting with a system-wide
+`NSStatusItemSpacing` of -2 in `NSGlobalDomain`, which already puts every application at the floor. While that value
+is set, no option in this picker can change anything, and his items were already contiguous with a zero gap. The
+setting's value is that it does per-application what he had been doing globally, without touching any other
+application. The caption states the floor so the no-op case is not read as a defect.
+
+Verification:
+
+- `make test` passed: 136 tests in 22 suites, up from 130. New coverage proves the System default writes neither key,
+  every compact preference writes both keys with the expected integer, the preference round-trips and defaults to
+  System when absent, a document still carrying the removed integer `menuBarSpacing` key decodes fully, and the
+  staged value stays out of saved settings until Apply Changes.
+- David's live `com.barometer.app` settings document was decoded against the new schema in a temporary test before
+  any build was installed: 30 original keys, zero lost, `statusItemSpacing` added as `system`, and his enabled set,
+  weight, sensor widget, stack, and weather location unchanged. The temporary test was then removed.
+- `swift build -c release` completed and `git diff --check` reported no whitespace errors.
+- A source scan found exactly one production assignment to `statusItem.length`, in `StatusItemController.swift`.
+- `make install` replaced and relaunched `/Applications/Barometer.app`. Not notarized or stapled, at David's request.
+  Strict signature verification passed and the installed identity report shows five visible items, each with its
+  fixed autosave name, an empty button title, a static AX label, a nonzero image, and one bundle owner.
+- Settings were backed up before the geometry experiment and restored afterward. The final document byte-matches the
+  backup, carries no `statusItemSpacing` key, and the application domain again contains neither spacing key. Item
+  positions are unchanged from the pre-experiment baseline: x = 1017 through 1279, span 262 points.
+- The menu bar manager check is David's: Thaw must not be launched by an agent.

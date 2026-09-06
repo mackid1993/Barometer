@@ -12,12 +12,35 @@ The former Compact internal layout/high-density and Regular/Compact spacing cont
 made it unreadable, while changing transparent padding inside immutable outer frames could only redistribute the same
 blank area rather than alter the real distance between items. Barometer therefore uses one legible internal layout
 with zero app-added horizontal padding. This applies uniformly to plain text, label/value stacks, sensor stacks,
-icon-and-text rows, symbols, and vertical icon stacks. Do not reintroduce either control.
+icon-and-text rows, symbols, and vertical icon stacks. Do not reintroduce either control. Real spacing is changed
+only through the AppKit defaults keys described below; if the tightest setting still looks loose, that is the answer,
+not shaving ink.
 
 AppKit reads `NSStatusItemSpacing` and `NSStatusItemSelectionPadding` from the defaults search list and uses them to
-space status items. Barometer does not set either value. Before constructing `StatusItemRegistry`, it removes any
-application-domain values left by older Barometer builds and then uses AppKit's normal behavior. Never write or delete
-the by-host global values: changing them affects the rest of the user's menu bar.
+space status items. The **Item spacing** preference in General is the one sanctioned way to change them, and it is
+narrow by design:
+
+- It writes both keys in Barometer's own application domain only, through `StatusItemSpacingPolicy.apply(_:)`.
+- It runs once at launch, after `SettingsStore` is created and before `StatusItemRegistry` exists, because AppKit
+  reads these values while creating each status item window.
+- The default, `system`, writes nothing and removes any application-domain values left by older builds, so a user
+  who never opts in gets exactly AppKit's normal behavior.
+- Changes are staged and applied through the existing **Apply Changes** reopen. Never write these keys live.
+
+This is safe where renderer padding was not: spacing is an additive shell around `statusItem.length`, so narrowing it
+changes the visible gap without ever assigning a length a second time.
+
+Measured on macOS 27 with five visible Barometer items: the status item window width is the item length plus the
+spacing value, and the value floors at zero. At 8 every window was exactly its length plus 8 and the visible run grew
+from 262 to 310 points; at 0, and at every negative value tested down to -8, every window was exactly its item length
+and the run stayed at 262. AppKit will not shrink a window below the length its owner assigned, so negative values
+behave identically to zero. A user who has already tightened the menu bar system-wide to zero or less is at that
+floor, and no option here can change anything for them. Do not try to beat the floor by shaving reserved canvas
+width. It is also inherently one-sided. Application
+domain scopes the value to Barometer, so the gap between two Barometer items closes fully, while a gap next to another
+application's item closes only by Barometer's share. Say so in the UI rather than compensating for it.
+
+Never write or delete the by-host global values: changing them affects the rest of the user's menu bar.
 
 Barometer also applies deterministic density tiers. Up to eight enabled independent items may use 12-point text,
 nine through eleven use at most 11, twelve through fourteen use at most 10, and fifteen or more use 9. Graphic scale

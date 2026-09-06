@@ -28,9 +28,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // Clear legacy Barometer-only overrides and let AppKit own inter-item spacing.
-        StatusItemSpacingPolicy.restoreSystemDefault()
-
         DistributedNotificationCenter.default().addObserver(
             self,
             selector: #selector(openSettingsFromNotification),
@@ -39,6 +36,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         let settingsStore = SettingsStore()
+        // AppKit reads the spacing defaults while creating each status item window, so the saved
+        // preference must be in place before the registry exists. Spacing changes are staged in
+        // Settings and take effect through the same Apply Changes reopen.
+        StatusItemSpacingPolicy.apply(settingsStore.settings.statusItemSpacing)
+
         let updateController = UpdateController()
         // Register the complete launch-visible child set before any controller shows it.
         // Hidden AppKit slots have no AX counterpart and make managers pair an inactive

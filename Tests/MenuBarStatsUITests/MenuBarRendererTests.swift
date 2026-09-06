@@ -297,6 +297,65 @@ struct MenuBarRendererTests {
         #expect(applicationDomain?[StatusItemSpacingPolicy.selectionPaddingKey] == nil)
     }
 
+    /// The default preference must leave the application domain exactly as AppKit expects it, so a
+    /// user who never opts in is unaffected by the setting existing at all.
+    @Test
+    func systemSpacingPreferenceWritesNoApplicationOverride() {
+        let suiteName = "com.barometer.tests.status-item-spacing.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            Issue.record("Unable to create isolated defaults suite")
+            return
+        }
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(4, forKey: StatusItemSpacingPolicy.spacingKey)
+        defaults.set(4, forKey: StatusItemSpacingPolicy.selectionPaddingKey)
+
+        StatusItemSpacingPolicy.apply(.system, in: defaults)
+
+        let applicationDomain = defaults.persistentDomain(forName: suiteName)
+        #expect(applicationDomain?[StatusItemSpacingPolicy.spacingKey] == nil)
+        #expect(applicationDomain?[StatusItemSpacingPolicy.selectionPaddingKey] == nil)
+        #expect(AppSettings().statusItemSpacing == .system)
+    }
+
+    @Test
+    func compactSpacingPreferencesWriteBothApplicationKeys() {
+        for spacing in StatusItemSpacing.allCases {
+            guard let points = spacing.points else { continue }
+            let suiteName = "com.barometer.tests.status-item-spacing.\(UUID().uuidString)"
+            guard let defaults = UserDefaults(suiteName: suiteName) else {
+                Issue.record("Unable to create isolated defaults suite")
+                return
+            }
+            defer { defaults.removePersistentDomain(forName: suiteName) }
+
+            StatusItemSpacingPolicy.apply(spacing, in: defaults)
+
+            #expect(defaults.integer(forKey: StatusItemSpacingPolicy.spacingKey) == points)
+            #expect(defaults.integer(forKey: StatusItemSpacingPolicy.selectionPaddingKey) == points)
+        }
+    }
+
+    @Test
+    func spacingPreferenceRoundTripsThroughSettingsAndDefaultsToSystem() throws {
+        var settings = AppSettings()
+        settings.statusItemSpacing = .tightest
+        let encoded = try JSONEncoder().encode(settings)
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: encoded)
+        #expect(decoded.statusItemSpacing == .tightest)
+
+        // Settings saved before this preference shipped must decode without losing anything else.
+        var document = try #require(
+            try JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        document.removeValue(forKey: "statusItemSpacing")
+        let legacy = try JSONSerialization.data(withJSONObject: document)
+        let migrated = try JSONDecoder().decode(AppSettings.self, from: legacy)
+        #expect(migrated.statusItemSpacing == .system)
+        #expect(migrated.fontWeight == settings.fontWeight)
+        #expect(migrated.modules == settings.modules)
+    }
+
     @Test
     func iconMatchesFontSizeAndUsesCanonicalGap() {
         let metrics = MenuBarLayoutMetrics(context: context)

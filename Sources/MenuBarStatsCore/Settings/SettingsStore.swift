@@ -46,6 +46,12 @@ public final class SettingsStore {
     /// Width-affecting clock choices waiting for a clean application relaunch.
     public private(set) var pendingTimeMenuBarConfiguration: TimeMenuBarConfiguration?
 
+    /// Status-item spacing waiting for a clean application relaunch.
+    ///
+    /// Staged because AppKit reads the spacing defaults when it creates each status item window.
+    /// Applying it live would leave existing items in their old shells.
+    public private(set) var pendingStatusItemSpacing: StatusItemSpacing?
+
     /// Stack readings waiting for the user to apply them.
     ///
     /// Staged because a stack's readings decide which modules it replaces, and that changes the set
@@ -123,6 +129,7 @@ public final class SettingsStore {
         var result = settings
         applyPendingVisibility(to: &result)
         applyPendingTimeMenuBarConfiguration(to: &result)
+        applyPendingStatusItemSpacing(to: &result)
         return result
     }
 
@@ -134,6 +141,7 @@ public final class SettingsStore {
             || !pendingStackMetrics.isEmpty
             || !pendingStackHidesSourceItems.isEmpty
             || pendingTimeMenuBarConfiguration != nil
+            || pendingStatusItemSpacing != nil
     }
 
     /// Clock configuration shown by Settings, including edits waiting for Apply Changes.
@@ -144,6 +152,16 @@ public final class SettingsStore {
     /// Stages clock edits so the status item can receive its final width before becoming visible.
     public func stageTimeMenuBarConfiguration(_ configuration: TimeMenuBarConfiguration) {
         pendingTimeMenuBarConfiguration = configuration == savedTimeMenuBarConfiguration ? nil : configuration
+    }
+
+    /// Status-item spacing shown by Settings, including an edit waiting for Apply Changes.
+    public var statusItemSpacing: StatusItemSpacing {
+        pendingStatusItemSpacing ?? settings.statusItemSpacing
+    }
+
+    /// Stages a spacing choice so AppKit reads it before it creates the next status item windows.
+    public func stageStatusItemSpacing(_ spacing: StatusItemSpacing) {
+        pendingStatusItemSpacing = spacing == settings.statusItemSpacing ? nil : spacing
     }
 
     /// Returns the staged module visibility, falling back to the saved value.
@@ -231,6 +249,7 @@ public final class SettingsStore {
         var updated = settings
         applyPendingVisibility(to: &updated)
         applyPendingTimeMenuBarConfiguration(to: &updated)
+        applyPendingStatusItemSpacing(to: &updated)
         clearPendingMenuBarChanges()
         settings = updated
         saveNow()
@@ -248,6 +267,7 @@ public final class SettingsStore {
         pendingStackMetrics.removeAll()
         pendingStackHidesSourceItems.removeAll()
         pendingTimeMenuBarConfiguration = nil
+        pendingStatusItemSpacing = nil
     }
 
     private func applyPendingVisibility(to result: inout AppSettings) {
@@ -272,6 +292,11 @@ public final class SettingsStore {
             guard let index = result.stacks.stacks.firstIndex(where: { $0.id == id }) else { continue }
             result.stacks.stacks[index].hidesSourceItems = hidesSourceItems
         }
+    }
+
+    private func applyPendingStatusItemSpacing(to result: inout AppSettings) {
+        guard let pendingStatusItemSpacing else { return }
+        result.statusItemSpacing = pendingStatusItemSpacing
     }
 
     private var savedTimeMenuBarConfiguration: TimeMenuBarConfiguration {

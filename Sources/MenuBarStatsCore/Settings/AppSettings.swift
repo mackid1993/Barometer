@@ -24,6 +24,49 @@ public enum MenuBarFontWeight: String, Codable, CaseIterable, Sendable {
     case semibold
 }
 
+/// Horizontal spacing AppKit reserves around each Barometer status item.
+///
+/// This is the one sanctioned exception to the "no item-spacing controls" rule. It writes
+/// `NSStatusItemSpacing` and `NSStatusItemSelectionPadding` into Barometer's own application
+/// domain at launch, before any status item exists, so AppKit builds a narrower shell around the
+/// unchanged item length. It never touches the by-host global values or another application's
+/// preferences, and it never resizes a live item.
+public enum StatusItemSpacing: String, Codable, CaseIterable, Sendable {
+    /// AppKit's own spacing, with no Barometer override written.
+    case system
+    /// Slightly tighter than a loose system-wide setting.
+    case snug
+    /// Noticeably tighter, keeping a small boundary between items.
+    case tight
+    /// No reserved spacing; each window is exactly its item length.
+    case tightest
+
+    /// Points written to both AppKit spacing keys, or `nil` to remove Barometer's override.
+    ///
+    /// Zero is the floor. Measured on macOS 27: AppKit adds this value to each item's window but
+    /// never shrinks a window below its own item length, so negative values behave exactly like
+    /// zero. A user who has already set a system-wide spacing of zero or less is at that floor
+    /// and will see no change from any option here.
+    public var points: Int? {
+        switch self {
+        case .system: nil
+        case .snug: 4
+        case .tight: 2
+        case .tightest: 0
+        }
+    }
+
+    /// Menu-title-style name shown in Settings.
+    public var displayName: String {
+        switch self {
+        case .system: "System"
+        case .snug: "Snug"
+        case .tight: "Tight"
+        case .tightest: "Tightest"
+        }
+    }
+}
+
 /// Persisted choices for the Weather module.
 public struct WeatherSettings: Codable, Equatable, Sendable {
     /// Saved locations in user-selected display order.
@@ -216,6 +259,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Shared menu bar type weight.
     public var fontWeight: MenuBarFontWeight
 
+    /// Spacing AppKit reserves around each Barometer status item; applied at launch only.
+    public var statusItemSpacing: StatusItemSpacing
+
     /// Global menu bar font size.
     public var fontSize: Double {
         didSet {
@@ -279,6 +325,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         globalCriticalDarkColor: String = "#F87171",
         graphOpacity: Double = 0.85,
         fontWeight: MenuBarFontWeight = .medium,
+        statusItemSpacing: StatusItemSpacing = .system,
         fontSize: Double = 12,
         modules: [ModuleID: ModuleSettings] = AppSettings.defaultModules,
         weather: WeatherSettings = WeatherSettings(),
@@ -309,6 +356,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.globalCriticalDarkColor = globalCriticalDarkColor
         self.graphOpacity = graphOpacity
         self.fontWeight = fontWeight
+        self.statusItemSpacing = statusItemSpacing
         self.fontSize = Self.clampedMenuBarFontSize(fontSize)
         self.modules = modules
         self.weather = weather
@@ -361,6 +409,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case globalCriticalDarkColor
         case graphOpacity
         case fontWeight
+        case statusItemSpacing
         case fontSize
         case modules
         case weather
@@ -404,6 +453,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
             globalCriticalDarkColor = "#F87171"
             graphOpacity = 0.85
             fontWeight = .medium
+            statusItemSpacing = .system
             fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? 12
             modules = Self.defaultModules
             weather = WeatherSettings()
@@ -471,6 +521,11 @@ public struct AppSettings: Codable, Equatable, Sendable {
                 ) ?? "#F87171"
             graphOpacity = try container.decodeIfPresent(Double.self, forKey: .graphOpacity) ?? 0.85
             fontWeight = try container.decodeIfPresent(MenuBarFontWeight.self, forKey: .fontWeight) ?? .medium
+            statusItemSpacing =
+                try container.decodeIfPresent(
+                    StatusItemSpacing.self,
+                    forKey: .statusItemSpacing
+                ) ?? .system
             fontSize = try container.decode(Double.self, forKey: .fontSize)
             modules = try container.decode([ModuleID: ModuleSettings].self, forKey: .modules)
             weather = try container.decodeIfPresent(WeatherSettings.self, forKey: .weather) ?? WeatherSettings()

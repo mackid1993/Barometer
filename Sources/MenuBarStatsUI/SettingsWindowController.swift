@@ -289,6 +289,18 @@ private struct GeneralSettingsView: View {
                 }
             }
 
+            Section("Menu Bar Spacing") {
+                Picker("Item spacing", selection: statusItemSpacingBinding) {
+                    ForEach(StatusItemSpacing.allCases, id: \.self) { spacing in
+                        Text(spacing.displayName).tag(spacing)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Text(statusItemSpacingCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Menu Bar Colors") {
                 Toggle("Use one palette for every module", isOn: appBinding(\.usesGlobalColors))
                 MenuBarColorPickerRows(
@@ -413,6 +425,23 @@ private struct GeneralSettingsView: View {
                 settingsStore.settings = settings
             }
         )
+    }
+
+    private var statusItemSpacingBinding: Binding<StatusItemSpacing> {
+        Binding(
+            get: { settingsStore.statusItemSpacing },
+            set: { settingsStore.stageStatusItemSpacing($0) }
+        )
+    }
+
+    private var statusItemSpacingCaption: String {
+        """
+        Sets the width AppKit reserves around Barometer's own items. A gap between two Barometer \
+        items closes fully; a gap beside another app's item closes only by Barometer's share, \
+        because that app still reserves its own. Tightest is the floor, so if you already tighten \
+        the menu bar system-wide this will not change anything. Takes effect when you select Apply \
+        Changes, which reopens Barometer.
+        """
     }
 
     private var globalSamplingEnabledBinding: Binding<Bool> {
