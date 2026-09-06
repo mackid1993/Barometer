@@ -3769,3 +3769,22 @@ Independent verification downloaded the draft artifact before publication and co
 
 Published [Barometer 1.0.6](https://github.com/mackid1993/Barometer/releases/tag/v1.0.6) as a non-prerelease public
 release and marked it Latest.
+
+## P8-T63 Correct the 1.0.6 release notes
+
+Reconstructed the 1.0.6 notes directly from the `v1.0.5..v1.0.6` source and test diff. Removed broad compatibility
+and performance claims, described only the shipped calendar row correction, arrow and drill-out navigation, Time-pane
+scrolling behavior, selected-day events, event de-duplication, and stale-response protection, and credited
+`@aj-salafee` with the original report in issue #3.
+
+Amended the published GitHub release without replacing its verified DMG. The published body matches
+`docs/RELEASE_NOTES_1.0.6.md` after normalizing trailing whitespace. The release remains public, non-prerelease, and
+contains the original notarized asset with SHA-256
+`170ffb371ca017b43307c46996f9d84040e221a2013cdf7afde258a5522d22f9`.
+
+Verification:
+
+- `git diff --check` passed.
+- Competitor-name, development-assistant language, and release-note punctuation scans passed.
+- The release-note claims were checked against the changed production sources and regression tests.
+- GitHub reports the release as published and the DMG asset digest is unchanged.

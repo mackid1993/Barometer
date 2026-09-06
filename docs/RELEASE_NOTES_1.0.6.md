@@ -1,37 +1,33 @@
 # Barometer 1.0.6
 
-Barometer 1.0.6 makes the Time calendar easier to explore while keeping the rest of the dropdown steady and
-responsive.
+Barometer 1.0.6 fixes the Time calendar's missing and shifting rows, then adds navigation and daily event browsing.
 
-## A calendar that stays put
+## Fixed calendar rows
 
-- Every month now keeps the same six-week footprint, so the calendar and event lists no longer jump when moving
-  between months.
-- All weekday headings and date rows remain visible, including months whose first or last week previously displayed
-  incorrectly.
-- The selected day is kept separate from the month being viewed, so browsing does not unexpectedly change the
-  agenda.
+- Fixed the bug that could hide weekday headings or the first row of dates in some months.
+- Every month now reserves six week rows, so the calendar and the content below it stay in place while browsing.
+- The selected date and today's date remain visually distinct.
 
-## Clear calendar navigation
+## Calendar navigation
 
-- Left and right arrows move through months, years, or decades based on the current view.
-- Select the month heading to see the full year, then select the year heading to browse a decade.
-- Choose a year or month to move naturally back toward the calendar.
-- Trackpad and mouse-wheel input remains dedicated to scrolling the Time dropdown, preserving native macOS momentum
-  without accidental month changes.
+- Use the left and right arrows to move between months.
+- Select the month heading to choose from all 12 months in that year.
+- Select the year heading to choose a year from the current decade.
+- The same arrows move by year or decade while those views are open.
+- A Today button returns to the current month and date.
+- Trackpad and mouse-wheel gestures scroll the Time dropdown instead of unexpectedly changing the calendar month.
 
-## Events for the day you choose
+## Events for a selected date
 
-- Select any date to see events scheduled for that day without losing the upcoming-events list.
-- Event rows now show a clear weekday, date, and time. All-day events are labeled explicitly.
-- Events already shown for the selected day are not repeated in the upcoming list.
-- Loading, empty, and unavailable states now explain what is happening, and a Clear action returns to the standard
-  upcoming view.
+- Select a date to display the Calendar events scheduled for that day.
+- Upcoming events remain visible below the selected day's events.
+- An event shown for the selected day is not repeated in the upcoming list.
+- Event rows now include the weekday, date, and time. All-day events are labeled clearly.
+- Selecting dates quickly cannot allow an older Calendar response to replace the latest selection.
 
-## Reliability and compatibility
+## Thanks
 
-- Slower calendar responses can no longer replace a newer selection.
-- Calendar browsing retains only the visible view and stays within Barometer's existing CPU and memory limits.
-- Existing settings, permissions, and menu bar positions are preserved.
-- Barometer remains a single application with no helper or privileged process.
-- Barometer 1.0.6 is distributed as a notarized, stapled DMG for Apple silicon Macs running macOS 26 or later.
+Thank you to [@aj-salafee](https://github.com/aj-salafee) for reporting the missing calendar rows in
+[issue #3](https://github.com/mackid1993/Barometer/issues/3).
+
+Barometer 1.0.6 is a notarized, stapled DMG for Apple silicon Macs running macOS 26 or later.
