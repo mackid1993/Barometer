@@ -18,11 +18,13 @@ if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
 fi
 
 swift build -c release --product Barometer
+swift build -c release --product BarometerNowPlayingBridge
 binary_directory=$(swift build -c release --show-bin-path)
 
 rm -rf "$application_directory"
 mkdir -p "$macos_directory" "$resources_directory"
 cp "$binary_directory/Barometer" "$macos_directory/Barometer"
+cp "$binary_directory/libBarometerNowPlayingBridge.dylib" "$resources_directory/libBarometerNowPlayingBridge.dylib"
 cp Resources/Barometer.icns "$resources_directory/Barometer.icns"
 
 sed \
@@ -32,22 +34,6 @@ sed \
 
 find "$binary_directory" -maxdepth 1 -type d -name '*.bundle' -exec cp -R '{}' "$resources_directory/" ';'
 
-# Opt-in prototype: a second bundle that publishes one status item under its own identifier.
-# A menu bar manager's concealment allowlist is keyed by the publishing process's bundle ID,
-# so independent hiding requires an independent bundle. Off by default, which keeps the
-# one-executable identity invariant below in force for every ordinary build.
-if [ "${BAROMETER_HELPER_PROTOTYPE:-0}" = "1" ]; then
-    swift build -c release --product BarometerGPUHelper
-    helper_app_directory="$contents_directory/Library/LoginItems/Barometer GPU.app"
-    helper_macos_directory="$helper_app_directory/Contents/MacOS"
-    mkdir -p "$helper_macos_directory"
-    cp "$binary_directory/BarometerGPUHelper" "$helper_macos_directory/BarometerGPUHelper"
-    sed \
-        -e "s/__VERSION__/$version/g" \
-        -e "s/__BUILD__/$build/g" \
-        Scripts/Helper-GPU-Info.plist > "$helper_app_directory/Contents/Info.plist"
-fi
-
 signing_identity=${CODESIGN_IDENTITY:-}
 if [ -z "$signing_identity" ]; then
     signing_identity=$(security find-identity -v -p codesigning 2>/dev/null \
@@ -55,24 +41,11 @@ if [ -z "$signing_identity" ]; then
         | head -n 1)
 fi
 
-# Nested code signs inside-out: the helper needs a valid signature of its own before the
-# outer bundle seals it, otherwise the outer signature seals unsigned nested code.
-if [ "${BAROMETER_HELPER_PROTOTYPE:-0}" = "1" ]; then
-    if [ -n "$signing_identity" ] && [ "$signing_identity" != "-" ]; then
-        codesign \
-            --force \
-            --options runtime \
-            --timestamp \
-            --sign "$signing_identity" \
-            --identifier com.barometer.gpu \
-            "$helper_app_directory"
-    else
-        codesign \
-            --force \
-            --sign - \
-            --identifier com.barometer.gpu \
-            "$helper_app_directory"
-    fi
+if [ -n "$signing_identity" ] && [ "$signing_identity" != "-" ]; then
+    codesign --force --options runtime --timestamp --sign "$signing_identity" \
+        "$resources_directory/libBarometerNowPlayingBridge.dylib"
+else
+    codesign --force --sign - "$resources_directory/libBarometerNowPlayingBridge.dylib"
 fi
 
 if [ -n "$signing_identity" ] && [ "$signing_identity" != "-" ]; then
@@ -109,19 +82,14 @@ if [ "$bundle_version" != "$version" ]; then
     exit 1
 fi
 
-expected_executables=1
-expected_executables_description="exactly one executable: Contents/MacOS/Barometer"
-if [ "${BAROMETER_HELPER_PROTOTYPE:-0}" = "1" ]; then
-    expected_executables=2
-    expected_executables_description="Contents/MacOS/Barometer plus the opt-in GPU helper"
-fi
-
-if [ "$executable_count" -ne "$expected_executables" ] || [ ! -x "$macos_directory/Barometer" ]; then
-    echo "Barometer.app must contain $expected_executables_description" >&2
+if [ "$executable_count" -ne 2 ] || [ ! -x "$macos_directory/Barometer" ] \
+    || [ ! -x "$resources_directory/libBarometerNowPlayingBridge.dylib" ]; then
+    echo "Barometer.app must contain only its main executable and Now Playing library" >&2
     exit 1
 fi
 
 codesign --verify --strict "$application_directory"
+codesign --verify --strict "$resources_directory/libBarometerNowPlayingBridge.dylib"
 
 # A valid signature alone does not prove that hardened-runtime privacy prompts are permitted.
 signed_entitlements="$project_directory/dist/signed-entitlements.plist"

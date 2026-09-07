@@ -31,15 +31,8 @@ struct CalendarPackagingTests {
     func signingPaths() throws {
         let script = try String(contentsOf: repository.appendingPathComponent("Scripts/make-app.sh"), encoding: .utf8)
         let signingCommands = script.components(separatedBy: "codesign \\\n").dropFirst()
-        // Scoped to the invocations that sign the application bundle. The opt-in helper
-        // prototype signs its own nested bundle under a separate identifier, and correctly
-        // does not carry the app's privacy entitlements; asserting over every codesign call
-        // would make this suite fail for a bundle it was never about.
-        let applicationSigningCommands = signingCommands.filter {
-            $0.contains("\"$application_directory\"")
-        }
-        #expect(applicationSigningCommands.count == 2)
-        for command in applicationSigningCommands {
+        #expect(signingCommands.count == 2)
+        for command in signingCommands {
             let signingCommand = command.components(separatedBy: "\"$application_directory\"").first ?? ""
             #expect(signingCommand.contains("--entitlements Scripts/Barometer.entitlements"))
         }

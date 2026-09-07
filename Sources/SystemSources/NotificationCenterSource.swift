@@ -28,6 +28,9 @@ public struct DeliveredNotification: Equatable, Sendable, Identifiable {
     /// The application's notification category, such as App Store's updates category.
     public let category: String?
 
+    /// The sender's request identifier used by native removal APIs, distinct from the delivery UUID in `id`.
+    public let requestIdentifier: String?
+
     /// Non-authoritative URLs and absolute paths found in the application's user data.
     ///
     /// These are diagnostic hints only. They do not establish the notification's click action.
@@ -43,7 +46,8 @@ public struct DeliveredNotification: Equatable, Sendable, Identifiable {
         date: Date,
         deepLink: URL? = nil,
         category: String? = nil,
-        hints: [String] = []
+        hints: [String] = [],
+        requestIdentifier: String? = nil
     ) {
         self.id = id
         self.applicationIdentifier = applicationIdentifier
@@ -54,6 +58,7 @@ public struct DeliveredNotification: Equatable, Sendable, Identifiable {
         self.deepLink = deepLink
         self.category = category
         self.hints = hints
+        self.requestIdentifier = requestIdentifier
     }
 }
 
@@ -369,7 +374,8 @@ public actor NotificationCenterSource {
             date: date,
             deepLink: deepLink,
             category: Self.trimmed(request["cate"]),
-            hints: Self.hints(in: request["usda"] as? Data)
+            hints: Self.hints(in: request["usda"] as? Data),
+            requestIdentifier: (request["iden"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         )
     }
 

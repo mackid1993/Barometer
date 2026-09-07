@@ -62,10 +62,10 @@ let package = Package(
     products: [
         .executable(name: "Barometer", targets: ["Barometer"]),
         .executable(name: "mbs-probe", targets: ["mbs-probe"]),
-        .executable(name: "BarometerGPUHelper", targets: ["BarometerGPUHelper"]),
         .library(name: "MenuBarStatsCore", targets: ["MenuBarStatsCore"]),
         .library(name: "MenuBarStatsUI", targets: ["MenuBarStatsUI"]),
         .library(name: "SystemSources", targets: ["SystemSources"]),
+        .library(name: "BarometerNowPlayingBridge", type: .dynamic, targets: ["BarometerNowPlayingBridge"]),
     ],
     targets: [
         .target(
@@ -79,6 +79,7 @@ let package = Package(
         .target(
             name: "SystemSources",
             dependencies: ["CSystemSources"],
+            resources: [.copy("Resources/now-playing-reader.pl")],
             swiftSettings: strictConcurrency,
             linkerSettings: [
                 .linkedFramework("CoreWLAN"),
@@ -88,6 +89,12 @@ let package = Package(
                 .linkedFramework("SystemConfiguration"),
                 .linkedLibrary("sqlite3"),
             ]
+        ),
+        .target(
+            name: "BarometerNowPlayingBridge",
+            path: "Sources/BarometerNowPlayingBridge",
+            publicHeadersPath: "include",
+            linkerSettings: [.linkedFramework("Foundation"), .linkedFramework("ImageIO")]
         ),
         .target(
             name: "MenuBarStatsCore",
@@ -112,13 +119,6 @@ let package = Package(
             dependencies: ["MenuBarStatsUI"],
             path: "Sources/MenuBarStatsApp",
             swiftSettings: strictConcurrency
-        ),
-        .executableTarget(
-            name: "BarometerGPUHelper",
-            swiftSettings: strictConcurrency,
-            linkerSettings: [
-                .linkedFramework("AppKit"),
-            ]
         ),
         .executableTarget(
             name: "mbs-probe",

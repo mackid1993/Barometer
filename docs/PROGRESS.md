@@ -4560,3 +4560,106 @@ The built app was successfully copied with ditto to /Applications/Barometer.app 
 relaunched from that installed path. Unlike the previous attempt, macOS allowed replacement. David subsequently
 requested continued native notification-opening and Now Playing research, specifically examining Droppy's approach;
 the denied direct MediaRemote call must not be treated as proof that all implementations are impossible.
+
+David confirmed Focus detection works in the installed build and requested a more Apple-like purple. Updated the
+status-only moon from dynamic systemPurple to explicit softer lavender RGB (0.68, 0.55, 1.0), retaining a non-template
+image so monochrome rendering does not replace the requested color. This color change awaits the next build.
+
+The Now Playing agent found Droppy's actual architecture: a bundled adapter loaded through unchanged system Perl,
+streaming metadata to the app. A read-only local adapter probe on macOS 27 returned a populated 15-key metadata
+object with title, artist, player identity, playbackRate, and playing, with no stderr. This corrects the earlier
+premature implication that denied direct MediaRemote reads prevented a solution. David requested continued work;
+an original narrow bridge against Apple's runtime symbols is being implemented without a third-party dependency.
+
+
+### P8-T87: independent menu bar item owners and working media bridge
+
+David explicitly requested extending René's merged PR #4 to every element. This replaces the historical single
+status-item-owning process architecture. All modules and numbered Sensors/Weather/Combined instances now use
+StatusItemHelperIdentity bundle IDs com.barometer.item.<module>[.N]. The main app retains source sampling, rendering,
+TCC grants, settings, and popup content. RemoteStatusItem publishes bounded PNG/size/template/AX/visibility/width
+snapshots through a 0700 per-launch directory. Each signed helper owns one native item, enforces stable identity,
+applies its own spacing preferences before item creation, and returns screen-anchored clicks. A global per-identity
+lock prevents duplicates, parent PID plus launch date prevents orphans, and complete snapshot polling recovers lost
+wake notifications. Main-process dropdowns now open at helper-reported global anchors.
+
+The runtime launcher creates helper bundles only in Barometer's own Application Support folder at permanent paths,
+fingerprints the packaged template, verifies reused signatures, prepares/signs replacement bundles before publishing
+them, and runs bounded signing work off the main actor. Generated helpers are ad-hoc signed because deployed apps
+cannot assume the developer's private signing key exists. Helper identities are new to menu bar managers; a one-time
+placement reassignment may be needed. No other app's placement preferences were modified. This migration is not
+claimed verified with every menu bar manager. The core monitoring processes are not duplicated inside helpers.
+
+The original Now Playing bridge now reads Apple's global metadata through unchanged /usr/bin/perl loading a signed
+Barometer dylib. There is no third-party package and no player-specific integration. Live metadata existence was
+confirmed using the in-repo bridge. Output is bounded during nonblocking reads to 512 KiB; artwork is bounded to
+256 KiB and 512x512; deadlines and cancellation terminate and reap the child with a bounded SIGKILL fallback.
+Sampling uses the existing 1-second open-popup/3-second background intervals. This currently spawns one short-lived
+reader per sample; a persistent event stream is a potential efficiency improvement, not implemented or benchmarked.
+Focus's softer lavender color is included; David already confirmed active-state detection in the preceding build.
+
+Notification research remains separate and unresolved. LLVM found the exact native removeDelivered wire request:
+message_type uint64 20, apps array of dictionaries containing bundle_identifier and record_uuids. The ordinary
+usernoted.notificationcenter connection accepted an unhandshaken send without changing any delivered UUIDs. The
+exact startup handshake (message_type uint64 0 with reply) then returned Connection interrupted/invalid, establishing
+that the actual native channel rejects this ordinary caller. No entitlement or Apple executable identity was altered.
+A previous UNUserNotificationServiceConnection call returned nil completion but left Discord delivered; its scoped
+read returned no notifications for either bundle-ID case. Added the sender request identifier as distinct metadata
+from the delivery UUID, preserving exact opaque strings. No unsuccessful clear was counted as success.
+
+David clarified that the list must stay inside Barometer; the proposed replacement Open Notification Center button
+is not being implemented. Both notification agents continue reverse-engineering an ordinary programmatic UI route
+or another valid native action path. Native clearing is still not claimed solved.
+
+Verification per David's waiver: no repeat test suite, screenshot suite, or memory benchmark. `make build` passed
+(2.03 seconds, dist/p8-t87-integration-build.log). `make app` passed release compilation and packaging
+(dist/p8-t87-helper-media-build.log; main release 33.37 seconds). Final incremental packaging also passed with
+explicit path checks and strict signatures for main app, helper template, and media dylib
+(dist/p8-t87-final-package.log). Stopped the old app, copied the package to /Applications/Barometer.app with ditto,
+and relaunched the installed copy successfully. Installed helper behavior is being checked separately from these
+compile/package results.
+
+
+### P8-T87 correction: bundle identity and normal app launch
+
+David reported that the all-item build appeared not to run and initially requested reverting PR #4, then paused that
+request and clarified that every item must own a distinct helper bundle, including Combined 1, 2, 3, and later
+instances. No remote revert, local revert, or revert PR was performed. PR #4 remains merged. Runtime checks showed
+Barometer and eight helper processes alive, so the failure was not established as process termination. MenuBarAgent
+logs classified each child as anon<BarometerItemHelper>, exposing a concrete mistake in our extension: launching
+the executable directly bypassed normal application launch registration. Changed the launcher to NSWorkspace
+openApplication with activates=false and createsNewApplicationInstance=true, preserving exact session arguments
+and checking the launched bundle identifier.
+
+David narrowed the correction to bundle identifiers. Changed the generated owner mapping to René-style
+com.barometer.<module>[.N], keeping the main app com.barometer.app and every autosave name unchanged. Combined
+instances map to com.barometer.combined, com.barometer.combined.2, com.barometer.combined.3, etc.; there is no
+arbitrary instance cap. Added explicit identity regression source coverage for instances 1, 2, 3, and 1000, without
+running the waived test suite. Shared implementation code still launches as separate app bundles/processes; no
+single process owns several items. The interrupted proposal to prepackage twelve fixed helpers was not implemented
+because it would have broken uncapped numbered identities. This correction needs installed-app confirmation.
+
+Notification research remains top priority with two GPT-5.6 Sol agents. David reaffirmed that the panel route remains
+in scope for LLVM research, while the desired operation is an individual clear from Barometer without flashing
+Notification Center. Synthetic Fn-N failed to produce a visible panel and was not wired into production. Additional
+LLVM traces identified the actual usernoted/nctool entitlement predicates, not merely entitlement-name strings;
+normal Apple-interpreter read-only probes are checking whether any existing permitted broker differs from direct
+caller behavior. No working silent native removal is claimed yet.
+
+
+### P8-T87 rollback requested by David
+
+David explicitly requested undoing PR #4 and restoring the previous menu bar behavior while keeping the other fixes.
+Reverted merge e3017b9 locally and remotely; remote revert b2c0832 was merged through PR #5, with origin/master merge
+85af61abcdef896fcd5a624e470d8293849de7a9. Removed the generic per-item expansion from production: restored the
+1815d01 status registry/controller/dropdown integration, removed item-helper targets/protocol/launcher/template and
+original GPU prototype files, and restored the prior identity guidance. Removed the generated installed helper apps
+and template. The old helper experiment is saved only as ignored dist patch/source archive for diagnosis.
+
+Preserved the original global Now Playing reader and its media dylib/resource packaging, the lavender Focus moon,
+read-only notification request identifiers, and all previously committed Focus/read/click/seconds/credits changes.
+No TCC grants or menu bar manager preferences were changed. The packaged app owns all native items again.
+
+`make app` passed (main release 26.13 seconds; bridge 0.34 seconds; dist/p8-t87-rollback-build.log). Replaced and
+relaunched /Applications/Barometer.app successfully. No test/screenshot/memory reruns, per David's standing waiver.
+The notification agents were resumed at David's request; notification dismissal remains the final active task.

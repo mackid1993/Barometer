@@ -17,13 +17,14 @@ enum SystemControlPillRenderer {
             tinted.lockFocus()
             let bounds = NSRect(origin: .zero, size: size)
             symbol.draw(in: bounds)
-            NSColor.systemPurple.setFill()
+            NSColor(srgbRed: 0.68, green: 0.55, blue: 1.0, alpha: 1).setFill()
             bounds.fill(using: .sourceAtop)
             tinted.unlockFocus()
             tinted.draw(in: NSRect(x: (width - size.width) / 2, y: (context.thickness - size.height) / 2,
                                   width: size.width, height: size.height))
         }
         image.unlockFocus()
+        image.isTemplate = false
         return StatusItemContent(image: image, accessibilityValue: sample.accessibilityValue)
     }
 

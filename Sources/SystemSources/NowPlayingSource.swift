@@ -92,6 +92,8 @@ public actor NowPlayingSource {
     private static let elapsedTimeKey = "kMRMediaRemoteNowPlayingInfoElapsedTime"
     private static let artworkDataKey = "kMRMediaRemoteNowPlayingInfoArtworkData"
     private static let callbackTimeout: DispatchTimeInterval = .milliseconds(750)
+    private static let adapterTimeout: TimeInterval = 2.5
+    private static let maximumAdapterOutputBytes = 512 * 1_024
 
     private let library: UnsafeMutableRawPointer?
     private let injectedRead: (@Sendable () async -> NowPlayingReadResult)?
@@ -129,6 +131,7 @@ public actor NowPlayingSource {
     /// Reads the system's current Now Playing item while preserving unavailable versus idle.
     public func read() async -> NowPlayingReadResult {
         if let injectedRead { return await injectedRead() }
+        if let adapterResult = await readWithAdapter() { return adapterResult }
         guard let infoFunction = function(
             "MRMediaRemoteGetNowPlayingInfo",
             as: GetNowPlayingInfoFunction.self
@@ -239,6 +242,98 @@ public actor NowPlayingSource {
         return identifier
     }
 
+    private func readWithAdapter() async -> NowPlayingReadResult? {
+        guard let scriptURL = Bundle.module.url(forResource: "now-playing-reader", withExtension: "pl"),
+              let resourcesURL = Bundle.main.resourceURL
+        else { return nil }
+        let bridgeURL = resourcesURL.appendingPathComponent("libBarometerNowPlayingBridge.dylib")
+        guard FileManager.default.isExecutableFile(atPath: "/usr/bin/perl"),
+              FileManager.default.fileExists(atPath: bridgeURL.path)
+        else { return nil }
+
+        let worker = Task.detached(priority: .userInitiated) {
+            let process = Process()
+            let output = Pipe()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+            process.arguments = [scriptURL.path, bridgeURL.path]
+            process.standardOutput = output
+            process.standardError = FileHandle.nullDevice
+            do { try process.run() } catch { return nil as Data? }
+            try? output.fileHandleForWriting.close()
+            let descriptor = output.fileHandleForReading.fileDescriptor
+            let currentFlags = fcntl(descriptor, F_GETFL)
+            guard currentFlags >= 0, fcntl(descriptor, F_SETFL, currentFlags | O_NONBLOCK) >= 0 else {
+                Self.terminateAndReap(process)
+                return nil
+            }
+            var data = Data()
+            var exceededLimit = false
+            var reachedEnd = false
+            var buffer = [UInt8](repeating: 0, count: 8_192)
+            func drainAvailable() {
+                while !reachedEnd && !exceededLimit {
+                    let count = buffer.withUnsafeMutableBytes { bytes in
+                        Darwin.read(descriptor, bytes.baseAddress, bytes.count)
+                    }
+                    if count > 0 {
+                        guard data.count + count <= Self.maximumAdapterOutputBytes else {
+                            exceededLimit = true
+                            return
+                        }
+                        data.append(contentsOf: buffer.prefix(count))
+                    } else if count == 0 {
+                        reachedEnd = true
+                    } else if errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR {
+                        reachedEnd = true
+                    } else {
+                        return
+                    }
+                }
+            }
+            let deadline = Date().addingTimeInterval(Self.adapterTimeout)
+            while process.isRunning, Date() < deadline, !Task.isCancelled, !exceededLimit {
+                drainAvailable()
+                usleep(10_000)
+            }
+            if process.isRunning { Self.terminateAndReap(process) }
+            else { process.waitUntilExit() }
+            drainAvailable()
+            guard !Task.isCancelled, !exceededLimit, process.terminationStatus == 0 else { return nil }
+            return data
+        }
+        let data = await withTaskCancellationHandler(operation: { await worker.value }, onCancel: { worker.cancel() })
+        guard let data,
+              let payload = try? JSONDecoder().decode(AdapterPayload.self, from: data)
+        else { return nil }
+        guard payload.available else { return .unavailable }
+        if payload.idle { return .idle }
+        guard let title = Self.trimmed(payload.title) else { return .unavailable }
+        let duration = payload.duration.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil }
+        let elapsed = payload.elapsedTime.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil }
+        let artwork = payload.artworkData.flatMap { Data(base64Encoded: $0) }
+        return .current(NowPlayingSnapshot(
+            title: title,
+            artist: Self.trimmed(payload.artist),
+            album: Self.trimmed(payload.album),
+            applicationBundleIdentifier: Self.trimmed(payload.bundleIdentifier),
+            playbackState: payload.playing ? .playing : .paused,
+            duration: duration,
+            elapsedTime: elapsed.map { elapsedValue in
+                duration.map { min(elapsedValue, $0) } ?? elapsedValue
+            },
+            artworkData: Self.boundedArtwork(artwork)
+        ))
+    }
+
+    private nonisolated static func terminateAndReap(_ process: Process) {
+        guard process.isRunning else { process.waitUntilExit(); return }
+        process.terminate()
+        let deadline = Date().addingTimeInterval(0.3)
+        while process.isRunning, Date() < deadline { usleep(10_000) }
+        if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+        process.waitUntilExit()
+    }
+
     private func symbol(_ name: String) -> UnsafeMutableRawPointer? {
         guard let library else { return nil }
         return dlsym(library, name)
@@ -295,6 +390,37 @@ public actor NowPlayingSource {
             return nil
         }
         return data
+    }
+}
+
+private struct AdapterPayload: Decodable, Sendable {
+    let available: Bool
+    let idle: Bool
+    let title: String?
+    let artist: String?
+    let album: String?
+    let bundleIdentifier: String?
+    let playing: Bool
+    let duration: Double?
+    let elapsedTime: Double?
+    let artworkData: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case available, idle, title, artist, album, bundleIdentifier, playing, duration, elapsedTime, artworkData
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        available = try values.decodeIfPresent(Bool.self, forKey: .available) ?? false
+        idle = try values.decodeIfPresent(Bool.self, forKey: .idle) ?? false
+        title = try values.decodeIfPresent(String.self, forKey: .title)
+        artist = try values.decodeIfPresent(String.self, forKey: .artist)
+        album = try values.decodeIfPresent(String.self, forKey: .album)
+        bundleIdentifier = try values.decodeIfPresent(String.self, forKey: .bundleIdentifier)
+        playing = try values.decodeIfPresent(Bool.self, forKey: .playing) ?? false
+        duration = try values.decodeIfPresent(Double.self, forKey: .duration)
+        elapsedTime = try values.decodeIfPresent(Double.self, forKey: .elapsedTime)
+        artworkData = try values.decodeIfPresent(String.self, forKey: .artworkData)
     }
 }
 
