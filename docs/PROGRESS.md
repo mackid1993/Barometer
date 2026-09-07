@@ -4331,3 +4331,16 @@ styles) and correlated it with `group.com.apple.usernoted.plist`: bit 25 of `fla
 and clear for every silenced one, across Apple and third-party apps; `auth` is not a signal (Messages is off with
 `auth = 791`). `NotificationCenterSource` now filters on bit 25. The source test covers a silenced app with a
 nonzero `auth`. `make test`: 147 tests in 23 suites passed. `git diff --check` clean.
+
+## P8-T83 follow-up: notification click routing
+
+Notification Center hands a click to the sending application over a private channel Barometer cannot reach; the
+application then picks the destination. `NotificationRouter` reproduces the common destinations: a notification
+whose text names a file in Downloads or on the Desktop (browsers title downloads that way) reveals that file
+through `activateFileViewerSelecting`, which is what "Show in folder" does and what a Finder replacement hooks;
+anything else activates the application. Matching is exact and case-insensitive on the file name, resolved
+through the directory listing so the on-disk spelling wins, and rejects names containing a path separator.
+Covered by `NotificationRouterTests`.
+
+Checked Thaw's automation surface for the clock hider: the `thaw://` scheme offers section toggles, search, and
+allowlisted settings keys, but no per-item move or hide, so Barometer cannot ask Thaw to hide the clock.

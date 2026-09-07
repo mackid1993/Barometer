@@ -342,8 +342,8 @@ private struct NotificationListView: View {
 
 /// One notification: the sending application's icon, title, text, and age.
 ///
-/// Clicking activates the application the way a banner does; macOS offers no way to hand it the
-/// notification itself. Hovering reveals a clear button for this one row.
+/// Clicking goes where the notification points: a finished download is revealed in the file viewer,
+/// anything else activates the application. Hovering reveals a clear button for this one row.
 private struct NotificationRow: View {
     let notification: DeliveredNotification
     let now: Date
@@ -354,7 +354,7 @@ private struct NotificationRow: View {
     var body: some View {
         Button {
             menuDetailActions?.closeDropdown()
-            NotificationApplicationResolver.open(bundleIdentifier: notification.applicationIdentifier)
+            NotificationRouter.open(NotificationRouter.destination(for: notification))
         } label: {
             HStack(alignment: .top, spacing: 8) {
                 Image(nsImage: NotificationApplicationResolver.icon(bundleIdentifier: notification.applicationIdentifier))
@@ -409,7 +409,17 @@ private struct NotificationRow: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
-        .help("Open \(NotificationApplicationResolver.name(bundleIdentifier: notification.applicationIdentifier))")
+        .help(helpText)
+    }
+}
+
+extension NotificationRow {
+    fileprivate var helpText: String {
+        switch NotificationRouter.destination(for: notification) {
+        case let .revealFile(url): "Show \(url.lastPathComponent)"
+        case .activateApplication:
+            "Open \(NotificationApplicationResolver.name(bundleIdentifier: notification.applicationIdentifier))"
+        }
     }
 }
 
