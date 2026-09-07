@@ -22,6 +22,11 @@ on:
         required: false
         default: false
         type: boolean
+      skip_tests:
+        description: "Build without the test gate (off unless explicitly selected)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -32,6 +37,7 @@ jobs:
     with:
       version: ${{ inputs.version }}
       notarize: ${{ inputs.notarize }}
+      skip_tests: ${{ inputs.skip_tests }}
     secrets: inherit
 
   release:

@@ -12,12 +12,21 @@ on:
         required: false
         default: false
         type: boolean
+      skip_tests:
+        description: "Build without the test gate (off unless explicitly selected)"
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       version:
         required: true
         type: string
       notarize:
+        required: false
+        default: false
+        type: boolean
+      skip_tests:
         required: false
         default: false
         type: boolean
@@ -30,10 +39,13 @@ env:
 
 jobs:
   check:
+    if: ${{ !inputs.skip_tests }}
     uses: ./.github/workflows/tests.yml
 
   build:
     needs: check
+    # The test gate is skipped only by explicit request; a failed gate still blocks the build.
+    if: ${{ !cancelled() && (needs.check.result == 'success' || needs.check.result == 'skipped') }}
     runs-on: xcode-27
     timeout-minutes: 45
     steps:
@@ -98,6 +110,12 @@ jobs:
             echo "::error::No Developer ID Application identity was imported" >&2
             exit 1
           fi
+          # make-app.sh runs before the certificate exists, so its nested library is ad-hoc signed.
+          # Notarization rejects any ad-hoc code, and the app signature below does not re-sign
+          # nested code, so the library gets the Developer ID first.
+          codesign --force --options runtime --timestamp \
+            --sign "$IDENTITY" \
+            dist/Barometer.app/Contents/Resources/libBarometerNowPlayingBridge.dylib
           codesign --force --options runtime --timestamp \
             --sign "$IDENTITY" \
             --identifier com.barometer.app \
