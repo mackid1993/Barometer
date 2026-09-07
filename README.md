@@ -50,8 +50,10 @@ programs.
 | **Sensors** | One or more separate widgets. Each can be a two-row stack, labels with values, a history graph, or a fan readout | Every temperature the hardware exposes sorted hottest first, fan speeds, power rails, voltages, and currents, each with a sparkline, and energy used since Barometer opened |
 | **Battery** | A percentage inside the battery glyph or a `BAT` label with the value | A charge ring, health and cycle count, temperature, voltage, current, and wattage, the connected power adapter, a charge history graph, and the batteries of Bluetooth devices |
 | **Weather** | A condition icon over the temperature, the temperature only, icon with temperature and conditions, high and low, or chance of rain | Current conditions, feels like, a 48 hour strip with the temperature curve and rain bars, a 10 day forecast, sunrise, sunset, and moon phase, air quality, and humidity, wind, gusts, pressure, cloud cover, and precipitation |
-| **Time** | A date and time in your own format, with or without seconds | A month calendar, world clocks with offsets and day or night, sunrise and sunset for your weather location, and upcoming calendar events if you allow access |
+| **Time and Notifications** | A date and time in your own format, with or without seconds, at its own text size, and the option to hide the macOS clock so this one takes its place | A month calendar, world clocks with offsets and day or night, sunrise and sunset for your weather location, upcoming calendar events if you allow access, and the notifications waiting in Notification Center, with an Open Notification Center button for the native macOS panel |
 | **Combined** | Any set of the items above inside one menu bar item, with optional separators | A tabbed summary of every included module |
+
+The Open Notification Center button remains experimental when another menu bar manager hides the system clock.
 
 Each item is its own menu bar icon. You can Command-drag them into any order, hide the ones you do not want, or put
 several into the Combined item to save space.
@@ -112,11 +114,11 @@ on, for your public IP address (ipify.org).
 
 - **Location** is optional. It is requested only when you enable current-location weather. It also lets Barometer show
   the name of the Wi-Fi network you are on.
-- **Calendar** is optional. It is requested only when you press **Allow Calendar Access** in Time settings.
+- **Calendar** is optional. It is requested only when you press **Allow Calendar Access** in Time and Notifications settings.
 - **Accessibility** is optional. **Hide the system clock** normally needs no permission at all; on a macOS build
   that cannot remove the clock, Barometer covers it instead and then asks for Accessibility only to read where the
-  clock sits.
-- **Full Disk Access** is optional. It is needed only for **Show notifications in the dropdown** in Time settings,
+  clock sits. The Open Notification Center button also uses Accessibility to send its user-requested action.
+- **Full Disk Access** is optional. It is needed only for **Show notifications in the dropdown** in Time and Notifications settings,
   which lists the notifications waiting in Notification Center so you can hide the system clock. Barometer only
   reads that list; it never dismisses or changes a notification, and banners keep arriving as before.
 - Nothing else asks for a permission. Readings that a Mac does not provide are shown as unavailable.
@@ -125,17 +127,18 @@ Settings can be exported to a JSON file and imported on another Mac.
 
 ## Credits
 
-The same credits Barometer shows in its About pane:
+Credits and acknowledgments:
 
 - **License:** [GNU General Public License, version 3](LICENSE).
 - **Weather data:** [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0).
 - **Hardware sources:** IOKit, IOReport, and SMC, read-only.
-- **Thaw:** [Toni Förster (stonerl)](https://github.com/stonerl) and [René (diazdesandi)](https://github.com/diazdesandi),
-  the maintainers of [Thaw](https://github.com/thaw-app/Thaw) at the [thaw-app organization](https://github.com/thaw-app)
-  on GitHub. Their work on macOS 27 menu bar internals informed Barometer's status item identity rules, and
-  Barometer's "Hide the system clock" is adapted from Thaw's `SystemClockHider.swift`, its assessment-mode
-  assertion, and `SystemClockCover.swift`, shared by the Thaw team and used with their permission. Both projects
-  are GPL-3.0.
+- **Contributor:** [René Jiménez (diazdesandi)](https://github.com/diazdesandi) for the memory investigation and work
+  on Barometer's system clock hiding implementation.
+- **Thaw:** [Toni Förster (stonerl)](https://github.com/stonerl), maintainer of
+  [Thaw](https://github.com/thaw-app/Thaw) at the [thaw-app organization](https://github.com/thaw-app) on GitHub.
+  His work on macOS 27 menu bar internals informed Barometer's status item identity rules, and Barometer's
+  "Hide the system clock" is adapted from Thaw's `SystemClockHider.swift`, its assessment-mode assertion, and
+  `SystemClockCover.swift`, shared by the Thaw team and used with their permission. Both projects are GPL-3.0.
 - **Thaw's origin:** [Ice](https://github.com/jordanbaird/Ice) by [Jordan Baird](https://github.com/jordanbaird).
 
 ## Questions
