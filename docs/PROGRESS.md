@@ -4322,3 +4322,12 @@ Thaw's taps installed is untested, because Thaw must not be quit or launched by 
 `LICENSE` is now the verbatim GPL-3.0 text from gnu.org. README (badge and license line), AGENTS.md, DESIGN.md
 (overview, file list, and the Thaw comparison row), and the About pane say GPL-3.0. `git shortlog` shows one
 author, so no other consent was needed.
+
+## P8-T83 follow-up: the notification allow bit
+
+David reported Messages notifications still listed although Messages is off. Read the ground truth from the
+Notifications pane of System Settings through Accessibility (each app row reads "Name, Off" or its enabled
+styles) and correlated it with `group.com.apple.usernoted.plist`: bit 25 of `flags` is set for every allowed app
+and clear for every silenced one, across Apple and third-party apps; `auth` is not a signal (Messages is off with
+`auth = 791`). `NotificationCenterSource` now filters on bit 25. The source test covers a silenced app with a
+nonzero `auth`. `make test`: 147 tests in 23 suites passed. `git diff --check` clean.

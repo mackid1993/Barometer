@@ -54,10 +54,12 @@ struct NotificationCenterSourceTests {
         #expect(snapshot.notifications.map(\.title) == ["Sam", "Build finished"])
 
         // An application whose notifications are turned off keeps its records, but the list hides them.
+        // The allow bit (1 << 25) in `flags` is the signal, not `auth`: a silenced app can still hold a
+        // nonzero auth, which is exactly the Messages case a naive auth check missed.
         let preferences = directory.appendingPathComponent("prefs.plist")
         let settings: [String: Any] = ["apps": [
-            ["bundle-id": "com.Example.App", "auth": 0, "flags": 268_443_662],
-            ["bundle-id": "com.apple.MobileSMS", "auth": 7, "flags": 41_951_246],
+            ["bundle-id": "com.Example.App", "auth": 791, "flags": 268_443_662],  // bit 25 clear: off
+            ["bundle-id": "com.apple.MobileSMS", "auth": 7, "flags": 41_951_246],  // bit 25 set: on
         ]]
         try PropertyListSerialization.data(fromPropertyList: settings, format: .binary, options: 0)
             .write(to: preferences)

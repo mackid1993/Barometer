@@ -68,10 +68,11 @@ public actor NotificationCenterSource {
 
     /// Per-application notification settings, in the same group container.
     ///
-    /// Each `apps` entry carries the bundle identifier and an `auth` mask that is zero when the
-    /// user turned "Allow notifications" off (or never allowed them). Notification Center keeps
-    /// such an application's old records in the database but no longer shows them, so the list
-    /// drops them too.
+    /// Each `apps` entry carries the bundle identifier and a `flags` mask. Bit 25 is set exactly
+    /// when the user leaves "Allow notifications" on for that application, and clear when they turn
+    /// it off. Notification Center keeps an off application's old records in the database but no
+    /// longer shows them, so the list drops them too. The `auth` field is not a reliable signal:
+    /// an application the user silenced can still hold a nonzero `auth` (Messages does).
     public static let defaultPreferencesURL = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(
             "Library/Group Containers/group.com.apple.usernoted/Library/Preferences/group.com.apple.usernoted.plist"
@@ -160,6 +161,12 @@ public actor NotificationCenterSource {
         return NotificationSnapshot(access: .available, notifications: notifications)
     }
 
+    /// Bit set in an application's notification `flags` when "Allow notifications" is on for it.
+    ///
+    /// Determined by reading the live settings: this bit is set for every application the user
+    /// allows and clear for every one they turn off, across both Apple and third-party apps.
+    static let allowNotificationsFlag = 1 << 25
+
     /// Lowercased bundle identifiers whose notifications the user turned off.
     static func silencedApplications(preferencesURL: URL?) -> Set<String> {
         guard let preferencesURL,
@@ -172,10 +179,10 @@ public actor NotificationCenterSource {
         }
         var silenced: Set<String> = []
         for app in apps {
-            guard let identifier = app["bundle-id"] as? String, let auth = app["auth"] as? Int, auth == 0 else {
-                continue
+            guard let identifier = app["bundle-id"] as? String, let flags = app["flags"] as? Int else { continue }
+            if flags & allowNotificationsFlag == 0 {
+                silenced.insert(identifier.lowercased())
             }
-            silenced.insert(identifier.lowercased())
         }
         return silenced
     }
