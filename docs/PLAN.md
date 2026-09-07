@@ -495,7 +495,9 @@ banners, drop Apple's notification panel, and list the waiting notifications in 
 - `NotificationFeed` in `MenuBarStatsCore` reads when the Time dropdown opens, follows the database and its WAL
   through a file watcher with a 250 ms debounce, and stops when the dropdown closes.
 - `TimeSettings.showsNotifications`, default off. Time settings explain the grant and open the Full Disk Access
-  pane. The dropdown card lists up to 30 rows with the sending app's icon, title, text, and age; a row opens the app.
+  pane. The dropdown card shows the complete read-only list grouped by application, without a hidden row cap. An
+  **Open Notification Center** button posts the shortcut the user assigned under Keyboard Shortcuts > Mission
+  Control; when none is assigned, it opens that settings pane. Barometer never changes the shortcut itself.
 - Verify: fixture-database source tests, age formatter test, settings migration, the panel screens with a preset
   feed, the popover memory benchmark, full suite, signed local build.
 
@@ -546,11 +548,11 @@ Requested by David on 2026-09-07; implemented with GPT 5.6 Sol agents while Clau
 
 - Investigate Apple's actual notification activation and dismissal interfaces, including their access requirements.
 - Prefer the system's default notification action over inferred URLs or activating the sending application.
-- Clear only explicitly selected notifications through the system; retain rows and report failures when removal
-  cannot be confirmed. Never write Notification Center's database or treat a failed read as an empty list.
+- Keep the mirrored notification list read-only and treat macOS as authoritative. Never write Notification Center's
+  database, restart its processes, or treat a failed read as an empty list.
 - Keep native action availability and any remaining limitations explicit. Do not request additional permissions.
 - Show the complete delivered list without the previous 100-record and 30-row limits. Group by application with
-  collapsed previews, expansion, individual/group clearing, and Clear All.
+  collapsed previews and expansion. Opening the native panel is the only clearing path.
 - Add optional Focus and Now Playing menu bar pills with independent Enable Focus and Enable Now Playing toggles
   under Time. Preserve every existing identity and add permanent `Barometer.Focus` and `Barometer.NowPlaying` names.
   Use the standard registry, fixed image sizing, staged visibility, and visible-only source updates.
@@ -561,20 +563,18 @@ Requested by David on 2026-09-07; implemented with GPT 5.6 Sol agents while Clau
   Focus access and playback controls also require David's installed-app test; shell probes cannot prove they work
   under the installed application's grants. David chose to test the build himself instead of granting Codex access.
 
-### P8-T90 System-level notification clears
+### P8-T92 Direct notification clearing experiment (reverted)
 
-David's decision on 2026-09-07, lifting the P8-T86 rule against writing Notification Center's database: a clear in
-Barometer must clear macOS too, and no ordinary-process interface exists for another application's notification
-(P8-T86 findings and the private menu bar framework, which has no notification surface). The remaining channel is
-the store itself: delete the `record` row, strip exactly that UUID from every list blob, and restart usernoted,
-which launchd relaunches and which reloads from disk. Verified by David from Terminal on a disposable
-notification: the row stayed deleted after the relaunch and the list's other entries were untouched.
+The direct SQLite write and notification-process restart approach was restored briefly for a disposable live test.
+On the first clear, the replacement usernoted process treated its database as failed, renamed it to `db.corrupt`,
+and then logged that a locked database prevented initialization. Its recreated database contained no notification
+records. The renamed database passed SQLite integrity and foreign-key checks, so structural corruption was not
+established. Another notification utility held long-lived SQLite read connections during the incident, which makes
+process-restart recovery unsafe even when Barometer closes all of its own statements.
 
-- `NotificationCenterRemover` in `SystemSources`: the one type that writes the database, exact UUIDs only, one
-  transaction, then `NotificationDaemonRestarter` signals usernoted and waits for the new instance.
-- `NotificationFeed.dismiss`: the banner path first; whatever it cannot clear goes to the remover in one batch, so
-  a Clear All costs one restart. The existing authoritative read still confirms the result.
-- Verify: remover fixture tests, feed fallback test, build, David's installed check with disposable notifications.
+The writer, daemon restarter, recovery journal, and all clear controls are removed from the product. The supported
+design is the read-only grouped list plus **Open Notification Center**, driven by a shortcut the user configures in
+macOS. Never restore the P8-T92 approach without a new design that avoids direct database writes and process restarts.
 
 ---
 

@@ -33,6 +33,10 @@ struct NotificationFeedTests {
         return (try #require(UserDefaults(suiteName: suiteName)), suiteName)
     }
 
+
+
+
+
     @Test("closing the dropdown during its first read never restarts passive watching")
     func stopDuringStart() async throws {
         let (defaults, suiteName) = try Self.defaults()
@@ -50,26 +54,6 @@ struct NotificationFeedTests {
         #expect(feed.snapshot == initial)
     }
 
-    @Test("a requested clear still completes when the dropdown closes")
-    func clearFinishesAfterClose() async throws {
-        let (defaults, suiteName) = try Self.defaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let first = Self.notification("A")
-        let action = BlockingActionRecorder()
-        let reads = SnapshotRecorder(snapshots: [Self.snapshot([], deliveredIdentifiers: [])])
-        let feed = NotificationFeed(preset: Self.snapshot([first], deliveredIdentifiers: ["A"]), defaults: defaults,
-                                    readOperation: { await reads.read() },
-                                    dismissOperation: { await action.perform($0) })
-        let clear = Task { await feed.dismiss(first) }
-        while (await action.identifiers).isEmpty { await Task.yield() }
-        feed.stop()
-        await action.finish(with: .accepted)
-        await clear.value
-        #expect(feed.notifications.isEmpty)
-        #expect(feed.dismissalError == nil)
-        #expect(!feed.isWatching)
-        #expect(!feed.isDismissing)
-    }
 
     @Test("legacy local dismissals are restored instead of permanently masking system notifications")
     func restoresLegacyDismissals() throws {
@@ -84,120 +68,15 @@ struct NotificationFeedTests {
         #expect(defaults.object(forKey: NotificationFeed.dismissedDefaultsKey) == nil)
     }
 
-    @Test("an accepted clear removes a row only after an authoritative refresh proves it disappeared")
-    func verifiesAcceptedDismissal() async throws {
-        let (defaults, suiteName) = try Self.defaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let first = Self.notification("A")
-        let second = Self.notification("B")
-        let actions = ActionRecorder(results: ["A": .accepted])
-        let reads = SnapshotRecorder(snapshots: [Self.snapshot([second], deliveredIdentifiers: ["B"])])
-        let feed = NotificationFeed(
-            preset: Self.snapshot([first, second], deliveredIdentifiers: ["A", "B"]),
-            defaults: defaults,
-            readOperation: { await reads.read() },
-            dismissOperation: { await actions.perform($0) }
-        )
 
-        await feed.dismiss(first)
 
-        #expect(await actions.identifiers == ["A"])
-        #expect(await reads.readCount == 1)
-        #expect(feed.notifications == [second])
-        #expect(feed.dismissalError == nil)
-        #expect(!feed.isDismissing)
-    }
 
-    @Test("an accepted action retains the row when the authoritative refresh still contains it")
-    func retainsUnclearedAcceptedDismissal() async throws {
-        let (defaults, suiteName) = try Self.defaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let first = Self.notification("A")
-        let initial = Self.snapshot([first], deliveredIdentifiers: ["A"])
-        let actions = ActionRecorder(results: ["A": .accepted])
-        let reads = SnapshotRecorder(snapshots: [Self.snapshot([], deliveredIdentifiers: ["A"])])
-        let feed = NotificationFeed(
-            preset: initial,
-            defaults: defaults,
-            readOperation: { await reads.read() },
-            dismissOperation: { await actions.perform($0) }
-        )
 
-        await feed.dismiss(first)
 
-        #expect(feed.notifications == [first])
-        #expect(feed.dismissalError?.contains("still present") == true)
-    }
 
-    @Test("dismissal verification retries while Notification Center commits an accepted action")
-    func retriesAcceptedDismissalVerification() async throws {
-        let (defaults, suiteName) = try Self.defaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let first = Self.notification("A")
-        let initial = Self.snapshot([first], deliveredIdentifiers: ["A"])
-        let actions = ActionRecorder(results: ["A": .accepted])
-        let reads = SnapshotRecorder(snapshots: [
-            Self.snapshot([first], deliveredIdentifiers: ["A"]),
-            Self.snapshot([], deliveredIdentifiers: []),
-        ])
-        let feed = NotificationFeed(
-            preset: initial,
-            defaults: defaults,
-            readOperation: { await reads.read() },
-            dismissOperation: { await actions.perform($0) },
-            dismissalVerificationDelays: [.milliseconds(1)]
-        )
 
-        await feed.dismiss(first)
 
-        #expect(await reads.readCount == 2)
-        #expect(feed.notifications.isEmpty)
-        #expect(feed.dismissalError == nil)
-    }
 
-    @Test("an unavailable native action retains the row and does not claim a refresh verified it")
-    func retainsUnavailableDismissal() async throws {
-        let (defaults, suiteName) = try Self.defaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let first = Self.notification("A")
-        let initial = Self.snapshot([first], deliveredIdentifiers: ["A"])
-        let actions = ActionRecorder(results: ["A": .unavailable])
-        let reads = SnapshotRecorder(snapshots: [Self.snapshot([], deliveredIdentifiers: [])])
-        let feed = NotificationFeed(
-            preset: initial,
-            defaults: defaults,
-            readOperation: { await reads.read() },
-            dismissOperation: { await actions.perform($0) }
-        )
-
-        await feed.dismiss(first)
-
-        #expect(feed.notifications == [first])
-        #expect(feed.dismissalError?.contains("Notification Center") == true)
-        #expect(await reads.readCount == 0)
-    }
-
-    @Test("a failed dispatch clears when the authoritative list proves the notification is absent")
-    func verifiesFailedDispatchThatCompleted() async throws {
-        let (defaults, suiteName) = try Self.defaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let first = Self.notification("A")
-        let actions = ActionRecorder(results: ["A": .failed])
-        let reads = SnapshotRecorder(snapshots: [Self.snapshot([], deliveredIdentifiers: [])])
-        let feed = NotificationFeed(
-            preset: Self.snapshot([first], deliveredIdentifiers: ["A"]),
-            defaults: defaults,
-            readOperation: { await reads.read() },
-            dismissOperation: { await actions.perform($0) }
-        )
-
-        await feed.dismiss(first)
-
-        #expect(await reads.readCount == 1)
-        #expect(feed.notifications.isEmpty)
-        #expect(feed.dismissalError == nil)
-        #expect(feed.pendingDismissalIdentifiers.isEmpty)
-    }
 
     @Test("a failed passive read retains the last successful notification list")
     func passiveReadFailureRetainsList() async throws {
@@ -263,107 +142,13 @@ struct NotificationFeedTests {
         #expect(feed.snapshot?.access == .unavailable)
     }
 
-    @Test("clear shown dispatches only supplied rows and retains partial failures")
-    func clearsOnlySuppliedRows() async throws {
-        let (defaults, suiteName) = try Self.defaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let first = Self.notification("A")
-        let second = Self.notification("B")
-        let unseen = Self.notification("C")
-        let actions = ActionRecorder(results: ["A": .accepted, "B": .failed])
-        let reads = SnapshotRecorder(snapshots: [Self.snapshot(
-            [second, unseen], deliveredIdentifiers: ["B", "C"]
-        )])
-        let feed = NotificationFeed(
-            preset: Self.snapshot([first, second, unseen], deliveredIdentifiers: ["A", "B", "C"]),
-            defaults: defaults,
-            readOperation: { await reads.read() },
-            dismissOperation: { await actions.perform($0) }
-        )
 
-        await feed.dismiss([first, second, first])
 
-        #expect(await actions.identifiers == ["A", "B"])
-        #expect(feed.notifications == [second, unseen])
-        #expect(feed.dismissalError?.contains("did not clear") == true)
-    }
 
-    @Test("an unverifiable refresh retains the prior rows")
-    func retainsRowsWhenVerificationFails() async throws {
-        let (defaults, suiteName) = try Self.defaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let first = Self.notification("A")
-        let initial = Self.snapshot([first], deliveredIdentifiers: ["A"])
-        let actions = ActionRecorder(results: ["A": .accepted])
-        let reads = SnapshotRecorder(snapshots: [Self.snapshot([], access: .unavailable)])
-        let feed = NotificationFeed(
-            preset: initial,
-            defaults: defaults,
-            readOperation: { await reads.read() },
-            dismissOperation: { await actions.perform($0) }
-        )
 
-        await feed.dismiss(first)
 
-        #expect(feed.snapshot == initial)
-        #expect(feed.notifications == [first])
-        #expect(feed.dismissalError?.contains("could not verify") == true)
-    }
 
-    @Test("a repeated clear is ignored while another clear is in flight")
-    func ignoresConcurrentDismissal() async throws {
-        let (defaults, suiteName) = try Self.defaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let first = Self.notification("A")
-        let second = Self.notification("B")
-        let actions = BlockingActionRecorder()
-        let reads = SnapshotRecorder(snapshots: [Self.snapshot([second], deliveredIdentifiers: ["B"])])
-        let feed = NotificationFeed(
-            preset: Self.snapshot([first, second], deliveredIdentifiers: ["A", "B"]),
-            defaults: defaults,
-            readOperation: { await reads.read() },
-            dismissOperation: { await actions.perform($0) }
-        )
 
-        let firstRequest = Task { await feed.dismiss(first) }
-        while await actions.identifiers.isEmpty {
-            await Task.yield()
-        }
-        #expect(feed.pendingDismissalIdentifiers == ["A"])
-        await feed.dismiss(second)
-        await actions.finish(with: .accepted)
-        await firstRequest.value
-
-        #expect(await actions.identifiers == ["A"])
-        #expect(feed.notifications == [second])
-        #expect(feed.pendingDismissalIdentifiers.isEmpty)
-    }
-
-    @Test("a later authoritative refresh clears a stale dismissal error after the row disappears")
-    func refreshClearsResolvedError() async throws {
-        let (defaults, suiteName) = try Self.defaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let first = Self.notification("A")
-        let initial = Self.snapshot([first], deliveredIdentifiers: ["A"])
-        let actions = ActionRecorder(results: ["A": .failed])
-        let reads = SnapshotRecorder(snapshots: [
-            Self.snapshot([first], deliveredIdentifiers: ["A"]),
-            Self.snapshot([], deliveredIdentifiers: []),
-        ])
-        let feed = NotificationFeed(
-            preset: initial,
-            defaults: defaults,
-            readOperation: { await reads.read() },
-            dismissOperation: { await actions.perform($0) }
-        )
-
-        await feed.dismiss(first)
-        #expect(feed.dismissalError != nil)
-        await feed.refresh()
-
-        #expect(feed.notifications.isEmpty)
-        #expect(feed.dismissalError == nil)
-    }
 }
 
 private actor ActionRecorder {
@@ -422,4 +207,24 @@ private actor BlockingNotificationRead {
         continuation?.resume(returning: snapshot)
         continuation = nil
     }
+    @Test("notification clearing is disabled and performs no native action")
+    func disabledDismissalHasNoSideEffects() async throws {
+        let (defaults, suiteName) = try Self.defaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let notification = Self.notification("A")
+        let actions = ActionRecorder(results: ["A": .accepted])
+        let feed = NotificationFeed(
+            preset: Self.snapshot([notification], deliveredIdentifiers: ["A"]),
+            defaults: defaults,
+            readOperation: { Self.snapshot([]) },
+            dismissOperation: { await actions.perform($0) }
+        )
+
+        await feed.dismiss(notification)
+
+        #expect(await actions.identifiers.isEmpty)
+        #expect(feed.notifications == [notification])
+        #expect(feed.dismissalError == "Open Notification Center to clear notifications.")
+    }
+
 }

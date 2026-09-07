@@ -82,32 +82,32 @@ struct NotificationListView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             SectionLabel("Notifications") {
-                if !feed.notifications.isEmpty {
-                    HStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    if !feed.notifications.isEmpty {
                         Chip(text: "\(feed.notifications.count)", color: accent.secondary)
-                        if feed.isDismissing {
-                            ProgressView()
-                                .controlSize(.small)
-                                .accessibilityLabel("Clearing notifications")
-                        }
-                        Button("Clear All") {
-                            let snapshot = feed.notifications
-                            Task { await feed.dismiss(snapshot) }
-                        }
-                        .buttonStyle(.plain)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(accent.primary)
-                        .disabled(feed.isDismissing)
-                        .help("Clear every notification listed here from macOS Notification Center")
                     }
                 }
             }
-            if let error = activationError ?? feed.dismissalError {
+            Button {
+                menuDetailActions?.closeDropdown()
+                NotificationCenterOpening.open()
+            } label: {
+                Label("Open Notification Center", systemImage: "bell.badge")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(Color(red: 0.22, green: 0.30, blue: 0.65), in: RoundedRectangle(cornerRadius: 8))
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+            .help("Open macOS Notification Center using your configured keyboard shortcut")
+            .padding(.bottom, 4)
+            if let error = activationError {
                 Text(error)
                     .font(.caption2)
                     .foregroundStyle(.red)
                     .padding(.horizontal, 4)
-                    .accessibilityLabel("Notification action failed: \(error)")
             }
             notificationContent
         }
@@ -164,15 +164,8 @@ struct NotificationListView: View {
                         accent: accent,
                         now: now,
                         isExpanded: expandedGroupIdentifiers.contains(group.id),
-                        pendingIdentifiers: feed.pendingDismissalIdentifiers,
-                        isDismissing: feed.isDismissing,
                         toggleExpansion: { toggleExpansion(group.id) },
-                        activate: activate,
-                        dismiss: { notification in Task { await feed.dismiss(notification) } },
-                        dismissGroup: {
-                            let snapshot = group.notifications
-                            Task { await feed.dismiss(snapshot) }
-                        }
+                        activate: activate
                     )
                 }
             }
@@ -191,7 +184,6 @@ struct NotificationListView: View {
     }
 
     private func activate(_ notification: DeliveredNotification) {
-        guard !feed.isDismissing else { return }
         activationError = nil
         Task {
             switch await NotificationRouter.route(notification) {
@@ -204,18 +196,14 @@ struct NotificationListView: View {
     }
 }
 
-/// One collapsible application group with independent open and clear controls.
+/// One collapsible application group with notification activation controls.
 private struct NotificationGroupView: View {
     let group: NotificationApplicationGroup
     let accent: ModuleAccent
     let now: Date
     let isExpanded: Bool
-    let pendingIdentifiers: Set<String>
-    let isDismissing: Bool
     let toggleExpansion: () -> Void
     let activate: (DeliveredNotification) -> Void
-    let dismiss: (DeliveredNotification) -> Void
-    let dismissGroup: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -255,22 +243,6 @@ private struct NotificationGroupView: View {
                 .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
                 .accessibilityHint(isExpanded ? "Collapse notification group" : "Expand notification group")
 
-                if groupIsDismissing {
-                    ProgressView()
-                        .controlSize(.small)
-                        .frame(width: 16, height: 16)
-                        .accessibilityLabel("Clearing \(applicationName) notifications")
-                } else {
-                    Button(action: dismissGroup) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isDismissing)
-                    .help("Clear all \(applicationName) notifications from macOS Notification Center")
-                    .accessibilityLabel("Clear all \(applicationName) notifications")
-                }
             }
             .padding(.horizontal, 6)
             .padding(.vertical, 5)
@@ -283,10 +255,7 @@ private struct NotificationGroupView: View {
                     NotificationRow(
                         notification: notification,
                         now: now,
-                        isDismissing: pendingIdentifiers.contains(notification.id),
-                        actionsDisabled: isDismissing,
-                        activate: { activate(notification) },
-                        dismiss: { dismiss(notification) }
+                        activate: { activate(notification) }
                     )
                 }
             }
@@ -302,10 +271,6 @@ private struct NotificationGroupView: View {
         .clipShape(RoundedRectangle(cornerRadius: BarometerDesign.tileRadius, style: .continuous))
     }
 
-    private var groupIsDismissing: Bool {
-        group.notifications.contains(where: { pendingIdentifiers.contains($0.id) })
-    }
-
     private var applicationName: String {
         NotificationApplicationResolver.name(bundleIdentifier: group.applicationIdentifier)
     }
@@ -313,16 +278,12 @@ private struct NotificationGroupView: View {
 
 /// One notification's title, text, and age.
 ///
-/// Clicking first requests the notification's system action. Hovering reveals a separate clear button.
+/// Clicking requests the notification's system action; clearing belongs to macOS Notification Center.
 private struct NotificationRow: View {
     let notification: DeliveredNotification
     let now: Date
-    let isDismissing: Bool
-    let actionsDisabled: Bool
     let activate: () -> Void
-    let dismiss: () -> Void
     @State private var isHovering = false
-    @FocusState private var isClearButtonFocused: Bool
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -333,7 +294,7 @@ private struct NotificationRow: View {
                             .font(.callout.weight(.medium))
                             .lineLimit(1)
                         Spacer(minLength: 4)
-                        if !isHovering && !isClearButtonFocused {
+                        if !isHovering {
                             Text(NotificationAgeFormatter.string(from: notification.date, now: now))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
@@ -355,36 +316,11 @@ private struct NotificationRow: View {
                 }
                 .padding(.vertical, 4)
                 .padding(.leading, 8)
-                .padding(.trailing, 32)
+                .padding(.trailing, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(actionsDisabled)
-            if isDismissing {
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(width: 16, height: 16)
-                    .padding(.top, 6)
-                    .padding(.trailing, 8)
-                    .accessibilityLabel("Clearing notification")
-            } else {
-                Button(action: dismiss) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 24, height: 24)
-                        .padding(.top, 2)
-                        .padding(.trailing, 4)
-                }
-                .buttonStyle(.plain)
-                .disabled(actionsDisabled)
-                .focused($isClearButtonFocused)
-                .opacity(isHovering || isClearButtonFocused ? 1 : 0)
-                .allowsHitTesting(isHovering || isClearButtonFocused)
-                .help("Clear this notification from macOS Notification Center")
-                .accessibilityLabel("Clear notification")
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.primary.opacity(isHovering ? 0.035 : 0))

@@ -25,6 +25,9 @@ public final class NotificationFeed {
     /// An explanation when macOS did not clear a requested notification or Barometer could not verify it.
     public private(set) var dismissalError: String?
 
+    /// Database recovery is disabled; retained for UI compatibility.
+    public private(set) var recoveryError: String?
+
     /// Legacy defaults key used by builds that hid cleared notifications only inside Barometer.
     public static let dismissedDefaultsKey = "Barometer.DismissedNotifications"
 
@@ -33,7 +36,6 @@ public final class NotificationFeed {
     @ObservationIgnored private let dismissOperation:
         @Sendable (DeliveredNotification) async -> NotificationSystemActionResult
     @ObservationIgnored private let primeActionOperation: @Sendable ([DeliveredNotification]) async -> Void
-    @ObservationIgnored private let removeOperation: @Sendable (Set<String>) async -> NotificationRemovalResult
     @ObservationIgnored private let dismissalVerificationDelays: [Duration]
     @ObservationIgnored private var dismissalErrorIdentifiers: Set<String> = []
     @ObservationIgnored private var watchers: [DispatchSourceFileSystemObject] = []
@@ -51,14 +53,12 @@ public final class NotificationFeed {
     public init(
         source: NotificationCenterSource = NotificationCenterSource(),
         actionBridge: NotificationCenterActionBridge = NotificationCenterActionBridge(),
-        remover: NotificationCenterRemover = NotificationCenterRemover(),
         defaults: UserDefaults = .standard
     ) {
         self.source = source
         readOperation = { await source.read() }
         dismissOperation = { await actionBridge.perform(.dismiss, for: $0) }
         primeActionOperation = { await actionBridge.primeActions(for: $0) }
-        removeOperation = { await remover.remove(identifiers: $0) }
         // Native Close can succeed before usernoted commits the delivered list. Allow the observed delayed
         // reconciliation without dispatching the action twice or hiding an unconfirmed notification.
         dismissalVerificationDelays = [.milliseconds(150), .milliseconds(350), .seconds(1), .seconds(2), .seconds(2)]
@@ -71,7 +71,6 @@ public final class NotificationFeed {
         readOperation = { preset }
         dismissOperation = { _ in .unavailable }
         primeActionOperation = { _ in }
-        removeOperation = { _ in .unavailable("preset") }
         dismissalVerificationDelays = []
         snapshot = preset
         retainedNotifications = preset.notifications
@@ -84,15 +83,11 @@ public final class NotificationFeed {
         defaults: UserDefaults,
         readOperation: @escaping @Sendable () async -> NotificationSnapshot,
         dismissOperation: @escaping @Sendable (DeliveredNotification) async -> NotificationSystemActionResult,
-        removeOperation: @escaping @Sendable (Set<String>) async -> NotificationRemovalResult = { _ in
-            .unavailable("test")
-        },
         dismissalVerificationDelays: [Duration] = []
     ) {
         source = NotificationCenterSource(databaseURL: URL(fileURLWithPath: "/dev/null/barometer-test"))
         self.readOperation = readOperation
         self.dismissOperation = dismissOperation
-        self.removeOperation = removeOperation
         primeActionOperation = { _ in }
         self.dismissalVerificationDelays = dismissalVerificationDelays
         snapshot = preset
@@ -120,115 +115,9 @@ public final class NotificationFeed {
     /// The caller supplies the visible rows so this never clears notifications outside the list the
     /// user chose to act on. A second request is ignored while the first request is in flight.
     public func dismiss(_ requestedNotifications: [DeliveredNotification]) async {
-        guard pendingDismissalIdentifiers.isEmpty else { return }
         let listedIdentifiers = Set(notifications.map(\.id))
-        var seen: Set<String> = []
-        let requested = requestedNotifications.filter {
-            listedIdentifiers.contains($0.id) && seen.insert($0.id).inserted
-        }
-        guard !requested.isEmpty else { return }
-
-        let requestedIdentifiers = Set(requested.map(\.id))
-        dismissalGeneration += 1
-        let operationGeneration = dismissalGeneration
-        refreshGeneration += 1
-        pendingDismissalIdentifiers = requestedIdentifiers
-        dismissalError = nil
-        dismissalErrorIdentifiers = []
-
-        var acceptedIdentifiers: Set<String> = []
-        var unavailableIdentifiers: Set<String> = []
-        var failedIdentifiers: Set<String> = []
-        for notification in requested {
-            switch await dismissOperation(notification) {
-            case .accepted:
-                acceptedIdentifiers.insert(notification.id)
-            case .unavailable:
-                unavailableIdentifiers.insert(notification.id)
-            case .failed:
-                failedIdentifiers.insert(notification.id)
-            }
-            guard operationGeneration == dismissalGeneration else {
-                pendingDismissalIdentifiers = []
-                return
-            }
-        }
-
-        // Whatever the banner path could not clear goes to the system-level removal: one database edit
-        // and one restart for the whole batch. Its rows then read as gone in the verification below.
-        var removalError: String?
-        let leftover = unavailableIdentifiers.union(failedIdentifiers)
-        if !leftover.isEmpty {
-            switch await removeOperation(leftover) {
-            case .removed:
-                acceptedIdentifiers.formUnion(leftover)
-                unavailableIdentifiers = []
-                failedIdentifiers = []
-            case let .unavailable(reason), let .failed(reason):
-                removalError = reason
-            }
-            guard operationGeneration == dismissalGeneration else {
-                pendingDismissalIdentifiers = []
-                return
-            }
-        }
-
-        let attemptedIdentifiers = acceptedIdentifiers.union(failedIdentifiers)
-        var verifiedRemaining = requestedIdentifiers
-        if !attemptedIdentifiers.isEmpty {
-            var verifiedIdentifiers: Set<String>?
-            for delay in [Duration.zero] + dismissalVerificationDelays {
-                if delay > .zero {
-                    try? await Task.sleep(for: delay)
-                }
-                guard operationGeneration == dismissalGeneration, !Task.isCancelled else {
-                    pendingDismissalIdentifiers = []
-                    return
-                }
-                refreshGeneration += 1
-                let generation = refreshGeneration
-                let refreshed = await readOperation()
-                guard operationGeneration == dismissalGeneration, !Task.isCancelled else {
-                    pendingDismissalIdentifiers = []
-                    return
-                }
-                guard generation == refreshGeneration else { continue }
-                guard refreshed.access == .available,
-                      let deliveredIdentifiers = refreshed.deliveredNotificationIdentifiers
-                else {
-                    continue
-                }
-                verifiedIdentifiers = deliveredIdentifiers
-                apply(refreshed, preserving: requestedIdentifiers)
-                if attemptedIdentifiers.isDisjoint(with: deliveredIdentifiers) { break }
-            }
-            if let verifiedIdentifiers {
-                verifiedRemaining = requestedIdentifiers.intersection(verifiedIdentifiers)
-            } else {
-                dismissalError = "Barometer asked macOS to clear the notifications but could not verify the result. "
-                    + "They remain listed; refresh or clear them in Notification Center."
-                dismissalErrorIdentifiers = requestedIdentifiers
-                pendingDismissalIdentifiers = []
-                return
-            }
-        }
-
-        let acceptedButPresent = acceptedIdentifiers.intersection(verifiedRemaining)
-        let failedButPresent = failedIdentifiers.intersection(verifiedRemaining)
-        let unresolved = acceptedButPresent.union(unavailableIdentifiers).union(failedButPresent)
-        dismissalErrorIdentifiers = unresolved
-        if let removalError, !unresolved.isEmpty {
-            dismissalError = removalError
-        } else if !unavailableIdentifiers.isEmpty {
-            dismissalError = "Barometer cannot clear some notifications through macOS right now. "
-                + "Clear them in Notification Center."
-        } else if !failedButPresent.isEmpty {
-            dismissalError = "macOS did not clear some notifications. Try again, or clear them in Notification Center."
-        } else if !acceptedButPresent.isEmpty {
-            dismissalError = "macOS accepted the clear request, but some notifications are still present. "
-                + "Try again, or clear them in Notification Center."
-        }
-        pendingDismissalIdentifiers = []
+        guard requestedNotifications.contains(where: { listedIdentifiers.contains($0.id) }) else { return }
+        dismissalError = "Open Notification Center to clear notifications."
     }
 
     /// Reads the list now.

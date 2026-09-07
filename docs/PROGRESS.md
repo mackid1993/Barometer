@@ -4853,3 +4853,98 @@ absent preference entry, reapplied settings, and verified the original runtime t
 Evidence: `dist/notification-preference-hotkey-163-result.txt`. The exact reason the panel ignored the event remains
 unproven; the private registration's exclusion option alone does not establish that reason. No production shortcut
 transaction wrapper was shipped, and the abandoned Hot Corner detector was removed without changing any Hot Corner.
+
+## P8-T92 Direct notification clearing experiment and rollback
+
+David explicitly requested restoring Claude's database-removal and process-restart implementation, making it more
+responsive and resilient, removing the Open Notification Center button, installing a test build, and generating
+12 disposable notifications. This supersedes the earlier read-only decision. No opener/gesture/temporary-shortcut
+code remains in the app; the existing clock-hiding, Now Playing, Focus, and credits work remains intact.
+
+The feed now queues rapid selected-row requests, preserves their order, and groups them into 150 ms batches.
+Store removal runs once per batch, avoiding serial AX attempts; exact AX remains a fallback when the store is
+unavailable. Rows remain pending through synchronization, and failed synchronization retains the row and error
+even if the database write already removed the UUID. Other rows remain actionable. Confirmed removal gets an
+immediate authoritative read instead of the old additional delayed verification sequence.
+
+The remover validates every identifier, rejects malformed list blobs without a partial transaction, handles NULL
+and empty blobs, checks SELECT completion, closes SQLite before awaiting process recovery, and targets only this
+user's exact system executable paths. It waits for usernoted's ten-second minimum runtime before writing instead
+of killing a young process and leaving launchd to throttle its return. SIGTERM replaces the rejected kickstart
+route; each completion waits for replacement usernoted and NotificationCenter processes. Repeated requests share
+restart coordination. This reduces avoidable lag, but macOS restart timing and incoming delivery during a restart
+remain limitations; zero loss or instant synchronization is not claimed.
+
+A versioned atomic recovery journal stores only explicitly selected UUIDs, never notification contents. The full
+write/restart/verify lifecycle is serialized. The journal survives a failed restart or app exit, forces a retry
+even if the database rows are already absent, and is removed only after restart, database verification, and a
+successful journal deletion. Corrupt journals fail closed. Recovery runs once when the notification feed starts;
+an explicit retry control is available after failure, with no automatic retry loop.
+
+Verification: the initial targeted run exposed an obsolete concurrent-clear test and unordered queue iteration;
+both were corrected. Four remover tests and seventeen feed tests then passed. The subsequent crash-recovery
+fixtures were added but NOT run because David explicitly stopped further automated tests and requested the binary.
+Signed release packaging and installation use make install; logs are dist/p8-t92-install.log,
+dist/p8-t92-final-install.log, and dist/p8-t92-packaged-install.log. No full suite, screenshot suite, or performance
+benchmark was run. Live clearing was left to David's requested test notifications.
+
+The first live clear exposed a system-database failure. After the exact selected UUID was removed, replacement
+usernoted PID 68729 renamed `db` to `db.corrupt`, logged "Database failure, attempting to remove and re-create it",
+then reported that the new database could not be initialized because it was locked. The new main database was zero
+bytes at 06:44:33. A protected backup captured all six main, WAL, and shared-memory files before recovery.
+
+Read-only inspection found that `db.corrupt` passed `PRAGMA integrity_check` and `foreign_key_check`, retained the
+normal schema and 85 notification records, and no longer contained the selected journal UUID. Structural corruption
+was therefore not established. Droppy held two long-lived read connections to the notification database and its WAL
+and a writable shared-memory descriptor; this is a concrete source of restart-time lock contention, although the
+initial database-failure cause was not proven. Barometer's own SQLite statements were scoped with finalizers and did
+not remain in the file-descriptor inventory.
+
+macOS subsequently created a healthy empty database. David explicitly chose not to restore the old notification
+history. The direct writer, daemon restarter, recovery journal, clear controls, and production authorization were
+reverted. Notification Center's database is read-only again. The grouped list stays in Barometer, and **Open
+Notification Center** uses symbolic hotkey 163, the Show Notification Center keyboard shortcut that the user assigns
+in **System Settings > Keyboard > Keyboard Shortcuts > Mission Control**. If it is absent, Barometer presents that
+setup path; it never writes the shortcut preference or changes clock visibility. No further database writes or
+notification-process actions were performed after recovery.
+
+The replacement implementation is split between `NotificationCenterShortcut` in SystemSources, which reads the
+existing shortcut and sends its keypress, and `NotificationCenterOpening` in MenuBarStatsUI, which closes the
+dropdown and presents setup guidance when needed. A release installation was compiled without running tests at
+David's request.
+
+### P8-T92 Follow-up: System Events shortcut delivery
+
+David configured Control–Shift–N. An initial multiple-choice reply said the physical shortcut worked, but David
+corrected that reply: the physical shortcut also fails. At his suggestion, the button now uses NSAppleScript to ask System Events to
+send the saved virtual key code and modifier combination. This requires the Apple Events entitlement and a
+usage description, both now included in packaging. Automation access is requested only on the explicit button
+action; Accessibility is checked before sending. The configured shortcut is read anew on each click, never
+changed by Barometer. The UI reports AppleScript errors instead of claiming that a posted event opened the panel.
+No automated tests were run, as requested. Release installation log: dist/p8-t92-applescript-install.log.
+The signed app was installed. A direct AppleScript System Events key-code invocation returned without an error,
+but David confirmed that Notification Center stayed closed. Successful AppleScript execution is not evidence
+that the native panel opened. Online research next identified firsthand macOS 27 reports of Notification Center
+failing while menu bar items are hidden; the effect on this Mac remains unconfirmed.
+Source: https://community.folivora.ai/t/macos-27-golden-gate-menu-bar-management-broken-solutions-ice-thaw-bartender-barbee-etc/47232
+
+### P8-T92 Temporary Hot Corner research and pointer constraint
+
+David confirmed that a manually configured Hot Corner opens Notification Center, and authorized temporarily
+enabling a corner on button press, triggering it, and restoring its exact former setting immediately afterward.
+He subsequently required zero pointer movement, including hidden warps. No Hot Corner implementation was added
+to the production app. The first prototype predates that constraint and restores its former corner settings.
+A legacy CGPostMouseEvent(..., false, ...) prototype returned success but did not open a visible NotificationCenter
+window; its CGEvent-derived position sample changed. This does not establish whether the displayed cursor moved
+or the combined synthetic-event location changed. A type-8 enter event delivered to Dock with CGEventPostToPid
+kept the sampled position unchanged and also left NotificationCenter window count zero. David reported that Dock
+opened during these experiments. Neither result is a successful native Notification Center opener.
+The temporary wvous-tr-corner and modifier were restored to their original values (1 and 0).
+The system clock and external menu bar manager settings were not changed.
+
+The exact-top-right follow-up verified wvous-tr-corner=12 before sending and sampled the WindowServer's
+canonical pointer via SLSGetCurrentCursorLocation. CGPostMouseEvent((1727,0), false,1,false) returned zero,
+but changed the canonical pointer immediately from (34.4,47.9) to (1727,0); no NotificationCenter window
+opened. The legacy false-flag path therefore fails David's zero-pointer-state-change requirement on this build
+and must not be shipped or retried as a stationary implementation. The original corner settings were restored.
+David explicitly refused changes to clock visibility. No production Hot Corner opener is implemented.

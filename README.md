@@ -50,10 +50,8 @@ programs.
 | **Sensors** | One or more separate widgets. Each can be a two-row stack, labels with values, a history graph, or a fan readout | Every temperature the hardware exposes sorted hottest first, fan speeds, power rails, voltages, and currents, each with a sparkline, and energy used since Barometer opened |
 | **Battery** | A percentage inside the battery glyph or a `BAT` label with the value | A charge ring, health and cycle count, temperature, voltage, current, and wattage, the connected power adapter, a charge history graph, and the batteries of Bluetooth devices |
 | **Weather** | A condition icon over the temperature, the temperature only, icon with temperature and conditions, high and low, or chance of rain | Current conditions, feels like, a 48 hour strip with the temperature curve and rain bars, a 10 day forecast, sunrise, sunset, and moon phase, air quality, and humidity, wind, gusts, pressure, cloud cover, and precipitation |
-| **Time and Notifications** | A date and time in your own format, with or without seconds, at its own text size, and the option to hide the macOS clock so this one takes its place | A month calendar, world clocks with offsets and day or night, sunrise and sunset for your weather location, upcoming calendar events if you allow access, and the notifications waiting in Notification Center, with an Open Notification Center button for the native macOS panel |
+| **Time and Notifications** | A date and time in your own format, with or without seconds, at its own text size, and the option to hide the macOS clock so this one takes its place | A month calendar, world clocks with offsets and day or night, sunrise and sunset for your weather location, upcoming calendar events if you allow access, and a read-only list of the notifications waiting in Notification Center, grouped by application |
 | **Combined** | Any set of the items above inside one menu bar item, with optional separators | A tabbed summary of every included module |
-
-The Open Notification Center button remains experimental when another menu bar manager hides the system clock.
 
 Each item is its own menu bar icon. You can Command-drag them into any order, hide the ones you do not want, or put
 several into the Combined item to save space.
@@ -117,11 +115,18 @@ on, for your public IP address (ipify.org).
 - **Calendar** is optional. It is requested only when you press **Allow Calendar Access** in Time and Notifications settings.
 - **Accessibility** is optional. **Hide the system clock** normally needs no permission at all; on a macOS build
   that cannot remove the clock, Barometer covers it instead and then asks for Accessibility only to read where the
-  clock sits. The Open Notification Center button also uses Accessibility to send its user-requested action.
+  clock sits. **Open Notification Center** uses Accessibility only when you select it, so Barometer can send the
+  keyboard shortcut you configured in macOS.
 - **Full Disk Access** is optional. It is needed only for **Show notifications in the dropdown** in Time and Notifications settings,
-  which lists the notifications waiting in Notification Center so you can hide the system clock. Barometer only
-  reads that list; it never dismisses or changes a notification, and banners keep arriving as before.
+  which lists the notifications waiting in Notification Center so you can hide the system clock. Barometer reads
+  that list without changing the notification database or restarting macOS notification processes.
 - Nothing else asks for a permission. Readings that a Mac does not provide are shown as unavailable.
+
+To use **Open Notification Center**, open **System Settings > Keyboard > Keyboard Shortcuts > Mission Control**, assign
+a shortcut to **Show Notification Center**, and then select the button in Barometer. If no shortcut is assigned,
+Barometer offers the relevant settings pane so you can add one. Barometer never changes this shortcut itself.
+The button uses System Events and may require Automation access in addition to Accessibility. On macOS 27 beta,
+menu bar hiding can interfere with Notification Center; this button does not bypass that system behavior.
 
 Settings can be exported to a JSON file and imported on another Mac.
 

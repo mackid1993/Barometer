@@ -389,10 +389,11 @@ universal performance guarantee.
 - Never request a new TCC category during launch or background sampling. Permission requests must follow a direct
   user action and require project approval before implementation.
 - Full Disk Access is approved for exactly one use: `NotificationCenterSource` reads Notification Center's SQLite
-  database (read-only, only while the Time dropdown is open and the Time option is on) so the dropdown can list
-  delivered notifications. macOS offers no prompt for Full Disk Access; Settings shows the status and opens the pane.
-  Writes are confined to `NotificationCenterRemover` (P8-T90, David's decision): delete exact `record` rows and strip
-  exact UUIDs from list blobs in one transaction, then restart usernoted. Never read other protected data.
+  database while the Time option is on so the dropdown can show a read-only mirror. Never write, rename, replace,
+  checkpoint, migrate, or otherwise change that database or its WAL and shared-memory files. Never signal, restart,
+  suspend, or terminate usernoted or NotificationCenter. During the P8-T92 direct-write experiment, replacement
+  usernoted renamed a structurally healthy database and recreated an empty one after restart-time lock contention;
+  the experiment was reverted. No other protected data access is authorized.
 - "Hide the system clock" removes the clock through the menu bar's assessment-mode assertion in Apple's private
   `MenuBarClientCore` framework, wrapped in one type, `MenuBarAssessmentAssertion` in `SystemSources`, and used
   nowhere else (the mechanism Thaw's `PlatformRuntimeKit` uses; adapted from Thaw with the maintainers' permission
@@ -400,15 +401,17 @@ universal performance guarantee.
   removing one index at a time. Every running application's bundle identifier is allowed and re-applied on launch
   and quit. Control Center and its contents stay.
 - Accessibility is requested only when the assertion is unavailable and `SystemClockCover` (adapted from Thaw's
-  `SystemClockCover.swift`) has to cover the clock on its Accessibility bounds instead. P8-T86, explicitly
-  requested by David, also permits notification activation and dismissal through Notification Center's own
-  Accessibility controls using an existing grant. Target an exactly identified individual notification and only
-  actions that its live element advertises. Never guess a notification from its title or press a group clear
-  control. The notification bridge must not prompt for permission. David's P8-T86 follow-up authorizes an explicit
-  Allow Accessibility button in notification settings; only that user action may request the existing category.
+  `SystemClockCover.swift`) has to cover the clock on its Accessibility bounds instead. The notification list is
+  read-only. A direct **Open Notification Center** action may use the existing Accessibility grant to post the exact
+  Show Notification Center shortcut that the user configured in macOS. Barometer must never create, replace, or
+  temporarily modify that shortcut. If it is absent, open its System Settings pane and explain what the user needs
+  to assign. Do not request Accessibility in the background.
   This does not authorize menu bar manipulation:
   pressing the clock (P8-T80) and synthesized Command-drags, including Thaw's event relay (P8-T85 notes), both fail
   on macOS 27.
+- David explicitly requested AppleScript for the Notification Center button after shortcut
+  injection failed. David subsequently clarified that the physical shortcut also fails on his current setup. User-clicked opening may ask for Automation access to System Events;
+  the app declares the Apple Events entitlement and usage description. Never request it at launch or while sampling.
 - Screen Recording is never requested. `SystemClockCover` samples the bar's color only when
   `CGPreflightScreenCaptureAccess` already reports access.
 - `LSUIElement` keeps Barometer out of the Dock; it does not replace correct bundle identity or signing.

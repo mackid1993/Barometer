@@ -105,7 +105,7 @@ public struct NotificationSnapshot: Equatable, Sendable {
 /// Full Disk Access. Each `record` row carries a binary property list with the request's title,
 /// subtitle, and body; the `delivered` table lists, per application, the record UUIDs that are
 /// still shown in Notification Center. This reader never writes to the database. User-requested
-/// activation and dismissal use the separate system action bridge; banners continue arriving natively.
+/// activation uses the separate system action bridge. Clearing is handled in native Notification Center.
 public actor NotificationCenterSource {
     /// The database Notification Center maintains on this account.
     public static let defaultDatabaseURL = FileManager.default.homeDirectoryForCurrentUser
