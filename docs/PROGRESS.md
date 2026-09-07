@@ -4794,3 +4794,62 @@ found distinct legacy message types 7 (list), 10 (remove delivered), and 12 (rem
 alone does not establish removal authorization; payload/authentication tracing remains read-only.
 
 Documentation verification: git diff --check passed. No code, app replacement, or full tests for this diagnosis.
+
+## P8-T90 Read-only notifications and a shortcut into Notification Center
+
+Built the store-level clear (delete the `record` row, strip the exact UUID from every list blob, restart usernoted
+and the panel process), traced one in-app clear with a live log stream, and removed it. The trace: the banner
+path reported no live row, the store write succeeded and the delivered list shrank, `launchctl kickstart -k`
+exited 150 (refused under System Integrity Protection for Apple's agents), and the feed's verification read hit
+the daemon rewriting rows and reported "could not verify". The earlier signal-based restart did work but stalls
+on launchd's ten-second respawn throttle after a rapid earlier restart, and David rejected restarting system
+processes on every clear. The daemon's own per-app removal call is behind
+`com.apple.private.usernotifications.bundle-identifiers`, checked per connection through the audit token.
+
+Decision: the list is read-only. `NotificationListView.allowsClearing` switches every clear control off in one
+place and Codex's banner-path code stays. The card gains "Open Notification Center": it closes the dropdown and
+posts the Show Notification Center shortcut the user assigned (symbolic hotkey 163, read from
+`com.apple.symbolichotkeys`; the stored NX modifier bits are the Core Graphics flag values). With no shortcut
+assigned it opens the Keyboard Shortcuts pane and says what to set; posting needs Accessibility, requested only
+on that click. `make build` passed; tests are Codex's to run per David's standing waiver.
+
+## P8-T91 Notification Center button follow-up and online source audit
+
+Kept the notification list, set the prominent button label to white, and prevented overlapping open requests.
+README credits now name Rene Jimenez (diazdesandi; spelling in README follows the contributor's published name)
+for his contributions and retain Toni Forster/Thaw and Jordan Baird/Ice acknowledgments.
+
+The opener remains unresolved with an external manager hiding the clock. A successful `make build` in
+`dist/p8-t91-notification-button-build.log` verifies compilation only. No working replacement build was installed
+for this follow-up. The P8-T90 shortcut description above is an attempted implementation, not a verified solution.
+
+Online source checks requested by David:
+- https://stackoverflow.com/questions/29032726/open-notification-center-programmatically-on-os-x uses System
+  Events to click the old Notification Center menu item.
+- https://apple.stackexchange.com/questions/461833/get-macos-notification-text-programmatically contains a
+  notification-reading script whose author/questioner comments report unresolved execution errors.
+- PtionsPlus uses Fn-N, including physical Fn down/up. The complete sequence had already failed here.
+- agent-desktop and KeyboardCowboy click the system Clock through System Events; they do not bypass a hidden item.
+- ActionKit includes key code 160. The probe did not open Notification Center; David observed Mission Control.
+  This event must not be shipped as a Notification Center opener. No neighboring key codes were guessed.
+
+The temporary symbolic hotkey 163 probe matched the generated event in WindowServer but did not expand the panel.
+Original runtime values were restored and the exported preferences hashes remained identical. Local disassembly
+confirms 163 is the current global ID, mapped to action 100 on NotificationCenter's dedicated CGS connection;
+the exclusion option's precise meaning is not established. Evidence is in
+`dist/notificationcenter-symbolic-hotkey-map.txt` and `dist/sls-symbolic-163-matched-runtime-result.txt`.
+
+Apple documents Notification Center as a Hot Corner action, including desktop Macs. That is an alternative lead,
+not a tested Barometer button implementation. No Hot Corner setting was changed. Full tests and expensive UI
+verification remain waived by David; `git diff --check` is the documentation verification for this update.
+
+### P8-T91 Temporary configured shortcut requested by David
+
+David explicitly requested setting a real keyboard shortcut on each button press, triggering it, then unsetting it.
+The bounded live probe added ID 163 to `AppleSymbolicHotKeys` through CFPreferences, synchronized, and successfully
+ran Apple's `activateSettings -u`. Runtime inspection confirmed the binding was enabled and the generated key
+matched it. A single 40 ms keypress left Notification Center's `AXExpanded` false. The probe removed the originally
+absent preference entry, reapplied settings, and verified the original runtime tuple and enabled state were restored.
+Evidence: `dist/notification-preference-hotkey-163-result.txt`. The exact reason the panel ignored the event remains
+unproven; the private registration's exclusion option alone does not establish that reason. No production shortcut
+transaction wrapper was shipped, and the abandoned Hot Corner detector was removed without changing any Hot Corner.
