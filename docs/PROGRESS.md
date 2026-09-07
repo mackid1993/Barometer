@@ -3895,3 +3895,19 @@ Verification:
 - `swift build -c release` completed and `git diff --check` reported no whitespace errors.
 - A source scan found exactly one production assignment to `statusItem.length`, in `StatusItemController.swift`.
 - David's settings were backed up before the module sweep and restored afterward, byte-matching the backup.
+
+## P8-T66 Prepare Barometer 1.0.7
+
+Bumped `VERSION` to 1.0.7 and wrote `docs/RELEASE_NOTES_1.0.7.md` for the two optional menu bar tightening settings
+shipped by P8-T64 and P8-T65. Both are off by default, so an existing installation is unchanged after updating.
+
+The notes state the measured result rather than a claim: five items went from 262 to 208 points with Item width on,
+Battery and Disks do not shrink because their width comes from a fixed icon, and Tightest spacing is the floor and
+does nothing for anyone who already tightens the menu bar system-wide. The Item width entry carries the caution that
+Barometer normally sets each width once and that this setting resizes items while they run.
+
+Verification:
+
+- `make test` passed and `swift build -c release` completed.
+- `git diff --check` reported no whitespace errors and every release-note line is within 120 columns.
+- The measured figures were taken from the installed build one module at a time, not estimated.
