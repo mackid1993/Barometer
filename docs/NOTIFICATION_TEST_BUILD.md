@@ -3,8 +3,9 @@
 This is an experimental build for David's installed-app check. The latest changes have been release-built;
 David requested no repeat test suite or memory verification. Earlier test results do not validate these changes.
 
-Current limits: exact native notification actions require an exposed individual row in the open macOS Notification
-Center. Automatic opening and end-to-end clearing remain unresolved. Global Now Playing metadata and album artwork
+Current limits: exact native notification actions require an exposed individual Accessibility row, which may be
+a live banner even with the macOS Notification Center panel closed. One individual Discord dismissal is confirmed;
+automatic access to older notifications after their banners disappear remains unresolved. Global Now Playing metadata and album artwork
 now read successfully through the bundled media bridge. This is not yet a complete Notification Center replacement.
 
 ## Install and enable
@@ -34,8 +35,8 @@ Accessibility button. Full Disk Access reads the list; Accessibility permits nat
    dropdown. New notifications arriving after a clear begins must remain.
 
 Native actions use an exact notification UUID and an action advertised by its live Accessibility element. They
-cannot yet be assumed to work while Notification Center is closed, or on a build that does not expose those
-identifiers. The bridge refuses missing, ambiguous, incomplete, and timed-out matches. An unavailable click can
+cannot yet be assumed to work for historical notifications without exposed rows, or on a build that does not
+expose those identifiers. The bridge refuses missing, ambiguous, incomplete, and timed-out matches. An unavailable click can
 fall back to a known link, Downloads item, system destination, or app; a failed native attempt does not retry via
 another destination. A failed clear keeps the notification and reports an error. There is no local-hide fallback
 and no direct database deletion.

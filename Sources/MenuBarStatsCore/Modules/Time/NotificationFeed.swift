@@ -54,7 +54,9 @@ public final class NotificationFeed {
         self.source = source
         readOperation = { await source.read() }
         dismissOperation = { await actionBridge.perform(.dismiss, for: $0) }
-        dismissalVerificationDelays = [.milliseconds(150), .milliseconds(350), .seconds(1)]
+        // Native Close can succeed before usernoted commits the delivered list. Allow the observed delayed
+        // reconciliation without dispatching the action twice or hiding an unconfirmed notification.
+        dismissalVerificationDelays = [.milliseconds(150), .milliseconds(350), .seconds(1), .seconds(2), .seconds(2)]
         Self.restoreLegacyDismissals(defaults: defaults)
     }
 

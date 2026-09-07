@@ -4688,3 +4688,31 @@ returned unavailable because no individual AX row was exposed; no action dispatc
 removed. This corrects the diagnostic target guard, not the unresolved production native dismissal path.
 The NCAnnounceNotification observer posts on NSApp with UUID user info, not on a remotely actionable row.
 Distributed notification callsites likewise contained lifecycle events, not a UUID dismissal request.
+
+
+### P8-T88 follow-up: even player padding and overflow title
+
+David's installed screenshot showed the player card clipped against the footer and a truncated long title.
+Kept the 140-point total height, replaced the scrolling outer scaffold with a fixed 8-point inset, and sized
+the card interior to keep all four outer edges even. Command errors occupy the subtitle line with full help
+text instead of overflowing the compact card. Long titles now scroll after a short pause only when measured
+text overflows; short titles and Reduce Motion remain static. Track changes reset the offset and closing
+the popup cancels pending animation work.
+
+The first verified native dismissal occurred during the corrected probe: an exact individual Discord UUID
+4100444725DB40378BE4114797BE8627 advertised Close, AX accepted it, and subsequent authoritative reads
+confirmed its absence. The original CD5F152C1E494BA8980660CAA6472DF0 remained. David observed a clear and
+reported that Notification Center was closed, then opened it to confirm disappearance. The probe's visibility
+Boolean was too broad: any onscreen Notification Center-owned window counted, including a naturally delivered
+banner. Therefore this proves individual dismissal while an AX row is exposed, potentially a banner with
+the panel closed; it does not prove historical records remain actionable after banners vanish. Immediate
+verification polls observed zero unrelated removals; the final disappearance was after the 1.5-second poll
+window, so that run did not capture a complete original-to-final identifier delta.
+
+Extended production confirmation reads to 5.5 seconds total to accommodate observed delayed usernoted writes.
+No action is dispatched twice and no unconfirmed row is hidden. The UUID guard mistake was in the ignored
+probe, not the production matcher. Exact synthetic system-defined event posted directly to NotificationCenter
+from a confirmed closed state did not expose the original record; no dismissal was dispatched in that attempt.
+
+Verification: make app passed (dist/p8-t88-player-spacing-build.log), installed and relaunched the app.
+No full test, screenshot, or memory verification reruns, per David's waiver.
