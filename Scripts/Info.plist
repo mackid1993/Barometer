@@ -33,8 +33,6 @@
     <string>26.0</string>
     <key>LSUIElement</key>
     <true/>
-    <key>NSAppleEventsUsageDescription</key>
-    <string>Barometer uses System Events to press your Notification Center keyboard shortcut when you click Open Notification Center.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
     <string>Barometer can show upcoming calendar events in the Time menu.</string>
     <key>NSHumanReadableCopyright</key>

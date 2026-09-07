@@ -322,8 +322,11 @@ private final class DoNotDisturbRuntime {
                 records.append(contentsOf: typedRecords)
             }
         }
+        // A stored record is the assertion object itself, whose details sit at its top level; some
+        // writes wrap that object under an `assertion` key. Accept both.
         let identifiers = records.compactMap { record -> String? in
-            guard let details = record["assertionDetails"] as? [String: Any],
+            let assertion = record["assertion"] as? [String: Any] ?? record
+            guard let details = assertion["assertionDetails"] as? [String: Any],
                   let identifier = details["assertionDetailsModeIdentifier"] as? String,
                   !identifier.isEmpty
             else {

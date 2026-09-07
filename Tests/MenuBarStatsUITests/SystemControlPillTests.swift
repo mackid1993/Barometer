@@ -43,7 +43,8 @@ struct SystemControlPillTests {
             SystemControlSample(symbolName: "pause.fill", accessibilityValue: "Now Playing: Paused", isActive: false),
         ]
         let content = states.map { SystemControlPillRenderer.render($0, in: context) }
-        #expect(Set(content.map { $0.image.size.width }) == [30])
+        // The compact pill is 22 points at scale 1 (P8-T88); every state and symbol must share that width.
+        #expect(Set(content.map { $0.image.size.width }) == [22])
         #expect(content.allSatisfy { $0.image.isTemplate && $0.image.size.height == 33 })
         #expect(content.map(\.accessibilityValue) == states.map(\.accessibilityValue))
     }
