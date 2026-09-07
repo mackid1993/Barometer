@@ -301,6 +301,24 @@ private struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Item Width") {
+                Toggle("Shrink items to fit the current reading", isOn: appBinding(\.usesLiveItemWidth))
+                Text(liveItemWidthCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Label(
+                    """
+                    Barometer normally gives each item a fixed width and sets it once, which is \
+                    what keeps menu bar managers from moving items. This resizes items while they \
+                    run. If your items start moving on their own, turn this off and reopen \
+                    Barometer.
+                    """,
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
+            }
+
             Section("Menu Bar Colors") {
                 Toggle("Use one palette for every module", isOn: appBinding(\.usesGlobalColors))
                 MenuBarColorPickerRows(
@@ -432,6 +450,14 @@ private struct GeneralSettingsView: View {
             get: { settingsStore.statusItemSpacing },
             set: { settingsStore.stageStatusItemSpacing($0) }
         )
+    }
+
+    private var liveItemWidthCaption: String {
+        """
+        Each item reserves room for the widest value it can ever show, such as a three-digit \
+        temperature. Turning this on sizes items to what they are showing right now, recovering \
+        roughly a fifth of the space Barometer occupies. Items shift as readings change width.
+        """
     }
 
     private var statusItemSpacingCaption: String {

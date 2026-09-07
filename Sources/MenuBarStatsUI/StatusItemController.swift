@@ -43,6 +43,7 @@ public final class StatusItemController<Sample: HistoryProjecting> {
     private var visibilityLatch = StatusItemVisibilityLatch()
     private let logger = Logger(subsystem: "com.barometer.app", category: "render")
     private var lengthLatch = StatusItemLengthLatch()
+    private var hasAssignedLength = false
     private var appliedImageFingerprint: Int?
     private var geometryLatch = StatusItemGeometryLatch()
 
@@ -125,8 +126,9 @@ public final class StatusItemController<Sample: HistoryProjecting> {
         // readable interpretation and the one the other modules already used via `suffix`.
         let history = store.history.recent(StatusItemRendering.renderedHistoryLimit)
         let content = renderContent(store.latestSample, history, moduleSettings, context)
+        lengthLatch.allowsLiveResize = appSettings.usesLiveItemWidth
         let reservedFontWeightWidth: CGFloat
-        if lengthLatch.length == nil, appSettings.fontWeight != .semibold {
+        if !appSettings.usesLiveItemWidth, lengthLatch.length == nil, appSettings.fontWeight != .semibold {
             var sizingSettings = appSettings
             sizingSettings.fontWeight = .semibold
             let sizingContext = StatusItemRendering.context(
@@ -175,6 +177,14 @@ public final class StatusItemController<Sample: HistoryProjecting> {
         // on both sides. An explicit length makes the zero-padding rendered canvas
         // authoritative while each module remains a separate, movable status item.
         if lengthDecision.shouldAssign {
+            // Only the live width preference re-assigns a length. Logged at debug level so the
+            // frequency of the write can be measured against a running menu bar manager without
+            // adding noise to a normal install.
+            if hasAssignedLength {
+                let message = "live-resize module=\(module.displayName) length=\(lengthDecision.length)"
+                logger.debug("\(message, privacy: .public)")
+            }
+            hasAssignedLength = true
             statusItem.length = lengthDecision.length
         }
         if button.accessibilityValue() as? String != content.accessibilityValue {
@@ -228,9 +238,20 @@ struct StatusItemGeometryLatch {
 struct StatusItemLengthLatch {
     private(set) var length: CGFloat?
 
+    /// Re-assigns the AppKit length whenever the rendered width changes.
+    ///
+    /// The sanctioned exception to the one-assignment invariant in
+    /// `docs/MACOS27_STATUS_ITEM_SIZING.md`, enabled only by the Item width preference. Default is
+    /// off, which keeps the latch one-way.
+    var allowsLiveResize = false
+
     mutating func resolve(_ proposed: CGFloat) -> (length: CGFloat, shouldAssign: Bool) {
         if let length {
-            return (length, false)
+            guard allowsLiveResize, proposed != length else {
+                return (length, false)
+            }
+            self.length = proposed
+            return (proposed, true)
         }
         length = proposed
         return (proposed, true)
@@ -373,7 +394,8 @@ enum StatusItemRendering {
             scale: geometry.scale,
             backingScaleFactor: button.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2,
             graphOpacity: appSettings.graphOpacity,
-            fontWeight: appSettings.fontWeight
+            fontWeight: appSettings.fontWeight,
+            usesLiveWidth: appSettings.usesLiveItemWidth
         )
     }
 }

@@ -3853,3 +3853,45 @@ Verification:
   backup, carries no `statusItemSpacing` key, and the application domain again contains neither spacing key. Item
   positions are unchanged from the pre-experiment baseline: x = 1017 through 1279, span 262 points.
 - The menu bar manager check is David's: Thaw must not be launched by an agent.
+
+## P8-T65 Add an opt-in live item width
+
+Every Barometer status item reserves the widest value it can ever show, because `statusItem.length` may be assigned
+only once per process. Measuring David's bar showed what that costs: of a 262-point run, 40 points were blank space
+inside the item canvases, and AppKit's own spacing contributed nothing at all because his windows were already
+contiguous. The P8-T64 spacing preference could not reach that blank space, which is why it appeared to do nothing.
+
+**Item width** in General sets `AppSettings.usesLiveItemWidth`. When on, `RenderContext.usesLiveWidth` collapses every
+stable-width reservation to the live reading, and `StatusItemLengthLatch.allowsLiveResize` lets the controller
+re-assign the AppKit length whenever the rendered width changes. Off by default, and with it off the latch is still
+one-way and every reservation still applies, so an unchanged install is byte-identical.
+
+Measured on the installed build, one module at a time: Combined 56 to 44, Sensors 72 to 60, Network 56 to 48, Memory
+28 to 24, Weather 50 to 32, Time 58 to 48. That is 54 points of a 262-point run, about 21 percent. Battery and Disks
+do not shrink because their canvases are sized by a fixed glyph field rather than by text reservation.
+
+Every module was captured at both settings and none clips. Text sizes to exactly what it draws, and an oversize glyph
+is scaled to its canvas rather than overflowing. The clock was checked at its widest, `{weekday} {date} {time} {zone}
+{week} {day}` with seconds: 272 points reserved against 204 live, rendering `Sun Sep 6 7:59:49 PM EDT 36 249`
+complete. An initial report of a clipped weather glyph was a measurement error, not a defect: live width lets items
+resize after launch, so the coordinates recorded in `identity.json` go stale and a screenshot cropped to them can cut
+a glyph. Re-capturing with padding showed it intact.
+
+The one-assignment rule stays the default, but it is no longer treated as established. The evidence behind it was
+gathered while Bartender was independently moving items in the same sessions, so the length write was never isolated
+as the cause. David reviewed that and approved the preference as opt-in, noting that menu bar managers on a
+prerelease macOS 27 relocate items on their own and that the decision can be revisited after release. He then
+confirmed the build against Thaw and Able with no item displacement. Under sustained CPU load the write fires about
+eleven times a minute and the row shifts, because status items are right-anchored; that is inherent to live sizing.
+
+Verification:
+
+- `make test` passed: 289 tests across three targets. `LiveItemWidthTests` covers the latch staying one-way by
+  default, live mode re-assigning only on a real change, reservations collapsing in every renderer that has them, a
+  reservation acting as a floor rather than a cap, an oversize glyph scaling instead of clipping, and the disabled
+  path reproducing reserved-width rendering exactly.
+- Each new test was checked against a reverted fix to confirm it fails without it. Two early tests passed either way,
+  which is what exposed the phantom clipping report; both were replaced.
+- `swift build -c release` completed and `git diff --check` reported no whitespace errors.
+- A source scan found exactly one production assignment to `statusItem.length`, in `StatusItemController.swift`.
+- David's settings were backed up before the module sweep and restored afterward, byte-matching the backup.

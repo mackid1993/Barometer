@@ -171,3 +171,30 @@ Before accepting a change to menu bar geometry or status-item lifecycle:
 
 If an operating-system update appears to permit safe live resizing, treat that as a new investigation. Preserve this
 contract until the alternative is reproduced, documented, and explicitly approved.
+
+## Approved exception: the Item width preference
+
+David approved one opt-in exception after reviewing the original evidence. The finding that live length writes
+displace items was gathered while Bartender was independently moving items during the same sessions, so the causal
+link between the write and the displacement was never isolated. Menu bar managers on a prerelease macOS 27 relocate
+items on their own, which means the original conclusion is confounded rather than established.
+
+**Item width** in General sets `AppSettings.usesLiveItemWidth`. When on, `RenderContext.usesLiveWidth` collapses every
+stable-width reservation to the live reading and `StatusItemLengthLatch.allowsLiveResize` lets the controller
+re-assign `statusItem.length` whenever the rendered width changes. Measured on six items, it recovers 54 points of a
+262-point run, about 21 percent. Every module was checked for clipping at both settings and none clips: text sizes to
+what it draws, and an oversize glyph is scaled to its canvas rather than overflowing.
+
+The constraints that remain:
+
+- Off by default. `StatusItemController` is still the only writer, and the latch is still one-way with the preference
+  off, so an unchanged install behaves exactly as this document describes.
+- The latch must never re-assign an unchanged length, in either mode. Rewriting the same number is the specific
+  operation that first correlated with items moving.
+- Reservations stay in the renderers. The preference collapses them at measure time; it does not delete them, so
+  turning it off restores the fixed widths without a code change.
+- Under load the write fires roughly eleven times a minute, and items shift because the row is right-anchored. That
+  is inherent to live sizing, not a defect.
+
+Revisit this on released macOS 27. If a manager reproduces item displacement that tracks the length write with no
+manager-initiated movement in the same session, restore the absolute rule and remove the preference.

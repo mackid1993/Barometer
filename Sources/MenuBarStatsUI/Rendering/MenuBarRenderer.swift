@@ -60,6 +60,20 @@ public struct RenderContext {
     public let graphOpacity: CGFloat
     public let fontWeight: MenuBarFontWeight
 
+    /// Collapses every stable-width reservation to the width of the live content.
+    ///
+    /// Barometer normally reserves the widest value each field can ever show so a status item can
+    /// receive its AppKit length exactly once. With this on, renderers size to the current reading
+    /// instead and `StatusItemController` re-assigns the length whenever it changes. That is what
+    /// packs the items tightly, and it is also what makes their identity unstable under a menu bar
+    /// manager. See docs/MACOS27_STATUS_ITEM_SIZING.md.
+    public let usesLiveWidth: Bool
+
+    /// Returns the string a renderer should measure for a stable field.
+    func reservedString(_ reserved: String?, live: String) -> String {
+        usesLiveWidth ? live : (reserved ?? live)
+    }
+
     /// Creates a render context.
     public init(
         thickness: CGFloat,
@@ -74,8 +88,10 @@ public struct RenderContext {
         scale: CGFloat = 1,
         backingScaleFactor: CGFloat = 2,
         graphOpacity: CGFloat = 0.85,
-        fontWeight: MenuBarFontWeight = .medium
+        fontWeight: MenuBarFontWeight = .medium,
+        usesLiveWidth: Bool = false
     ) {
+        self.usesLiveWidth = usesLiveWidth
         self.thickness = thickness
         self.appearance = appearance
         self.palette = palette
@@ -323,7 +339,8 @@ public struct TextRenderer: MenuBarRenderer {
             .foregroundColor: context.foregroundColor,
         ]
         let value = NSAttributedString(string: text, attributes: attributes)
-        let reserved = NSAttributedString(string: reservedText ?? text, attributes: attributes)
+        let reserved = NSAttributedString(
+            string: context.reservedString(reservedText, live: text), attributes: attributes)
         let width = ceil(max(value.size().width, reserved.size().width))
         return makeImage(width: width, context: context) { rect in
             let size = value.size()
@@ -598,9 +615,11 @@ public struct StackedLabelRenderer: MenuBarRenderer {
             .foregroundColor: context.foregroundColor,
         ]
         let labelText = NSAttributedString(string: label, attributes: labelAttributes)
-        let reservedLabelText = NSAttributedString(string: reservedLabel, attributes: labelAttributes)
+        let reservedLabelText = NSAttributedString(
+            string: context.reservedString(reservedLabel, live: label), attributes: labelAttributes)
         let valueText = NSAttributedString(string: value, attributes: valueAttributes)
-        let reservedText = NSAttributedString(string: reservedValue ?? value, attributes: valueAttributes)
+        let reservedText = NSAttributedString(
+            string: context.reservedString(reservedValue, live: value), attributes: valueAttributes)
         let contentWidth = ceil(
             max(
                 labelText.size().width,
@@ -674,8 +693,8 @@ public struct NetworkRateStackRenderer: MenuBarRenderer {
         ]
         let topParts = Self.rowParts(top)
         let bottomParts = Self.rowParts(bottom)
-        let reservedTopParts = Self.rowParts(reservedTop)
-        let reservedBottomParts = Self.rowParts(reservedBottom)
+        let reservedTopParts = Self.rowParts(context.reservedString(reservedTop, live: top))
+        let reservedBottomParts = Self.rowParts(context.reservedString(reservedBottom, live: bottom))
         let topMarker = NSAttributedString(string: topParts.marker, attributes: attributes)
         let bottomMarker = NSAttributedString(string: bottomParts.marker, attributes: attributes)
         let reservedTopMarker = NSAttributedString(string: reservedTopParts.marker, attributes: attributes)
@@ -840,7 +859,9 @@ public struct SensorStackRenderer: MenuBarRenderer {
                     attributes: labelAttributes
                 ).size().width
                 let reservedLabelWidth =
-                    field.reservedLabel.map {
+                    context.usesLiveWidth
+                    ? 0
+                    : field.reservedLabel.map {
                         NSAttributedString(string: Self.displayLabel($0), attributes: labelAttributes).size().width
                     } ?? 0
                 return max(width, ceil(max(liveLabelWidth, reservedLabelWidth)))
@@ -849,7 +870,7 @@ public struct SensorStackRenderer: MenuBarRenderer {
         let valueWidths = columns.map { column in
             column.reduce(CGFloat(0)) { width, field in
                 let reservedWidth = NSAttributedString(
-                    string: field.reservedValue,
+                    string: context.reservedString(field.reservedValue, live: field.value),
                     attributes: valueAttributes
                 ).size().width
                 let valueWidth = NSAttributedString(string: field.value, attributes: valueAttributes).size().width
@@ -951,7 +972,8 @@ public struct IconTextRenderer: MenuBarRenderer {
         ]
         let textValue = NSAttributedString(string: text, attributes: attributes)
         let textSize = textValue.size()
-        let reservedTextSize = NSAttributedString(string: reservedText, attributes: attributes).size()
+        let reservedTextSize = NSAttributedString(
+            string: context.reservedString(reservedText, live: text), attributes: attributes).size()
         let metrics = MenuBarLayoutMetrics(context: context)
         // Every glyph is fitted to one square field measured by its ink, so the icon occupies the
         // same width whatever it is currently showing. Reserving the widest glyph instead left a
@@ -1099,7 +1121,8 @@ public struct IconStackRenderer: MenuBarRenderer {
         ]
         let textValue = NSAttributedString(string: text, attributes: attributes)
         let textSize = textValue.size()
-        let reservedTextSize = NSAttributedString(string: reservedText, attributes: attributes).size()
+        let reservedTextSize = NSAttributedString(
+            string: context.reservedString(reservedText, live: text), attributes: attributes).size()
         // Size the glyph by its actual ink so the visible symbol, not its transparent
         // padding, follows the icon scale and never runs into the value row.
         let inkKey = "\(symbolName)|\(symbolPointSize)|\(context.fontWeight)"
@@ -1107,7 +1130,7 @@ public struct IconStackRenderer: MenuBarRenderer {
             SymbolInkMeasurer.placement(of: $0, key: inkKey, visibleHeight: metrics.compactSymbolVisibleHeight)
         }
         let reservedSymbolWidth =
-            reservedSymbolNames.compactMap { name -> CGFloat? in
+            (context.usesLiveWidth ? [] : reservedSymbolNames).compactMap { name -> CGFloat? in
                 guard
                     let reservedImage = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
                         .withSymbolConfiguration(configuration)

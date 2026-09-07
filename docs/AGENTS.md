@@ -185,6 +185,13 @@ application domain scopes the value to Barometer, so two adjacent Barometer item
 beside another application's item closes only by Barometer's share. State that in the UI instead of compensating for
 it. Never write the by-host global values, never change another application's preferences, and do not compensate for
 system spacing with renderer-specific padding or assumptions about widget order.
+One opt-in exception to the one-assignment rule now exists: the **Item width** preference
+(`AppSettings.usesLiveItemWidth`) collapses stable-width reservations to the live reading and lets the controller
+re-assign `statusItem.length` when the rendered width changes. It is off by default and an unchanged install behaves
+exactly as this file describes. The original evidence against live resizing was gathered while Bartender was
+independently moving items, so the causal link was never isolated; the full reasoning and the constraints that still
+apply are in [`MACOS27_STATUS_ITEM_SIZING.md`](MACOS27_STATUS_ITEM_SIZING.md).
+
 Never bring back a live-width slider. Show/hide controls are the deliberate exception to otherwise-live settings:
 stage those choices until the user selects **Apply Changes**, persist the complete set once, and perform a controlled
 application reopen. The reopen is required so automatic sizing is calculated from the final enabled-item count before

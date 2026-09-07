@@ -262,6 +262,16 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Spacing AppKit reserves around each Barometer status item; applied at launch only.
     public var statusItemSpacing: StatusItemSpacing
 
+    /// Sizes each status item to its live reading instead of its widest reservation.
+    ///
+    /// This is the sanctioned exception to the one-assignment length rule in
+    /// `docs/MACOS27_STATUS_ITEM_SIZING.md`: the controller re-assigns `statusItem.length` whenever
+    /// the rendered width changes. It recovers about a fifth of the menu bar run. The original
+    /// evidence that live length writes displace items was gathered while a menu bar manager was
+    /// independently moving items, so the causal link is unproven; the rule remains the default and
+    /// this stays opt-in until a manager reproduces the failure on a released macOS 27.
+    public var usesLiveItemWidth: Bool
+
     /// Global menu bar font size.
     public var fontSize: Double {
         didSet {
@@ -326,6 +336,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         graphOpacity: Double = 0.85,
         fontWeight: MenuBarFontWeight = .medium,
         statusItemSpacing: StatusItemSpacing = .system,
+        usesLiveItemWidth: Bool = false,
         fontSize: Double = 12,
         modules: [ModuleID: ModuleSettings] = AppSettings.defaultModules,
         weather: WeatherSettings = WeatherSettings(),
@@ -357,6 +368,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.graphOpacity = graphOpacity
         self.fontWeight = fontWeight
         self.statusItemSpacing = statusItemSpacing
+        self.usesLiveItemWidth = usesLiveItemWidth
         self.fontSize = Self.clampedMenuBarFontSize(fontSize)
         self.modules = modules
         self.weather = weather
@@ -410,6 +422,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case graphOpacity
         case fontWeight
         case statusItemSpacing
+        case usesLiveItemWidth
         case fontSize
         case modules
         case weather
@@ -454,6 +467,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
             graphOpacity = 0.85
             fontWeight = .medium
             statusItemSpacing = .system
+            usesLiveItemWidth = false
             fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? 12
             modules = Self.defaultModules
             weather = WeatherSettings()
@@ -526,6 +540,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
                     StatusItemSpacing.self,
                     forKey: .statusItemSpacing
                 ) ?? .system
+            usesLiveItemWidth = try container.decodeIfPresent(Bool.self, forKey: .usesLiveItemWidth) ?? false
             fontSize = try container.decode(Double.self, forKey: .fontSize)
             modules = try container.decode([ModuleID: ModuleSettings].self, forKey: .modules)
             weather = try container.decodeIfPresent(WeatherSettings.self, forKey: .weather) ?? WeatherSettings()
