@@ -14,7 +14,7 @@ import MenuBarStatsCore
 /// in the module color otherwise, while the marks are tinted: gray cloud, blue rain, icy snow, a
 /// yellow bolt.
 public struct WeatherBadgeRenderer: MenuBarRenderer {
-    private let condition: WeatherMenuBarCondition
+    private let condition: WeatherMenuBarCondition?
     private let text: String
     private let reservedText: String
     private let colorful: Bool
@@ -24,9 +24,12 @@ public struct WeatherBadgeRenderer: MenuBarRenderer {
 
     /// Creates a weather mark for one condition and reading.
     ///
+    /// A nil condition draws the reading alone, for the moment before a forecast exists. It keeps
+    /// the same width as a real mark so the item does not move when the weather arrives.
+    ///
     /// `colorful` keeps the mark in color even when the menu bar is otherwise monochrome, so the
     /// weather can carry its splash of color without changing every other module.
-    public init(condition: WeatherMenuBarCondition, text: String, reservedText: String? = nil, colorful: Bool = false) {
+    public init(condition: WeatherMenuBarCondition?, text: String, reservedText: String? = nil, colorful: Bool = false) {
         self.condition = condition
         self.text = text
         self.reservedText = reservedText ?? text
@@ -57,13 +60,14 @@ public struct WeatherBadgeRenderer: MenuBarRenderer {
 
             palette.cloud.setFill()
             palette.cloud.setStroke()
-            if condition != .clearDay, condition != .clearNight {
+            if let condition, condition != .clearDay, condition != .clearNight {
                 Self.cloudCap(box, trailingRoom: condition == .partlyCloudy ? 6.5 : 0)
             }
 
             palette.mark.setFill()
             palette.mark.setStroke()
             switch condition {
+            case nil: break
             case .clearDay: Self.rays(box)
             case .clearNight: Self.moon(box)
             case .partlyCloudy: Self.sunDisc(box)
@@ -206,7 +210,7 @@ struct WeatherBadgePalette {
 
     /// Resolves colors for the appearance, or a single template color for monochrome.
     static func resolve(
-        _ condition: WeatherMenuBarCondition, appearance: MenuBarAppearance, monochrome: Bool, moduleColor: NSColor
+        _ condition: WeatherMenuBarCondition?, appearance: MenuBarAppearance, monochrome: Bool, moduleColor: NSColor
     ) -> WeatherBadgePalette {
         if monochrome {
             return WeatherBadgePalette(digits: .black, cloud: .black, mark: .black)
@@ -214,6 +218,8 @@ struct WeatherBadgePalette {
         let dark = appearance == .dark
         let cloud = NSColor(hex: dark ? 0xC9CED6 : 0x8D96A3)
         switch condition {
+        case nil:
+            return WeatherBadgePalette(digits: moduleColor, cloud: cloud, mark: cloud)
         case .clearDay:
             let amber = NSColor(hex: dark ? 0xFFC53D : 0xD99A00)
             return WeatherBadgePalette(digits: amber, cloud: cloud, mark: amber)

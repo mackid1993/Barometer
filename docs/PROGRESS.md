@@ -4089,3 +4089,30 @@ Verification:
   or tests.
 - `swift build -c release` completed and `git diff --check` reported no whitespace errors.
 - The user-facing settings text was scanned once more for engineering vocabulary and none remains.
+
+## P8-T74 Show a plain dash when there is no forecast
+
+Before the first forecast arrives the Weather item drew a cloud cap over an em dash, because the placeholder fell
+back to the cloudy condition. That reports weather that is not known. `WeatherBadgeRenderer` now takes an optional
+condition; nil draws the reading alone, and the placeholder reads `–°`. The placeholder uses the same reserved width
+as a real mark, so the item does not move when the forecast lands.
+
+Verification:
+
+- `make test` passed: 300 tests across three targets. New coverage proves the placeholder matches a real mark's
+  reserved width and draws strictly less ink than any condition.
+- `swift build -c release` completed and `git diff --check` reported no whitespace errors.
+
+## P8-T74 Show a plain dash when there is no forecast
+
+Before the first forecast arrives the Weather item drew a cloud cap over an em dash, because the placeholder fell
+back to the cloudy condition. That reports weather that is not known. `WeatherBadgeRenderer` now takes an optional
+condition; nil draws the reading alone, and the placeholder reads `–°`. The placeholder uses the same reserved width
+as a real mark, so the item does not move when the forecast lands.
+
+Verification:
+
+- `make test` passed: 300 tests across three targets. New coverage proves the placeholder matches a real mark's
+  reserved width and draws strictly less ink than any condition.
+- `swift build -c release` completed and `git diff --check` reported no whitespace errors.
+- Installed with `make install`, not notarized, and captured on David's bar showing `–°` alone at launch.

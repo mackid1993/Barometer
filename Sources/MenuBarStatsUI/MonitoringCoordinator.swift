@@ -1539,12 +1539,11 @@ public final class MonitoringCoordinator {
         // the same reading, and one well-made option beats a menu of mediocre ones.
         let presentation =
             sample.map(WeatherPresentationFormatter.menuBar)
-            ?? WeatherMenuBarPresentation(symbolName: "cloud.sun", text: "\u{2014}")
+            ?? WeatherMenuBarPresentation(symbolName: nil, text: "\u{2013}\u{00B0}")
         // The temperature is the body of the mark and the condition surrounds it, so the item is
         // the digits plus a few points of padding rather than an icon beside them.
-        let condition =
-            sample.map { $0.forecast.current.code.menuBarCondition(isDay: $0.forecast.current.isDay) }
-            ?? .cloudy
+        // No forecast yet: just the dash and degree sign, with no condition drawn on it.
+        let condition = sample.map { $0.forecast.current.code.menuBarCondition(isDay: $0.forecast.current.isDay) }
         let renderer = WeatherBadgeRenderer(
             condition: condition,
             text: presentation.text,

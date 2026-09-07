@@ -54,6 +54,20 @@ struct WeatherBadgeRendererTests {
         }
     }
 
+    @Test("No forecast draws the reading alone at the same width")
+    func noForecastDrawsOnlyTheReading() {
+        let placeholder = WeatherBadgeRenderer(condition: nil, text: "\u{2013}\u{00B0}", reservedText: "-99°")
+            .render(in: context(monochrome: true))
+        let real = WeatherBadgeRenderer(condition: .rain, text: "64°", reservedText: "-99°")
+            .render(in: context(monochrome: true))
+        // Same reserved width, so the item does not move when the first forecast arrives.
+        #expect(placeholder.size.width == real.size.width)
+        // Only the dash and degree sign: strictly less ink than any condition's mark.
+        let digitsOnly = WeatherBadgeRenderer(condition: nil, text: "64°").render(in: context(monochrome: true))
+        let withCloud = WeatherBadgeRenderer(condition: .cloudy, text: "64°").render(in: context(monochrome: true))
+        #expect(inkPixels(digitsOnly) < inkPixels(withCloud))
+    }
+
     @Test("Weather codes map to a drawn condition, day and night")
     func codesMapToConditions() {
         #expect(WMOCode(rawValue: 0).menuBarCondition(isDay: true) == .clearDay)
