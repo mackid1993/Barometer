@@ -4210,3 +4210,14 @@ Verification:
 The first P8-T78 commit inserted the flag by line number, drifted, and broke the build; the second restored the file
 without the flag. `c95426f` and this commit correct that: the flag is inserted by matching each call's text, all ten
 constructions now carry it, and the commit was gated on a green build and test run.
+
+## P8-T79 Finalize the 1.0.7 release notes and dispatch the release
+
+Rewrote `docs/RELEASE_NOTES_1.0.7.md` as one document in the 1.0.6 voice, covering everything in the release: the
+weather reading drawn as one mark with color and a plain placeholder, Automatic counting the whole network with a VPN
+excluded and All interfaces including it, per-app activity counting local traffic, Item width, Text size, Item
+spacing, the Light, Dark, or System choice, and every dropdown in the same panel. Every line is within 120 columns
+and the notes describe only what shipped.
+
+Dispatched the Release workflow for 1.0.7 with notarization on. Verification of the artifact is recorded in the
+publish entry.
