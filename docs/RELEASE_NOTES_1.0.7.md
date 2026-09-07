@@ -1,6 +1,6 @@
 # Barometer 1.0.7
 
-Barometer 1.0.7 adds two optional ways to tighten the menu bar, both off by default.
+Barometer 1.0.7 shows internal network activity and adds two optional ways to tighten the menu bar.
 
 ## Item width
 
@@ -10,6 +10,13 @@ Barometer 1.0.7 adds two optional ways to tighten the menu bar, both off by defa
 - Measured across five items, the row went from 262 to 208 points. Weather, Sensors, and Combined gain the most.
 - Battery and Disks are unchanged, because their width comes from a fixed icon rather than a reserved value.
 - Items shift slightly as readings change width.
+
+## Internal network activity
+
+- Network can now show **All interfaces**, which totals every active device rather than only the primary one.
+- Activity that never reaches the internet is included: loopback, virtual machine networking, bridges, and AirDrop.
+- Loopback can also be selected on its own. It was previously hidden from the interface list.
+- Automatic still follows the primary interface, so the default reading is unchanged.
 
 ## Menu bar spacing
 

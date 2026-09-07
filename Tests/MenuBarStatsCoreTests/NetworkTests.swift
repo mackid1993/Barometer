@@ -120,4 +120,53 @@ struct NetworkTests {
             outputErrors: 0
         )
     }
+
+    @Test("All interfaces sums every active device, including internal ones")
+    @MainActor
+    func aggregatesEveryActiveInterface() {
+        func iface(_ name: String, up: Bool, loopback: Bool, down: Double, up_: Double) -> NetworkInterfaceSample {
+            NetworkInterfaceSample(
+                name: name, isUp: up, isLoopback: loopback, isVPN: false,
+                ipv4Addresses: [], ipv6Addresses: [],
+                downloadBytesPerSecond: down, uploadBytesPerSecond: up_,
+                receivedBytes: 10, sentBytes: 20, inputErrors: 1, outputErrors: 2)
+        }
+        let sample = NetworkSample(
+            timestamp: Date(),
+            interfaces: [
+                iface("en0", up: true, loopback: false, down: 100, up_: 200),
+                iface("lo0", up: true, loopback: true, down: 5, up_: 7),
+                iface("vmenet0", up: true, loopback: false, down: 3, up_: 11),
+                iface("en4", up: false, loopback: false, down: 999, up_: 999),
+            ],
+            primaryInterface: "en0", router: nil, dnsServers: [], wifi: nil, publicIP: nil)
+
+        let all = sample.interface(named: NetworkSample.allInterfacesName)
+        // Loopback and virtual devices are internal activity and must be counted; a down interface
+        // must not be.
+        #expect(all?.downloadBytesPerSecond == 108)
+        #expect(all?.uploadBytesPerSecond == 218)
+        #expect(all?.receivedBytes == 30)
+        #expect(all?.sentBytes == 60)
+
+        // The existing selections are unchanged.
+        #expect(sample.interface(named: "en0")?.downloadBytesPerSecond == 100)
+        #expect(sample.interface(named: nil)?.name == "en0")
+        #expect(sample.interface(named: "lo0")?.downloadBytesPerSecond == 5)
+    }
+
+    @Test("The aggregate selection is distinct from every real interface")
+    func aggregateNameIsReserved() {
+        // BSD device names are alphanumeric, so the reserved name cannot name a real interface.
+        let real = ["en0", "lo0", "utun4", "vmenet0", "bridge100", "awdl0"]
+        #expect(!real.contains(NetworkSample.allInterfacesName))
+        #expect(NetworkSample.allInterfacesName.hasPrefix("__"))
+
+        // With nothing active there is nothing to total, so the selection resolves to no reading
+        // rather than to a stale or fabricated one.
+        let empty = NetworkSample(
+            timestamp: Date(), interfaces: [], primaryInterface: nil, router: nil, dnsServers: [],
+            wifi: nil, publicIP: nil)
+        #expect(empty.interface(named: NetworkSample.allInterfacesName) == nil)
+    }
 }

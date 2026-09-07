@@ -58,6 +58,7 @@ struct NetworkSettingsView: View {
             Section("Connection") {
                 Picker("Interface", selection: networkBinding(\.selectedInterfaceName)) {
                     Text("Automatic").tag(String?.none)
+                    Text("All interfaces").tag(String?.some(NetworkSample.allInterfacesName))
                     ForEach(availableInterfaces, id: \.self) { name in
                         Text(name).tag(Optional(name))
                     }
@@ -113,9 +114,14 @@ struct NetworkSettingsView: View {
         .settingsPane(module: .network, settings: settingsStore.settings, preview: previewImage)
     }
 
+    /// Every active interface, loopback included.
+    ///
+    /// Loopback was filtered out, so traffic that never leaves the Mac could not be selected or
+    /// seen. It is ordinary internal activity and belongs in the list alongside virtual machine,
+    /// bridge, and AirDrop devices.
     private var availableInterfaces: [String] {
         store.latestSample?.interfaces
-            .filter { $0.isUp && !$0.isLoopback }
+            .filter(\.isUp)
             .map(\.name)
             .sorted { $0.localizedStandardCompare($1) == .orderedAscending } ?? []
     }

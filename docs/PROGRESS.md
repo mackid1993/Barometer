@@ -3959,3 +3959,28 @@ Verification:
 - `make test` passed: 289 tests across three targets.
 - `swift build -c release` completed and `git diff --check` reported no whitespace errors.
 - Release notes lines remain within 120 columns.
+
+## P8-T69 Show internal network activity
+
+David reported that Network showed only external activity. The cause was two filters. The menu bar draws exactly one
+interface, `sample.interface(named:)`, which defaults to the primary device, and the Settings picker built its list
+with `filter { $0.isUp && !$0.isLoopback }`. Loopback was therefore not merely unselected but unselectable, and any
+device other than the primary one was invisible. On David's Mac that hid real traffic: `lo0`, `vmenet0` through
+`vmenet2`, `bridge100`, `bridge101`, `awdl0`, and a busy `utun4`.
+
+`NetworkSample.aggregate` totals every interface whose `isUp` flag is set, loopback and virtual devices included, and
+`interface(named:)` returns it for the reserved selection `NetworkSample.allInterfacesName`. The reserved value is
+`__all__`; BSD device names are alphanumeric, so it cannot collide with a real interface. Settings offers it as **All
+interfaces**, and the picker no longer filters loopback out.
+
+Automatic still resolves to the primary interface, so an installation that never changes the setting reads exactly as
+it did before.
+
+Verification:
+
+- `make test` passed: 291 tests across three targets, up from 289. New coverage proves the total includes loopback
+  and virtual devices, excludes a down interface, leaves the named and automatic selections untouched, and resolves
+  to no reading rather than a fabricated one when nothing is active.
+- A first draft of the reserved-name test contained an assertion ending in `|| true`, which passes regardless. It was
+  replaced with a check that the reserved name is absent from a list of real device names.
+- `swift build -c release` completed and `git diff --check` reported no whitespace errors.

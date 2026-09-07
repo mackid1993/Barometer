@@ -114,7 +114,38 @@ public struct NetworkSample: Equatable, Sendable {
 
     /// Resolves a selected interface, falling back to the primary route.
     public func interface(named selectedName: String?) -> NetworkInterfaceSample? {
-        selectedName.flatMap { name in interfaces.first { $0.name == name } } ?? primary
+        if selectedName == Self.allInterfacesName { return aggregate }
+        return selectedName.flatMap { name in interfaces.first { $0.name == name } } ?? primary
+    }
+
+    /// Reserved `selectedInterfaceName` meaning every active interface combined.
+    ///
+    /// Not a real interface name: the leading underscores keep it outside the BSD name space, so it
+    /// can never collide with a device such as `en0` or `utun4`.
+    public static let allInterfacesName = "__all__"
+
+    /// Every active interface summed, including loopback and virtual devices.
+    ///
+    /// The per-interface view shows only the primary device, so traffic that never reaches the
+    /// internet — loopback, virtual machine networking, bridges, AirDrop — was invisible. This adds
+    /// the totals rather than replacing the primary view.
+    public var aggregate: NetworkInterfaceSample? {
+        let active = interfaces.filter(\.isUp)
+        guard !active.isEmpty else { return nil }
+        return NetworkInterfaceSample(
+            name: Self.allInterfacesName,
+            isUp: true,
+            isLoopback: false,
+            isVPN: false,
+            ipv4Addresses: [],
+            ipv6Addresses: [],
+            downloadBytesPerSecond: active.reduce(0) { $0 + $1.downloadBytesPerSecond },
+            uploadBytesPerSecond: active.reduce(0) { $0 + $1.uploadBytesPerSecond },
+            receivedBytes: active.reduce(UInt64(0)) { $0 &+ $1.receivedBytes },
+            sentBytes: active.reduce(UInt64(0)) { $0 &+ $1.sentBytes },
+            inputErrors: active.reduce(UInt64(0)) { $0 &+ $1.inputErrors },
+            outputErrors: active.reduce(UInt64(0)) { $0 &+ $1.outputErrors }
+        )
     }
 }
 
