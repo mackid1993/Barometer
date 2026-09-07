@@ -40,6 +40,36 @@ public enum CalendarWeekStart: String, Codable, CaseIterable, Sendable {
     }
 }
 
+/// One card of the Time dropdown, in the order the user chooses.
+public enum TimeDropdownSection: String, Codable, CaseIterable, Sendable {
+    case calendar
+    case dayEvents
+    case notifications
+    case worldClocks
+    case sun
+    case upcomingEvents
+
+    /// User-facing name shown in Time settings.
+    public var displayName: String {
+        switch self {
+        case .calendar: "Calendar"
+        case .dayEvents: "Events on the selected day"
+        case .notifications: "Notifications"
+        case .worldClocks: "World clocks"
+        case .sun: "Sunrise and sunset"
+        case .upcomingEvents: "Upcoming events"
+        }
+    }
+
+    /// Restores a saved order: duplicates dropped, unknown values ignored, missing sections appended.
+    public static func normalizedOrder(_ order: [TimeDropdownSection]) -> [TimeDropdownSection] {
+        var seen: Set<TimeDropdownSection> = []
+        var result = order.filter { seen.insert($0).inserted }
+        result.append(contentsOf: allCases.filter { !seen.contains($0) })
+        return result
+    }
+}
+
 /// Persisted choices for the Time module.
 public struct TimeSettings: Codable, Equatable, Sendable {
     /// Token template rendered in the menu bar.
@@ -74,6 +104,22 @@ public struct TimeSettings: Codable, Equatable, Sendable {
     /// line of text and stays readable at sizes that would overflow denser items.
     public static let menuBarFontSizeRange = 9.0...14.0
 
+    /// Order of the dropdown's cards, top to bottom. Always a full permutation of every section.
+    public var dropdownSectionOrder: [TimeDropdownSection] {
+        didSet { dropdownSectionOrder = TimeDropdownSection.normalizedOrder(dropdownSectionOrder) }
+    }
+
+    /// Height of the dropdown panel in points before its content scrolls.
+    public var dropdownHeight: Double {
+        didSet { dropdownHeight = Self.clampedDropdownHeight(dropdownHeight) }
+    }
+
+    /// Panel heights the dropdown accepts; the panel still never exceeds the screen.
+    public static let dropdownHeightRange = 400.0...1000.0
+
+    /// The height the dropdown had before it became adjustable.
+    public static let defaultDropdownHeight = 560.0
+
     /// Creates Time settings.
     public init(
         menuBarTemplate: String = "{time}",
@@ -83,7 +129,9 @@ public struct TimeSettings: Codable, Equatable, Sendable {
         calendarEventCount: Int = 5,
         calendarWeekStart: CalendarWeekStart = .systemDefault,
         menuBarFontSize: Double? = nil,
-        showsNotifications: Bool = false
+        showsNotifications: Bool = false,
+        dropdownSectionOrder: [TimeDropdownSection] = TimeDropdownSection.allCases,
+        dropdownHeight: Double = TimeSettings.defaultDropdownHeight
     ) {
         self.menuBarTemplate = menuBarTemplate
         self.showsSeconds = showsSeconds
@@ -93,6 +141,8 @@ public struct TimeSettings: Codable, Equatable, Sendable {
         self.calendarWeekStart = calendarWeekStart
         self.menuBarFontSize = menuBarFontSize
         self.showsNotifications = showsNotifications
+        self.dropdownSectionOrder = dropdownSectionOrder
+        self.dropdownHeight = dropdownHeight
         normalize()
     }
 
@@ -105,6 +155,8 @@ public struct TimeSettings: Codable, Equatable, Sendable {
         case calendarWeekStart
         case menuBarFontSize
         case showsNotifications
+        case dropdownSectionOrder
+        case dropdownHeight
     }
 
     /// Decodes saved Time settings, defaulting older files to the system's week order, the global
@@ -120,6 +172,11 @@ public struct TimeSettings: Codable, Equatable, Sendable {
             try container.decodeIfPresent(CalendarWeekStart.self, forKey: .calendarWeekStart) ?? .systemDefault
         menuBarFontSize = try container.decodeIfPresent(Double.self, forKey: .menuBarFontSize)
         showsNotifications = try container.decodeIfPresent(Bool.self, forKey: .showsNotifications) ?? false
+        dropdownSectionOrder =
+            try container.decodeIfPresent([TimeDropdownSection].self, forKey: .dropdownSectionOrder)
+            ?? TimeDropdownSection.allCases
+        dropdownHeight =
+            try container.decodeIfPresent(Double.self, forKey: .dropdownHeight) ?? Self.defaultDropdownHeight
         normalize()
     }
 
@@ -131,6 +188,13 @@ public struct TimeSettings: Codable, Equatable, Sendable {
         }
         calendarEventCount = min(10, max(1, calendarEventCount))
         menuBarFontSize = menuBarFontSize.map(Self.clampedMenuBarFontSize)
+        dropdownSectionOrder = TimeDropdownSection.normalizedOrder(dropdownSectionOrder)
+        dropdownHeight = Self.clampedDropdownHeight(dropdownHeight)
+    }
+
+    /// Clamps a dropdown height to the accepted range.
+    public static func clampedDropdownHeight(_ value: Double) -> Double {
+        min(dropdownHeightRange.upperBound, max(dropdownHeightRange.lowerBound, value))
     }
 
     /// Clamps a clock text size to the range the fixed-height menu bar canvas can show.

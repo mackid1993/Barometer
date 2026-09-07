@@ -122,3 +122,13 @@ func activationHoverRegion() {
     #expect(region.contains(NSPoint(x: 1_000, y: 900)))
     #expect(!region.contains(NSPoint(x: 950, y: 900)))
 }
+
+@MainActor
+@Test("A user-sized panel may exceed the shared maximum but never the screen")
+func preferredPanelHeight() {
+    #expect(DropdownController.attachedPanelHeight(contentHeight: 900, availableHeight: 1_000) == 720)
+    #expect(DropdownController.attachedPanelHeight(contentHeight: 900, availableHeight: 1_000, maximumHeight: 960)
+        == 956)
+    #expect(DropdownController.attachedPanelHeight(contentHeight: 900, availableHeight: 800, maximumHeight: 960)
+        == 800)
+}

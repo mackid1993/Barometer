@@ -120,6 +120,14 @@ on, for your public IP address (ipify.org).
 
 Settings can be exported to a JSON file and imported on another Mac.
 
+## Credits
+
+- [Thaw](https://github.com/thaw-app/Thaw), the open source menu bar manager. Barometer is built to work alongside
+  it, its developers' work on macOS 27 menu bar internals informed Barometer's status item identity rules, and it is
+  the manager that hides the system clock when you replace it with Barometer's. Thaw is GPL licensed; Barometer
+  uses none of its code.
+- [Open-Meteo](https://open-meteo.com/) for weather data (CC BY 4.0).
+
 ## Questions
 
 **Why does Barometer reopen when I apply visibility changes?** Menu bar managers can lose an item's position if its

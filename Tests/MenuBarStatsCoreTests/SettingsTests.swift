@@ -19,6 +19,8 @@ struct SettingsTests {
         settings.time.calendarWeekStart = .monday
         settings.time.menuBarFontSize = 13.5
         settings.time.showsNotifications = true
+        settings.time.dropdownSectionOrder = [.notifications, .calendar]
+        settings.time.dropdownHeight = 720
 
         let data = try JSONEncoder().encode(settings)
         let decoded = try JSONDecoder().decode(AppSettings.self, from: data)
@@ -53,6 +55,8 @@ struct SettingsTests {
 
         #expect(migrated.time.menuBarFontSize == nil)
         #expect(migrated.time.showsNotifications == false)
+        #expect(migrated.time.dropdownSectionOrder == TimeDropdownSection.allCases)
+        #expect(migrated.time.dropdownHeight == TimeSettings.defaultDropdownHeight)
     }
 
     @Test("settings import rejects invalid values without changing current settings")

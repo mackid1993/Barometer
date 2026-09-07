@@ -20,7 +20,8 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     private var rootContent: AnyView
     private var hasHostedContent = false
     private var hostingView: NSHostingView<AnyView>?
-    private let contentHeight: CGFloat
+    private var contentHeight: CGFloat
+    private var maximumPanelHeight = BarometerDesign.maximumPanelHeight
     private let contentWidth: CGFloat
     private let menu: NSMenu
     private let contentItem = NSMenuItem()
@@ -126,7 +127,8 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         activationHoverRegion = Self.activationHoverRegion(at: NSEvent.mouseLocation, buttonSize: anchor.bounds.size)
         visibilityAction(true)
         let availableHeight = (anchor.window?.screen?.visibleFrame.height ?? 900) - 100
-        let height = Self.attachedPanelHeight(contentHeight: contentHeight, availableHeight: availableHeight)
+        let height = Self.attachedPanelHeight(
+            contentHeight: contentHeight, availableHeight: availableHeight, maximumHeight: maximumPanelHeight)
         let content = VStack(spacing: 0) {
             rootContent
             Divider()
@@ -167,14 +169,27 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     var hasAllocatedHostingView: Bool { hostingView != nil }
     var representedMenu: NSMenu { menu }
 
-    static func attachedPanelHeight(contentHeight: CGFloat, availableHeight: CGFloat) -> CGFloat {
-        min(BarometerDesign.maximumPanelHeight, contentHeight + 56, availableHeight)
+    static func attachedPanelHeight(
+        contentHeight: CGFloat,
+        availableHeight: CGFloat,
+        maximumHeight: CGFloat = BarometerDesign.maximumPanelHeight
+    ) -> CGFloat {
+        min(maximumHeight, contentHeight + 56, availableHeight)
     }
 
     static func activationHoverRegion(at point: NSPoint, buttonSize: NSSize) -> NSRect {
         let size = NSSize(width: max(36, buttonSize.width), height: max(24, buttonSize.height))
         return NSRect(x: point.x - size.width / 2, y: point.y - size.height / 2,
                       width: size.width, height: size.height)
+    }
+
+    /// Changes the height the next attached panel opens at, for dropdowns the user can size.
+    ///
+    /// A panel that is already open keeps its size until it reopens; menu bar items never resize live,
+    /// and neither does an open panel.
+    public func setPreferredPanelHeight(_ height: CGFloat) {
+        contentHeight = max(0, height - 56)
+        maximumPanelHeight = max(BarometerDesign.maximumPanelHeight, height)
     }
 
     /// Closes the open dropdown, whichever way it was presented.

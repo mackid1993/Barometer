@@ -499,6 +499,20 @@ banners, drop Apple's notification panel, and list the waiting notifications in 
 - Verify: fixture-database source tests, age formatter test, settings migration, the panel screens with a preset
   feed, the popover memory benchmark, full suite, signed local build.
 
+### P8-T83 Time dropdown order, height, and notification polish
+
+Requested by David on 2026-09-07 after using P8-T82.
+
+- Hide notifications from applications whose "Allow notifications" is off: the per-app `auth` mask in
+  `group.com.apple.usernoted.plist` is zero for them, and Notification Center no longer shows their records.
+- `TimeSettings.dropdownSectionOrder`: the dropdown's cards in the user's order, always a full permutation, with
+  move up and down controls in Time settings.
+- `TimeSettings.dropdownHeight` (400 to 1000 pt, default 560): `DropdownController.setPreferredPanelHeight`
+  applies it the next time the panel opens; the panel still never exceeds the screen.
+- Credit the Thaw developers in README and the About pane.
+- Verify: source, settings, and panel-height tests, the panel screens, the popover benchmark, full suite, signed
+  local build.
+
 ---
 
 ## Phase 9: After v1

@@ -66,12 +66,28 @@ public actor NotificationCenterSource {
     public static let defaultDatabaseURL = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Group Containers/group.com.apple.usernoted/db2/db")
 
+    /// Per-application notification settings, in the same group container.
+    ///
+    /// Each `apps` entry carries the bundle identifier and an `auth` mask that is zero when the
+    /// user turned "Allow notifications" off (or never allowed them). Notification Center keeps
+    /// such an application's old records in the database but no longer shows them, so the list
+    /// drops them too.
+    public static let defaultPreferencesURL = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent(
+            "Library/Group Containers/group.com.apple.usernoted/Library/Preferences/group.com.apple.usernoted.plist"
+        )
+
     private let databaseURL: URL
+    private let preferencesURL: URL?
     private let logger = Logger(subsystem: "com.barometer.app", category: "notifications")
 
-    /// Creates a source for the given database, the real one by default.
-    public init(databaseURL: URL = NotificationCenterSource.defaultDatabaseURL) {
+    /// Creates a source for the given database and settings file, the real ones by default.
+    public init(
+        databaseURL: URL = NotificationCenterSource.defaultDatabaseURL,
+        preferencesURL: URL? = NotificationCenterSource.defaultPreferencesURL
+    ) {
         self.databaseURL = databaseURL
+        self.preferencesURL = preferencesURL
     }
 
     /// Whether this account has a Notification Center database at all.
@@ -111,6 +127,7 @@ public actor NotificationCenterSource {
         defer { sqlite3_close(handle) }
 
         let shown = deliveredIdentifiers(handle)
+        let silenced = Self.silencedApplications(preferencesURL: preferencesURL)
         var notifications: [DeliveredNotification] = []
         let sql = """
             SELECT record.uuid, record.data, record.delivered_date, app.identifier
@@ -137,9 +154,30 @@ public actor NotificationCenterSource {
                       fallbackApplication: fallbackApplication
                   )
             else { continue }
+            guard !silenced.contains(notification.applicationIdentifier.lowercased()) else { continue }
             notifications.append(notification)
         }
         return NotificationSnapshot(access: .available, notifications: notifications)
+    }
+
+    /// Lowercased bundle identifiers whose notifications the user turned off.
+    static func silencedApplications(preferencesURL: URL?) -> Set<String> {
+        guard let preferencesURL,
+              let data = try? Data(contentsOf: preferencesURL),
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
+              let root = plist as? [String: Any],
+              let apps = root["apps"] as? [[String: Any]]
+        else {
+            return []
+        }
+        var silenced: Set<String> = []
+        for app in apps {
+            guard let identifier = app["bundle-id"] as? String, let auth = app["auth"] as? Int, auth == 0 else {
+                continue
+            }
+            silenced.insert(identifier.lowercased())
+        }
+        return silenced
     }
 
     // MARK: - Parsing

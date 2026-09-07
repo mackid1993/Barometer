@@ -4280,3 +4280,39 @@ Makefile's `DEVELOPER_DIR`; without it the debug modules are not found.
 
 `git diff --check`: clean. `make install` built the Developer ID signed bundle and relaunched it from
 `/Applications`. The Full Disk Access grant and the installed-app list are David's to check.
+
+## P8-T83 Time dropdown order, height, and notification polish
+
+Verified the per-app notification permission store: third-party settings live in
+`~/Library/Group Containers/group.com.apple.usernoted/Library/Preferences/group.com.apple.usernoted.plist`
+(`apps[]` with `bundle-id`, `flags`, `auth`), not in the legacy `com.apple.ncprefs.plist`, which only lists Apple
+entries here. Every application with "Allow notifications" off has `auth = 0` and lacks flag bit 23; every allowed
+one has a nonzero `auth`. `NotificationCenterSource` now drops records from `auth = 0` applications.
+
+Also verified that a Chromium download notification's user data carries the download URL and the extension
+origin, not the local file path, so a click cannot open the file: macOS hands a Notification Center click to the
+application through a private channel Barometer cannot reach. A click activates the application.
+
+Implemented the section order and the adjustable height (`DropdownController.setPreferredPanelHeight`, applied
+on the next open through the settings observation), the README credits section, and the tests.
+
+`make test` (exit 0):
+
+```text
+✔ Test run with 37 tests in 5 suites passed after 0.368 seconds.
+✔ Test run with 128 tests in 14 suites passed after 5.631 seconds.
+✔ Test run with 147 tests in 23 suites passed after 9.040 seconds.
+```
+
+Panel screens captured with `POPOVER_SNAPSHOT_DIRECTORY` before the final normalization fix (128 UI tests passed);
+popover benchmark `PASS: peak 47.2 MiB is below 128.0 MiB`. `git diff --check` clean. `make install` relaunched
+the signed build from `/Applications`.
+
+### System clock hider (not shipped)
+
+Attempted a clean-room synthesized Command-drag of the system clock, and of Barometer's own Weather item, from a
+trusted probe: HID tap, annotated session tap, and process-targeted posting, with and without the menu bar window
+stamped on the events (`CGSGetProcessMenuBarWindowList` reports every process's items inside the single window
+7 on macOS 27), with a real Command key press and click state set. Nothing moved while Thaw was running. Thaw's
+own mover relays each event through several event taps and a helper service; whether the plain drag works without
+Thaw's taps installed is untested, because Thaw must not be quit or launched by an agent here.

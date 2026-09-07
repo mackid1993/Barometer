@@ -43,6 +43,17 @@ struct TimeTests {
     }
 
     @Test
+    func dropdownOrderAndHeightNormalize() {
+        let order = TimeDropdownSection.normalizedOrder([.sun, .calendar, .sun])
+        #expect(order == [.sun, .calendar, .dayEvents, .notifications, .worldClocks, .upcomingEvents])
+        let settings = TimeSettings(dropdownSectionOrder: [.notifications], dropdownHeight: 5_000)
+        #expect(settings.dropdownSectionOrder.first == .notifications)
+        #expect(settings.dropdownSectionOrder.count == TimeDropdownSection.allCases.count)
+        #expect(settings.dropdownHeight == TimeSettings.dropdownHeightRange.upperBound)
+        #expect(TimeSettings().dropdownHeight == TimeSettings.defaultDropdownHeight)
+    }
+
+    @Test
     func clockTextSizeStaysInsideTheMenuBarRange() {
         #expect(TimeSettings(menuBarFontSize: 30).menuBarFontSize == TimeSettings.menuBarFontSizeRange.upperBound)
         #expect(TimeSettings(menuBarFontSize: 2).menuBarFontSize == TimeSettings.menuBarFontSizeRange.lowerBound)

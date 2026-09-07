@@ -78,6 +78,36 @@ struct TimeSettingsView: View {
                 }
                 calendarAuthorizationView
             }
+            Section("Dropdown") {
+                HStack {
+                    Text("Height")
+                    Slider(value: timeBinding(\.dropdownHeight), in: TimeSettings.dropdownHeightRange, step: 20)
+                    Text("\(Int(settingsStore.settings.time.dropdownHeight)) pt")
+                        .monospacedDigit()
+                        .frame(width: 56, alignment: .trailing)
+                }
+                Text("Applies the next time the dropdown opens. It never grows past the screen.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ForEach(Array(settingsStore.settings.time.dropdownSectionOrder.enumerated()), id: \.element) {
+                    index, section in
+                    HStack {
+                        Text(section.displayName)
+                        Spacer()
+                        Button { moveSection(at: index, by: -1) } label: { Image(systemName: "chevron.up") }
+                            .buttonStyle(.borderless)
+                            .disabled(index == 0)
+                            .accessibilityLabel("Move \(section.displayName) up")
+                        Button { moveSection(at: index, by: 1) } label: { Image(systemName: "chevron.down") }
+                            .buttonStyle(.borderless)
+                            .disabled(index == settingsStore.settings.time.dropdownSectionOrder.count - 1)
+                            .accessibilityLabel("Move \(section.displayName) down")
+                    }
+                }
+                Text("Sections appear in this order. A section with nothing to show stays hidden.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Section("Notifications") {
                 Toggle("Show notifications in the dropdown", isOn: timeBinding(\.showsNotifications))
                 Text("Lists the notifications waiting in macOS Notification Center, so a hidden system clock "
@@ -177,6 +207,16 @@ struct TimeSettingsView: View {
             template: menuBarConfiguration.template,
             showsSeconds: menuBarConfiguration.showsSeconds
         )
+    }
+
+    private func moveSection(at index: Int, by offset: Int) {
+        var settings = settingsStore.settings
+        var order = settings.time.dropdownSectionOrder
+        let destination = index + offset
+        guard order.indices.contains(index), order.indices.contains(destination) else { return }
+        order.swapAt(index, destination)
+        settings.time.dropdownSectionOrder = order
+        settingsStore.settings = settings
     }
 
     private func addTimeZone(_ identifier: String) {

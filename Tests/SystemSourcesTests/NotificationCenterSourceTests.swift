@@ -45,13 +45,25 @@ struct NotificationCenterSourceTests {
             delivered: [(1, shownUUID), (2, olderUUID)]
         )
 
-        let source = NotificationCenterSource(databaseURL: url)
+        let source = NotificationCenterSource(databaseURL: url, preferencesURL: nil)
         #expect(await source.isAvailable)
         #expect(NotificationCenterSource.accessState(databaseURL: url) == .available)
         let snapshot = await source.read()
 
         #expect(snapshot.access == .available)
         #expect(snapshot.notifications.map(\.title) == ["Sam", "Build finished"])
+
+        // An application whose notifications are turned off keeps its records, but the list hides them.
+        let preferences = directory.appendingPathComponent("prefs.plist")
+        let settings: [String: Any] = ["apps": [
+            ["bundle-id": "com.Example.App", "auth": 0, "flags": 268_443_662],
+            ["bundle-id": "com.apple.MobileSMS", "auth": 7, "flags": 41_951_246],
+        ]]
+        try PropertyListSerialization.data(fromPropertyList: settings, format: .binary, options: 0)
+            .write(to: preferences)
+        #expect(NotificationCenterSource.silencedApplications(preferencesURL: preferences) == ["com.example.app"])
+        let filtered = await NotificationCenterSource(databaseURL: url, preferencesURL: preferences).read()
+        #expect(filtered.notifications.map(\.title) == ["Sam"])
         let first = try #require(snapshot.notifications.first)
         #expect(first.applicationIdentifier == "com.apple.MobileSMS")
         #expect(first.body == "On my way")

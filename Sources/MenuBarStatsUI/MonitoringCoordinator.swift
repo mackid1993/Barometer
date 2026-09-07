@@ -411,6 +411,7 @@ public final class MonitoringCoordinator {
             settingsAction: { settingsAction(.time) },
             quitAction: quitAction
         )
+        applyTimeDropdownHeight()
         configureSensorWidgets()
         configureStacks()
         activateLaunchStatusItems()
@@ -794,6 +795,7 @@ public final class MonitoringCoordinator {
                 self.configureWeatherMonitoring()
                 self.configureCurrentLocation()
                 self.applyNetworkSettings()
+                self.applyTimeDropdownHeight()
                 self.configureSensorWidgets()
                 self.configureStacks()
                 self.observeSettings()
@@ -1133,6 +1135,11 @@ public final class MonitoringCoordinator {
         if provider.accessState == .authorized {
             refreshNetworkIdentity()
         }
+    }
+
+    /// Sizes the Time dropdown to the user's chosen height; it applies the next time the panel opens.
+    private func applyTimeDropdownHeight() {
+        timeDropdown?.setPreferredPanelHeight(CGFloat(settingsStore.settings.time.dropdownHeight))
     }
 
     /// Reads and follows the Notification Center list only while the Time dropdown is open.

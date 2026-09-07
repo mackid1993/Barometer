@@ -50,6 +50,17 @@ public struct TimeDropdownView: View {
                 accent: accent
             )
 
+            ForEach(settingsStore.settings.time.dropdownSectionOrder, id: \.self) { section in
+                sectionCard(section, now: now, accent: accent)
+            }
+        }
+    }
+
+    /// One card of the dropdown, or nothing when its content is turned off or empty.
+    @ViewBuilder
+    private func sectionCard(_ section: TimeDropdownSection, now: Date, accent: ModuleAccent) -> some View {
+        switch section {
+        case .calendar:
             GlassCard(tint: accent.primary) {
                 MonthCalendar(
                     date: now,
@@ -61,7 +72,7 @@ public struct TimeDropdownView: View {
                     }
                 )
             }
-
+        case .dayEvents:
             if settingsStore.settings.time.showsCalendarEvents,
                let selectedCalendarDate {
                 GlassCard(tint: accent.primary) {
@@ -82,13 +93,13 @@ public struct TimeDropdownView: View {
                     }
                 }
             }
-
+        case .notifications:
             if settingsStore.settings.time.showsNotifications, let notificationFeed {
                 GlassCard(tint: accent.primary) {
                     NotificationListView(feed: notificationFeed, accent: accent, now: now)
                 }
             }
-
+        case .worldClocks:
             if !settingsStore.settings.time.worldClockIdentifiers.isEmpty {
                 GlassCard {
                     VStack(alignment: .leading, spacing: 2) {
@@ -101,7 +112,7 @@ public struct TimeDropdownView: View {
                     }
                 }
             }
-
+        case .sun:
             if let daily = weatherStore.latestSample?.forecast.daily.first,
                 daily.sunrise != nil || daily.sunset != nil
             {
@@ -131,7 +142,7 @@ public struct TimeDropdownView: View {
                     }
                 }
             }
-
+        case .upcomingEvents:
             if settingsStore.settings.time.showsCalendarEvents {
                 GlassCard {
                     VStack(alignment: .leading, spacing: 4) {
