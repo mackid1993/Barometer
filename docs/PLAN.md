@@ -521,6 +521,19 @@ reimplemented. David Brustein is the sole copyright holder, so the change needs 
 - Replace `LICENSE` with the GPL-3.0 text; update README, AGENTS, DESIGN, and the About pane.
 - Any adapted Thaw or Ice code must keep its copyright notice and name its origin in a comment.
 
+### P8-T85 Hide the system clock
+
+Requested by David on 2026-09-07. Thaw's maintainers shared their `SystemClockCover.swift` and permitted its use;
+Barometer is GPL-3.0 since P8-T84. The design: nothing on macOS 27 removes the clock without removing other
+items, so the clock is covered by an opaque, click-absorbing panel above the menu bar on its Accessibility
+bounds, re-read once a second and on screen or Space changes. The covered strip keeps its width.
+
+- `TimeSettings.hidesSystemClock` and `systemClockCoverColor`; Time settings section with the Accessibility
+  status, prompt on turning the option on, and a color picker with an eyedropper for the fill.
+- `SystemClockCover` in `MenuBarStatsUI`, credited to Thaw in its header. The macOS 27 SDK removed
+  `CGDisplayCreateImage`, so the fill is the chosen color rather than a sample of the bar.
+- Verify: band and flip math tests, settings migration, full suite, signed local build, David's installed check.
+
 ---
 
 ## Phase 9: After v1

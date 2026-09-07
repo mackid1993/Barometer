@@ -389,9 +389,14 @@ universal performance guarantee.
 - Full Disk Access is approved for exactly one use: `NotificationCenterSource` reads Notification Center's SQLite
   database (read-only, only while the Time dropdown is open and the Time option is on) so the dropdown can list
   delivered notifications. macOS offers no prompt for Full Disk Access; Settings shows the status and opens the pane.
-  Never write to that database, never read other protected data, and never request Accessibility: opening
-  Notification Center by pressing the system clock through Accessibility was tried in P8-T80 and reverted because
-  the press stops working under a menu bar manager and David wants the system clock hidden, not pressed.
+  Never write to that database and never read other protected data.
+- Accessibility is approved for exactly one use: `SystemClockCover` reads the system clock's bounds from
+  MenuBarAgent's extras menu bar so it can cover the clock (the design Thaw uses, adapted from its
+  `SystemClockCover.swift` with the maintainers' permission under the GPL). The prompt appears only when "Hide the
+  system clock" is turned on. Do not press, move, or drive any other application through Accessibility: pressing
+  the clock (P8-T80) and synthesized Command-drags (P8-T83 notes) both failed on macOS 27.
+- Screen Recording is never requested. `SystemClockCover` samples the bar's color only when
+  `CGPreflightScreenCaptureAccess` already reports access.
 - `LSUIElement` keeps Barometer out of the Dock; it does not replace correct bundle identity or signing.
 - `make app` and `make install` use `CODESIGN_IDENTITY` when supplied, otherwise the first valid Developer ID
   Application identity in the login keychain, and fall back to an ad-hoc signature only when neither exists.

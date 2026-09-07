@@ -10,6 +10,7 @@ struct TimeSettingsView: View {
     let requestCalendarAccess: @MainActor () -> Void
     @State private var timeZoneSearch = ""
     @State private var notificationAccess = NotificationCenterSource.accessState()
+    @State private var accessibilityAllowed = SystemClockCover.isTrusted
 
     private var moduleSettings: ModuleSettings {
         settingsStore.settings.modules[.time] ?? ModuleSettings(mode: "custom", interval: 60)
@@ -78,6 +79,23 @@ struct TimeSettingsView: View {
                 }
                 calendarAuthorizationView
             }
+            Section("System Clock") {
+                Toggle("Hide the system clock", isOn: hideSystemClockBinding)
+                Text("Covers the macOS clock so this clock can take its place. The covered strip keeps its "
+                    + "width, and a click on it does nothing. Needs Accessibility access to find the clock.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if settingsStore.settings.time.hidesSystemClock {
+                    accessibilityStatusView
+                    ColorPicker("Cover color", selection: coverColorBinding, supportsOpacity: false)
+                    Text("Pick the menu bar's own color with the eyedropper so the cover disappears into the bar.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .task(id: settingsStore.settings.time.hidesSystemClock) {
+                await watchAccessibilityAccess()
+            }
             Section("Dropdown") {
                 HStack {
                     Text("Height")
@@ -140,6 +158,59 @@ struct TimeSettingsView: View {
                 .foregroundStyle(.secondary)
         case .unavailable:
             Text("Calendar events are unavailable.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var accessibilityStatusView: some View {
+        if accessibilityAllowed {
+            Label("Accessibility access allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+        } else {
+            Text("Barometer needs Accessibility access to find the system clock. Until it is allowed in "
+                + "System Settings > Privacy & Security > Accessibility, the clock stays visible.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Button("Open Accessibility Settings…") { SystemClockCover.openAccessibilitySettings() }
+        }
+    }
+
+    /// Turning the option on asks macOS for Accessibility access, which is a direct user action.
+    private var hideSystemClockBinding: Binding<Bool> {
+        Binding(
+            get: { settingsStore.settings.time.hidesSystemClock },
+            set: { isOn in
+                var settings = settingsStore.settings
+                settings.time.hidesSystemClock = isOn
+                settingsStore.settings = settings
+                if isOn { accessibilityAllowed = SystemClockCover.requestAccess() }
+            }
+        )
+    }
+
+    private var coverColorBinding: Binding<Color> {
+        Binding(
+            get: { Color(nsColor: NSColor(hex: settingsStore.settings.time.systemClockCoverColor) ?? .black) },
+            set: { color in
+                guard let components = NSColor(color).usingColorSpace(.sRGB) else { return }
+                var settings = settingsStore.settings
+                settings.time.systemClockCoverColor = String(
+                    format: "#%02X%02X%02X",
+                    Int(components.redComponent * 255),
+                    Int(components.greenComponent * 255),
+                    Int(components.blueComponent * 255)
+                )
+                settingsStore.settings = settings
+            }
+        )
+    }
+
+    /// Tracks the Accessibility grant while the option is on, so the pane updates as soon as it is allowed.
+    private func watchAccessibilityAccess() async {
+        accessibilityAllowed = SystemClockCover.isTrusted
+        guard settingsStore.settings.time.hidesSystemClock else { return }
+        while !Task.isCancelled, !accessibilityAllowed {
+            try? await Task.sleep(for: .seconds(1))
+            accessibilityAllowed = SystemClockCover.isTrusted
         }
     }
 

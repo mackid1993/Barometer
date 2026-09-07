@@ -113,6 +113,8 @@ on, for your public IP address (ipify.org).
 - **Location** is optional. It is requested only when you enable current-location weather. It also lets Barometer show
   the name of the Wi-Fi network you are on.
 - **Calendar** is optional. It is requested only when you press **Allow Calendar Access** in Time settings.
+- **Accessibility** is optional. It is requested only when you turn on **Hide the system clock** in Time settings,
+  and it is used for nothing but reading where the macOS clock sits so Barometer can cover it.
 - **Full Disk Access** is optional. It is needed only for **Show notifications in the dropdown** in Time settings,
   which lists the notifications waiting in Notification Center so you can hide the system clock. Barometer only
   reads that list; it never dismisses or changes a notification, and banners keep arriving as before.
@@ -127,8 +129,9 @@ Settings can be exported to a JSON file and imported on another Mac.
   [Toni Förster (stonerl)](https://github.com/stonerl) and [René (diazdesandi)](https://github.com/diazdesandi) and
   grown from [Jordan Baird](https://github.com/jordanbaird)'s Ice. Barometer is built to work alongside Thaw: its
   developers' work on macOS 27 menu bar internals informed Barometer's status item identity rules, and Thaw is the
-  manager that hides the system clock when you replace it with Barometer's. Thaw is GPL-3.0 licensed; Barometer
-  uses none of its code.
+  manager that hides the system clock when you replace it with Barometer's. Barometer's own "Hide the system clock" is
+  adapted from Thaw's `SystemClockCover.swift` by Toni Förster, with the maintainers' permission; both projects are
+  GPL-3.0.
 - [Open-Meteo](https://open-meteo.com/) for weather data (CC BY 4.0).
 
 ## Questions

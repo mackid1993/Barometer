@@ -61,6 +61,9 @@ public final class MonitoringCoordinator {
     /// Notification Center list shown by the Time dropdown while it is open.
     public let notificationFeed = NotificationFeed()
 
+    /// Covers the macOS clock when the Time setting asks for it.
+    public let systemClockCover = SystemClockCover()
+
     /// Redraw state for the Combined status item.
     public let combinedStore = ModuleStore<CombinedSample>(
         historyCapacity: GraphHistoryRetention.capacity(for: .combined)
@@ -412,6 +415,7 @@ public final class MonitoringCoordinator {
             quitAction: quitAction
         )
         applyTimeDropdownHeight()
+        applySystemClockCover()
         configureSensorWidgets()
         configureStacks()
         activateLaunchStatusItems()
@@ -796,6 +800,7 @@ public final class MonitoringCoordinator {
                 self.configureCurrentLocation()
                 self.applyNetworkSettings()
                 self.applyTimeDropdownHeight()
+                self.applySystemClockCover()
                 self.configureSensorWidgets()
                 self.configureStacks()
                 self.observeSettings()
@@ -1135,6 +1140,15 @@ public final class MonitoringCoordinator {
         if provider.accessState == .authorized {
             refreshNetworkIdentity()
         }
+    }
+
+    /// Covers or uncovers the macOS clock to match the Time setting.
+    private func applySystemClockCover() {
+        let time = settingsStore.settings.time
+        systemClockCover.apply(
+            isEnabled: time.hidesSystemClock,
+            fallbackColor: NSColor(hex: time.systemClockCoverColor) ?? .black
+        )
     }
 
     /// Sizes the Time dropdown to the user's chosen height; it applies the next time the panel opens.

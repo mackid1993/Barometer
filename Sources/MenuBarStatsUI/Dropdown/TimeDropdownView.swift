@@ -415,11 +415,7 @@ private struct NotificationRow: View {
 
 extension NotificationRow {
     fileprivate var helpText: String {
-        switch NotificationRouter.destination(for: notification) {
-        case let .revealFile(url): "Show \(url.lastPathComponent)"
-        case .activateApplication:
-            "Open \(NotificationApplicationResolver.name(bundleIdentifier: notification.applicationIdentifier))"
-        }
+        NotificationRouter.label(for: NotificationRouter.destination(for: notification))
     }
 }
 
@@ -459,10 +455,22 @@ enum NotificationApplicationResolver {
     private static var icons: [String: NSImage] = [:]
     private static var names: [String: String] = [:]
 
-    static func icon(bundleIdentifier: String) -> NSImage {
+    /// Daemon-sent system notifications carry a `_SYSTEM_CENTER_:` prefix; the icon and name come
+    /// from the real bundle behind it, or from System Settings when there is no application.
+    static func applicationBundleIdentifier(_ identifier: String) -> String {
+        let prefix = "_SYSTEM_CENTER_:"
+        return identifier.hasPrefix(prefix) ? String(identifier.dropFirst(prefix.count)) : identifier
+    }
+
+    static func icon(bundleIdentifier rawIdentifier: String) -> NSImage {
+        let bundleIdentifier = applicationBundleIdentifier(rawIdentifier)
         if let cached = icons[bundleIdentifier] { return cached }
         let icon = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier)
             .map { NSWorkspace.shared.icon(forFile: $0.path) }
+            ?? (bundleIdentifier.hasPrefix("com.apple.")
+                ? NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.systempreferences")
+                    .map { NSWorkspace.shared.icon(forFile: $0.path) }
+                : nil)
             ?? NSImage(systemSymbolName: "app.badge", accessibilityDescription: "Application")
             ?? NSImage()
         let thumbnail = ProcessIconResolver.thumbnail(icon, side: 18)
@@ -471,7 +479,8 @@ enum NotificationApplicationResolver {
         return thumbnail
     }
 
-    static func name(bundleIdentifier: String) -> String {
+    static func name(bundleIdentifier rawIdentifier: String) -> String {
+        let bundleIdentifier = applicationBundleIdentifier(rawIdentifier)
         if let cached = names[bundleIdentifier] { return cached }
         let name = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier)
             .map { FileManager.default.displayName(atPath: $0.path) }
@@ -481,8 +490,12 @@ enum NotificationApplicationResolver {
         return name
     }
 
-    static func open(bundleIdentifier: String) {
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else { return }
+    static func open(bundleIdentifier rawIdentifier: String) {
+        let bundleIdentifier = applicationBundleIdentifier(rawIdentifier)
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
+            if let settings = URL(string: "x-apple.systempreferences:") { NSWorkspace.shared.open(settings) }
+            return
+        }
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
     }
 }

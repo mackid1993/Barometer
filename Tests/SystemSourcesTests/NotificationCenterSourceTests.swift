@@ -76,6 +76,29 @@ struct NotificationCenterSourceTests {
         #expect(second.body == nil)
     }
 
+    @Test("records expose their deep link, category, and the URLs and paths in user data")
+    func routingFields() throws {
+        let archive: [String: Any] = [
+            "$archiver": "NSKeyedArchiver", "$version": 100_000, "$top": ["root": 1],
+            "$objects": [
+                "$null", "chrome-extension://abc/", "https://example.com/item/7", "/Users/me/Downloads/a.zip",
+                "plain text", "not a url", 42,
+            ],
+        ]
+        let userData = try PropertyListSerialization.data(fromPropertyList: archive, format: .binary, options: 0)
+        let record: [String: Any] = [
+            "app": "com.apple.MobileSMS", "date": 800_000_000.0,
+            "req": ["titl": "Sam", "body": "Hi", "durl": "messages://open?chat=1", "cate": "IncomingMessage",
+                    "usda": userData],
+        ]
+        let data = try PropertyListSerialization.data(fromPropertyList: record, format: .binary, options: 0)
+        let parsed = try #require(NotificationCenterSource.notification(
+            id: "A", data: data, deliveredDate: Date(), fallbackApplication: "x"))
+        #expect(parsed.deepLink == URL(string: "messages://open?chat=1"))
+        #expect(parsed.category == "IncomingMessage")
+        #expect(parsed.hints == ["https://example.com/item/7", "/Users/me/Downloads/a.zip"])
+    }
+
     // MARK: - Fixture
 
     private static func record(app: String?, title: String, body: String?, date: Date) -> Data {

@@ -21,6 +21,8 @@ struct SettingsTests {
         settings.time.showsNotifications = true
         settings.time.dropdownSectionOrder = [.notifications, .calendar]
         settings.time.dropdownHeight = 720
+        settings.time.hidesSystemClock = true
+        settings.time.systemClockCoverColor = "#1A1A1A"
 
         let data = try JSONEncoder().encode(settings)
         let decoded = try JSONDecoder().decode(AppSettings.self, from: data)
@@ -57,6 +59,8 @@ struct SettingsTests {
         #expect(migrated.time.showsNotifications == false)
         #expect(migrated.time.dropdownSectionOrder == TimeDropdownSection.allCases)
         #expect(migrated.time.dropdownHeight == TimeSettings.defaultDropdownHeight)
+        #expect(migrated.time.hidesSystemClock == false)
+        #expect(migrated.time.systemClockCoverColor == "#000000")
     }
 
     @Test("settings import rejects invalid values without changing current settings")

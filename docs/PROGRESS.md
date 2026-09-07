@@ -4344,3 +4344,42 @@ Covered by `NotificationRouterTests`.
 
 Checked Thaw's automation surface for the clock hider: the `thaw://` scheme offers section toggles, search, and
 allowlisted settings keys, but no per-item move or hide, so Barometer cannot ask Thaw to hide the clock.
+
+## P8-T83 follow-up: routing every notification where Notification Center would
+
+Surveyed the routing hints real records carry (field names and value shapes only): Apple's apps store the click
+destination in `req.durl` (Messages: a `messages://` link to the conversation); apps set `req.cate`
+(App Store: `asd-category-updates-available`); third-party user data (`req.usda`, an `NSKeyedArchiver` plist)
+carries web links and paths among its `$objects` strings. `DeliveredNotification` now exposes `deepLink`,
+`category`, and `hints` (URL- and path-shaped strings only, extension origins dropped).
+
+`NotificationRouter` goes, in order: the deep link; a finished download named in the text; an existing path or
+web link from the user data; a System Settings pane or app for Apple's system notifications (App Store updates,
+Software Update, Bluetooth and low battery, Time Machine, Screen Time, Wi-Fi, privacy prompts, profiles, Apple
+Account, displays, sharing, Passwords, Find My, Calendar, Reminders, FaceTime, Phone, Shazam); otherwise the
+sending application. `_SYSTEM_CENTER_:` daemon prefixes are stripped for icons, names, and activation, with
+System Settings as the fallback. Tooltips describe the destination. Tests cover precedence, on-disk spelling,
+path traversal, hint filtering, and the system map. `make test`: 38, 132, and 147 tests passed across the three
+bundles. `git diff --check` clean.
+
+## P8-T85 Hide the system clock
+
+David obtained Thaw's `SystemClockCover.swift` (Toni Förster, GPL-3.0) with the maintainers' permission. It settled
+the mechanism: Thaw does not move the clock. It covers it with an opaque, click-absorbing `NSPanel` at the menu
+bar's level plus one, on the clock's Accessibility bounds, filled with the bar's average color, because every
+mechanism that removes the clock on macOS 27 takes other system items with it. Every synthesized Command-drag
+recipe tried before this (HID, session, annotated, per-process posting, window stamping, suppression permit,
+with Thaw running and with Thaw quit) moved nothing, including Barometer's own items; that matches Thaw's own
+finding and is recorded here so nobody repeats it.
+
+Barometer's `SystemClockCover` follows that design, credited in its header: the clock is located through
+MenuBarAgent's extras menu bar (Accessibility, prompted only when the option is turned on), covered per display
+when its bounds sit in the menu bar band, re-read once a second and on screen and Space changes, and torn down
+when the option goes off or access is missing. The macOS 27 SDK marks `CGDisplayCreateImage` unavailable, so
+the fill is the color chosen in Time settings (eyedropper in the picker) rather than a sample; black by default,
+which is also Thaw's fallback. `TimeSettings.hidesSystemClock` and `systemClockCoverColor` decode as off and
+black from older files.
+
+`make test`: 38, 134, and 147 tests passed across the three bundles, including the band and flip math and the
+settings migration. `git diff --check` clean. Installed-app check is David's: turn on "Hide the system clock" in
+Time settings and allow Accessibility. Thaw was quit during the drag tests and needs relaunching by David.

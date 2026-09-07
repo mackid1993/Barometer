@@ -104,6 +104,15 @@ public struct TimeSettings: Codable, Equatable, Sendable {
     /// line of text and stays readable at sizes that would overflow denser items.
     public static let menuBarFontSizeRange = 9.0...14.0
 
+    /// Whether Barometer covers the macOS clock so this clock can stand in for it.
+    ///
+    /// The cover is an opaque panel over the system clock, so its width is not reclaimed. Locating
+    /// the clock needs Accessibility access.
+    public var hidesSystemClock: Bool
+
+    /// Hex color painted over the system clock when the menu bar's color cannot be sampled.
+    public var systemClockCoverColor: String
+
     /// Order of the dropdown's cards, top to bottom. Always a full permutation of every section.
     public var dropdownSectionOrder: [TimeDropdownSection] {
         didSet { dropdownSectionOrder = TimeDropdownSection.normalizedOrder(dropdownSectionOrder) }
@@ -131,7 +140,9 @@ public struct TimeSettings: Codable, Equatable, Sendable {
         menuBarFontSize: Double? = nil,
         showsNotifications: Bool = false,
         dropdownSectionOrder: [TimeDropdownSection] = TimeDropdownSection.allCases,
-        dropdownHeight: Double = TimeSettings.defaultDropdownHeight
+        dropdownHeight: Double = TimeSettings.defaultDropdownHeight,
+        hidesSystemClock: Bool = false,
+        systemClockCoverColor: String = "#000000"
     ) {
         self.menuBarTemplate = menuBarTemplate
         self.showsSeconds = showsSeconds
@@ -143,6 +154,8 @@ public struct TimeSettings: Codable, Equatable, Sendable {
         self.showsNotifications = showsNotifications
         self.dropdownSectionOrder = dropdownSectionOrder
         self.dropdownHeight = dropdownHeight
+        self.hidesSystemClock = hidesSystemClock
+        self.systemClockCoverColor = systemClockCoverColor
         normalize()
     }
 
@@ -157,6 +170,8 @@ public struct TimeSettings: Codable, Equatable, Sendable {
         case showsNotifications
         case dropdownSectionOrder
         case dropdownHeight
+        case hidesSystemClock
+        case systemClockCoverColor
     }
 
     /// Decodes saved Time settings, defaulting older files to the system's week order, the global
@@ -177,6 +192,9 @@ public struct TimeSettings: Codable, Equatable, Sendable {
             ?? TimeDropdownSection.allCases
         dropdownHeight =
             try container.decodeIfPresent(Double.self, forKey: .dropdownHeight) ?? Self.defaultDropdownHeight
+        hidesSystemClock = try container.decodeIfPresent(Bool.self, forKey: .hidesSystemClock) ?? false
+        systemClockCoverColor =
+            try container.decodeIfPresent(String.self, forKey: .systemClockCoverColor) ?? "#000000"
         normalize()
     }
 

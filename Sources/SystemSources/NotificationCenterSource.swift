@@ -21,6 +21,16 @@ public struct DeliveredNotification: Equatable, Sendable, Identifiable {
     public let body: String?
     public let date: Date
 
+    /// The destination Notification Center itself opens for a click, when the application supplied
+    /// one (Apple's apps do: Messages stores a `messages://` link to the conversation).
+    public let deepLink: URL?
+
+    /// The application's notification category, such as App Store's updates category.
+    public let category: String?
+
+    /// URLs and absolute paths found in the application's user data, most useful first.
+    public let hints: [String]
+
     /// Creates one delivered notification.
     public init(
         id: String,
@@ -28,7 +38,10 @@ public struct DeliveredNotification: Equatable, Sendable, Identifiable {
         title: String,
         subtitle: String?,
         body: String?,
-        date: Date
+        date: Date,
+        deepLink: URL? = nil,
+        category: String? = nil,
+        hints: [String] = []
     ) {
         self.id = id
         self.applicationIdentifier = applicationIdentifier
@@ -36,6 +49,9 @@ public struct DeliveredNotification: Equatable, Sendable, Identifiable {
         self.subtitle = subtitle
         self.body = body
         self.date = date
+        self.deepLink = deepLink
+        self.category = category
+        self.hints = hints
     }
 }
 
@@ -229,14 +245,46 @@ public actor NotificationCenterSource {
         guard title != nil || body != nil else { return nil }
         let application = Self.trimmed(record["app"]) ?? fallbackApplication
         let date = (record["date"] as? Double).map { Date(timeIntervalSinceReferenceDate: $0) } ?? deliveredDate
+        let deepLink = Self.trimmed(request["durl"]).flatMap(URL.init(string:))
         return DeliveredNotification(
             id: id,
             applicationIdentifier: application,
             title: title ?? body ?? "",
             subtitle: subtitle,
             body: title == nil ? nil : body,
-            date: date
+            date: date,
+            deepLink: deepLink,
+            category: Self.trimmed(request["cate"]),
+            hints: Self.hints(in: request["usda"] as? Data)
         )
+    }
+
+    /// URLs and absolute paths inside the application's archived user data.
+    ///
+    /// The data is an `NSKeyedArchiver` property list; its strings live in the `$objects` array.
+    /// Only strings shaped like a URL or an absolute path are kept, in document order, so nothing
+    /// else from the payload is retained. Browser-internal extension origins are dropped because
+    /// they cannot be opened.
+    static func hints(in data: Data?) -> [String] {
+        guard let data,
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
+              let archive = plist as? [String: Any],
+              let objects = archive["$objects"] as? [Any]
+        else {
+            return []
+        }
+        var hints: [String] = []
+        for case let string as String in objects {
+            let value = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            if value.hasPrefix("/") {
+                hints.append(value)
+            } else if let url = URL(string: value), let scheme = url.scheme, url.host != nil || scheme != "http",
+                      !value.contains(" "), scheme != "chrome-extension", scheme != "moz-extension"
+            {
+                hints.append(value)
+            }
+        }
+        return hints
     }
 
     private static func trimmed(_ value: Any?) -> String? {
