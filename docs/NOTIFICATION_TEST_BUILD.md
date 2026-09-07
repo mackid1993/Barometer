@@ -4,7 +4,9 @@ This is an experimental build for David's installed-app check. The latest change
 David requested no repeat test suite or memory verification. Earlier test results do not validate these changes.
 
 Current limits: exact native notification actions require an exposed individual Accessibility row, which may be
-a live banner even with the macOS Notification Center panel closed. One individual Discord dismissal is confirmed;
+a live banner even with the macOS Notification Center panel closed. The new build also retains and revalidates
+exact UUID-bound controls captured during list refreshes, without opening the native panel. One individual Discord
+dismissal is confirmed;
 automatic access to older notifications after their banners disappear remains unresolved. Global Now Playing metadata and album artwork
 now read successfully through the bundled media bridge. This is not yet a complete Notification Center replacement.
 

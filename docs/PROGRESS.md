@@ -4734,3 +4734,34 @@ local LLVM investigation. The successful individual AX Close and delayed native 
 
 Verification: make app passed release packaging (dist/p8-t88-title-scroll-build.log); replaced and relaunched
 /Applications/Barometer.app. No test suite or visual benchmark reruns, per David's waiver.
+
+
+### P8-T89: integrate retained native notification actions for David's test
+
+David explicitly requested trying the successfully observed native clear path in the application while research
+continues, and reaffirmed that Barometer must not open Notification Center. The successful probe already used
+the same NotificationCenterActionBridge as production. Added a concrete extension around that proven action:
+the feed primes native controls during normal open-list refreshes, and the bridge retains individually matched
+AXNotificationCenterBanner references by exact normalized UUID. No panel-opening, toggle, event injection,
+background notification database polling, helper, or additional permission is introduced.
+
+Current complete AX scans remain preferred. Retained controls are used only when no current individual match
+exists; ambiguous matches are rejected. Both live and retained rows must have exactly the requested normalized
+UUID set, the individual banner subrole, and a freshly advertised action before dispatch. Stale references are
+evicted. Cache entries expire after at most five minutes, reset on Notification Center PID changes, are pruned
+against the filtered feed, and are capped at 256 controls. This is only an action-cache bound, not a limit on
+the notification list. A dispatched action consumes its cached reference; accepted/failed actions are never
+automatically dispatched twice. The existing authoritative removal confirmation remains required.
+
+Static follow-up from the native agent: Notification Center clears/releases its visible banner object at banner
+expiration (local VA 0x1001DFA78). Retaining an AX proxy does not guarantee the remote object survives. The
+cache therefore may help during display/transition lifetime, but its five-minute upper bound is not a promise
+that old notifications become actionable. Local AX APIs permit InvalidUIElement and CannotComplete on retained
+references; these cases fail safely. Evidence: dist/notification-native-action-findings.txt. All experimental
+panel-opening and symbolic-event probes have stopped.
+
+Verification: make app passed release packaging twice (initial integration and final live-identity hardening;
+dist/p8-t89-native-action-cache-build.log and dist/p8-t89-native-action-final-build.log). Replaced and relaunched
+/Applications/Barometer.app for David's test. No full test, screenshot, or memory reruns per the standing waiver.
+David clarified there must be no confirmation friction: the implementation has no dialog or additional click;
+confirmation is an automatic background authoritative read after the one Clear action.

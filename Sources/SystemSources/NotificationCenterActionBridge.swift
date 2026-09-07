@@ -57,6 +57,12 @@ public actor NotificationCenterActionBridge {
         adapter.isAvailable
     }
 
+    /// Retains short-lived action handles for uniquely identified individual notification rows currently exposed by
+    /// Notification Center. This performs no action and drops handles absent from the authoritative notification set.
+    public func primeActions(for notifications: [DeliveredNotification]) {
+        adapter.primeActions(notificationIdentifiers: notifications.map(\.id))
+    }
+
     /// Performs an action on the one Notification Center row whose identifier exactly matches the notification UUID.
     public func perform(
         _ action: NotificationSystemAction,
@@ -97,7 +103,13 @@ protocol NotificationCenterActionAdapting {
         notificationIdentifier: String
     ) -> NotificationSystemActionResult
 
+    func primeActions(notificationIdentifiers: [String])
+
     func diagnostics(notificationIdentifiers: [String]) -> String
+}
+
+extension NotificationCenterActionAdapting {
+    func primeActions(notificationIdentifiers: [String]) {}
 }
 
 private final class NotificationCenterAccessibilityAdapter: NotificationCenterActionAdapting {
@@ -107,11 +119,51 @@ private final class NotificationCenterAccessibilityAdapter: NotificationCenterAc
     private static let maximumTreeDepth = 20
     private static let messageTimeout: Float = 0.15
     private static let totalTimeout: TimeInterval = 1
+    private static let cacheLifetime: TimeInterval = 5 * 60
+    private static let maximumCachedElementCount = 256
 
     private let logger = Logger(subsystem: "com.barometer.app", category: "notification-actions")
+    private var cachedElements: [String: CachedElement] = [:]
+    private var cachedProcessIdentifier: pid_t?
+
+    private struct CachedElement {
+        let element: AXUIElement
+        let capturedAt: TimeInterval
+    }
 
     var isAvailable: Bool {
         AXIsProcessTrusted() && Self.notificationCenterProcessIdentifier() != nil
+    }
+
+    func primeActions(notificationIdentifiers: [String]) {
+        let requestedIdentifiers = Set(
+            notificationIdentifiers.compactMap(NotificationAccessibilityIdentity.normalizedUUID)
+        )
+        let now = ProcessInfo.processInfo.systemUptime
+        guard AXIsProcessTrusted(), let processIdentifier = Self.notificationCenterProcessIdentifier() else {
+            cachedElements.removeAll()
+            cachedProcessIdentifier = nil
+            return
+        }
+        pruneCache(processIdentifier: processIdentifier, retaining: requestedIdentifiers, now: now)
+        guard !requestedIdentifiers.isEmpty else { return }
+
+        let application = AXUIElementCreateApplication(processIdentifier)
+        guard AXUIElementSetMessagingTimeout(application, Self.messageTimeout) == .success else { return }
+        let deadline = now + Self.totalTimeout
+        guard let windows = elementsAttribute(kAXWindowsAttribute, of: application, deadline: deadline) else { return }
+        let scan = scanElements(under: windows, deadline: deadline)
+        guard scan.completed else { return }
+        for identifier in requestedIdentifiers {
+            guard ProcessInfo.processInfo.systemUptime < deadline else { break }
+            let matches = matchingElementIndices(identifier, in: scan)
+            if matches.count > 1 {
+                cachedElements.removeValue(forKey: identifier)
+            } else if let index = matches.first {
+                cachedElements[identifier] = CachedElement(element: scan.elements[index], capturedAt: now)
+            }
+        }
+        trimCacheToLimit()
     }
 
     func perform(
@@ -126,10 +178,12 @@ private final class NotificationCenterAccessibilityAdapter: NotificationCenterAc
             logger.info("notification action unavailable because Notification Center is not running")
             return .unavailable
         }
-        guard NotificationAccessibilityIdentity.normalizedUUID(notificationIdentifier) != nil else {
+        guard let normalizedIdentifier = NotificationAccessibilityIdentity.normalizedUUID(notificationIdentifier) else {
             logger.error("notification action unavailable because the requested identifier is not a UUID")
             return .unavailable
         }
+        let now = ProcessInfo.processInfo.systemUptime
+        pruneCache(processIdentifier: processIdentifier, retaining: nil, now: now)
 
         let application = AXUIElementCreateApplication(processIdentifier)
         guard AXUIElementSetMessagingTimeout(application, Self.messageTimeout) == .success else {
@@ -146,11 +200,40 @@ private final class NotificationCenterAccessibilityAdapter: NotificationCenterAc
             logger.info("notification action unavailable because the Accessibility scan did not complete")
             return .unavailable
         }
-        guard let row = matchingElement(notificationIdentifier, in: scan) else {
+        let currentMatches = matchingElementIndices(normalizedIdentifier, in: scan)
+        guard currentMatches.count <= 1 else {
+            cachedElements.removeValue(forKey: normalizedIdentifier)
+            logger.info("notification action unavailable because multiple Accessibility rows matched the UUID")
+            return .unavailable
+        }
+        var usedCachedElement = false
+        var row = currentMatches.first.map { scan.elements[$0] }
+        if let row {
+            cachedElements[normalizedIdentifier] = CachedElement(element: row, capturedAt: now)
+            trimCacheToLimit()
+        }
+        if row == nil, let cached = cachedElements[normalizedIdentifier] {
+            guard cachedElementStillMatches(cached.element, identifier: normalizedIdentifier, deadline: deadline) else {
+                cachedElements.removeValue(forKey: normalizedIdentifier)
+                logger.info("notification action unavailable because the cached Accessibility row is stale")
+                return .unavailable
+            }
+            row = cached.element
+            usedCachedElement = true
+        }
+        guard let row else {
             logger.info("notification action unavailable because no unique Accessibility row matched the UUID")
             return .unavailable
         }
+        guard usedCachedElement || cachedElementStillMatches(
+            row, identifier: normalizedIdentifier, deadline: deadline
+        ) else {
+            cachedElements.removeValue(forKey: normalizedIdentifier)
+            logger.info("notification action unavailable because the live row identity changed or was conflicting")
+            return .unavailable
+        }
         guard let target = actionTarget(for: action, row: row, deadline: deadline) else {
+            cachedElements.removeValue(forKey: normalizedIdentifier)
             logger.info("notification action unavailable because the matched row did not advertise a safe action")
             return .unavailable
         }
@@ -159,16 +242,57 @@ private final class NotificationCenterAccessibilityAdapter: NotificationCenterAc
             return .unavailable
         }
         guard Self.setMessageTimeout(for: target.element) else {
+            cachedElements.removeValue(forKey: normalizedIdentifier)
             logger.info("notification action unavailable because the action timeout could not be set")
             return .unavailable
         }
 
+        // Reaching dispatch consumes the handle regardless of success so an accepted action is never repeated.
+        cachedElements.removeValue(forKey: normalizedIdentifier)
         let error = AXUIElementPerformAction(target.element, target.actionName as CFString)
         guard error == .success else {
             logger.error("notification Accessibility action failed with error \(error.rawValue, privacy: .public)")
             return .failed
         }
+        let rowSource = usedCachedElement ? "cached" : "live"
+        logger.info("notification Accessibility action accepted using \(rowSource, privacy: .public) native row")
         return .accepted
+    }
+
+    private func cachedElementStillMatches(
+        _ element: AXUIElement,
+        identifier: String,
+        deadline: TimeInterval
+    ) -> Bool {
+        guard ProcessInfo.processInfo.systemUptime < deadline,
+              Self.setMessageTimeout(for: element),
+              stringAttribute(kAXSubroleAttribute, of: element) == NotificationAccessibilityIdentity.bannerSubrole,
+              let identifiers = identifierValues(of: element, deadline: deadline)
+        else { return false }
+        let normalized = Set(identifiers.compactMap(NotificationAccessibilityIdentity.normalizedUUID))
+        return normalized == Set([identifier])
+    }
+
+    private func pruneCache(
+        processIdentifier: pid_t,
+        retaining identifiers: Set<String>?,
+        now: TimeInterval
+    ) {
+        if cachedProcessIdentifier != processIdentifier {
+            cachedElements.removeAll()
+            cachedProcessIdentifier = processIdentifier
+        }
+        cachedElements = cachedElements.filter { identifier, cached in
+            now - cached.capturedAt <= Self.cacheLifetime && (identifiers?.contains(identifier) ?? true)
+        }
+    }
+
+    private func trimCacheToLimit() {
+        guard cachedElements.count > Self.maximumCachedElementCount else { return }
+        let overflow = cachedElements.count - Self.maximumCachedElementCount
+        for identifier in cachedElements.sorted(by: { $0.value.capturedAt < $1.value.capturedAt }).prefix(overflow) {
+            cachedElements.removeValue(forKey: identifier.key)
+        }
     }
 
     func diagnostics(notificationIdentifiers: [String]) -> String {
@@ -301,6 +425,18 @@ private final class NotificationCenterAccessibilityAdapter: NotificationCenterAc
             return nil
         }
         return scan.elements[index]
+    }
+
+    private func matchingElementIndices(_ identifier: String, in scan: AccessibilityScan) -> [Int] {
+        guard scan.completed,
+              let requested = NotificationAccessibilityIdentity.normalizedUUID(identifier)
+        else { return [] }
+        return scan.identifierCandidates.indices.filter { index in
+            scan.subroles[index] == NotificationAccessibilityIdentity.bannerSubrole
+                && scan.identifierCandidates[index].contains {
+                    NotificationAccessibilityIdentity.normalizedUUID($0) == requested
+                }
+        }
     }
 
     private func identifierValues(of element: AXUIElement, deadline: TimeInterval) -> [String]? {
