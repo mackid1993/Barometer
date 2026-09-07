@@ -125,15 +125,18 @@ Settings can be exported to a JSON file and imported on another Mac.
 
 ## Credits
 
-- **[Thaw](https://github.com/thaw-app/Thaw)**, the open source menu bar manager from the
-  [thaw-app organization](https://github.com/thaw-app) on GitHub, maintained by
-  [Toni Förster (stonerl)](https://github.com/stonerl) and [René (diazdesandi)](https://github.com/diazdesandi) and
-  grown from [Jordan Baird](https://github.com/jordanbaird)'s Ice. Barometer is built to work alongside Thaw: its
-  developers' work on macOS 27 menu bar internals informed Barometer's status item identity rules, and Thaw is the
-  manager that hides the system clock when you replace it with Barometer's. Barometer's own "Hide the system clock" is
-  adapted from Thaw's `SystemClockHider.swift`, its assessment-mode assertion, and `SystemClockCover.swift` by Toni
-  Förster, with the maintainers' permission; both projects are GPL-3.0.
-- [Open-Meteo](https://open-meteo.com/) for weather data (CC BY 4.0).
+The same credits Barometer shows in its About pane:
+
+- **License:** [GNU General Public License, version 3](LICENSE).
+- **Weather data:** [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0).
+- **Hardware sources:** IOKit, IOReport, and SMC, read-only.
+- **Thaw:** [Toni Förster (stonerl)](https://github.com/stonerl) and [René (diazdesandi)](https://github.com/diazdesandi),
+  the maintainers of [Thaw](https://github.com/thaw-app/Thaw) at the [thaw-app organization](https://github.com/thaw-app)
+  on GitHub. Their work on macOS 27 menu bar internals informed Barometer's status item identity rules, and
+  Barometer's "Hide the system clock" is adapted from Thaw's `SystemClockHider.swift`, its assessment-mode
+  assertion, and `SystemClockCover.swift`, shared by the Thaw team and used with their permission. Both projects
+  are GPL-3.0.
+- **Thaw's origin:** [Ice](https://github.com/jordanbaird/Ice) by [Jordan Baird](https://github.com/jordanbaird).
 
 ## Questions
 
@@ -163,7 +166,7 @@ This builds the app, installs it in Applications, and launches it. Read [docs/DE
 macOS 27 field guide in [docs/AGENTS.md](docs/AGENTS.md) before changing anything that creates or sizes a menu bar
 item.
 
-## Credits
+## License
 
 Barometer is available under the [GNU General Public License, version 3](LICENSE). Copyright 2026 David Brustein. Weather data by [Open-Meteo.com](https://open-meteo.com/)
 (CC BY 4.0).

@@ -3,10 +3,12 @@ import MenuBarStatsCore
 import SwiftUI
 import SystemSources
 
-/// Compact popup controls for Barometer's independent Now Playing menu bar pill.
+/// Playback controls for Barometer's Now Playing menu bar pill, built from the same pieces as every
+/// other dropdown: a hero row with the artwork in the icon tile's place, and one glass card holding the
+/// gradient progress capsule and the transport buttons.
 public struct NowPlayingControlsView: View {
-    /// Preferred hosted popup size.
-    public static let contentSize = CGSize(width: 320, height: 108)
+    /// Fixed canvas of the hosted panel.
+    public static let contentSize = CGSize(width: 340, height: 196)
 
     private let controller: NowPlayingController
     private let settingsStore: SettingsStore?
@@ -26,100 +28,130 @@ public struct NowPlayingControlsView: View {
     public var body: some View {
         let accent = settingsStore.map { ModuleAccent.resolve($0.settings, module: .nowPlaying) }
             ?? ModuleAccent.signature(for: .nowPlaying)
-        GlassEffectContainer(spacing: 0) {
-            switch controller.state {
-            case .loading:
-                status("Reading Now Playing…", symbol: "waveform", accent: accent)
-            case .unavailable:
-                status("macOS supplied no playback information.", symbol: "exclamationmark.triangle", accent: accent)
-            case .idle:
-                status("Nothing is playing.", symbol: "play.slash", accent: accent)
-            case let .active(snapshot):
-                activeContent(snapshot, accent: accent)
+        GlassEffectContainer(spacing: BarometerDesign.sectionSpacing) {
+            VStack(alignment: .leading, spacing: BarometerDesign.sectionSpacing) {
+                switch controller.state {
+                case .loading:
+                    statusCard("Reading Now Playing…", symbol: "waveform", accent: accent)
+                case .unavailable:
+                    statusCard("macOS supplied no playback information.", symbol: "exclamationmark.triangle",
+                               accent: accent)
+                case .idle:
+                    statusCard("Nothing is playing.", symbol: "play.slash", accent: accent)
+                case let .active(snapshot):
+                    heroRow(snapshot, accent: accent)
+                    transportCard(snapshot, accent: accent)
+                }
             }
         }
-        .padding(8)
+        .padding(BarometerDesign.panelPadding)
         .frame(width: Self.contentSize.width, height: Self.contentSize.height, alignment: .topLeading)
         .onAppear { controller.setDropdownVisible(true) }
         .onDisappear { controller.setDropdownVisible(false) }
     }
 
-    @ViewBuilder
-    private func activeContent(_ snapshot: NowPlayingSnapshot, accent: ModuleAccent) -> some View {
-        GlassCard(tint: accent.primary, padding: 8) {
-            HStack(spacing: 10) {
-                artwork(snapshot.artworkData)
-                VStack(alignment: .leading, spacing: 4) {
-                    OverflowMarquee(text: snapshot.title)
-                        .id(snapshot.title)
-                        .help(snapshot.title)
-                    if let error = controller.commandError {
-                        Text(error)
-                            .font(.caption2)
-                            .foregroundStyle(.red)
-                            .lineLimit(1)
-                            .help(error)
-                    } else if let subtitle = snapshot.artist ?? snapshot.album {
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    HStack(spacing: 16) {
-                        commandButton(.previous, symbol: "backward.fill", label: "Previous")
-                        commandButton(
-                            .togglePlayPause,
-                            symbol: snapshot.playbackState == .playing ? "pause.fill" : "play.fill",
-                            label: snapshot.playbackState == .playing ? "Pause" : "Play"
-                        )
-                        commandButton(.next, symbol: "forward.fill", label: "Next")
-                        Spacer(minLength: 0)
-                        if snapshot.applicationBundleIdentifier != nil {
-                            Button { controller.openPlayer() } label: {
-                                Image(systemName: "arrow.up.forward.app")
-                            }
-                            .buttonStyle(.plain)
-                            .help("Open Player")
-                            .accessibilityLabel("Open Player")
-                        }
-                    }
-                    if let elapsed = snapshot.elapsedTime, let duration = snapshot.duration, duration > 0 {
-                        ProgressView(value: max(0, min(elapsed, duration)), total: duration)
-                            .progressViewStyle(.linear)
-                            .tint(accent.primary)
-                            .accessibilityLabel("Playback progress")
-                            .accessibilityValue("\(Int(elapsed)) of \(Int(duration)) seconds")
-                    }
+    // MARK: - Active
+
+    private func heroRow(_ snapshot: NowPlayingSnapshot, accent: ModuleAccent) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            artworkTile(snapshot.artworkData, accent: accent)
+            VStack(alignment: .leading, spacing: 2) {
+                OverflowMarquee(text: snapshot.title, font: BarometerDesign.titleFont, nsFont: Self.titleNSFont)
+                    .id(snapshot.title)
+                    .help(snapshot.title)
+                if let subtitle = Self.subtitle(for: snapshot) {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             }
-            .frame(height: Self.contentSize.height - 32)
+            Spacer(minLength: 8)
+            if let bundleIdentifier = snapshot.applicationBundleIdentifier {
+                Button { controller.openPlayer() } label: {
+                    Chip(
+                        text: NotificationApplicationResolver.name(bundleIdentifier: bundleIdentifier),
+                        color: accent.secondary,
+                        symbol: "arrow.up.forward.app"
+                    )
+                }
+                .buttonStyle(.plain)
+                .help("Open the player")
+                .accessibilityLabel("Open Player")
+            }
         }
+        .padding(.horizontal, 2)
     }
 
-    private func status(_ text: String, symbol: String, accent: ModuleAccent) -> some View {
+    private func transportCard(_ snapshot: NowPlayingSnapshot, accent: ModuleAccent) -> some View {
         GlassCard(tint: accent.primary) {
-            HStack(spacing: 10) {
-                Image(systemName: symbol)
-                    .foregroundStyle(accent.primary)
-                Text(text)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+            VStack(spacing: 12) {
+                if let elapsed = snapshot.elapsedTime, let duration = snapshot.duration, duration > 0 {
+                    let clamped = max(0, min(elapsed, duration))
+                    HStack(spacing: 8) {
+                        Text(Self.clock(clamped))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                        CapsuleBar(fraction: clamped / duration, gradient: accent.horizontalGradient,
+                                   glowColor: accent.primary)
+                        Text("-" + Self.clock(duration - clamped))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Playback progress")
+                    .accessibilityValue("\(Int(clamped)) of \(Int(duration)) seconds")
+                }
+                HStack(spacing: 18) {
+                    Spacer(minLength: 0)
+                    transportButton(.previous, symbol: "backward.fill", label: "Previous", accent: accent)
+                    transportButton(
+                        .togglePlayPause,
+                        symbol: snapshot.playbackState == .playing ? "pause.fill" : "play.fill",
+                        label: snapshot.playbackState == .playing ? "Pause" : "Play",
+                        accent: accent,
+                        prominent: true
+                    )
+                    transportButton(.next, symbol: "forward.fill", label: "Next", accent: accent)
+                    Spacer(minLength: 0)
+                }
+                if let error = controller.commandError {
+                    Text(error)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .help(error)
+                }
             }
         }
     }
 
-    private func commandButton(_ command: NowPlayingCommand, symbol: String, label: String) -> some View {
-        Button {
+    /// A round transport control; the play button carries the module gradient like an icon tile.
+    private func transportButton(
+        _ command: NowPlayingCommand, symbol: String, label: String, accent: ModuleAccent, prominent: Bool = false
+    ) -> some View {
+        let size: CGFloat = prominent ? 44 : 34
+        return Button {
             Task { await controller.perform(command) }
         } label: {
-            if controller.pendingCommand == command {
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(width: 18, height: 18)
-            } else {
-                Image(systemName: symbol)
-                    .frame(width: 18, height: 18)
+            ZStack {
+                if prominent {
+                    Circle().fill(accent.gradient)
+                    Circle().strokeBorder(.white.opacity(0.28), lineWidth: 0.75)
+                } else {
+                    Circle().fill(Color.primary.opacity(0.08))
+                }
+                if controller.pendingCommand == command {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: symbol)
+                        .font(.system(size: prominent ? 18 : 13, weight: .semibold))
+                        .foregroundStyle(prominent ? Color.white : Color.primary)
+                }
             }
+            .frame(width: size, height: size)
+            .shadow(color: prominent ? accent.primary.opacity(0.35) : .clear, radius: 8, y: 3)
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .disabled(controller.pendingCommand != nil)
@@ -128,23 +160,60 @@ public struct NowPlayingControlsView: View {
     }
 
     @ViewBuilder
-    private func artwork(_ data: Data?) -> some View {
+    private func artworkTile(_ data: Data?, accent: ModuleAccent) -> some View {
+        let size: CGFloat = 52
+        let shape = RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
         if let data, let image = NSImage(data: data) {
             Image(nsImage: image)
                 .resizable()
                 .interpolation(.high)
                 .scaledToFill()
-                .frame(width: 48, height: 48)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .frame(width: size, height: size)
+                .clipShape(shape)
+                .overlay(shape.strokeBorder(.white.opacity(0.28), lineWidth: 0.75))
+                .shadow(color: accent.primary.opacity(0.35), radius: 8, y: 3)
+                .accessibilityHidden(true)
         } else {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(.quaternary)
-                .frame(width: 48, height: 48)
-                .overlay(Image(systemName: "music.note").foregroundStyle(.secondary))
+            IconTile(symbolName: "music.note", accent: accent, size: size)
         }
+    }
+
+    // MARK: - Status
+
+    private func statusCard(_ text: String, symbol: String, accent: ModuleAccent) -> some View {
+        GlassCard(tint: accent.primary) {
+            HStack(spacing: 12) {
+                IconTile(symbolName: symbol, accent: accent)
+                Text(text)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    // MARK: - Formatting
+
+    private static let titleNSFont = NSFont.systemFont(ofSize: NSFont.preferredFont(forTextStyle: .title3).pointSize,
+                                                       weight: .semibold)
+
+    static func subtitle(for snapshot: NowPlayingSnapshot) -> String? {
+        let parts = [snapshot.artist, snapshot.album].compactMap { $0 }.filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " • ")
+    }
+
+    static func clock(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds.rounded(.down))
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        let secs = total % 60
+        return hours > 0
+            ? String(format: "%d:%02d:%02d", hours, minutes, secs)
+            : String(format: "%d:%02d", minutes, secs)
     }
 }
 
+/// One-line title that scrolls to reveal an overflowing string, then rests at each end.
 private struct OverflowMarquee: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var availableWidth: CGFloat = 0
@@ -152,12 +221,11 @@ private struct OverflowMarquee: View {
     @State private var animationTask: Task<Void, Never>?
 
     let text: String
+    let font: Font
+    let nsFont: NSFont
 
-    private let font = Font.system(size: 13, weight: .semibold)
     private var textWidth: CGFloat {
-        ceil((text as NSString).size(withAttributes: [
-            .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
-        ]).width)
+        ceil((text as NSString).size(withAttributes: [.font: nsFont]).width)
     }
 
     var body: some View {
@@ -177,7 +245,7 @@ private struct OverflowMarquee: View {
                     restartAnimation()
                 }
         }
-        .frame(height: 16)
+        .frame(height: ceil(nsFont.ascender - nsFont.descender) + 2)
         .clipped()
         .onChange(of: reduceMotion) { _, _ in restartAnimation() }
         .onDisappear {
