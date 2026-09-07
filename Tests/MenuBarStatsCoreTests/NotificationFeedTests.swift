@@ -149,6 +149,27 @@ struct NotificationFeedTests {
 
 
 
+
+    @Test("notification clearing is disabled and performs no native action")
+    func disabledDismissalHasNoSideEffects() async throws {
+        let (defaults, suiteName) = try Self.defaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let notification = Self.notification("A")
+        let actions = ActionRecorder(results: ["A": .accepted])
+        let emptySnapshot = Self.snapshot([])
+        let feed = NotificationFeed(
+            preset: Self.snapshot([notification], deliveredIdentifiers: ["A"]),
+            defaults: defaults,
+            readOperation: { emptySnapshot },
+            dismissOperation: { await actions.perform($0) }
+        )
+
+        await feed.dismiss(notification)
+
+        #expect(await actions.identifiers.isEmpty)
+        #expect(feed.notifications == [notification])
+        #expect(feed.dismissalError == "Open Notification Center to clear notifications.")
+    }
 }
 
 private actor ActionRecorder {
@@ -192,6 +213,7 @@ private actor SnapshotRecorder {
         readCount += 1
         return snapshots.removeFirst()
     }
+
 }
 
 private actor BlockingNotificationRead {
@@ -206,25 +228,6 @@ private actor BlockingNotificationRead {
     func finish(with snapshot: NotificationSnapshot) {
         continuation?.resume(returning: snapshot)
         continuation = nil
-    }
-    @Test("notification clearing is disabled and performs no native action")
-    func disabledDismissalHasNoSideEffects() async throws {
-        let (defaults, suiteName) = try Self.defaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let notification = Self.notification("A")
-        let actions = ActionRecorder(results: ["A": .accepted])
-        let feed = NotificationFeed(
-            preset: Self.snapshot([notification], deliveredIdentifiers: ["A"]),
-            defaults: defaults,
-            readOperation: { Self.snapshot([]) },
-            dismissOperation: { await actions.perform($0) }
-        )
-
-        await feed.dismiss(notification)
-
-        #expect(await actions.identifiers.isEmpty)
-        #expect(feed.notifications == [notification])
-        #expect(feed.dismissalError == "Open Notification Center to clear notifications.")
     }
 
 }
