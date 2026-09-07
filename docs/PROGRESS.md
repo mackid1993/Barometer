@@ -4116,3 +4116,28 @@ Verification:
   reserved width and draws strictly less ink than any condition.
 - `swift build -c release` completed and `git diff --check` reported no whitespace errors.
 - Installed with `make install`, not notarized, and captured on David's bar showing `–°` alone at launch.
+
+## P8-T75 Render the weather mark for the menu bar's real appearance, and let the user choose it
+
+The placeholder `–°` drew in dark gray on David's dark menu bar while every neighboring item was white. The weather
+mark is drawn in color rather than as a template, so its light or dark variant is chosen at render time. At the
+first render the status item has no window yet, and its button reports the application's appearance rather than the
+bar's, so the mark picked the light variant and, with no forecast to trigger another render, kept it.
+
+`StatusItemRendering.menuBarAppearance(of:)` now uses the application-wide appearance until the button has a window,
+and `StatusItemController` observes `effectiveAppearance` on both the application and the button, re-rendering on a
+change. Template images produce the same pixels either way, so the other modules are unaffected. The light-mode amber
+for sunny digits was also deepened from `D99A00` to `A86E00`; the paler tone was too weak for 12-point digits on a
+white bar.
+
+David also asked for an explicit Light, Dark, or System choice rather than only following the system.
+`AppSettings.interfaceAppearance` defaults to System, is applied to `NSApp.appearance` at launch and when changed,
+and appears as a segmented picker at the top of General's Appearance section. It governs the Settings window, the
+dropdown panels, and the appearance colored menu bar marks render for.
+
+Verification:
+
+- `make test` passed: 301 tests across three targets, including default, round trip, and absent-key decoding for the
+  new setting.
+- Installed with `make install`, not notarized, and captured on the dark bar: the mark now renders light like its
+  neighbors.

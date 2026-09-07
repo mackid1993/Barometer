@@ -221,13 +221,13 @@ struct WeatherBadgePalette {
         case nil:
             return WeatherBadgePalette(digits: moduleColor, cloud: cloud, mark: cloud)
         case .clearDay:
-            let amber = NSColor(hex: dark ? 0xFFC53D : 0xD99A00)
+            let amber = NSColor(hex: dark ? 0xFFC53D : 0xA86E00)
             return WeatherBadgePalette(digits: amber, cloud: cloud, mark: amber)
         case .clearNight:
             let night = NSColor(hex: dark ? 0xC7C4FF : 0x5B54C9)
             return WeatherBadgePalette(digits: night, cloud: cloud, mark: night)
         case .partlyCloudy:
-            return WeatherBadgePalette(digits: moduleColor, cloud: cloud, mark: NSColor(hex: dark ? 0xFFC53D : 0xD99A00))
+            return WeatherBadgePalette(digits: moduleColor, cloud: cloud, mark: NSColor(hex: dark ? 0xFFC53D : 0xA86E00))
         case .cloudy:
             return WeatherBadgePalette(digits: moduleColor, cloud: cloud, mark: cloud)
         case .rain:

@@ -17,6 +17,22 @@ public enum AppearancePreset: String, Codable, CaseIterable, Sendable {
     case custom
 }
 
+/// Whether Barometer follows the system's light or dark appearance or picks one.
+public enum InterfaceAppearance: String, Codable, CaseIterable, Sendable {
+    case system
+    case light
+    case dark
+
+    /// Menu-title-style name shown in Settings.
+    public var displayName: String {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
+}
+
 /// Supported menu bar type weights.
 public enum MenuBarFontWeight: String, Codable, CaseIterable, Sendable {
     case regular
@@ -269,6 +285,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Spacing AppKit reserves around each Barometer status item; applied at launch only.
     public var statusItemSpacing: StatusItemSpacing
 
+    /// Light, dark, or follow the system, for the whole app including colored menu bar marks.
+    public var interfaceAppearance: InterfaceAppearance
+
     /// Sizes each status item to its live reading instead of its widest reservation.
     ///
     /// This is the sanctioned exception to the one-assignment length rule in
@@ -343,6 +362,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         graphOpacity: Double = 0.85,
         fontWeight: MenuBarFontWeight = .medium,
         statusItemSpacing: StatusItemSpacing = .system,
+        interfaceAppearance: InterfaceAppearance = .system,
         usesLiveItemWidth: Bool = false,
         fontSize: Double = 12,
         modules: [ModuleID: ModuleSettings] = AppSettings.defaultModules,
@@ -375,6 +395,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.graphOpacity = graphOpacity
         self.fontWeight = fontWeight
         self.statusItemSpacing = statusItemSpacing
+        self.interfaceAppearance = interfaceAppearance
         self.usesLiveItemWidth = usesLiveItemWidth
         self.fontSize = Self.clampedMenuBarFontSize(fontSize)
         self.modules = modules
@@ -429,6 +450,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case graphOpacity
         case fontWeight
         case statusItemSpacing
+        case interfaceAppearance
         case usesLiveItemWidth
         case fontSize
         case modules
@@ -474,6 +496,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
             graphOpacity = 0.85
             fontWeight = .medium
             statusItemSpacing = .system
+            interfaceAppearance = .system
             usesLiveItemWidth = false
             fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? 12
             modules = Self.defaultModules
@@ -547,6 +570,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
                     StatusItemSpacing.self,
                     forKey: .statusItemSpacing
                 ) ?? .system
+            interfaceAppearance =
+                try container.decodeIfPresent(InterfaceAppearance.self, forKey: .interfaceAppearance) ?? .system
             usesLiveItemWidth = try container.decodeIfPresent(Bool.self, forKey: .usesLiveItemWidth) ?? false
             fontSize = try container.decode(Double.self, forKey: .fontSize)
             modules = try container.decode([ModuleID: ModuleSettings].self, forKey: .modules)

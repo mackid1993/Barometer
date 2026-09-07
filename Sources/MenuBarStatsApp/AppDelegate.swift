@@ -36,6 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         let settingsStore = SettingsStore()
+        settingsStore.settings.interfaceAppearance.apply()
         // AppKit reads the spacing defaults while creating each status item window, so the saved
         // preference must be in place before the registry exists. Spacing changes are staged in
         // Settings and take effect through the same Apply Changes reopen.

@@ -405,6 +405,20 @@ struct SettingsTests {
         #expect(settings.fontSize == 12)
     }
 
+    @Test("Interface appearance follows the system unless chosen, and survives a round trip")
+    func interfaceAppearanceDefaultsAndRoundTrips() throws {
+        #expect(AppSettings().interfaceAppearance == .system)
+        var settings = AppSettings()
+        settings.interfaceAppearance = .dark
+        let data = try JSONEncoder().encode(settings)
+        #expect(try JSONDecoder().decode(AppSettings.self, from: data).interfaceAppearance == .dark)
+
+        var document = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        document.removeValue(forKey: "interfaceAppearance")
+        let older = try JSONDecoder().decode(AppSettings.self, from: try JSONSerialization.data(withJSONObject: document))
+        #expect(older.interfaceAppearance == .system)
+    }
+
     @Test("removed density settings are ignored and no longer exported")
     func ignoresRemovedDensitySettings() throws {
         let data = Data(#"{"menuBarScale":0.75,"menuBarSpacing":3,"usesCompactLayout":true}"#.utf8)

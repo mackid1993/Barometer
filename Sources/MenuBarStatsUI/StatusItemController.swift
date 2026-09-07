@@ -48,6 +48,7 @@ public final class StatusItemController<Sample: HistoryProjecting> {
     private var appliedFontSize: Double?
     private var appliedImageFingerprint: Int?
     private var geometryLatch = StatusItemGeometryLatch()
+    private var appearanceObservations: [NSKeyValueObservation] = []
 
     /// Creates and begins observing a status item controller.
     public init(
@@ -66,8 +67,29 @@ public final class StatusItemController<Sample: HistoryProjecting> {
         accessibilityLabel = statusItem?.button?.accessibilityLabel() ?? module.displayName
         renderContent = render
         observeChanges()
+        observeAppearance()
         update()
     }
+
+    /// Re-renders when the menu bar switches between light and dark.
+    ///
+    /// Template images are tinted by the system at draw time and never need this. The weather mark
+    /// is drawn in color, so its light and dark variants are chosen at render time and must be
+    /// chosen again when the appearance changes, and once more when the item first attaches to its
+    /// window, since the button reports the application's appearance until then.
+    private func observeAppearance() {
+        appearanceObservations.append(
+            NSApp.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
+                Task { @MainActor in self?.update() }
+            })
+        if let button = statusItem?.button {
+            appearanceObservations.append(
+                button.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
+                    Task { @MainActor in self?.update() }
+                })
+        }
+    }
+
 
     /// Attaches a newly enabled permanent item without replacing an existing item.
     public func attach(statusItem: NSStatusItem) {
@@ -108,10 +130,7 @@ public final class StatusItemController<Sample: HistoryProjecting> {
             return
         }
 
-        let appearance: MenuBarAppearance =
-            button.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-            ? .dark
-            : .light
+        let appearance = StatusItemRendering.menuBarAppearance(of: button)
         let context = StatusItemRendering.context(
             button: button,
             appSettings: appSettings,
@@ -354,6 +373,16 @@ enum StatusItemRendering {
         max(widthStep, (natural / widthStep).rounded(.up) * widthStep)
     }
 
+    /// The appearance the menu bar will actually draw with.
+    ///
+    /// Before the status item has a window, its button inherits the application's appearance,
+    /// which for a menu bar app is a poor guide to the bar itself; the application-wide appearance
+    /// is the better signal until the window exists.
+    static func menuBarAppearance(of button: NSStatusBarButton) -> MenuBarAppearance {
+        let source: NSAppearance = button.window != nil ? button.effectiveAppearance : NSApp.effectiveAppearance
+        return source.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light
+    }
+
     static func geometry(appSettings: AppSettings) -> StatusItemGeometry {
         StatusItemGeometry(
             fontSize: appSettings.effectiveMenuBarFontSize,
@@ -415,7 +444,7 @@ enum StatusItemRendering {
     ) -> RenderContext {
         let resolvedAppearance =
             appearance
-            ?? (button.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light)
+            ?? menuBarAppearance(of: button)
         let geometry = geometry ?? self.geometry(appSettings: appSettings)
         return RenderContext(
             thickness: NSStatusBar.system.thickness,

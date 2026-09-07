@@ -38,6 +38,11 @@ less menu bar space.
 - If you have already tightened your menu bar spacing another way, this may not change anything.
 - Spacing takes effect when you select Apply Changes, which reopens Barometer.
 
+## Light, dark, or system
+
+- General now has an **Appearance** choice: Light, Dark, or System. It applies to the Settings window, the dropdowns,
+  and the colors of the weather mark, instead of only following macOS.
+
 ## Notes
 
 - Item width and Item spacing are off by default, and Text size starts where it always was. An existing installation

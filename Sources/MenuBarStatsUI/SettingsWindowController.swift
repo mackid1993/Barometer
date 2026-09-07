@@ -263,6 +263,12 @@ private struct GeneralSettingsView: View {
             }
 
             Section("Appearance") {
+                Picker("Appearance", selection: interfaceAppearanceBinding) {
+                    ForEach(InterfaceAppearance.allCases, id: \.self) { choice in
+                        Text(choice.displayName).tag(choice)
+                    }
+                }
+                .pickerStyle(.segmented)
                 Picker("Theme", selection: appearancePresetBinding) {
                     ForEach(AppearancePreset.allCases.filter { $0 != .custom }, id: \.self) { preset in
                         Text(preset.rawValue.capitalized).tag(preset)
@@ -440,6 +446,18 @@ private struct GeneralSettingsView: View {
                 var settings = settingsStore.settings
                 settings[keyPath: keyPath] = value
                 settingsStore.settings = settings
+            }
+        )
+    }
+
+    private var interfaceAppearanceBinding: Binding<InterfaceAppearance> {
+        Binding(
+            get: { settingsStore.settings.interfaceAppearance },
+            set: { choice in
+                var settings = settingsStore.settings
+                settings.interfaceAppearance = choice
+                settingsStore.settings = settings
+                choice.apply()
             }
         )
     }
