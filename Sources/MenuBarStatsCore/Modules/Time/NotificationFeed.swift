@@ -36,9 +36,11 @@ public final class NotificationFeed {
     @ObservationIgnored private var dismissalErrorIdentifiers: Set<String> = []
     @ObservationIgnored private var watchers: [DispatchSourceFileSystemObject] = []
     @ObservationIgnored private var pendingRefresh: Task<Void, Never>?
+    @ObservationIgnored private var reconciliationTask: Task<Void, Never>?
     @ObservationIgnored private var refreshGeneration = 0
     @ObservationIgnored private var dismissalGeneration = 0
     @ObservationIgnored private var watchGeneration = 0
+    @ObservationIgnored private var retainedNotifications: [DeliveredNotification] = []
 
     /// Debounce applied to bursts of database writes.
     static let refreshDelay: Duration = .milliseconds(250)
@@ -52,7 +54,7 @@ public final class NotificationFeed {
         self.source = source
         readOperation = { await source.read() }
         dismissOperation = { await actionBridge.perform(.dismiss, for: $0) }
-        dismissalVerificationDelays = [.milliseconds(150), .milliseconds(350)]
+        dismissalVerificationDelays = [.milliseconds(150), .milliseconds(350), .seconds(1)]
         Self.restoreLegacyDismissals(defaults: defaults)
     }
 
@@ -63,6 +65,7 @@ public final class NotificationFeed {
         dismissOperation = { _ in .unavailable }
         dismissalVerificationDelays = []
         snapshot = preset
+        retainedNotifications = preset.notifications
         Self.restoreLegacyDismissals(defaults: defaults)
     }
 
@@ -79,6 +82,7 @@ public final class NotificationFeed {
         self.dismissOperation = dismissOperation
         self.dismissalVerificationDelays = dismissalVerificationDelays
         snapshot = preset
+        retainedNotifications = preset.notifications
         Self.restoreLegacyDismissals(defaults: defaults)
     }
 
@@ -136,8 +140,9 @@ public final class NotificationFeed {
             }
         }
 
+        let attemptedIdentifiers = acceptedIdentifiers.union(failedIdentifiers)
         var verifiedRemaining = requestedIdentifiers
-        if !acceptedIdentifiers.isEmpty {
+        if !attemptedIdentifiers.isEmpty {
             var verifiedIdentifiers: Set<String>?
             for delay in [Duration.zero] + dismissalVerificationDelays {
                 if delay > .zero {
@@ -162,7 +167,7 @@ public final class NotificationFeed {
                 }
                 verifiedIdentifiers = deliveredIdentifiers
                 apply(refreshed, preserving: requestedIdentifiers)
-                if acceptedIdentifiers.isDisjoint(with: deliveredIdentifiers) { break }
+                if attemptedIdentifiers.isDisjoint(with: deliveredIdentifiers) { break }
             }
             if let verifiedIdentifiers {
                 verifiedRemaining = requestedIdentifiers.intersection(verifiedIdentifiers)
@@ -176,12 +181,13 @@ public final class NotificationFeed {
         }
 
         let acceptedButPresent = acceptedIdentifiers.intersection(verifiedRemaining)
-        let unresolved = acceptedButPresent.union(unavailableIdentifiers).union(failedIdentifiers)
+        let failedButPresent = failedIdentifiers.intersection(verifiedRemaining)
+        let unresolved = acceptedButPresent.union(unavailableIdentifiers).union(failedButPresent)
         dismissalErrorIdentifiers = unresolved
         if !unavailableIdentifiers.isEmpty {
             dismissalError = "Barometer cannot clear some notifications through macOS right now. "
                 + "Clear them in Notification Center."
-        } else if !failedIdentifiers.isEmpty {
+        } else if !failedButPresent.isEmpty {
             dismissalError = "macOS did not clear some notifications. Try again, or clear them in Notification Center."
         } else if !acceptedButPresent.isEmpty {
             dismissalError = "macOS accepted the clear request, but some notifications are still present. "
@@ -208,6 +214,15 @@ public final class NotificationFeed {
         let urls = await source.watchedURLs
         guard generation == watchGeneration, !Task.isCancelled else { return }
         isWatching = true
+        // Directory/WAL replacement and a temporarily missing file can leave a watcher stale.
+        // Reconcile while open even if a file-system event is missed.
+        reconciliationTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(3)) } catch { return }
+                guard let self, self.isWatching else { return }
+                await self.refresh()
+            }
+        }
         for url in urls {
             let descriptor = open(url.path, O_EVTONLY)
             guard descriptor >= 0 else { continue }
@@ -231,6 +246,8 @@ public final class NotificationFeed {
         isWatching = false
         pendingRefresh?.cancel()
         pendingRefresh = nil
+        reconciliationTask?.cancel()
+        reconciliationTask = nil
         refreshGeneration += 1
         // A clear the user already requested must finish even if the dropdown closes.
         // Only passive watching stops; the bounded confirmation reads belong to that action.
@@ -239,7 +256,27 @@ public final class NotificationFeed {
     }
 
     private func apply(_ refreshed: NotificationSnapshot, preserving identifiers: Set<String> = []) {
+        guard refreshed.access == .available else {
+            // Keep the last usable records in memory even when visibility settings cannot be
+            // read. Such rows stay hidden until the current exclusions can be checked again.
+            var known = Dictionary(retainedNotifications.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+            for notification in refreshed.notifications { known[notification.id] = notification }
+            retainedNotifications = known.values.sorted { $0.date > $1.date }
+            let retained = retainedNotifications.filter { notification in
+                guard let hidden = refreshed.hiddenApplicationIdentifiers else { return false }
+                return !hidden.contains(NotificationCenterSource.canonicalApplicationIdentifier(
+                    notification.applicationIdentifier))
+            }
+            snapshot = NotificationSnapshot(
+                access: refreshed.access,
+                notifications: retained,
+                readDate: snapshot?.readDate ?? refreshed.readDate,
+                unavailabilityReason: refreshed.unavailabilityReason,
+                hiddenApplicationIdentifiers: refreshed.hiddenApplicationIdentifiers)
+            return
+        }
         snapshot = snapshotByPreservingDeliveredRows(refreshed, identifiers: identifiers)
+        retainedNotifications = snapshot?.notifications ?? []
         guard refreshed.access == .available,
               let deliveredIdentifiers = refreshed.deliveredNotificationIdentifiers,
               dismissalErrorIdentifiers.isDisjoint(with: deliveredIdentifiers)
@@ -267,13 +304,16 @@ public final class NotificationFeed {
             identifiers.contains($0.id)
                 && deliveredIdentifiers.contains($0.id)
                 && !refreshedIdentifiers.contains($0.id)
+                && !(refreshed.hiddenApplicationIdentifiers ?? []).contains(
+                    NotificationCenterSource.canonicalApplicationIdentifier($0.applicationIdentifier))
         }
         guard !retained.isEmpty else { return refreshed }
         return NotificationSnapshot(
             access: refreshed.access,
             notifications: refreshed.notifications + retained,
             readDate: refreshed.readDate,
-            deliveredNotificationIdentifiers: deliveredIdentifiers
+            deliveredNotificationIdentifiers: deliveredIdentifiers,
+            hiddenApplicationIdentifiers: refreshed.hiddenApplicationIdentifiers
         )
     }
 

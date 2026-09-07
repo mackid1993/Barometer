@@ -53,6 +53,19 @@ struct TimeTests {
         #expect(TimeSettings().dropdownHeight == TimeSettings.defaultDropdownHeight)
     }
 
+    @Test("Now Playing visibility defaults safely and survives persistence")
+    func nowPlayingVisibilityPersistence() throws {
+        #expect(TimeSettings().nowPlayingVisibility == .whenPlaying)
+
+        let encoded = try JSONEncoder().encode(TimeSettings(nowPlayingVisibility: .always))
+        #expect(try JSONDecoder().decode(TimeSettings.self, from: encoded).nowPlayingVisibility == .always)
+
+        var olderDocument = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        olderDocument.removeValue(forKey: "nowPlayingVisibility")
+        let olderData = try JSONSerialization.data(withJSONObject: olderDocument)
+        #expect(try JSONDecoder().decode(TimeSettings.self, from: olderData).nowPlayingVisibility == .whenPlaying)
+    }
+
     @Test
     func clockTextSizeStaysInsideTheMenuBarRange() {
         #expect(TimeSettings(menuBarFontSize: 30).menuBarFontSize == TimeSettings.menuBarFontSizeRange.upperBound)

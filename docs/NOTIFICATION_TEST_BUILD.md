@@ -14,6 +14,10 @@ menu bar placement. Do not test menu bar behavior from the repository's `dist` d
 In Time settings, turn on the notifications list. Barometer needs Full Disk Access to read it and existing
 Accessibility access to attempt the native actions. Enable Focus and Enable Now Playing are separate switches,
 off by default; select Apply Changes after changing them. They do not change the Hide the system clock setting.
+Focus appears only while the reported system Focus state is active. Now Playing defaults to When Playing;
+select Always to retain it during pauses or unavailable playback information. These choices do not repair denied
+system API access. Notification settings now shows the Accessibility grant and offers an explicit Allow
+Accessibility button. Full Disk Access reads the list; Accessibility permits native action attempts.
 
 ## Check notifications
 
@@ -34,6 +38,12 @@ identifiers. The bridge refuses missing, ambiguous, incomplete, and timed-out ma
 fall back to a known link, Downloads item, system destination, or app; a failed native attempt does not retry via
 another destination. A failed clear keeps the notification and reports an error. There is no local-hide fallback
 and no direct database deletion.
+
+The follow-up reader accepts empty SQL NULL application lists and retains rows with unreadable previews. Failed
+reads keep the last usable records and retry while open. macOS-disabled applications remain excluded from retained
+rows too. If visibility preferences cannot be checked, cached records stay in memory but are withheld from display
+until exclusions can be checked again. A successful complete read reconciles removals. The installed failure log
+identified delivered-list validation, but the live NULL/type hypothesis still needs this corrected build's result.
 
 Report the application, expected destination, actual destination, and any visible error. No notification text or
 private message content is needed.

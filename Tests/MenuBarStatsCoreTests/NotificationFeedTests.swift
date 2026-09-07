@@ -17,12 +17,14 @@ struct NotificationFeedTests {
     private static func snapshot(
         _ notifications: [DeliveredNotification],
         deliveredIdentifiers: Set<String>? = nil,
-        access: NotificationAccessState = .available
+        access: NotificationAccessState = .available,
+        hiddenApplicationIdentifiers: Set<String>? = []
     ) -> NotificationSnapshot {
         NotificationSnapshot(
             access: access,
             notifications: notifications,
-            deliveredNotificationIdentifiers: deliveredIdentifiers
+            deliveredNotificationIdentifiers: deliveredIdentifiers,
+            hiddenApplicationIdentifiers: hiddenApplicationIdentifiers
         )
     }
 
@@ -175,6 +177,92 @@ struct NotificationFeedTests {
         #expect(await reads.readCount == 0)
     }
 
+    @Test("a failed dispatch clears when the authoritative list proves the notification is absent")
+    func verifiesFailedDispatchThatCompleted() async throws {
+        let (defaults, suiteName) = try Self.defaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let first = Self.notification("A")
+        let actions = ActionRecorder(results: ["A": .failed])
+        let reads = SnapshotRecorder(snapshots: [Self.snapshot([], deliveredIdentifiers: [])])
+        let feed = NotificationFeed(
+            preset: Self.snapshot([first], deliveredIdentifiers: ["A"]),
+            defaults: defaults,
+            readOperation: { await reads.read() },
+            dismissOperation: { await actions.perform($0) }
+        )
+
+        await feed.dismiss(first)
+
+        #expect(await reads.readCount == 1)
+        #expect(feed.notifications.isEmpty)
+        #expect(feed.dismissalError == nil)
+        #expect(feed.pendingDismissalIdentifiers.isEmpty)
+    }
+
+    @Test("a failed passive read retains the last successful notification list")
+    func passiveReadFailureRetainsList() async throws {
+        let (defaults, suiteName) = try Self.defaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let first = Self.notification("A")
+        let initial = Self.snapshot([first], deliveredIdentifiers: ["A"])
+        let reads = SnapshotRecorder(snapshots: [Self.snapshot(
+            [], access: .unavailable, hiddenApplicationIdentifiers: []
+        )])
+        let feed = NotificationFeed(
+            preset: initial,
+            defaults: defaults,
+            readOperation: { await reads.read() },
+            dismissOperation: { _ in .unavailable }
+        )
+
+        await feed.refresh()
+
+        #expect(feed.notifications == [first])
+        #expect(feed.snapshot?.access == .unavailable)
+    }
+
+    @Test("unknown visibility hides cached rows without discarding them")
+    func unknownVisibilityRetainsPrivateCache() async throws {
+        let (defaults, suiteName) = try Self.defaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let first = Self.notification("A")
+        let reads = SnapshotRecorder(snapshots: [
+            Self.snapshot([], access: .unavailable, hiddenApplicationIdentifiers: nil),
+            Self.snapshot([], access: .unavailable, hiddenApplicationIdentifiers: []),
+            Self.snapshot([], deliveredIdentifiers: [])
+        ])
+        let feed = NotificationFeed(preset: Self.snapshot([first], deliveredIdentifiers: ["A"]),
+            defaults: defaults, readOperation: { await reads.read() }, dismissOperation: { _ in .unavailable })
+        await feed.refresh()
+        #expect(feed.notifications.isEmpty)
+        await feed.refresh()
+        #expect(feed.notifications == [first])
+        await feed.refresh()
+        #expect(feed.notifications.isEmpty)
+    }
+
+    @Test("a failed read still excludes applications macOS newly marks hidden")
+    func failedReadAppliesHiddenApplications() async throws {
+        let (defaults, suiteName) = try Self.defaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let first = Self.notification("A")
+        let initial = Self.snapshot([first], deliveredIdentifiers: ["A"])
+        let reads = SnapshotRecorder(snapshots: [Self.snapshot(
+            [], access: .unavailable, hiddenApplicationIdentifiers: ["com.example.app"]
+        )])
+        let feed = NotificationFeed(
+            preset: initial,
+            defaults: defaults,
+            readOperation: { await reads.read() },
+            dismissOperation: { _ in .unavailable }
+        )
+
+        await feed.refresh()
+
+        #expect(feed.notifications.isEmpty)
+        #expect(feed.snapshot?.access == .unavailable)
+    }
+
     @Test("clear shown dispatches only supplied rows and retains partial failures")
     func clearsOnlySuppliedRows() async throws {
         let (defaults, suiteName) = try Self.defaults()
@@ -258,7 +346,10 @@ struct NotificationFeedTests {
         let first = Self.notification("A")
         let initial = Self.snapshot([first], deliveredIdentifiers: ["A"])
         let actions = ActionRecorder(results: ["A": .failed])
-        let reads = SnapshotRecorder(snapshots: [Self.snapshot([], deliveredIdentifiers: [])])
+        let reads = SnapshotRecorder(snapshots: [
+            Self.snapshot([first], deliveredIdentifiers: ["A"]),
+            Self.snapshot([], deliveredIdentifiers: []),
+        ])
         let feed = NotificationFeed(
             preset: initial,
             defaults: defaults,

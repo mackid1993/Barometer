@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import Foundation
 import MenuBarStatsCore
 import SwiftUI
@@ -132,40 +133,51 @@ struct NotificationListView: View {
                 .foregroundStyle(accent.primary)
                 .padding(.horizontal, 4)
         case .unavailable?:
-            Text("Notifications are unavailable.")
+            Text(feed.snapshot?.unavailabilityReason ?? "Notifications are unavailable.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
         case .available?:
-            let groups = NotificationGrouping.groups(feed.notifications)
-            if groups.isEmpty {
-                Text("No notifications")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 4)
-            } else {
-                LazyVStack(alignment: .leading, spacing: 6) {
-                    ForEach(groups) { group in
-                        NotificationGroupView(
-                            group: group,
-                            accent: accent,
-                            now: now,
-                            isExpanded: expandedGroupIdentifiers.contains(group.id),
-                            pendingIdentifiers: feed.pendingDismissalIdentifiers,
-                            isDismissing: feed.isDismissing,
-                            toggleExpansion: { toggleExpansion(group.id) },
-                            activate: activate,
-                            dismiss: { notification in Task { await feed.dismiss(notification) } },
-                            dismissGroup: {
-                                let snapshot = group.notifications
-                                Task { await feed.dismiss(snapshot) }
-                            }
-                        )
-                    }
+            notificationRows
+        }
+        if feed.snapshot?.access != .available, !feed.notifications.isEmpty {
+            Text("Showing the last available notifications. Retrying while open.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            notificationRows
+        }
+    }
+
+    @ViewBuilder
+    private var notificationRows: some View {
+        let groups = NotificationGrouping.groups(feed.notifications)
+        if groups.isEmpty {
+            Text("No notifications")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+        } else {
+            LazyVStack(alignment: .leading, spacing: 6) {
+                ForEach(groups) { group in
+                    NotificationGroupView(
+                        group: group,
+                        accent: accent,
+                        now: now,
+                        isExpanded: expandedGroupIdentifiers.contains(group.id),
+                        pendingIdentifiers: feed.pendingDismissalIdentifiers,
+                        isDismissing: feed.isDismissing,
+                        toggleExpansion: { toggleExpansion(group.id) },
+                        activate: activate,
+                        dismiss: { notification in Task { await feed.dismiss(notification) } },
+                        dismissGroup: {
+                            let snapshot = group.notifications
+                            Task { await feed.dismiss(snapshot) }
+                        }
+                    )
                 }
-                .onChange(of: Set(groups.map(\.id))) { _, currentIdentifiers in
-                    expandedGroupIdentifiers.formIntersection(currentIdentifiers)
-                }
+            }
+            .onChange(of: Set(groups.map(\.id))) { _, currentIdentifiers in
+                expandedGroupIdentifiers.formIntersection(currentIdentifiers)
             }
         }
     }
@@ -398,6 +410,19 @@ enum NotificationAgeFormatter {
 
 /// Opens the Full Disk Access pane of System Settings.
 enum NotificationAccessSettings {
+    @MainActor
+    static var accessibilityAllowed: Bool { AXIsProcessTrusted() }
+
+    /// Requests the existing Accessibility category only after the user chooses this action.
+    @MainActor
+    static func requestAccessibility() {
+        NSApp.activate(ignoringOtherApps: true)
+        AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+        else { return }
+        NSWorkspace.shared.open(url)
+    }
+
     @MainActor
     static func open() {
         guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") else {

@@ -27,6 +27,7 @@ final class SystemControlsCoordinator {
         focusItem = StatusItemController(
             module: .focus, statusItem: registry.item(for: .focus), store: focusStore,
             settingsStore: settingsStore,
+            isPresented: { sample, _, _ in Self.shouldPresentFocus(sample) },
             render: { sample, _, _, context in
                 SystemControlPillRenderer.render(sample ?? Self.focusUnavailable, in: context)
             }
@@ -34,6 +35,9 @@ final class SystemControlsCoordinator {
         nowPlayingItem = StatusItemController(
             module: .nowPlaying, statusItem: registry.item(for: .nowPlaying), store: nowPlayingStore,
             settingsStore: settingsStore,
+            isPresented: { sample, settings, _ in
+                Self.shouldPresentNowPlaying(sample, visibility: settings.time.nowPlayingVisibility)
+            },
             render: { sample, _, _, context in
                 SystemControlPillRenderer.render(sample ?? Self.mediaUnavailable, in: context)
             }
@@ -108,6 +112,17 @@ final class SystemControlsCoordinator {
         symbolName: "moon", accessibilityValue: "Focus unavailable", isActive: false)
     private static let mediaUnavailable = SystemControlSample(
         symbolName: "play.slash", accessibilityValue: "Now Playing unavailable", isActive: false)
+
+    static func shouldPresentFocus(_ sample: SystemControlSample?) -> Bool {
+        sample?.isActive == true
+    }
+
+    static func shouldPresentNowPlaying(
+        _ sample: SystemControlSample?,
+        visibility: NowPlayingVisibility
+    ) -> Bool {
+        visibility == .always || sample?.isActive == true
+    }
 
     private func updateSamples() {
         let focusSample: SystemControlSample

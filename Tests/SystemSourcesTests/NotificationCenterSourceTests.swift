@@ -132,6 +132,45 @@ struct NotificationCenterSourceTests {
         #expect(malformed.deliveredNotificationIdentifiers == nil)
     }
 
+    @Test("nullable empty application lists and unreadable previews do not drop delivered notifications")
+    func emptyApplicationAndUnavailablePreview() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BarometerNotifications-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("db")
+        let uuid = Data((0..<16).map { UInt8($0) })
+        let date = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        try Self.writeFixture(at: url, apps: [(1, "com.example.app"), (2, "com.example.empty")],
+            records: [(1, uuid, Data([0]), date)], scheduled: [], delivered: [(1, uuid)])
+        var handle: OpaquePointer?
+        try #require(sqlite3_open(url.path, &handle) == SQLITE_OK)
+        defer { sqlite3_close(handle) }
+        try #require(sqlite3_exec(handle, "INSERT INTO delivered (app_id, list) VALUES (2, NULL)",
+                                 nil, nil, nil) == SQLITE_OK)
+        let snapshot = await NotificationCenterSource(databaseURL: url, preferencesURL: nil).read()
+        #expect(snapshot.access == .available)
+        #expect(snapshot.notifications.count == 1)
+        #expect(snapshot.notifications.first?.title == "")
+        #expect(snapshot.notifications.first?.applicationIdentifier == "com.example.app")
+        #expect(snapshot.deliveredNotificationIdentifiers == ["000102030405060708090A0B0C0D0E0F"])
+    }
+
+    @Test("unreadable macOS visibility preferences never expose excluded applications")
+    func unavailableVisibilityPreferences() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BarometerNotifications-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("db")
+        try Self.writeFixture(at: url, apps: [], records: [], scheduled: [], delivered: [])
+        let snapshot = await NotificationCenterSource(databaseURL: url,
+            preferencesURL: directory.appendingPathComponent("missing.plist")).read()
+        #expect(snapshot.access == .unavailable)
+        #expect(snapshot.hiddenApplicationIdentifiers == nil)
+        #expect(snapshot.notifications.isEmpty)
+    }
+
     @Test("records expose their deep link, category, and the URLs and paths in user data")
     func routingFields() throws {
         let archive: [String: Any] = [

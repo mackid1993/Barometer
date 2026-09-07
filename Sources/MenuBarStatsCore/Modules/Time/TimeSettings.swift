@@ -70,6 +70,20 @@ public enum TimeDropdownSection: String, Codable, CaseIterable, Sendable {
     }
 }
 
+/// Controls when an enabled Now Playing status item appears in the menu bar.
+public enum NowPlayingVisibility: String, Codable, CaseIterable, Sendable {
+    case whenPlaying
+    case always
+
+    /// User-facing label shown in Time settings.
+    public var displayName: String {
+        switch self {
+        case .whenPlaying: "When Playing"
+        case .always: "Always"
+        }
+    }
+}
+
 /// Persisted choices for the Time module.
 public struct TimeSettings: Codable, Equatable, Sendable {
     /// Token template rendered in the menu bar.
@@ -113,6 +127,9 @@ public struct TimeSettings: Codable, Equatable, Sendable {
     /// Hex color painted over the system clock when the menu bar's color cannot be sampled.
     public var systemClockCoverColor: String
 
+    /// When an enabled Now Playing status item appears.
+    public var nowPlayingVisibility: NowPlayingVisibility
+
     /// Order of the dropdown's cards, top to bottom. Always a full permutation of every section.
     public var dropdownSectionOrder: [TimeDropdownSection] {
         didSet { dropdownSectionOrder = TimeDropdownSection.normalizedOrder(dropdownSectionOrder) }
@@ -142,7 +159,8 @@ public struct TimeSettings: Codable, Equatable, Sendable {
         dropdownSectionOrder: [TimeDropdownSection] = TimeDropdownSection.allCases,
         dropdownHeight: Double = TimeSettings.defaultDropdownHeight,
         hidesSystemClock: Bool = false,
-        systemClockCoverColor: String = "#000000"
+        systemClockCoverColor: String = "#000000",
+        nowPlayingVisibility: NowPlayingVisibility = .whenPlaying
     ) {
         self.menuBarTemplate = menuBarTemplate
         self.showsSeconds = showsSeconds
@@ -156,6 +174,7 @@ public struct TimeSettings: Codable, Equatable, Sendable {
         self.dropdownHeight = dropdownHeight
         self.hidesSystemClock = hidesSystemClock
         self.systemClockCoverColor = systemClockCoverColor
+        self.nowPlayingVisibility = nowPlayingVisibility
         normalize()
     }
 
@@ -172,6 +191,7 @@ public struct TimeSettings: Codable, Equatable, Sendable {
         case dropdownHeight
         case hidesSystemClock
         case systemClockCoverColor
+        case nowPlayingVisibility
     }
 
     /// Decodes saved Time settings, defaulting older files to the system's week order, the global
@@ -195,6 +215,8 @@ public struct TimeSettings: Codable, Equatable, Sendable {
         hidesSystemClock = try container.decodeIfPresent(Bool.self, forKey: .hidesSystemClock) ?? false
         systemClockCoverColor =
             try container.decodeIfPresent(String.self, forKey: .systemClockCoverColor) ?? "#000000"
+        nowPlayingVisibility =
+            try container.decodeIfPresent(NowPlayingVisibility.self, forKey: .nowPlayingVisibility) ?? .whenPlaying
         normalize()
     }
 

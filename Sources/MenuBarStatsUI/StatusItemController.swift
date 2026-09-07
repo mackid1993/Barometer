@@ -33,12 +33,16 @@ public final class StatusItemController<Sample: HistoryProjecting> {
     /// Visibility policy evaluated from the current application and module settings.
     public typealias IsEnabled = @MainActor (AppSettings, ModuleSettings) -> Bool
 
+    /// Live presentation gate evaluated without releasing the permanent status item.
+    public typealias IsPresented = @MainActor (Sample?, AppSettings, ModuleSettings) -> Bool
+
     private let module: ModuleID
     private var statusItem: NSStatusItem?
     private let store: ModuleStore<Sample>
     private let settingsStore: SettingsStore
     private let renderContent: Render
     private let isEnabled: IsEnabled
+    private let isPresented: IsPresented
     private var accessibilityLabel: String
     private var visibilityLatch = StatusItemVisibilityLatch()
     private let logger = Logger(subsystem: "com.barometer.app", category: "render")
@@ -56,6 +60,7 @@ public final class StatusItemController<Sample: HistoryProjecting> {
         store: ModuleStore<Sample>,
         settingsStore: SettingsStore,
         isEnabled: @escaping IsEnabled = { _, moduleSettings in moduleSettings.isEnabled },
+        isPresented: @escaping IsPresented = { _, _, _ in true },
         render: @escaping Render
     ) {
         self.module = module
@@ -63,6 +68,7 @@ public final class StatusItemController<Sample: HistoryProjecting> {
         self.store = store
         self.settingsStore = settingsStore
         self.isEnabled = isEnabled
+        self.isPresented = isPresented
         accessibilityLabel = statusItem?.button?.accessibilityLabel() ?? module.displayName
         renderContent = render
         observeChanges()
@@ -119,7 +125,10 @@ public final class StatusItemController<Sample: HistoryProjecting> {
             )
         )
         let isHiddenInCombined = StatusItemRendering.isHiddenByCombined(module: module, settings: appSettings)
-        guard isEnabled(appSettings, moduleSettings), !isHiddenInCombined else {
+        guard isEnabled(appSettings, moduleSettings),
+              !isHiddenInCombined,
+              isPresented(store.latestSample, appSettings, moduleSettings)
+        else {
             if let statusItem, visibilityLatch.shouldApply(false) {
                 statusItem.isVisible = false
             }

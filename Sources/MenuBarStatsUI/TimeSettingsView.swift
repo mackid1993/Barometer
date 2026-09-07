@@ -95,8 +95,13 @@ struct TimeSettingsView: View {
             Section("System Controls") {
                 Toggle("Enable Focus", isOn: settingsStore.menuBarVisibilityBinding(for: .focus))
                 Toggle("Enable Now Playing", isOn: settingsStore.menuBarVisibilityBinding(for: .nowPlaying))
-                Text("Adds separate menu bar pills for Focus and playback controls. These switches are independent "
-                    + "of hiding the system clock. Select Apply Changes to update the menu bar.")
+                Picker("Show Now Playing", selection: timeBinding(\.nowPlayingVisibility)) {
+                    ForEach(NowPlayingVisibility.allCases, id: \.self) { visibility in
+                        Text(visibility.displayName).tag(visibility)
+                    }
+                }
+                Text("Focus appears only while a system Focus is active. Now Playing can appear only during "
+                    + "playback or remain visible. Select Apply Changes to enable or disable either item.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -133,8 +138,8 @@ struct TimeSettingsView: View {
             Section("Notifications") {
                 Toggle("Show notifications in the dropdown", isOn: timeBinding(\.showsNotifications))
                 Text("Lists the notifications waiting in macOS Notification Center, so a hidden system clock "
-                    + "loses nothing. Banners keep arriving exactly as before, and Barometer never dismisses or "
-                    + "changes a notification.")
+                    + "doesn't prevent access. Follows macOS notification visibility settings. Clicking and "
+                    + "clearing require Accessibility access; banners keep arriving normally.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if settingsStore.settings.time.showsNotifications {
@@ -245,15 +250,24 @@ struct TimeSettingsView: View {
         case .unavailable:
             Text("Notifications are unavailable on this Mac.").font(.caption).foregroundStyle(.secondary)
         }
+        if accessibilityAllowed {
+            Label("Accessibility allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+        } else {
+            Text("Allow Accessibility so Barometer can ask Notification Center to open or clear notifications.")
+                .font(.caption).foregroundStyle(.secondary)
+            Button("Allow Accessibility…") { NotificationAccessSettings.requestAccessibility() }
+        }
     }
 
     /// Tracks the Full Disk Access grant while the option is on, so the pane updates as soon as it is allowed.
     private func watchNotificationAccess() async {
         notificationAccess = NotificationCenterSource.accessState()
+        accessibilityAllowed = NotificationAccessSettings.accessibilityAllowed
         guard settingsStore.settings.time.showsNotifications else { return }
-        while !Task.isCancelled, notificationAccess != .available {
+        while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(1))
             notificationAccess = NotificationCenterSource.accessState()
+            accessibilityAllowed = NotificationAccessSettings.accessibilityAllowed
         }
     }
 

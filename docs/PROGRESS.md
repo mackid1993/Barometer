@@ -4467,3 +4467,35 @@ The final release build completed in 29.45 seconds and the packaging script sign
 permitted; installation did not complete. Revealed the finished `dist/Barometer.app` in Finder for David to replace
 the installed app through Finder. No permission bypass, privilege escalation, or additional verification run was
 attempted. Install log: `dist/p8-t86-install.log`.
+
+### P8-T86 follow-up: conditional pills and notification read hardening
+
+David reported persistent control pills and "Notifications are unavailable" in the installed build. Installed-app
+logs at 02:52–02:59 showed `notification delivered-list query failed: not an error`: the application opened the
+database but the new format validation failed. Codex's separate read remains denied, so the exact live value is
+not observed. Corrected a concrete defect: SQL NULL in the nullable per-application delivered list represents no
+UUIDs and must not invalidate other applications. Unexpected types and partial UUIDs still fail, now with an
+aggregate type/byte-count explanation instead of the misleading SQLite "not an error" message.
+
+Malformed previews now retain a content-empty row using the existing UUID, application, and delivery date.
+Missing record coverage is not claimed as a complete read. macOS-disabled applications are excluded consistently,
+including normalized daemon identifiers and retained rows after failed reads. An unreadable visibility policy
+does not fall back to exposing all applications. Failed passive reads preserve permitted previous rows with a
+stale indicator; a three-second reconciliation loop while open recovers missed WAL/file events and temporary
+failures. Database reads tolerate short lock contention. Uncertain dispatched clears are verified too, with a
+1.5-second bounded retry window; only a confirmed system absence removes the row. The system database remains
+read-only. This does not establish reliable native Accessibility dispatch on macOS 27; live matching remains
+unverified and the app must not claim a successful clear on failure.
+
+Focus visibility now follows its reported active system state. Now Playing has persisted When Playing (default)
+and Always choices; paused, idle, and unavailable states hide in When Playing mode. Items are retained, not removed,
+and enabled sources keep sampling while temporarily hidden. Added explicit Accessibility grant status and an
+Allow Accessibility button in notification settings, at David's request, without a background permission prompt.
+Removed the obsolete settings claim that Barometer never dismisses notifications.
+
+Added regression cases for NULL lists, unreadable previews, unavailable visibility preferences, retained rows,
+new exclusions during failures, uncertain completed clears, and presentation-policy persistence. David's explicit
+request not to rerun verification remains in effect: no test-suite or memory rerun was performed for this follow-up.
+`make app` passed; the final incremental release build completed in 6.64 seconds and the packaging script signed
+the finished app. Log: `dist/p8-t86-hardening-build.log`. Revealed `dist/Barometer.app` in Finder for replacement;
+the previous macOS denial of automatic installed-app replacement has not been bypassed or claimed resolved.

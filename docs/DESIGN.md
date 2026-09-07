@@ -221,7 +221,9 @@ Parity target is iStat Menus 7. Each module has a menu bar representation (sever
   do not claim equivalence to the app's original handler.
 - Optional system controls: separate Focus and Now Playing image pills replace the corresponding Apple menu bar
   extras affected by clock hiding. Time settings offers independent Enable Focus and Enable Now Playing switches,
-  off by default and applied through the normal staged visibility flow. Source reads stop while disabled or asleep.
+  off by default and applied through the normal staged visibility flow. Enabled Focus appears only when active.
+  Now Playing defaults to When Playing, with an Always option. Source reads continue while temporarily hidden so
+  the retained item can reappear; reads stop while disabled or asleep.
   Focus uses the DoNotDisturb service where permitted, with already-authorized public Focus status as a limited
   read-only fallback. Now Playing uses runtime-checked MediaRemote functions and bounded artwork. Unsupported or
   denied controls report their limitation; no permission prompt or Apple-only entitlement is added.

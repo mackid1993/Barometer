@@ -8,7 +8,7 @@ public enum NotificationAccessState: String, Equatable, Sendable {
     case available
     /// The database exists but macOS refused to open it; Full Disk Access is missing.
     case fullDiskAccessRequired
-    /// This Mac has no Notification Center database.
+    /// The database could not be read or uses an unsupported format.
     case unavailable
 }
 
@@ -63,6 +63,12 @@ public struct NotificationSnapshot: Equatable, Sendable {
     public let notifications: [DeliveredNotification]
     public let readDate: Date
 
+    /// A content-free explanation when the database could not be read.
+    public let unavailabilityReason: String?
+
+    /// Current macOS exclusions, or nil when visibility preferences could not be verified.
+    public let hiddenApplicationIdentifiers: Set<String>?
+
     /// Every notification UUID in Notification Center's delivered table when the read completed.
     ///
     /// A nil value means the snapshot does not prove which notifications remain delivered. This is
@@ -74,12 +80,16 @@ public struct NotificationSnapshot: Equatable, Sendable {
         access: NotificationAccessState,
         notifications: [DeliveredNotification],
         readDate: Date = Date(),
-        deliveredNotificationIdentifiers: Set<String>? = nil
+        deliveredNotificationIdentifiers: Set<String>? = nil,
+        unavailabilityReason: String? = nil,
+        hiddenApplicationIdentifiers: Set<String>? = []
     ) {
         self.access = access
         self.notifications = notifications
         self.readDate = readDate
         self.deliveredNotificationIdentifiers = deliveredNotificationIdentifiers
+        self.unavailabilityReason = unavailabilityReason
+        self.hiddenApplicationIdentifiers = hiddenApplicationIdentifiers
     }
 }
 
@@ -150,7 +160,9 @@ public actor NotificationCenterSource {
     /// Reads the notifications still shown in Notification Center, newest first.
     public func read(limit: Int = .max) -> NotificationSnapshot {
         let access = Self.accessState(databaseURL: databaseURL)
-        guard access == .available else { return NotificationSnapshot(access: access, notifications: []) }
+        guard access == .available else {
+            return NotificationSnapshot(access: access, notifications: [], hiddenApplicationIdentifiers: nil)
+        }
 
         var handle: OpaquePointer?
         let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX
@@ -158,54 +170,66 @@ public actor NotificationCenterSource {
             let message = handle.map { String(cString: sqlite3_errmsg($0)) } ?? "no handle"
             logger.error("notification database open failed: \(message, privacy: .public)")
             if let handle { sqlite3_close(handle) }
-            return NotificationSnapshot(access: .unavailable, notifications: [])
+            return NotificationSnapshot(access: .unavailable, notifications: [], hiddenApplicationIdentifiers: nil)
         }
         defer { sqlite3_close(handle) }
+        sqlite3_busy_timeout(handle, 150)
         guard sqlite3_exec(handle, "BEGIN DEFERRED TRANSACTION", nil, nil, nil) == SQLITE_OK else {
             let message = String(cString: sqlite3_errmsg(handle))
             logger.error("notification read transaction failed: \(message, privacy: .public)")
-            return NotificationSnapshot(access: .unavailable, notifications: [])
+            return NotificationSnapshot(access: .unavailable, notifications: [], hiddenApplicationIdentifiers: nil)
         }
         defer { sqlite3_exec(handle, "ROLLBACK", nil, nil, nil) }
 
-        guard let shown = deliveredIdentifiers(handle) else {
-            let message = String(cString: sqlite3_errmsg(handle))
-            logger.error("notification delivered-list query failed: \(message, privacy: .public)")
-            return NotificationSnapshot(access: .unavailable, notifications: [])
+        guard let silenced = Self.readSilencedApplications(preferencesURL: preferencesURL) else {
+            return NotificationSnapshot(access: .unavailable, notifications: [],
+                unavailabilityReason: "Cannot read macOS notification visibility settings. Retrying while open.",
+                hiddenApplicationIdentifiers: nil)
         }
-        let silenced = Self.silencedApplications(preferencesURL: preferencesURL)
+        let shown: Set<Data>
+        switch deliveredIdentifiers(handle) {
+        case let .success(identifiers):
+            shown = identifiers
+        case let .failure(error):
+            logger.error("notification delivered-list read failed: \(error.message, privacy: .public)")
+            return NotificationSnapshot(
+                access: .unavailable, notifications: [], unavailabilityReason: error.message,
+                hiddenApplicationIdentifiers: silenced)
+        }
         var notifications: [DeliveredNotification] = []
         let sql = """
             SELECT record.uuid, record.data, record.delivered_date, app.identifier
-            FROM record JOIN app ON app.app_id = record.app_id
+            FROM record LEFT JOIN app ON app.app_id = record.app_id
             WHERE record.delivered_date IS NOT NULL
             ORDER BY record.delivered_date DESC
             """
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK, let statement else {
             logger.error("notification query failed: \(String(cString: sqlite3_errmsg(handle)), privacy: .public)")
-            return NotificationSnapshot(access: .unavailable, notifications: [])
+            return NotificationSnapshot(access: .unavailable, notifications: [],
+                hiddenApplicationIdentifiers: silenced)
         }
         defer { sqlite3_finalize(statement) }
 
         let maximumCount = max(0, limit)
+        var representedIdentifiers: Set<Data> = []
         var stoppedAtLimit = maximumCount == 0
         var stepResult = stoppedAtLimit ? SQLITE_DONE : sqlite3_step(statement)
         while stepResult == SQLITE_ROW {
             if let uuid = Self.blob(statement, column: 0),
                shown.contains(uuid)
             {
+                representedIdentifiers.insert(uuid)
                 let deliveredDate = Date(timeIntervalSinceReferenceDate: sqlite3_column_double(statement, 2))
                 let fallbackApplication = sqlite3_column_text(statement, 3).map { String(cString: $0) } ?? ""
-                if let data = Self.blob(statement, column: 1),
-                   let notification = Self.notification(
-                       id: Self.identifier(for: uuid),
-                       data: data,
-                       deliveredDate: deliveredDate,
-                       fallbackApplication: fallbackApplication
-                   ),
-                   !silenced.contains(notification.applicationIdentifier.lowercased())
-                {
+                let identifier = Self.identifier(for: uuid)
+                let notification = Self.blob(statement, column: 1).flatMap {
+                    Self.notification(id: identifier, data: $0, deliveredDate: deliveredDate,
+                                      fallbackApplication: fallbackApplication)
+                } ?? DeliveredNotification(
+                    id: identifier, applicationIdentifier: fallbackApplication, title: "", subtitle: nil,
+                    body: nil, date: deliveredDate)
+                if !silenced.contains(Self.canonicalApplicationIdentifier(notification.applicationIdentifier)) {
                     notifications.append(notification)
                 }
             }
@@ -217,12 +241,19 @@ public actor NotificationCenterSource {
         }
         guard stoppedAtLimit || stepResult == SQLITE_DONE else {
             logger.error("notification query read failed: \(String(cString: sqlite3_errmsg(handle)), privacy: .public)")
-            return NotificationSnapshot(access: .unavailable, notifications: [])
+            return NotificationSnapshot(access: .unavailable, notifications: [],
+                hiddenApplicationIdentifiers: silenced)
+        }
+        guard stoppedAtLimit || representedIdentifiers == shown else {
+            return NotificationSnapshot(access: .unavailable, notifications: notifications,
+                unavailabilityReason: "macOS is updating notification records. Retrying while open.",
+                hiddenApplicationIdentifiers: silenced)
         }
         return NotificationSnapshot(
             access: .available,
             notifications: notifications,
-            deliveredNotificationIdentifiers: Set(shown.map(Self.identifier(for:)))
+            deliveredNotificationIdentifiers: Set(shown.map(Self.identifier(for:))),
+            hiddenApplicationIdentifiers: silenced
         )
     }
 
@@ -234,39 +265,68 @@ public actor NotificationCenterSource {
 
     /// Lowercased bundle identifiers whose notifications the user turned off.
     static func silencedApplications(preferencesURL: URL?) -> Set<String> {
-        guard let preferencesURL,
-              let data = try? Data(contentsOf: preferencesURL),
+        readSilencedApplications(preferencesURL: preferencesURL) ?? []
+    }
+
+    private static func readSilencedApplications(preferencesURL: URL?) -> Set<String>? {
+        guard let preferencesURL else { return [] }
+        guard let data = try? Data(contentsOf: preferencesURL),
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
               let root = plist as? [String: Any],
               let apps = root["apps"] as? [[String: Any]]
         else {
-            return []
+            return nil
         }
         var silenced: Set<String> = []
         for app in apps {
             guard let identifier = app["bundle-id"] as? String, let flags = app["flags"] as? Int else { continue }
             if flags & allowNotificationsFlag == 0 {
-                silenced.insert(identifier.lowercased())
+                silenced.insert(canonicalApplicationIdentifier(identifier))
             }
         }
         return silenced
     }
 
+    /// Normalizes daemon-routed application identifiers for macOS visibility preferences.
+    public static func canonicalApplicationIdentifier(_ identifier: String) -> String {
+        let lowercased = identifier.lowercased()
+        let prefix = "_system_center_:"
+        return lowercased.hasPrefix(prefix) ? String(lowercased.dropFirst(prefix.count)) : lowercased
+    }
+
     // MARK: - Parsing
 
     /// UUIDs of every record still shown, concatenated per application in the `delivered` table.
-    private func deliveredIdentifiers(_ handle: OpaquePointer) -> Set<Data>? {
+    private struct DeliveredListError: Error {
+        let message: String
+    }
+
+    private func deliveredIdentifiers(_ handle: OpaquePointer) -> Result<Set<Data>, DeliveredListError> {
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(handle, "SELECT list FROM delivered", -1, &statement, nil) == SQLITE_OK,
               let statement
         else {
-            return nil
+            return .failure(DeliveredListError(message: "Cannot read macOS's delivered notification list: "
+                + String(cString: sqlite3_errmsg(handle))))
         }
         defer { sqlite3_finalize(statement) }
         var identifiers: Set<Data> = []
         var stepResult = sqlite3_step(statement)
         while stepResult == SQLITE_ROW {
-            guard let list = Self.blob(statement, column: 0), list.count.isMultiple(of: 16) else { return nil }
+            // An application's nullable list can have no delivered UUIDs. It does not invalidate
+            // the other applications' lists. Keep rejecting partial UUIDs and unexpected types.
+            let columnType = sqlite3_column_type(statement, 0)
+            if columnType == SQLITE_NULL {
+                stepResult = sqlite3_step(statement)
+                continue
+            }
+            guard columnType == SQLITE_BLOB,
+                  let list = Self.blob(statement, column: 0), list.count.isMultiple(of: 16)
+            else {
+                let byteCount = sqlite3_column_bytes(statement, 0)
+                return .failure(DeliveredListError(message: "macOS's delivered notification list has an "
+                    + "unsupported format (type \(columnType), \(byteCount) bytes)."))
+            }
             var offset = 0
             while offset + 16 <= list.count {
                 identifiers.insert(list.subdata(in: offset..<(offset + 16)))
@@ -274,7 +334,11 @@ public actor NotificationCenterSource {
             }
             stepResult = sqlite3_step(statement)
         }
-        return stepResult == SQLITE_DONE ? identifiers : nil
+        guard stepResult == SQLITE_DONE else {
+            return .failure(DeliveredListError(message: "Cannot finish reading macOS's notification list: "
+                + String(cString: sqlite3_errmsg(handle))))
+        }
+        return .success(identifiers)
     }
 
     /// Decodes one record's property list into a notification.

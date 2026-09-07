@@ -403,7 +403,9 @@ universal performance guarantee.
   requested by David, also permits notification activation and dismissal through Notification Center's own
   Accessibility controls using an existing grant. Target an exactly identified individual notification and only
   actions that its live element advertises. Never guess a notification from its title or press a group clear
-  control. The notification bridge must not prompt for permission. This does not authorize menu bar manipulation:
+  control. The notification bridge must not prompt for permission. David's P8-T86 follow-up authorizes an explicit
+  Allow Accessibility button in notification settings; only that user action may request the existing category.
+  This does not authorize menu bar manipulation:
   pressing the clock (P8-T80) and synthesized Command-drags, including Thaw's event relay (P8-T85 notes), both fail
   on macOS 27.
 - Screen Recording is never requested. `SystemClockCover` samples the bar's color only when
