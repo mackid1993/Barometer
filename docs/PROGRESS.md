@@ -3937,3 +3937,25 @@ Verification:
 - The probe above was run and removed; it is recorded here rather than kept as a test because it depends on machine
   timing.
 - `swift build -c release` completed and `git diff --check` reported no whitespace errors.
+
+## P8-T68 Drop the Item width caution
+
+The Item width preference shipped with an orange warning in Settings and a matching caution in the 1.0.7 notes,
+telling the user to turn the setting off if items began moving on their own. David tested the build against Thaw and
+Able, found it worked, and judged the warning excessive. It was also inherited from the same confounded evidence
+recorded in P8-T65, so it asserted a risk the project has not actually observed.
+
+Settings now shows the explanatory caption alone: each item reserves room for the widest value it can show, this
+sizes items to the current reading, it recovers roughly a fifth of the space, and items shift slightly as readings
+change width. That last sentence is the honest description of the trade and is enough. The release notes carry the
+same wording.
+
+The engineering constraints in `MACOS27_STATUS_ITEM_SIZING.md` and `AGENTS.md` are unchanged. They record why the
+default is off and what to check on a released macOS 27, which is guidance for future work rather than a warning to
+the user.
+
+Verification:
+
+- `make test` passed: 289 tests across three targets.
+- `swift build -c release` completed and `git diff --check` reported no whitespace errors.
+- Release notes lines remain within 120 columns.

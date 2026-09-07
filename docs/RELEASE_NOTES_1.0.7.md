@@ -9,9 +9,7 @@ Barometer 1.0.7 adds two optional ways to tighten the menu bar, both off by defa
   them to the live reading recovers roughly a fifth of the space Barometer occupies.
 - Measured across five items, the row went from 262 to 208 points. Weather, Sensors, and Combined gain the most.
 - Battery and Disks are unchanged, because their width comes from a fixed icon rather than a reserved value.
-- Items shift as readings change width. Barometer normally sets each width once, which is what keeps menu bar
-  managers from moving items, so this setting carries a caution: if items start moving on their own, turn it off and
-  reopen Barometer.
+- Items shift slightly as readings change width.
 
 ## Menu bar spacing
 
