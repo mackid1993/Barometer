@@ -17,6 +17,22 @@ public enum AppearancePreset: String, Codable, CaseIterable, Sendable {
     case custom
 }
 
+/// Which weather icons the menu bar draws.
+public enum WeatherIconStyle: String, Codable, CaseIterable, Sendable {
+    /// Barometer's own icons, drawn for the menu bar and all one width.
+    case barometer
+    /// The system's standard weather symbols.
+    case system
+
+    /// Menu-title-style name shown in Settings.
+    public var displayName: String {
+        switch self {
+        case .barometer: "Barometer"
+        case .system: "System"
+        }
+    }
+}
+
 /// Supported menu bar type weights.
 public enum MenuBarFontWeight: String, Codable, CaseIterable, Sendable {
     case regular
@@ -87,6 +103,12 @@ public struct WeatherSettings: Codable, Equatable, Sendable {
     /// Section visibility in the selected-day forecast; independent of forecast fetching.
     public var detailSections: WeatherDetailSettings
 
+    /// Which icons the menu bar draws for the current condition.
+    public var iconStyle: WeatherIconStyle
+
+    /// Whether Barometer's weather icons use color even when the rest of the menu bar is monochrome.
+    public var usesColorIcons: Bool
+
     /// Creates Weather settings.
     public init(
         locations: [Location] = [],
@@ -94,7 +116,9 @@ public struct WeatherSettings: Codable, Equatable, Sendable {
         usesCurrentLocation: Bool = false,
         units: WeatherUnits = .imperial,
         refreshIntervalMinutes: Int = 15,
-        detailSections: WeatherDetailSettings = WeatherDetailSettings()
+        detailSections: WeatherDetailSettings = WeatherDetailSettings(),
+        iconStyle: WeatherIconStyle = .barometer,
+        usesColorIcons: Bool = true
     ) {
         self.locations = locations
         self.primaryLocationID = primaryLocationID
@@ -102,10 +126,13 @@ public struct WeatherSettings: Codable, Equatable, Sendable {
         self.units = units
         self.refreshIntervalMinutes = refreshIntervalMinutes
         self.detailSections = detailSections
+        self.iconStyle = iconStyle
+        self.usesColorIcons = usesColorIcons
     }
 
     private enum CodingKeys: String, CodingKey {
         case locations, primaryLocationID, usesCurrentLocation, units, refreshIntervalMinutes, detailSections
+        case iconStyle, usesColorIcons
     }
 
     /// Decodes saved locations and units while giving older configurations all detail sections.
@@ -116,6 +143,8 @@ public struct WeatherSettings: Codable, Equatable, Sendable {
         usesCurrentLocation = try values.decodeIfPresent(Bool.self, forKey: .usesCurrentLocation) ?? false
         units = try values.decodeIfPresent(WeatherUnits.self, forKey: .units) ?? .imperial
         refreshIntervalMinutes = try values.decodeIfPresent(Int.self, forKey: .refreshIntervalMinutes) ?? 15
+        iconStyle = try values.decodeIfPresent(WeatherIconStyle.self, forKey: .iconStyle) ?? .barometer
+        usesColorIcons = try values.decodeIfPresent(Bool.self, forKey: .usesColorIcons) ?? true
         detailSections = try values.decodeIfPresent(WeatherDetailSettings.self, forKey: .detailSections)
             ?? WeatherDetailSettings()
     }
@@ -665,14 +694,25 @@ public struct AppSettings: Codable, Equatable, Sendable {
         areStacksEnabled ? stacks.hiddenSourceModules : []
     }
 
-    /// Automatic font size selected from the number of independently movable widgets.
+    /// Menu bar text size: the automatic density tier, reduced further by the user's preference.
+    ///
+    /// The tier is a maximum, never a target. `fontSize` may only bring the text below it, so the
+    /// density rules that keep a crowded menu bar legible still hold and no setting can make text
+    /// larger than the canvas was sized for. The default is the top of the range, which leaves the
+    /// automatic tier in charge and reproduces the previous behavior exactly.
     public var effectiveMenuBarFontSize: Double {
-        Self.maximumMenuBarFontSize(forItemCount: enabledMenuBarItemCount)
+        min(Self.maximumMenuBarFontSize(forItemCount: enabledMenuBarItemCount), fontSize)
     }
 
     /// Icon and graph scale reduced automatically as independently movable widgets are added.
+    ///
+    /// Graphics track the text: shrinking the type without shrinking the glyphs beside it leaves
+    /// the icons looking oversized and wastes the width the smaller text just freed.
     public var effectiveMenuBarScale: Double {
-        Self.menuBarScale(forItemCount: enabledMenuBarItemCount)
+        let automatic = Self.menuBarScale(forItemCount: enabledMenuBarItemCount)
+        let tier = Self.maximumMenuBarFontSize(forItemCount: enabledMenuBarItemCount)
+        guard tier > 0, fontSize < tier else { return automatic }
+        return automatic * (fontSize / tier)
     }
 
     /// Automatic graphic scale used for a given number of independently movable items.

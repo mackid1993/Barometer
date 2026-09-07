@@ -4041,3 +4041,35 @@ Verification:
   sequence of twelve readings settles in two writes rather than tracking each change.
 - The `nettop` filters were compared directly before changing the source.
 - `swift build -c release` completed and `git diff --check` reported no whitespace errors.
+
+## P8-T72 Draw the weather reading as one mark
+
+David asked for the temperature to overlay the weather icon rather than sit beside it, in color, readable, and
+smaller. Two designs were tried and rejected on his screen before the third: drawn glyphs beside the number saved
+only three points because `IconTextRenderer` already used a fixed 16-point field, and a solid badge with the digits
+knocked out was a heavy white slab whose night variant read as an empty oval once its 2-point stars vanished at real
+size. Both were judged from 4x sheets; the lesson recorded here is to review menu bar marks at Retina pixels and at
+actual size before installing them.
+
+`WeatherBadgeRenderer` draws the digits at full size and puts the condition in the bands above and below them that
+a 22-point item otherwise leaves empty: a cloud cap on the number, rain, snow, a bolt, or fog underneath, a sunburst
+around it, a crescent over the degree sign for a clear night, and a sun disc beside the cap for partly cloudy. The
+item is the digits plus two points a side, 25 points for `64°` against 49 for the old pair. Every condition is the
+same width, which is proved by test, so a change in the weather cannot change the item's size.
+
+Color is per condition and per appearance: amber sun and lavender night carry the color in the digits themselves;
+the cloud family keeps neutral digits with a gray cap and blue rain, icy snow, or a yellow bolt. `WeatherSettings`
+gained `iconStyle` (Barometer or System) and `usesColorIcons`, which keeps the mark in color even when the rest of the
+menu bar is monochrome, because David wanted the weather colored without recoloring every module. The Weather pane
+now shows all eight conditions as its preview, drawn by the same renderer at the current size and color settings.
+`WMOCode.menuBarCondition(isDay:)` maps codes to the eight drawn conditions, coarser than the dropdown's symbols on
+purpose: drizzle and sleet cannot be told from rain at this size.
+
+Verification:
+
+- `make test` passed: 299 tests across three targets. New coverage proves the width is the digits plus padding for
+  every condition, that all conditions share one width, that monochrome yields a template image and color does not,
+  that every condition leaves ink beyond the digits, and the code-to-condition mapping for day and night.
+- Every condition was rendered at Retina pixels and at actual size on dark and light bars and reviewed before
+  installing; the installed build was captured on David's bar showing the clear-night mark in color.
+- `swift build -c release` completed and `git diff --check` reported no whitespace errors.

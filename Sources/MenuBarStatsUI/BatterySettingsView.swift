@@ -24,8 +24,7 @@ struct BatterySettingsView: View {
                 }
                 Text(
                     "Time remaining counts down to empty on battery and up to full while charging, and always "
-                        + "appears in the dropdown. Changing this takes effect after Barometer relaunches, "
-                        + "because a status item keeps one width for the life of the process."
+                        + "appears in the dropdown. Changing this takes effect the next time Barometer opens."
                 )
                     .font(.caption)
                     .foregroundStyle(.secondary)

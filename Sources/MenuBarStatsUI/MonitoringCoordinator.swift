@@ -209,6 +209,8 @@ public final class MonitoringCoordinator {
                     sample: sample,
                     history: history,
                     settings: settings,
+                    iconStyle: settingsStore.settings.weather.iconStyle,
+                    colorIcons: settingsStore.settings.weather.usesColorIcons,
                     context: context
                 )
             }
@@ -1530,6 +1532,8 @@ public final class MonitoringCoordinator {
         sample: WeatherSample?,
         history: [HistoryEntry<WeatherSample.GraphValue>],
         settings: ModuleSettings,
+        iconStyle: WeatherIconStyle = .barometer,
+        colorIcons: Bool = true,
         context: RenderContext
     ) -> StatusItemContent {
         // Weather has one presentation: the current condition glyph beside the current
@@ -1538,13 +1542,29 @@ public final class MonitoringCoordinator {
         let presentation =
             sample.map(WeatherPresentationFormatter.menuBar)
             ?? WeatherMenuBarPresentation(symbolName: "cloud.sun", text: "\u{2014}")
-        let renderer = IconTextRenderer(
-            symbolName: presentation.symbolName ?? "cloud.sun",
-            text: presentation.text,
-            reservedText: WeatherPresentationFormatter.reservedMenuBarText,
-            // Every condition glyph is reserved, so the item keeps one width as conditions change.
-            reservedSymbolNames: weatherSymbolNames
-        )
+        let renderer: any MenuBarRenderer
+        switch iconStyle {
+        case .barometer:
+            // The temperature is the body of the mark and the condition surrounds it, so the
+            // item is the digits plus a few points of padding rather than an icon beside them.
+            let condition =
+                sample.map { $0.forecast.current.code.menuBarCondition(isDay: $0.forecast.current.isDay) }
+                ?? .cloudy
+            renderer = WeatherBadgeRenderer(
+                condition: condition,
+                text: presentation.text,
+                reservedText: WeatherPresentationFormatter.reservedMenuBarText,
+                colorful: colorIcons
+            )
+        case .system:
+            renderer = IconTextRenderer(
+                symbolName: presentation.symbolName ?? "cloud.sun",
+                text: presentation.text,
+                reservedText: WeatherPresentationFormatter.reservedMenuBarText,
+                // Every condition glyph is reserved, so the item keeps one width as conditions change.
+                reservedSymbolNames: weatherSymbolNames
+            )
+        }
         guard let sample else {
             return StatusItemContent(
                 image: renderer.render(in: context),

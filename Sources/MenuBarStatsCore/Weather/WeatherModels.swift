@@ -151,6 +151,24 @@ public struct WMOCode: RawRepresentable, Codable, Equatable, Hashable, Sendable 
     }
 
     /// Returns the closest SF Symbol for this condition and daylight state.
+    /// The drawn menu bar condition for this code.
+    ///
+    /// Deliberately coarser than ``symbolName(isDay:)``: at 13 points, drizzle and sleet cannot be
+    /// told apart from rain, so they resolve to it rather than to a shape nobody can read. The
+    /// dropdown keeps the detailed symbol.
+    public func menuBarCondition(isDay: Bool) -> WeatherMenuBarCondition {
+        switch rawValue {
+        case 0: isDay ? .clearDay : .clearNight
+        case 1, 2: .partlyCloudy
+        case 3: .cloudy
+        case 45, 48: .fog
+        case 51...57, 61, 63, 65, 66, 67, 80...82: .rain
+        case 71...77, 85, 86: .snow
+        case 95, 96, 99: .thunderstorm
+        default: .cloudy
+        }
+    }
+
     public func symbolName(isDay: Bool) -> String {
         switch rawValue {
         case 0: isDay ? "sun.max" : "moon.stars"
@@ -167,6 +185,18 @@ public struct WMOCode: RawRepresentable, Codable, Equatable, Hashable, Sendable 
         default: "questionmark.circle"
         }
     }
+}
+
+/// Weather conditions the drawn menu bar glyphs cover.
+public enum WeatherMenuBarCondition: String, CaseIterable, Sendable {
+    case clearDay
+    case clearNight
+    case partlyCloudy
+    case cloudy
+    case rain
+    case snow
+    case thunderstorm
+    case fog
 }
 
 /// Current detailed weather conditions.

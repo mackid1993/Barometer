@@ -366,6 +366,45 @@ struct SettingsTests {
         #expect(AppSettings.menuBarScale(forItemCount: 15) == 0.75)
     }
 
+    @Test("Menu bar text size only ever reduces the automatic tier")
+    @MainActor
+    func textSizeOverrideOnlyShrinks() {
+        var settings = AppSettings()
+        #expect(settings.enabledMenuBarItemCount == 2)
+        // Default is the top of the range, so the tier stays in charge and nothing changes.
+        #expect(settings.fontSize == 12)
+        #expect(settings.effectiveMenuBarFontSize == 12)
+        #expect(settings.effectiveMenuBarScale == 1.15)
+
+        settings.fontSize = 10
+        #expect(settings.effectiveMenuBarFontSize == 10)
+        // Graphics follow the text, or the icons look oversized beside it.
+        #expect(abs(settings.effectiveMenuBarScale - 1.15 * (10.0 / 12.0)) < 0.0001)
+
+        // A crowded bar caps the tier at 9; the override cannot raise it back up.
+        for module in [ModuleID.gpu, .network, .sensors, .weather, .battery, .time, .disks] {
+            settings.modules[module]?.isEnabled = true
+        }
+        for id in 2...7 { settings.sensors.widgets.append(SensorWidgetSettings(id: id)) }
+        #expect(settings.enabledMenuBarItemCount == 15)
+        settings.fontSize = 12
+        #expect(settings.effectiveMenuBarFontSize == 9)
+        #expect(settings.effectiveMenuBarScale == 0.75)
+
+        // Below the tier the override still applies.
+        settings.fontSize = 9
+        #expect(settings.effectiveMenuBarFontSize == 9)
+    }
+
+    @Test("Menu bar text size stays inside the range the canvas can draw")
+    func textSizeStaysInRange() {
+        #expect(AppSettings(fontSize: 20).fontSize == 12)
+        #expect(AppSettings(fontSize: 4).fontSize == 9)
+        var settings = AppSettings()
+        settings.fontSize = 99
+        #expect(settings.fontSize == 12)
+    }
+
     @Test("removed density settings are ignored and no longer exported")
     func ignoresRemovedDensitySettings() throws {
         let data = Data(#"{"menuBarScale":0.75,"menuBarSpacing":3,"usesCompactLayout":true}"#.utf8)
@@ -402,7 +441,9 @@ struct SettingsTests {
 
     @Test("active widget count automatically limits effective font size")
     func limitsFontSizeForDensity() {
-        var settings = AppSettings(fontSize: 9)
+        // Default size, so this measures the automatic tiers alone. The user override is covered
+        // separately below.
+        var settings = AppSettings()
         #expect(settings.enabledMenuBarItemCount == 2)
         #expect(settings.effectiveMenuBarFontSize == 12)
         #expect(settings.effectiveMenuBarScale == 1.15)

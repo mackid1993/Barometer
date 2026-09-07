@@ -45,6 +45,7 @@ public final class StatusItemController<Sample: HistoryProjecting> {
     private var lengthLatch = StatusItemLengthLatch()
     private var hasAssignedLength = false
     private var appliedLiveItemWidth: Bool?
+    private var appliedFontSize: Double?
     private var appliedImageFingerprint: Int?
     private var geometryLatch = StatusItemGeometryLatch()
 
@@ -127,6 +128,15 @@ public final class StatusItemController<Sample: HistoryProjecting> {
         // readable interpretation and the one the other modules already used via `suffix`.
         let history = store.history.recent(StatusItemRendering.renderedHistoryLimit)
         let content = renderContent(store.latestSample, history, moduleSettings, context)
+        if appliedFontSize != appSettings.effectiveMenuBarFontSize {
+            // Text size is a user action, so it earns one geometry change and one resize: the
+            // canvas is redrawn at the new size and the frame follows it.
+            if appliedFontSize != nil {
+                geometryLatch.permitChange()
+                lengthLatch.permitResize()
+            }
+            appliedFontSize = appSettings.effectiveMenuBarFontSize
+        }
         if appliedLiveItemWidth != appSettings.usesLiveItemWidth {
             // Changing the preference is a user action, so it earns one resize in either
             // direction: on tightens now, off restores the reserved width now.
@@ -230,11 +240,21 @@ struct StatusItemGeometry: Equatable {
 /// Prevents a settings update from shrinking content inside an immutable AppKit frame.
 struct StatusItemGeometryLatch {
     private(set) var geometry: StatusItemGeometry?
+    private var permitsOneChange = false
+
+    /// Allows the next proposal to replace the frozen geometry.
+    ///
+    /// Used when the user changes the menu bar text size. Without this the latch would keep the
+    /// launch geometry and the new size would not appear until the next launch.
+    mutating func permitChange() {
+        permitsOneChange = true
+    }
 
     mutating func resolve(_ proposed: StatusItemGeometry) -> StatusItemGeometry {
-        if let geometry {
+        if let geometry, !permitsOneChange {
             return geometry
         }
+        permitsOneChange = false
         geometry = proposed
         return proposed
     }

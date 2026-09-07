@@ -277,6 +277,16 @@ private struct GeneralSettingsView: View {
                     Text("Medium").tag(MenuBarFontWeight.medium)
                     Text("Semibold").tag(MenuBarFontWeight.semibold)
                 }
+                HStack {
+                    Text("Text size")
+                    Slider(value: appBinding(\.fontSize), in: 9...12, step: 0.5)
+                    Text(String(format: "%.1f pt", settingsStore.settings.fontSize))
+                        .monospacedDigit()
+                        .frame(width: 48, alignment: .trailing)
+                }
+                Text(menuBarTextSizeCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Text(automaticSizingCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -443,20 +453,26 @@ private struct GeneralSettingsView: View {
 
     private var liveItemWidthCaption: String {
         """
-        Each item reserves room for the widest value it can ever show, such as a three-digit \
-        temperature. Turning this on sizes items to what they are showing right now, recovering \
-        roughly a fifth of the space Barometer occupies. Items shift slightly as readings change \
-        width.
+        Normally each reading leaves room for its largest possible value, like a three-digit \
+        temperature. Turn this on to fit the value being shown right now, which frees up about a \
+        fifth of the space Barometer takes up. Readings may shift a little as they change.
+        """
+    }
+
+    private var menuBarTextSizeCaption: String {
+        """
+        Makes Barometer's menu bar text smaller. Barometer already shrinks text on its own as you \
+        add more items, so this can only go smaller than that, never larger. Icons and graphs \
+        shrink to match.
         """
     }
 
     private var statusItemSpacingCaption: String {
         """
-        Sets the width AppKit reserves around Barometer's own items. A gap between two Barometer \
-        items closes fully; a gap beside another app's item closes only by Barometer's share, \
-        because that app still reserves its own. Tightest is the floor, so if you already tighten \
-        the menu bar system-wide this will not change anything. Takes effect when you select Apply \
-        Changes, which reopens Barometer.
+        Controls the gap around Barometer's items in the menu bar. Gaps between two Barometer \
+        items close completely. A gap next to another app's item only closes halfway, because the \
+        other app keeps its own spacing. If you have already tightened your menu bar spacing \
+        another way, this may not change anything. Takes effect when you select Apply Changes.
         """
     }
 

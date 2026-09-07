@@ -89,6 +89,23 @@ struct WeatherSettingsView: View {
             }
 
             Section("Menu Bar") {
+                Picker("Menu bar icons", selection: weatherBinding(\.iconStyle)) {
+                    ForEach(WeatherIconStyle.allCases, id: \.self) { style in
+                        Text(style.displayName).tag(style)
+                    }
+                }
+                Text(
+                    "Barometer's icons put the weather right on the temperature, so the reading "
+                        + "takes about half the room. The forecast always uses the system icons."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                if settingsStore.settings.weather.iconStyle == .barometer {
+                    Toggle("Color weather icons", isOn: weatherBinding(\.usesColorIcons))
+                    Text("Keeps the weather in color even if the rest of the menu bar is monochrome.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Toggle("Show in menu bar", isOn: moduleEnabledBinding)
                 Text("Shows the current conditions and temperature. Set the unit under Units.")
                     .font(.caption)
@@ -113,7 +130,7 @@ struct WeatherSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .settingsPane(module: .weather, settings: settingsStore.settings)
+        .settingsPane(module: .weather, settings: settingsStore.settings, preview: iconPreview)
         .task(id: searchQuery) {
             await search()
         }
@@ -309,6 +326,45 @@ struct WeatherSettingsView: View {
         if let current = weather.locations.first(where: { $0.id == "current-location" }) {
             remove(current)
         }
+    }
+
+    /// Every condition side by side, drawn by the same renderer the menu bar uses.
+    private var iconPreview: NSImage? {
+        let weather = settingsStore.settings.weather
+        guard weather.iconStyle == .barometer else { return nil }
+        let appSettings = settingsStore.settings
+        let context = RenderContext(
+            thickness: NSStatusBar.system.thickness,
+            appearance: .dark,
+            palette: MenuBarPalette(light: .white, dark: .white),
+            fontSize: appSettings.effectiveMenuBarFontSize,
+            isMonochrome: appSettings.isMonochrome,
+            scale: appSettings.effectiveMenuBarScale,
+            fontWeight: appSettings.fontWeight
+        )
+        let marks = WeatherMenuBarCondition.allCases.map {
+            WeatherBadgeRenderer(condition: $0, text: "64°", colorful: weather.usesColorIcons).render(in: context)
+        }
+        let gap: CGFloat = 10
+        let width = marks.reduce(CGFloat(0)) { $0 + $1.size.width } + gap * CGFloat(marks.count - 1)
+        let strip = NSImage(size: NSSize(width: width, height: context.thickness), flipped: false) { rect in
+            var x: CGFloat = 0
+            for mark in marks {
+                if mark.isTemplate {
+                    // Template marks carry only alpha; tint them for the dark preview.
+                    NSGraphicsContext.saveGraphicsState()
+                    mark.draw(in: NSRect(x: x, y: 0, width: mark.size.width, height: mark.size.height))
+                    NSColor.white.set()
+                    NSRect(x: x, y: 0, width: mark.size.width, height: mark.size.height).fill(using: .sourceAtop)
+                    NSGraphicsContext.restoreGraphicsState()
+                } else {
+                    mark.draw(in: NSRect(x: x, y: 0, width: mark.size.width, height: mark.size.height))
+                }
+                x += mark.size.width + gap
+            }
+            return true
+        }
+        return strip
     }
 
     private func weatherBinding<Value>(_ keyPath: WritableKeyPath<WeatherSettings, Value>) -> Binding<Value> {
