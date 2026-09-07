@@ -243,11 +243,28 @@ struct StatusItemLengthLatch {
     /// The sanctioned exception to the one-assignment invariant in
     /// `docs/MACOS27_STATUS_ITEM_SIZING.md`, enabled only by the Item width preference. Default is
     /// off, which keeps the latch one-way.
-    var allowsLiveResize = false
+    var allowsLiveResize = false {
+        didSet {
+            if allowsLiveResize { hasEverResizedLive = true }
+        }
+    }
+
+    /// Whether this controller has ever run with live resize enabled.
+    ///
+    /// Corrective growth is limited to latches that have: an item that has only ever used reserved
+    /// widths keeps the strict one-way contract, and its proposals never exceed the latched length
+    /// anyway.
+    private var hasEverResizedLive = false
 
     mutating func resolve(_ proposed: CGFloat) -> (length: CGFloat, shouldAssign: Bool) {
         if let length {
-            guard allowsLiveResize, proposed != length else {
+            // A frame is never allowed to be narrower than the content drawn into it: the image is
+            // drawn from the leading edge, so a short frame cuts the reading off. Growth is
+            // therefore always permitted, and shrinking only while live resize is on. This is what
+            // restores the reserved width when the user turns live width off; with the preference
+            // never enabled the proposal always equals the latched length and nothing is written.
+            let mustGrow = hasEverResizedLive && proposed > length
+            guard allowsLiveResize || mustGrow, proposed != length else {
                 return (length, false)
             }
             self.length = proposed

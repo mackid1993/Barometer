@@ -59,6 +59,61 @@ struct LiveItemWidthTests {
         #expect(latch.resolve(41) == (41, true))
     }
 
+    @Test("Turning live width off restores the reserved width instead of clipping")
+    func disablingLiveWidthRestoresTheWiderFrame() {
+        // Reproduces a real defect: with the preference on, items latch to a narrow live width.
+        // Turning it off makes the renderer produce the wider reserved content again, but a
+        // one-way latch kept the narrow frame and the image was drawn into it, cutting the reading
+        // off at the right edge.
+        var latch = StatusItemLengthLatch()
+        latch.allowsLiveResize = true
+        #expect(latch.resolve(32) == (32, true))
+
+        latch.allowsLiveResize = false
+        let decision = latch.resolve(50)
+        #expect(decision.length == 50, "the frame must grow back to fit the reserved content")
+        #expect(decision.shouldAssign, "the wider frame has to reach AppKit or the item clips")
+    }
+
+    @Test("A latch that never used live width keeps the strict one-way contract")
+    func neverLiveLatchRejectsEveryLaterProposal() {
+        // Corrective growth must not leak into installs that never enable the preference: the
+        // one-way rule is what keeps a menu bar manager from reassessing an item.
+        var latch = StatusItemLengthLatch()
+        #expect(latch.resolve(40) == (40, true))
+        #expect(latch.resolve(56) == (40, false))
+        #expect(latch.resolve(24) == (40, false))
+        #expect(latch.length == 40)
+    }
+
+    @Test("Turning live width off leaves the reading fully drawn, not cut off")
+    func disablingLiveWidthDoesNotClipTheRendering() {
+        // End to end over the path that actually clipped: narrow live frame, then the wider
+        // reserved rendering after the preference is turned off.
+        let renderer = TextRenderer(text: "67°", reservedText: "888°")
+        let live = renderer.render(in: context(live: true))
+        let reserved = renderer.render(in: context(live: false))
+        #expect(live.size.width < reserved.size.width)
+
+        var latch = StatusItemLengthLatch()
+        latch.allowsLiveResize = true
+        _ = latch.resolve(StatusItemRendering.roundedLength(live.size.width))
+
+        latch.allowsLiveResize = false
+        let decision = latch.resolve(StatusItemRendering.roundedLength(reserved.size.width))
+        let framed = StatusItemRendering.image(reserved, framedTo: decision.length)
+        #expect(framed.size.width >= reserved.size.width, "the reserved rendering must not be cut off")
+    }
+
+    @Test("A frame narrower than its content would clip, which is why growth is allowed")
+    func framingNarrowerThanContentClips() {
+        let wide = NSImage(size: NSSize(width: 50, height: 22))
+        let framed = StatusItemRendering.image(wide, framedTo: 32)
+        // Documents the consequence the latch must prevent.
+        #expect(framed.size.width == 32)
+        #expect(framed.size.width < wide.size.width)
+    }
+
     // MARK: - Reservation collapse
 
     @Test("A render context reserves stable width unless live width is on")

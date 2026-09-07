@@ -3984,3 +3984,30 @@ Verification:
 - A first draft of the reserved-name test contained an assertion ending in `|| true`, which passes regardless. It was
   replaced with a check that the reserved name is absent from a list of real device names.
 - `swift build -c release` completed and `git diff --check` reported no whitespace errors.
+
+## P8-T70 Restore the reserved frame when live width is turned off
+
+David found that turning **Item width** off clipped the readings. The cause was the length latch. With the preference
+on, each item latched to its narrow live width. Turning it off made the renderers produce the wider reserved content
+again, but the latch is one-way, so it returned the narrow length with no assignment. `StatusItemRendering.image`
+draws from the leading edge into a canvas of that length, so the right side of every reading was cut off.
+
+The invariant is that a frame must never be narrower than the content drawn into it. The latch now permits growth as
+well as the live-mode shrink, so returning to reserved widths restores the wider frame.
+
+A first attempt allowed growth unconditionally and broke
+`statusItemLengthMatchesRenderedCanvasWithoutAppKitInsets`, which deliberately asserts that a larger proposal is
+rejected. That guard is the one-way contract and is worth keeping, so growth is now limited to a latch that has
+actually run with live resize enabled. An item that has only ever used reserved widths keeps the strict contract, and
+its proposals never exceed the latched length in any case, so nothing is written for an installation that never
+enables the preference.
+
+Verification:
+
+- `make test` passed: 295 tests across three targets. The reproduction was written first and observed failing on both
+  assertions before the fix.
+- Coverage pins both halves: a latch that never enabled live width rejects every later proposal, wider and narrower,
+  and a latch returning from live width grows back so the reserved rendering is not cut off. The second runs the real
+  path, rendering both widths and framing the reserved image against the resolved length.
+- `swift build -c release` completed and `git diff --check` reported no whitespace errors.
+- The release run carrying the defect was canceled before it produced an artifact.
