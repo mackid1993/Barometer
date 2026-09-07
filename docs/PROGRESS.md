@@ -4948,3 +4948,8 @@ but changed the canonical pointer immediately from (34.4,47.9) to (1727,0); no N
 opened. The legacy false-flag path therefore fails David's zero-pointer-state-change requirement on this build
 and must not be shipped or retried as a stationary implementation. The original corner settings were restored.
 David explicitly refused changes to clock visibility. No production Hot Corner opener is implemented.
+
+A final no-pointer activation probe used NSRunningApplication.activate(options: .activateAllWindows) once.
+It returned true, but NotificationCenter AXWindows remained zero before and after 700 ms. Evidence is in
+`dist/nc-runningapp-activate.m` and `.out`. Activation acceptance is not panel-opening success.
+The task remains unresolved under the combined requirements of zero pointer movement and unchanged clock hiding.
