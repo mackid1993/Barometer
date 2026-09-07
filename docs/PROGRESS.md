@@ -4316,3 +4316,9 @@ stamped on the events (`CGSGetProcessMenuBarWindowList` reports every process's 
 7 on macOS 27), with a real Command key press and click state set. Nothing moved while Thaw was running. Thaw's
 own mover relays each event through several event taps and a helper service; whether the plain drag works without
 Thaw's taps installed is untested, because Thaw must not be quit or launched by an agent here.
+
+## P8-T84 Relicense to GPL-3.0
+
+`LICENSE` is now the verbatim GPL-3.0 text from gnu.org. README (badge and license line), AGENTS.md, DESIGN.md
+(overview, file list, and the Thaw comparison row), and the About pane say GPL-3.0. `git shortlog` shows one
+author, so no other consent was needed.

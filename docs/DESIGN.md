@@ -4,7 +4,7 @@ Status: v1 design, written 2026-09-03. Companion documents: `docs/PLAN.md` (phas
 
 ## 1. Purpose
 
-Barometer is a free, open source (MIT) macOS app that replaces iStat Menus for one specific user and, secondarily, for anyone else who wants it. It reproduces the iStat Menus feature set (CPU, GPU, memory, disks, network, sensors, battery, weather, time) as a set of menu bar items with rich dropdown panels, and it must behave correctly with third-party menu bar managers on macOS 27, where iStat Menus currently misbehaves.
+Barometer is a free, open source (GPL-3.0, relicensed from MIT on 2026-09-07) macOS app that replaces iStat Menus for one specific user and, secondarily, for anyone else who wants it. It reproduces the iStat Menus feature set (CPU, GPU, memory, disks, network, sensors, battery, weather, time) as a set of menu bar items with rich dropdown panels, and it must behave correctly with third-party menu bar managers on macOS 27, where iStat Menus currently misbehaves.
 
 Weather is a first-class module, not an add-on.
 
@@ -235,7 +235,7 @@ MenuBarStats/
   Package.swift                      swift-tools-version 6.4, platforms macOS "26.0", zero third-party dependencies
   AGENTS.md                          rules for coding agents
   README.md
-  LICENSE                            MIT
+  LICENSE                            GPL-3.0
   docs/DESIGN.md  docs/PLAN.md  docs/CODEX_PROMPT.md
   Makefile                           build, app, run, test, clean, probe targets
   Scripts/make-app.sh                assembles Barometer.app from the built binary
@@ -451,7 +451,7 @@ Every source below has been checked on the target machine unless marked "expecte
 | Weather location default | Saved location via geocoding search | CoreLocation (TCC resets with ad-hoc signing) |
 | Temperature source | IOHID first, SMC second | SMC only (fewer sensors on Apple Silicon) |
 | Dropdown container | `NSMenu` with hosted views | `NSPopover`, custom panel |
-| License | MIT | GPL (Thaw and Ice are GPL; do not copy their code) |
+| License | GPL-3.0 (since 2026-09-07, so Thaw and Ice code may be adapted with attribution) | GPL (Thaw and Ice) |
 
 ## 15. Open questions for David
 

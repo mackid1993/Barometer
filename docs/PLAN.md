@@ -513,6 +513,14 @@ Requested by David on 2026-09-07 after using P8-T82.
 - Verify: source, settings, and panel-height tests, the panel screens, the popover benchmark, full suite, signed
   local build.
 
+### P8-T84 Relicense to GPL-3.0
+
+David's decision on 2026-09-07, made so Thaw's and Ice's GPL code can be adapted with attribution instead of
+reimplemented. David Brustein is the sole copyright holder, so the change needs no other consent.
+
+- Replace `LICENSE` with the GPL-3.0 text; update README, AGENTS, DESIGN, and the About pane.
+- Any adapted Thaw or Ice code must keep its copyright notice and name its origin in a comment.
+
 ---
 
 ## Phase 9: After v1

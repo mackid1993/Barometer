@@ -748,7 +748,7 @@ private struct AboutSettingsView: View {
                 GlassCard {
                     VStack(alignment: .leading, spacing: 6) {
                         SectionLabel("Credits")
-                        MetricRow(label: "License", value: "MIT", symbol: "doc.text", tint: accent.primary)
+                        MetricRow(label: "License", value: "GPL-3.0", symbol: "doc.text", tint: accent.primary)
                         MetricRow(
                             label: "Weather data", value: "Open-Meteo.com (CC BY 4.0)", symbol: "cloud.sun",
                             tint: accent.secondary)

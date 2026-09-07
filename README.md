@@ -14,7 +14,7 @@
          src="https://img.shields.io/github/actions/workflow/status/mackid1993/Barometer/check.yml?style=for-the-badge">
   </a>
   <a href="LICENSE">
-    <img alt="MIT License" src="https://img.shields.io/github/license/mackid1993/Barometer?style=for-the-badge">
+    <img alt="GPL-3.0 License" src="https://img.shields.io/github/license/mackid1993/Barometer?style=for-the-badge">
   </a>
   <a href="https://github.com/mackid1993/Barometer/releases/latest">
     <img alt="Latest release" src="https://img.shields.io/github/v/release/mackid1993/Barometer?style=for-the-badge">
@@ -161,5 +161,5 @@ item.
 
 ## Credits
 
-Barometer is available under the [MIT License](LICENSE). Weather data by [Open-Meteo.com](https://open-meteo.com/)
+Barometer is available under the [GNU General Public License, version 3](LICENSE). Copyright 2026 David Brustein. Weather data by [Open-Meteo.com](https://open-meteo.com/)
 (CC BY 4.0).
