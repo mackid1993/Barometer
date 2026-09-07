@@ -142,8 +142,7 @@ Credits and acknowledgments:
 - **Thaw:** [Toni Förster (stonerl)](https://github.com/stonerl), maintainer of
   [Thaw](https://github.com/thaw-app/Thaw) at the [thaw-app organization](https://github.com/thaw-app) on GitHub.
   His work on macOS 27 menu bar internals informed Barometer's status item identity rules, and Barometer's
-  "Hide the system clock" is adapted from Thaw's `SystemClockHider.swift`, its assessment-mode assertion, and
-  `SystemClockCover.swift`, shared by the Thaw team and used with their permission. Both projects are GPL-3.0.
+  "Hide the system clock" is adapted from Thaw, shared by the Thaw team, and used with their permission. Both projects are GPL-3.0.
 - **Thaw's origin:** [Ice](https://github.com/jordanbaird/Ice) by [Jordan Baird](https://github.com/jordanbaird).
 
 ## Questions
