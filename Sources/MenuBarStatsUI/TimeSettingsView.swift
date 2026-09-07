@@ -22,6 +22,7 @@ struct TimeSettingsView: View {
 
     var body: some View {
         let now = store.latestSample?.timestamp ?? Date()
+        ScrollViewReader { proxy in
         Form {
             Section {
                 Toggle("Show in menu bar", isOn: settingsStore.menuBarVisibilityBinding(for: .time))
@@ -142,18 +143,6 @@ struct TimeSettingsView: View {
             }
             Section("Notifications") {
                 Toggle("Show notifications in the dropdown", isOn: timeBinding(\.showsNotifications))
-                Text("Open Notification Center in the dropdown fires a hot corner assigned to Notification Center, "
-                    + "the one trigger that still works with the system clock hidden. Assign any corner to "
-                    + "Notification Center in System Settings > Desktop & Dock > Hot Corners. The pointer is hidden "
-                    + "for the instant it takes and ends where it was.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if NotificationCenterOpening.assignedCornerKey == nil {
-                    Text("No corner is assigned to Notification Center yet.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Button("Open Hot Corner Settings…") { NotificationCenterOpening.openHotCornerSettings() }
                 Text("Lists the notifications waiting in macOS Notification Center, so a hidden system clock "
                     + "doesn't prevent access. Follows macOS notification visibility settings. Clicking and "
                     + "clearing require Accessibility access; banners keep arriving normally.")
@@ -166,9 +155,45 @@ struct TimeSettingsView: View {
             .task(id: settingsStore.settings.time.showsNotifications) {
                 await watchNotificationAccess()
             }
+            Section("Open Notification Center") {
+                Text("With the system clock hidden, the only thing that still opens Notification Center is a hot "
+                    + "corner assigned to it. The dropdown's Open Notification Center button fires that corner; the "
+                    + "pointer is hidden for the instant it takes and ends where it was.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("1. Open System Settings > Desktop & Dock.")
+                    Text("2. Click Hot Corners… at the bottom.")
+                    Text("3. Set any corner to Notification Center and click Done.")
+                }
+                .font(.callout)
+                if NotificationCenterOpening.assignedCornerKey != nil {
+                    Label("A corner is assigned to Notification Center", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                } else {
+                    Text("No corner is assigned to Notification Center yet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Button("Open Hot Corner Settings…") { NotificationCenterOpening.openHotCornerSettings() }
+            }
+            .id(SettingsFocus.hotCornerInstructions)
         }
         .formStyle(.grouped)
         .settingsPane(module: .time, settings: settingsStore.settings)
+        .onAppear { scrollToPendingAnchor(proxy) }
+        .onChange(of: SettingsFocus.shared.pendingAnchor) { _, _ in scrollToPendingAnchor(proxy) }
+        }
+    }
+
+    /// Lands on the section the flyout sent the user to, then clears the request.
+    private func scrollToPendingAnchor(_ proxy: ScrollViewProxy) {
+        guard let anchor = SettingsFocus.shared.pendingAnchor else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(150))
+            withAnimation { proxy.scrollTo(anchor, anchor: .top) }
+            SettingsFocus.shared.pendingAnchor = nil
+        }
     }
 
     @ViewBuilder

@@ -92,10 +92,13 @@ struct NotificationListView: View {
             if needsHotCorner {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Set a hot corner to Notification Center first. With the system clock hidden, that corner "
-                        + "is what opens the panel. Time and Notifications settings has the steps.")
+                        + "is what opens the panel.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Button("Open Settings…") { menuDetailActions?.openSettings() }
+                    Button("Show me how…") {
+                        SettingsFocus.shared.pendingAnchor = SettingsFocus.hotCornerInstructions
+                        menuDetailActions?.openSettings()
+                    }
                         .buttonStyle(.plain)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(accent.primary)
@@ -104,7 +107,7 @@ struct NotificationListView: View {
                 .padding(.bottom, 4)
             }
             Button {
-                guard NotificationCenterOpening.assignedCornerKey != nil || NotificationCenterOpening.clockIsOnBar else {
+                guard NotificationCenterOpening.assignedCornerKey != nil else {
                     needsHotCorner = true
                     return
                 }
