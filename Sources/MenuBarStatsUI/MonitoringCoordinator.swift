@@ -933,6 +933,7 @@ public final class MonitoringCoordinator {
                 ),
                 contentHeight: SensorsDropdownView.contentSize.height,
                 contentWidth: SensorsDropdownView.contentSize.width,
+                usesAttachedPanel: true,
                 visibilityAction: { [weak self] visible in
                     self?.setDetailVisibility(
                         owner: "sensors-\(instance)",
