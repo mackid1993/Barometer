@@ -395,7 +395,8 @@ universal performance guarantee.
   nowhere else (the mechanism Thaw's `PlatformRuntimeKit` uses; adapted from Thaw with the maintainers' permission
   under the GPL). System items are numbered; on macOS 27.0 the clock is 2, Wi-Fi 6, Control Center 8, verified by
   removing one index at a time. Every running application's bundle identifier is allowed and re-applied on launch
-  and quit. Apple extras outside the numbered set are removed as collateral whenever the assertion is live.
+  and quit. Control Center and its contents stay; only Apple items shown as their own menu bar icons outside the numbered
+  set (Focus, Now Playing, the user switcher) are removed while the assertion is live.
 - Accessibility is requested only when the assertion is unavailable and `SystemClockCover` (adapted from Thaw's
   `SystemClockCover.swift`) has to cover the clock on its Accessibility bounds instead. Do not press, move, or
   drive any other application through Accessibility: pressing the clock (P8-T80) and synthesized Command-drags,

@@ -82,8 +82,8 @@ struct TimeSettingsView: View {
             Section("System Clock") {
                 Toggle("Hide the system clock", isOn: hideSystemClockBinding)
                 Text("Removes the macOS clock from the menu bar so this clock can take its place, and gives its "
-                    + "width back. Apple extras outside the menu bar's own list, such as AirDrop, Focus, Now "
-                    + "Playing, and the user switcher, are removed with it.")
+                    + "width back. Control Center and everything inside it stay. Only Apple items you show as "
+                    + "their own menu bar icons, such as Focus or Now Playing, are removed along with it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if settingsStore.settings.time.hidesSystemClock {

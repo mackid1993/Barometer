@@ -17,9 +17,10 @@ import OSLog
 /// lets a client hold an assessment-mode assertion: a configuration names which system items and
 /// which third-party bundle identifiers stay on the bar, and the bar removes everything else while
 /// the assertion is live. The system items are numbered; on macOS 27.0 the clock is 2, Wi-Fi is
-/// 6, and Control Center is 8 (verified by removing one index at a time). Apple extras outside that
-/// numbered set, such as AirDrop, Focus, Now Playing, and the user switcher, are removed whenever
-/// any assertion is live; that is the cost Thaw documents, and Barometer inherits it.
+/// 6, and Control Center is 8 (verified by removing one index at a time). Control Center and its
+/// contents stay. Only Apple items the user shows as their own menu bar icons outside that numbered
+/// set, such as Focus or Now Playing, are removed while an assertion is live; Thaw documents that
+/// cost, and on a bar without such icons nothing else changes.
 ///
 /// This is the only type that touches the framework. It loads it lazily, reports `isAvailable`
 /// when the classes exist, and never throws past its own error type.
