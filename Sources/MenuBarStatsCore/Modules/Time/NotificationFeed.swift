@@ -33,6 +33,7 @@ public final class NotificationFeed {
     @ObservationIgnored private let dismissOperation:
         @Sendable (DeliveredNotification) async -> NotificationSystemActionResult
     @ObservationIgnored private let primeActionOperation: @Sendable ([DeliveredNotification]) async -> Void
+    @ObservationIgnored private let removeOperation: @Sendable (Set<String>) async -> NotificationRemovalResult
     @ObservationIgnored private let dismissalVerificationDelays: [Duration]
     @ObservationIgnored private var dismissalErrorIdentifiers: Set<String> = []
     @ObservationIgnored private var watchers: [DispatchSourceFileSystemObject] = []
@@ -50,12 +51,14 @@ public final class NotificationFeed {
     public init(
         source: NotificationCenterSource = NotificationCenterSource(),
         actionBridge: NotificationCenterActionBridge = NotificationCenterActionBridge(),
+        remover: NotificationCenterRemover = NotificationCenterRemover(),
         defaults: UserDefaults = .standard
     ) {
         self.source = source
         readOperation = { await source.read() }
         dismissOperation = { await actionBridge.perform(.dismiss, for: $0) }
         primeActionOperation = { await actionBridge.primeActions(for: $0) }
+        removeOperation = { await remover.remove(identifiers: $0) }
         // Native Close can succeed before usernoted commits the delivered list. Allow the observed delayed
         // reconciliation without dispatching the action twice or hiding an unconfirmed notification.
         dismissalVerificationDelays = [.milliseconds(150), .milliseconds(350), .seconds(1), .seconds(2), .seconds(2)]
@@ -68,6 +71,7 @@ public final class NotificationFeed {
         readOperation = { preset }
         dismissOperation = { _ in .unavailable }
         primeActionOperation = { _ in }
+        removeOperation = { _ in .unavailable("preset") }
         dismissalVerificationDelays = []
         snapshot = preset
         retainedNotifications = preset.notifications
@@ -80,11 +84,15 @@ public final class NotificationFeed {
         defaults: UserDefaults,
         readOperation: @escaping @Sendable () async -> NotificationSnapshot,
         dismissOperation: @escaping @Sendable (DeliveredNotification) async -> NotificationSystemActionResult,
+        removeOperation: @escaping @Sendable (Set<String>) async -> NotificationRemovalResult = { _ in
+            .unavailable("test")
+        },
         dismissalVerificationDelays: [Duration] = []
     ) {
         source = NotificationCenterSource(databaseURL: URL(fileURLWithPath: "/dev/null/barometer-test"))
         self.readOperation = readOperation
         self.dismissOperation = dismissOperation
+        self.removeOperation = removeOperation
         primeActionOperation = { _ in }
         self.dismissalVerificationDelays = dismissalVerificationDelays
         snapshot = preset
@@ -146,6 +154,25 @@ public final class NotificationFeed {
             }
         }
 
+        // Whatever the banner path could not clear goes to the system-level removal: one database edit
+        // and one restart for the whole batch. Its rows then read as gone in the verification below.
+        var removalError: String?
+        let leftover = unavailableIdentifiers.union(failedIdentifiers)
+        if !leftover.isEmpty {
+            switch await removeOperation(leftover) {
+            case .removed:
+                acceptedIdentifiers.formUnion(leftover)
+                unavailableIdentifiers = []
+                failedIdentifiers = []
+            case let .unavailable(reason), let .failed(reason):
+                removalError = reason
+            }
+            guard operationGeneration == dismissalGeneration else {
+                pendingDismissalIdentifiers = []
+                return
+            }
+        }
+
         let attemptedIdentifiers = acceptedIdentifiers.union(failedIdentifiers)
         var verifiedRemaining = requestedIdentifiers
         if !attemptedIdentifiers.isEmpty {
@@ -190,7 +217,9 @@ public final class NotificationFeed {
         let failedButPresent = failedIdentifiers.intersection(verifiedRemaining)
         let unresolved = acceptedButPresent.union(unavailableIdentifiers).union(failedButPresent)
         dismissalErrorIdentifiers = unresolved
-        if !unavailableIdentifiers.isEmpty {
+        if let removalError, !unresolved.isEmpty {
+            dismissalError = removalError
+        } else if !unavailableIdentifiers.isEmpty {
             dismissalError = "Barometer cannot clear some notifications through macOS right now. "
                 + "Clear them in Notification Center."
         } else if !failedButPresent.isEmpty {

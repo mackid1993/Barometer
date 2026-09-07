@@ -391,7 +391,8 @@ universal performance guarantee.
 - Full Disk Access is approved for exactly one use: `NotificationCenterSource` reads Notification Center's SQLite
   database (read-only, only while the Time dropdown is open and the Time option is on) so the dropdown can list
   delivered notifications. macOS offers no prompt for Full Disk Access; Settings shows the status and opens the pane.
-  Never write to that database and never read other protected data.
+  Writes are confined to `NotificationCenterRemover` (P8-T90, David's decision): delete exact `record` rows and strip
+  exact UUIDs from list blobs in one transaction, then restart usernoted. Never read other protected data.
 - "Hide the system clock" removes the clock through the menu bar's assessment-mode assertion in Apple's private
   `MenuBarClientCore` framework, wrapped in one type, `MenuBarAssessmentAssertion` in `SystemSources`, and used
   nowhere else (the mechanism Thaw's `PlatformRuntimeKit` uses; adapted from Thaw with the maintainers' permission

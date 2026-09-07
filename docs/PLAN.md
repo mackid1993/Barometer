@@ -561,6 +561,21 @@ Requested by David on 2026-09-07; implemented with GPT 5.6 Sol agents while Clau
   Focus access and playback controls also require David's installed-app test; shell probes cannot prove they work
   under the installed application's grants. David chose to test the build himself instead of granting Codex access.
 
+### P8-T90 System-level notification clears
+
+David's decision on 2026-09-07, lifting the P8-T86 rule against writing Notification Center's database: a clear in
+Barometer must clear macOS too, and no ordinary-process interface exists for another application's notification
+(P8-T86 findings and the private menu bar framework, which has no notification surface). The remaining channel is
+the store itself: delete the `record` row, strip exactly that UUID from every list blob, and restart usernoted,
+which launchd relaunches and which reloads from disk. Verified by David from Terminal on a disposable
+notification: the row stayed deleted after the relaunch and the list's other entries were untouched.
+
+- `NotificationCenterRemover` in `SystemSources`: the one type that writes the database, exact UUIDs only, one
+  transaction, then `NotificationDaemonRestarter` signals usernoted and waits for the new instance.
+- `NotificationFeed.dismiss`: the banner path first; whatever it cannot clear goes to the remover in one batch, so
+  a Clear All costs one restart. The existing authoritative read still confirms the result.
+- Verify: remover fixture tests, feed fallback test, build, David's installed check with disposable notifications.
+
 ---
 
 ## Phase 9: After v1
