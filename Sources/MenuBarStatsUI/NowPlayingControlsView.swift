@@ -8,7 +8,10 @@ import SystemSources
 /// gradient progress capsule and the transport buttons.
 public struct NowPlayingControlsView: View {
     /// Fixed canvas of the hosted panel.
-    public static let contentSize = CGSize(width: 340, height: 196)
+    ///
+    /// Tall enough for the failure line a rejected media command puts under the transport controls. At 196
+    /// points the content came to 204 with that line present and the message was the part that was clipped.
+    public static let contentSize = CGSize(width: 340, height: 204)
 
     private let controller: NowPlayingController
     private let settingsStore: SettingsStore?

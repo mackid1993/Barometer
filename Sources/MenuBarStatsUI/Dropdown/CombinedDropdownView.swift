@@ -91,13 +91,18 @@ public struct CombinedDropdownView: View {
         VStack(alignment: .leading, spacing: 0) {
             if let selected {
                 if members.count > 1 {
-                    CapsulePicker(
-                        options: members,
-                        selection: selectionBinding(fallback: selected),
-                        label: \.displayName,
-                        accent: ModuleAccent.resolve(settingsStore.settings, module: selected)
-                    )
-                    .padding(.horizontal, BarometerDesign.panelPadding)
+                    // Seven or more modules in one stack need more width than the panel has, and the picker
+                    // is a plain row, so the labels wrapped inside their capsules. It scrolls instead.
+                    ScrollView(.horizontal) {
+                        CapsulePicker(
+                            options: members,
+                            selection: selectionBinding(fallback: selected),
+                            label: \.displayName,
+                            accent: ModuleAccent.resolve(settingsStore.settings, module: selected)
+                        )
+                        .padding(.horizontal, BarometerDesign.panelPadding)
+                    }
+                    .scrollIndicators(.never)
                     .padding(.top, BarometerDesign.panelPadding)
                     .padding(.bottom, 4)
                 }

@@ -1,6 +1,7 @@
 import AppKit
 import MenuBarStatsCore
 import SwiftUI
+import SystemSources
 
 /// Battery menu bar, warning, sampling, and dropdown preferences.
 struct BatterySettingsView: View {
@@ -61,7 +62,51 @@ struct BatterySettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .settingsPane(module: .battery, settings: settingsStore.settings)
+        .settingsPane(module: .battery, settings: settingsStore.settings, preview: previewImage)
+    }
+
+    /// The Battery item exactly as the menu bar draws it, in whichever mode is selected.
+    ///
+    /// The presenter behind the real status item renders the preview too, so each mode arrives
+    /// centered on the one canvas the item reserves for all four rather than at its own natural
+    /// width, which is what the menu bar does. The stand-in charge sits above the warning
+    /// threshold, which stops at half, so the preview always carries the module's own color.
+    private var previewImage: NSImage {
+        let appSettings = settingsStore.settings
+        let color = NSColor(hex: appSettings.darkColor(for: moduleSettings)) ?? .controlAccentColor
+        let context = RenderContext(
+            thickness: NSStatusBar.system.thickness,
+            appearance: .dark,
+            palette: MenuBarPalette(light: color, dark: color),
+            fontSize: appSettings.effectiveMenuBarFontSize,
+            isMonochrome: appSettings.isMonochrome,
+            scale: appSettings.effectiveMenuBarScale,
+            fontWeight: appSettings.fontWeight
+        )
+        let snapshot = BatterySnapshot(
+            name: "Internal Battery",
+            chargePercent: 68,
+            state: .discharging,
+            isExternalConnected: false,
+            isCharging: false,
+            isFullyCharged: false,
+            healthPercent: nil,
+            cycleCount: nil,
+            temperatureCelsius: nil,
+            voltageVolts: nil,
+            amperageAmps: nil,
+            wattageWatts: nil,
+            condition: nil,
+            adapter: nil,
+            isLowPowerModeEnabled: false,
+            timeToEmptyMinutes: 200
+        )
+        return BatteryMenuBarPresenter.content(
+            sample: BatterySample(snapshot: snapshot),
+            moduleSettings: moduleSettings,
+            batterySettings: appSettings.battery,
+            context: context
+        ).image
     }
 
     private func moduleBinding<Value>(_ keyPath: WritableKeyPath<ModuleSettings, Value>) -> Binding<Value> {

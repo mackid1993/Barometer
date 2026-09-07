@@ -33,9 +33,6 @@ public final class NotificationFeed {
 
     @ObservationIgnored private let source: NotificationCenterSource
     @ObservationIgnored private let readOperation: @Sendable () async -> NotificationSnapshot
-    @ObservationIgnored private let dismissOperation:
-        @Sendable (DeliveredNotification) async -> NotificationSystemActionResult
-    @ObservationIgnored private let primeActionOperation: @Sendable ([DeliveredNotification]) async -> Void
     @ObservationIgnored private let dismissalVerificationDelays: [Duration]
     @ObservationIgnored private var dismissalErrorIdentifiers: Set<String> = []
     @ObservationIgnored private var watchers: [DispatchSourceFileSystemObject] = []
@@ -52,13 +49,10 @@ public final class NotificationFeed {
     /// Creates a feed over the real database and macOS notification action bridge by default.
     public init(
         source: NotificationCenterSource = NotificationCenterSource(),
-        actionBridge: NotificationCenterActionBridge = NotificationCenterActionBridge(),
         defaults: UserDefaults = .standard
     ) {
         self.source = source
         readOperation = { await source.read() }
-        dismissOperation = { await actionBridge.perform(.dismiss, for: $0) }
-        primeActionOperation = { await actionBridge.primeActions(for: $0) }
         // Native Close can succeed before usernoted commits the delivered list. Allow the observed delayed
         // reconciliation without dispatching the action twice or hiding an unconfirmed notification.
         dismissalVerificationDelays = [.milliseconds(150), .milliseconds(350), .seconds(1), .seconds(2), .seconds(2)]
@@ -69,8 +63,6 @@ public final class NotificationFeed {
     public init(preset: NotificationSnapshot, defaults: UserDefaults = .standard) {
         source = NotificationCenterSource(databaseURL: URL(fileURLWithPath: "/dev/null/barometer-preset"))
         readOperation = { preset }
-        dismissOperation = { _ in .unavailable }
-        primeActionOperation = { _ in }
         dismissalVerificationDelays = []
         snapshot = preset
         retainedNotifications = preset.notifications
@@ -82,13 +74,10 @@ public final class NotificationFeed {
         preset: NotificationSnapshot,
         defaults: UserDefaults,
         readOperation: @escaping @Sendable () async -> NotificationSnapshot,
-        dismissOperation: @escaping @Sendable (DeliveredNotification) async -> NotificationSystemActionResult,
         dismissalVerificationDelays: [Duration] = []
     ) {
         source = NotificationCenterSource(databaseURL: URL(fileURLWithPath: "/dev/null/barometer-test"))
         self.readOperation = readOperation
-        self.dismissOperation = dismissOperation
-        primeActionOperation = { _ in }
         self.dismissalVerificationDelays = dismissalVerificationDelays
         snapshot = preset
         retainedNotifications = preset.notifications
@@ -127,16 +116,12 @@ public final class NotificationFeed {
         let refreshed = await readOperation()
         guard generation == refreshGeneration else { return }
         apply(refreshed, preserving: pendingDismissalIdentifiers.union(dismissalErrorIdentifiers))
-        // Capture native controls while banners are exposed; a later click still revalidates the exact UUID.
-        // Use the filtered displayed list so disabled applications never retain actionable entries.
-        await primeActionOperation(notifications)
     }
 
     /// Reads the list and follows database changes until `stop()` is called.
     public func start() async {
         watchGeneration += 1
         let generation = watchGeneration
-        await primeActionOperation(notifications)
         guard generation == watchGeneration, !Task.isCancelled else { return }
         await refresh()
         guard generation == watchGeneration, !Task.isCancelled, !isWatching else { return }

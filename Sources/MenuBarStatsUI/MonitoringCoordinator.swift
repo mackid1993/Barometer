@@ -214,6 +214,7 @@ public final class MonitoringCoordinator {
                     history: history,
                     settings: settings,
                     colorIcons: settingsStore.settings.weather.usesColorIcons,
+                    systemIcons: settingsStore.settings.weather.usesSystemIcons,
                     context: context
                 )
             }
@@ -1591,6 +1592,7 @@ public final class MonitoringCoordinator {
         history: [HistoryEntry<WeatherSample.GraphValue>],
         settings: ModuleSettings,
         colorIcons: Bool = true,
+        systemIcons: Bool = false,
         context: RenderContext
     ) -> StatusItemContent {
         // Weather has one presentation: the current condition glyph beside the current
@@ -1603,12 +1605,34 @@ public final class MonitoringCoordinator {
         // the digits plus a few points of padding rather than an icon beside them.
         // No forecast yet: just the dash and degree sign, with no condition drawn on it.
         let condition = sample.map { $0.forecast.current.code.menuBarCondition(isDay: $0.forecast.current.isDay) }
-        let renderer = WeatherBadgeRenderer(
-            condition: condition,
-            text: presentation.text,
-            reservedText: WeatherPresentationFormatter.reservedMenuBarText,
-            colorful: colorIcons
-        )
+        // The system symbol beside the digits is what Barometer shipped with, kept as an option because the
+        // compact mark is not to everyone's taste. Every weather symbol is reserved so the icon field keeps
+        // one width as conditions change.
+        let renderer: any MenuBarRenderer
+        switch (systemIcons, presentation.symbolName) {
+        case let (true, symbolName?):
+            renderer = IconTextRenderer(
+                symbolName: symbolName,
+                text: presentation.text,
+                reservedText: WeatherPresentationFormatter.reservedMenuBarText,
+                reservedSymbolNames: WeatherPresentationFormatter.menuBarSymbolNames)
+        case (true, nil):
+            // No forecast yet. A symbol here would have to be invented, and a sun standing in for nothing is a
+            // reading the weather never gave, so nothing is drawn in the icon's place — but it is still drawn
+            // by the renderer that reserves the icon's width, or the item would be narrow at launch and widen
+            // the instant the first forecast landed, resizing an item already on the bar.
+            renderer = IconTextRenderer(
+                symbolName: nil,
+                text: presentation.text,
+                reservedText: WeatherPresentationFormatter.reservedMenuBarText,
+                reservedSymbolNames: WeatherPresentationFormatter.menuBarSymbolNames)
+        case (false, _):
+            renderer = WeatherBadgeRenderer(
+                condition: condition,
+                text: presentation.text,
+                reservedText: WeatherPresentationFormatter.reservedMenuBarText,
+                colorful: colorIcons)
+        }
         guard let sample else {
             return StatusItemContent(
                 image: renderer.render(in: context),

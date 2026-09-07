@@ -89,11 +89,37 @@ struct WeatherSettingsView: View {
             }
 
             Section("Menu Bar") {
-                Toggle("Color weather icons", isOn: weatherBinding(\.usesColorIcons))
+                Picker("Weather icon", selection: weatherIconStyle) {
+                    Text("Barometer's own").tag(false)
+                    Text("System symbols").tag(true)
+                }
+                .pickerStyle(.menu)
+                if settingsStore.weatherUsesSystemIcons {
+                    Text(
+                        "The system's weather symbol sits beside the temperature, following the menu bar's own "
+                            + "color and weight, the way Barometer showed it at launch."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                } else {
+                    Text(
+                        "The weather sits right on the temperature: a cloud resting on the number, rain or snow "
+                            + "underneath, a sunburst around it. It takes less room in the bar than a symbol "
+                            + "beside the digits."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    Toggle("Color weather icons", isOn: weatherBinding(\.usesColorIcons))
+                    Text(
+                        "In color, the sun is amber, night is lavender, and rain is blue, even if the rest of the "
+                            + "menu bar is monochrome."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
                 Text(
-                    "The weather sits right on the temperature: a cloud resting on the number, rain or snow "
-                        + "underneath, a sunburst around it. In color, the sun is amber, night is lavender, and rain "
-                        + "is blue, even if the rest of the menu bar is monochrome."
+                    "The two icons are different widths, so a change takes effect when Barometer reopens. "
+                        + "Apply Changes does that."
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -332,10 +358,22 @@ struct WeatherSettingsView: View {
             scale: appSettings.effectiveMenuBarScale,
             fontWeight: appSettings.fontWeight
         )
-        let marks = WeatherMenuBarCondition.allCases.map {
-            WeatherBadgeRenderer(condition: $0, text: "64°", colorful: weather.usesColorIcons).render(in: context)
+        // The preview draws whichever style is chosen, including a choice still waiting for Apply Changes.
+        // Both strips show all fourteen conditions in the same order, so the two styles can be compared one
+        // to one; the strip scrolls, so its width is free to differ between them.
+        let marks: [NSImage] = WeatherMenuBarCondition.allCases.map { condition in
+            settingsStore.weatherUsesSystemIcons
+                ? IconTextRenderer(
+                    symbolName: condition.symbolName, text: "64°",
+                    reservedText: WeatherPresentationFormatter.reservedMenuBarText,
+                    reservedSymbolNames: WeatherPresentationFormatter.menuBarSymbolNames
+                ).render(in: context)
+                : WeatherBadgeRenderer(condition: condition, text: "64°", colorful: weather.usesColorIcons)
+                    .render(in: context)
         }
-        let gap: CGFloat = 10
+        // Fourteen marks in one row need room to read as fourteen things rather than one texture. The strip
+        // scrolls, so the width this costs is free.
+        let gap: CGFloat = 20
         let width = marks.reduce(CGFloat(0)) { $0 + $1.size.width } + gap * CGFloat(marks.count - 1)
         let strip = NSImage(size: NSSize(width: width, height: context.thickness), flipped: false) { rect in
             var x: CGFloat = 0
@@ -355,6 +393,15 @@ struct WeatherSettingsView: View {
             return true
         }
         return strip
+    }
+
+    /// The staged weather icon style. Width-affecting, so it waits for Apply Changes like the clock's format
+    /// and the menu bar text size do.
+    private var weatherIconStyle: Binding<Bool> {
+        Binding(
+            get: { settingsStore.weatherUsesSystemIcons },
+            set: { settingsStore.stageWeatherUsesSystemIcons($0) }
+        )
     }
 
     private func weatherBinding<Value>(_ keyPath: WritableKeyPath<WeatherSettings, Value>) -> Binding<Value> {

@@ -571,15 +571,18 @@ private struct TemperatureRangeBar: View {
             let spread = max(1, overallMaximum - overallMinimum)
             let lowValue = low ?? overallMinimum
             let highValue = high ?? overallMaximum
-            let start = CGFloat((lowValue - overallMinimum) / spread)
-            let end = CGFloat((highValue - overallMinimum) / spread)
+            // The two bounds come from different fields, so a day reporting a low with no high can start past
+            // the end, and a range narrower than the minimum width would otherwise be pushed off the track.
+            let start = min(1, max(0, CGFloat((lowValue - overallMinimum) / spread)))
+            let end = min(1, max(start, CGFloat((highValue - overallMinimum) / spread)))
+            let length = min(geometry.size.width, max(6, (end - start) * geometry.size.width))
             let lowCelsius = TemperatureScale.celsius(lowValue, unit: unit)
             let highCelsius = TemperatureScale.celsius(highValue, unit: unit)
             Capsule().fill(Color.primary.opacity(0.08))
             Capsule()
                 .fill(TemperatureScale.gradient(fromCelsius: lowCelsius, toCelsius: highCelsius))
-                .frame(width: max(6, (end - start) * geometry.size.width))
-                .offset(x: start * geometry.size.width)
+                .frame(width: length)
+                .offset(x: min(start * geometry.size.width, geometry.size.width - length))
                 .shadow(color: TemperatureScale.color(celsius: highCelsius).opacity(0.35), radius: 3)
         }
         .frame(height: 6)

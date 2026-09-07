@@ -52,6 +52,13 @@ public final class SettingsStore {
     /// visible; resizing live items is what made them lose their places under a menu bar manager.
     public private(set) var pendingFontSize: Double?
 
+    /// The weather mark's style waiting for a clean application relaunch.
+    ///
+    /// Staged because the system symbol sits beside the digits while the compact mark draws around them, so
+    /// the item is a different width in each. A live swap resizes an item that is already on the bar, which is
+    /// what makes items lose their places under a menu bar manager.
+    public private(set) var pendingWeatherUsesSystemIcons: Bool?
+
     /// Status-item spacing waiting for a clean application relaunch.
     ///
     /// Staged because AppKit reads the spacing defaults when it creates each status item window.
@@ -137,6 +144,7 @@ public final class SettingsStore {
         applyPendingTimeMenuBarConfiguration(to: &result)
         applyPendingStatusItemSpacing(to: &result)
         applyPendingFontSize(to: &result)
+        applyPendingWeatherIcons(to: &result)
         return result
     }
 
@@ -150,6 +158,7 @@ public final class SettingsStore {
             || pendingTimeMenuBarConfiguration != nil
             || pendingStatusItemSpacing != nil
             || pendingFontSize != nil
+            || pendingWeatherUsesSystemIcons != nil
     }
 
     /// Clock configuration shown by Settings, including edits waiting for Apply Changes.
@@ -176,6 +185,17 @@ public final class SettingsStore {
     public func stageFontSize(_ size: Double) {
         let clamped = AppSettings.clampedMenuBarFontSize(size)
         pendingFontSize = clamped == settings.fontSize ? nil : clamped
+    }
+
+    /// The weather mark style shown by Settings, including an edit waiting for Apply Changes.
+    public var weatherUsesSystemIcons: Bool {
+        pendingWeatherUsesSystemIcons ?? settings.weather.usesSystemIcons
+    }
+
+    /// Stages the weather mark style so the item is built at its new width on the reopen.
+    public func stageWeatherUsesSystemIcons(_ usesSystemIcons: Bool) {
+        pendingWeatherUsesSystemIcons =
+            usesSystemIcons == settings.weather.usesSystemIcons ? nil : usesSystemIcons
     }
 
     /// Stages a spacing choice so AppKit reads it before it creates the next status item windows.
@@ -270,6 +290,7 @@ public final class SettingsStore {
         applyPendingTimeMenuBarConfiguration(to: &updated)
         applyPendingStatusItemSpacing(to: &updated)
         applyPendingFontSize(to: &updated)
+        applyPendingWeatherIcons(to: &updated)
         clearPendingMenuBarChanges()
         settings = updated
         saveNow()
@@ -289,6 +310,7 @@ public final class SettingsStore {
         pendingTimeMenuBarConfiguration = nil
         pendingStatusItemSpacing = nil
         pendingFontSize = nil
+        pendingWeatherUsesSystemIcons = nil
     }
 
     private func applyPendingVisibility(to result: inout AppSettings) {
@@ -313,6 +335,11 @@ public final class SettingsStore {
             guard let index = result.stacks.stacks.firstIndex(where: { $0.id == id }) else { continue }
             result.stacks.stacks[index].hidesSourceItems = hidesSourceItems
         }
+    }
+
+    private func applyPendingWeatherIcons(to result: inout AppSettings) {
+        guard let pendingWeatherUsesSystemIcons else { return }
+        result.weather.usesSystemIcons = pendingWeatherUsesSystemIcons
     }
 
     private func applyPendingFontSize(to result: inout AppSettings) {

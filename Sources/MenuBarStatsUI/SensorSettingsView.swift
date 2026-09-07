@@ -147,11 +147,56 @@ public struct SensorSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .settingsPane(module: .sensors, settings: settingsStore.settings)
+        .settingsPane(module: .sensors, settings: settingsStore.settings, preview: previewImage)
     }
 
     private var moduleSettings: ModuleSettings {
         settingsStore.settings.modules[.sensors] ?? ModuleSettings(mode: "compactStack", interval: 5)
+    }
+
+    /// Every visible Sensors widget exactly as the menu bar draws it, side by side.
+    ///
+    /// The presenter behind the real status items renders the preview too, and it reads the live
+    /// sample rather than stand-in numbers: a widget names the readings it shows by the identifiers
+    /// discovery assigned them, so only this Mac's own readings can stand for them. Before a reading
+    /// arrives its field shows the dash it reserves room for, which is what the menu bar shows.
+    /// Widget visibility is staged behind the Apply bar, so the preview reads the staged settings
+    /// and a widget added a moment ago appears here before it appears in the menu bar.
+    private var previewImage: NSImage {
+        let appSettings = settingsStore.settingsIncludingPendingMenuBarChanges
+        let color = NSColor(hex: appSettings.darkColor(for: moduleSettings)) ?? .controlAccentColor
+        let graphColor = NSColor(hex: appSettings.graphDarkColor(for: moduleSettings)) ?? color
+        let fillColor = NSColor(hex: appSettings.fillDarkColor(for: moduleSettings)) ?? graphColor
+        let context = RenderContext(
+            thickness: NSStatusBar.system.thickness,
+            appearance: .dark,
+            palette: MenuBarPalette(light: color, dark: color),
+            graphPalette: MenuBarPalette(light: graphColor, dark: graphColor),
+            fillPalette: MenuBarPalette(light: fillColor, dark: fillColor),
+            fontSize: appSettings.effectiveMenuBarFontSize,
+            isMonochrome: appSettings.isMonochrome,
+            scale: appSettings.effectiveMenuBarScale,
+            graphOpacity: appSettings.graphOpacity,
+            fontWeight: appSettings.fontWeight
+        )
+        let history = store.history.recent(90)
+        let images = appSettings.sensors.widgets.filter(\.isEnabled).map { widget in
+            SensorsMenuBarPresenter.content(
+                sample: store.latestSample,
+                history: history,
+                moduleSettings: moduleSettings,
+                sensorSettings: appSettings.sensors,
+                widget: widget,
+                temperatureUnit: appSettings.sensorTemperatureUnit,
+                context: context
+            ).image
+        }
+        guard !images.isEmpty else {
+            return TextRenderer(text: "No widgets").render(in: context)
+        }
+        // Separators, because these are separate movable items rather than one wide one, and two
+        // compact stacks two points apart read as a single item without them.
+        return CombinedImageRenderer(images: images, showsSeparators: true).render(in: context)
     }
 
     private var availableReadings: [SensorReading] {

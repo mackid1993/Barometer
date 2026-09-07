@@ -623,3 +623,243 @@ Only after David asks:
 6. Thaw identity check: same set before and after a relaunch, and after 5 minutes of value changes.
 7. `top` CPU for the app under 0.7% average over 5 minutes.
 8. `log stream` shows no errors at the `error` level during 5 minutes of normal use.
+
+### P8-T95 Memory breakdown bar overflow
+
+Reported by David on 2026-09-07 against the installed 1.0.8 build: the Memory dropdown's breakdown bar ran past
+the card's right edge, ended flat instead of rounded, and showed a seam near that edge.
+
+`MemorySample.free` is `total - used`, and used counts app, wired, and compressed memory only, so the cached
+pages already sit inside free. The bar drew app, wired, compressed, cached, and free as fractions of total, which
+sum to `(total + cached) / total` of the width — a fifth too wide on the reported 16 GB reading with 3.17 GB
+cached. `GeometryReader` does not clip, so the capsule ran into the card's gutter, the panel cut its rounded end
+off, and the translucent tail composited over the card and over the darker gutter as two shades, which is the
+seam. The used region also ended at 72% of the visible bar while the header above it read 76%.
+
+- `MemoryBreakdownLayout` computes the five widths: the tail is `total - (app + wired + compressed + cached)`,
+  the denominator is `max(total, counted)` so a reading above the installed memory scales down instead of
+  overflowing, and the four 1 pt gaps come off the track first, so the segments fill the width exactly and the
+  used region ends at the percentage the header states.
+- The "3.76 GB free" caption keeps its meaning, `total - used`; on the bar that is the cached segment plus the
+  tail, since cached file memory is available to applications.
+- Verify: `MemoryBreakdownLayoutTests`, full suite, signed local build, David's installed check.
+
+### P8-T96 Dropdown cards sat left of center
+
+Found on 2026-09-07 while measuring the screenshot for P8-T95: the breakdown card's left edge was 4 pt from the
+panel and its right edge 20 pt, though the card's width was exactly the designed 356 pt.
+
+`DropdownScaffold` put the panel's own width on the content inside its scroll view. Wherever macOS shows legacy
+scroll bars, the scroller takes 17 pt of layout width, so the content was 17 pt wider than the viewport and
+SwiftUI centered the overflow: every card slid half a scroller, 8.5 pt, to the left, and the right 17 pt of the
+content ran under the scroller. With overlay scroll bars the viewport is the full width and nothing moves, which
+is why it appears on some machines only.
+
+- The content fills the viewport with `.frame(maxWidth: .infinity)` instead of being pinned to the panel width.
+  The scroll view itself keeps its fixed width, so the panel's size is unchanged.
+- Every module's cards become as much as 17 pt narrower on a machine showing legacy scroll bars, where they
+  previously kept the panel's width and slid left. The panel's own width does not change.
+- Verify: `DropdownScaffoldTests` renders the scaffold and measures a card's distance from both sides of the
+  visible area, allowing for the scroller when the running system reserves one. That allowance is unexercised
+  wherever macOS uses overlay scroll bars, as here, so the test guards the fix rather than proving it. Full
+  suite, signed local build, David's installed check with Show scroll bars set to Always.
+
+### P8-T97 Forecast bar geometry clamps
+
+Found on 2026-09-07 by auditing every proportional bar for the P8-T95 defect class.
+
+`TemperatureRangeBar` derived its two bounds from different fields: the daily minimum from every reported low and
+the daily maximum from every reported high. A day carrying a low with no high took the overall maximum for its
+high, so a day whose own low sat above every reported high started past the end of its track and drew the whole
+capsule beyond it. Separately the 6 pt minimum width was applied after the offset, so a range too narrow to reach
+it ran up to 6 pt past the track's end. Both are clamped: the start and end stay within the track, the length
+never exceeds it, and the offset is held back so the minimum width still fits.
+
+- Verify: full suite, signed local build.
+
+Still open, reported rather than fixed: `HourlyForecastChart` sizes its hour-label strip as `84 pt` per label
+against a container of `max(floor, 28 pt * hours)`. The two agree only when the hour count is a multiple of
+three, which the normal 48-hour and 24-hour paths happen to satisfy. A daylight-saving day is 23 or 25 hours in
+the location's time zone, which overflows the strip by 28 or 56 pt, and the container's floor makes short
+forecasts drift too. Fixing it means either placing the labels with the chart's own geometry or changing the
+label cadence, which is a visual decision for David.
+
+### P8-T98 Barometer assigns the Notification Center corner itself
+
+David on 2026-09-07, after the gesture route was closed: the corner mechanism is fine, having to set it up is not.
+He approved assigning a corner programmatically, with a Dock restart disclosed if one turns out to be needed, and
+required that a corner the user already uses is never taken.
+
+The running Dock never observes a preference change — it posts `com.apple.dock.hotcorner.updated` and subscribes
+to nothing — which is why the earlier preference write only took after a relaunch. `CoreDockSetExposeCornerAction`
+`WithModifier` in HIServices is a Mach remote call into the running Dock instead, and applies at once.
+
+- `DockHotCorners` reads the live actions through `CoreDockGetExposeCornerActions`, which fills four integers
+  through one pointer, and assigns through the remote call. An unassigned corner reads as `1` whether its
+  preference is absent, `0`, or `1`.
+- `NotificationCenterOpening.configure()` takes one corner the user has left free and asks for Control and Option
+  alongside the action, so an ordinary pointer never fires it. The Dock's index order is not the order it reports
+  corners in, so each index is offered in turn and the corner the assignment lands on is read back; anything that
+  lands on a corner the user was using is put straight back. The modifier requirement is proved rather than
+  assumed: the corner is fired while Barometer holds the keys, and only if that fails is it reassigned bare and
+  fired again. Success leaves the panel open as its own evidence.
+- `open()` holds the corner's modifier while it jumps the hidden cursor in, and retries once holding Control and
+  Option if a corner that reports no modifier will not fire bare.
+- Barometer remembers the corner and the index it used, so **Give the Corner Back** releases only its own.
+- Time and Notifications settings carries the explanation, the status, **Set Up Automatically**, the release
+  button, and the manual System Settings route. The flyout offers **Click here to configure…** and sends the
+  user to that section rather than setting anything up itself.
+- Verify: full suite, source invariants, signed local build, David's installed check. The modifier question is
+  settled on the user's own machine by the setup run, which reports which of the two outcomes it got.
+
+### P8-T99 Notification rows open the panel; corner is chosen, not imposed
+
+David on 2026-09-07, after using P8-T98.
+
+The modifier requirement does not work: macOS stores `wvous-<corner>-modifier` but the corner fires on pointer
+entry regardless, so a corner cannot be made to answer only to Barometer. That claim was asserted here without
+being tested and is withdrawn. Setup therefore assigns a plain corner, in one Dock restart rather than two, and
+the corner is the user's choice rather than Barometer's: the first offer is the bottom-right, because the
+top-left holds the Apple menu and a corner that fires under an ordinary pointer must be somewhere the pointer
+does not routinely go.
+
+Clicking a notification in Barometer's list now opens the native panel instead of following the notification's
+own destination. The senders' deep links do not lead where the notification says — a chat message opened the
+application rather than the conversation — so guessing was worse than not guessing. Barometer's list is a
+preview of what is waiting; the panel is where a notification is acted on. `NotificationRouter` and its tests
+are removed. `NotificationCenterActionBridge` stays, since `NotificationFeed` still primes through it.
+
+- Verify: full suite, source invariants, signed local build, David's installed check.
+
+### P8-T100 The user picks the corner, Barometer assigns it
+
+David on 2026-09-07, after on-demand assignment was measured impossible.
+
+- Time and Notifications carries a corner picker. The user chooses; Barometer never picks for them, and a corner
+  carrying one of the user's own actions is offered but refused. The bottom-right is first because the top-left
+  holds the Apple menu.
+- The Dock restart is stated on screen next to the button, and the button itself says it: "Assign the
+  bottom-right Corner and Restart the Dock". Writing the preference and restarting is the only thing that works,
+  and the user is told before it happens rather than after.
+- Setup assigns and confirms the restarted Dock reports the corner. It never fires the corner: nothing but a
+  press may move the pointer.
+- Barometer records the corner and what it held before, so Give the Corner Back restores it exactly.
+- The manual route stays: Open Hot Corner Settings…, which applies at once with nothing to restart. So does the
+  note that the trackpad's right-edge swipe opens the panel with no corner at all.
+- Verify: full suite, source invariants, signed local build, David's installed check.
+
+### P8-T101 Optional system weather symbols, and an honest Notification Center button
+
+David on 2026-09-07 while testing.
+
+- `WeatherSettings.usesSystemIcons`, default off so nothing changes for anyone already running Barometer. When
+  it is on, the menu bar draws the system's SF Symbol beside the temperature through `IconTextRenderer`, the way
+  Barometer showed it at launch, and every weather symbol is reserved so the icon field keeps one width as
+  conditions change. When it is off, the compact mark draws the condition around the digits as it does now. The
+  color-icons toggle belongs to the compact mark, so it is hidden while the system symbols are in use.
+- The dropdown's Notification Center button said "Open Notification Center" whether or not a corner was
+  assigned, and only admitted the problem after being pressed. It now reads "No Hot Corner Assigned" with a
+  warning symbol when there is no corner, and pressing it opens the settings section that assigns one.
+- Verify: full suite, source invariants, signed local build, David's installed check.
+
+### P8-T102 Weather icon style is a staged choice
+
+David on 2026-09-07: the icon choice is a dropdown, not a switch, and it takes effect on a relaunch because it
+changes the item's width, the same as the clock's format, the menu bar text size, and status-item spacing.
+
+- `SettingsStore.pendingWeatherUsesSystemIcons` joins the other width-affecting staged values: it shows in
+  Settings at once, does not touch the saved setting, is included in `settingsIncludingPendingMenuBarChanges`
+  so the preview follows it, and lands through Apply Changes with the relaunch that follows.
+- Weather settings offers "Weather icon" with **Barometer's own** and **System symbols**. Color weather icons
+  appears only under Barometer's own mark, because the system symbols follow the menu bar's own color and the
+  option means nothing there. The settings preview draws whichever style is chosen, staged or saved.
+- Verify: `SettingsTests.stagesWeatherIconStyle`, full suite, source invariants, signed build, installed check.
+
+### P8-T103 Fourteen weather marks, and the visual audit fixes
+
+David on 2026-09-07: the custom marks must cover every distinction the system symbols do, and both previews must
+show every state. A separate sweep of the dropdowns for graphical defects ran alongside.
+
+- `WeatherMenuBarCondition` gains `partlyCloudyNight`, `drizzle`, `heavyRain`, `sleet`, `thunder`, and
+  `unknown`, reaching fourteen. `WeatherCode.symbolName(isDay:)` is derived from
+  `menuBarCondition(isDay:).symbolName`, so one switch owns the routing and the two styles cannot drift.
+  `drops` and `flakes` take fractions so rain, heavy rain, sleet, and thunderstorm share one stroke geometry.
+- Both settings preview strips iterate every condition, in the same order, so the two styles compare one to one.
+  `MenuBarPreviewStrip` scrolls horizontally, so a full set no longer widens the settings window.
+- With no forecast, the system style draws the dash and degree sign alone. A sun standing in for nothing was a
+  reading the weather never gave.
+- Visual audit fixes: chip labels are drawn in the text color rather than the chip's own, which measured as low
+  as 1.28 to 1 in light appearance; `IconTile`'s glyph takes white or near-black by the accent's luminance,
+  since the neon theme measured 1.29 to 1; per-process network rates no longer inherit the hover dimming meant
+  for the CPU quit button; notification ages no longer vanish under the pointer; volume and interface pickers
+  keep a row for a selection that is no longer listed; the fixed graph maximum follows the chosen rate unit; a
+  long calendar name gives way to the event title; interface byte counts shorten instead of pushing chips out
+  of the card; a stack's module tabs scroll rather than wrap; Now Playing is tall enough for its failure line;
+  the update offer's primary action holds its width while the GitHub link yields.
+- Verify: `WeatherBadgeRendererTests` covers identical widths across every condition in both appearances and
+  styles, a distinct monochrome ink mask for all 91 condition pairs, ink ordering across the rain family, and
+  the routing of every WMO band by day and night. Full suite, source invariants, signed build.
+
+### P8-T104 Cut the Accessibility that nothing used
+
+David on 2026-09-07, asking what Barometer actually needs now that a notification row opens the panel instead of
+being acted on: "we're not clicking, we're not clearing, we're just showing."
+
+`NotificationCenterActionBridge` walked Notification Center's Accessibility tree on every refresh to retain
+action handles for rows. Nothing performed those actions any more: `dismissOperation` was stored and never
+called, and P8-T92 had already reduced clearing to a message telling the user to open the panel. The bridge, its
+tests, `primeActionOperation`, `dismissOperation`, and the `actionBridge` parameter are removed, so Barometer no
+longer reads another application's interface at all.
+
+Permissions after the cut:
+- **Full Disk Access** — required, and only for showing notifications. Their database is at
+  `~/Library/Group Containers/group.com.apple.usernoted/db2/db`, which macOS protects.
+- **Accessibility** — required only to open the panel: posting the pointer into the assigned hot corner and
+  reading the panel's expanded state, plus the clock-cover fallback. Never requested at launch, only when one of
+  those is used.
+- **Calendars** and **Location** — entitlements exercised only when calendar events or "use current location"
+  are switched on.
+- Verify: full suite, no compiler warnings, source invariants, signed build.
+
+### P8-T105 The About pane explains the permissions and can give them back
+
+David on 2026-09-07, after the P8-T104 cut: the permissions should be explained where a person would look, and
+there should be a way to hand them back.
+
+- `AppPermissions` names each permission, what it buys, and where it stands. Full Disk Access reports from
+  `NotificationCenterSource.accessState()`, Accessibility from `AXIsProcessTrusted()`, Calendars from
+  `EKEventStore.authorizationStatus(for:)`, and Location from `CurrentLocationProvider.shared.accessState`.
+  Reading an authorization is not requesting one: none of the four presents a prompt.
+- The About pane carries a Permissions card above Credits, saying plainly that nothing is requested at launch
+  and that each permission is asked for by the feature that needs it.
+- Each permission carries its own **Grant** button beside the sentence explaining it, shown only while macOS
+  has not granted it. One button asking for one named thing beats a single Grant All whose failures are
+  invisible: macOS prompts only for a permission it has never asked about, so each button prompts where
+  prompting works, opens the right list where it does not, and says which of the two it did. Full Disk Access
+  has no prompt at any point and always opens its list.
+- **Reset All Permissions…** runs `tccutil reset` for each service against Barometer's own bundle identifier,
+  behind a confirmation that says what stops working and that the app must be reopened. Services macOS refuses
+  are named rather than passed over in silence. Location is deliberately not attempted: `tccutil` accepts the
+  name and exits cleanly, but the system TCC database holds no location rows at all — macOS keeps those grants
+  in locationd's own root-owned store — so asking would report a reset that never happened. The pane says so and
+  offers a Location Services button instead. Two things make a successful reset read as a failure and are
+  stated outright: macOS caches a process's Accessibility trust for its lifetime, so the pane keeps reporting
+  Granted until Barometer is reopened, and `tccutil` leaves an entry switched off rather than unset, so a
+  feature is refused rather than asking again. Open Privacy Settings… is offered alongside.
+- Verify: full suite, no warnings, source invariants, signed build.
+
+### P8-T106 Accessibility does report a change; the note said otherwise
+
+David tested it on 2026-09-07: Accessibility reports both a grant and a revocation as it happens.
+
+The claim that it was fixed for the life of the process was never tested. It came from reasoning about Full Disk
+Access and sweeping Accessibility in beside it, and the one observation behind it was taken before the About
+pane polled at all, so it showed staleness in the pane rather than caching in `AXIsProcessTrusted()`, which asks
+the system on each call.
+
+- The note now reads that **Full Disk Access and Calendars** only show a change after Barometer is reopened, and
+  that **Accessibility and Location** update as they are changed. Full Disk Access is settled when the process
+  starts; EventKit answers the calendar question from a class method and keeps that answer as long as the
+  application runs.
+- Granting Accessibility no longer tells the user to reopen Barometer, because the row follows it immediately.
+- The reset message names only the two that go on reporting what they reported.

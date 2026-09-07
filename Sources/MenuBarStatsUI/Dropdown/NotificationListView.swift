@@ -64,8 +64,8 @@ struct NotificationListView: View {
     let accent: ModuleAccent
     let now: Date
     @Environment(\.menuDetailActions) private var menuDetailActions
-    @State private var activationError: String?
     @State private var needsHotCorner = false
+    @State private var hasCorner = false
     @State private var expandedGroupIdentifiers: Set<String>
 
     init(
@@ -91,11 +91,12 @@ struct NotificationListView: View {
             }
             if needsHotCorner {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Set a hot corner to Notification Center first. With the system clock hidden, that corner "
-                        + "is what opens the panel.")
+                    Text("Opening the panel needs a screen corner assigned to Notification Center — macOS gives "
+                        + "an app no other way in. You can also open it yourself by swiping in from the right "
+                        + "edge of the trackpad, which needs no corner at all.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Button("Show me how…") {
+                    Button("Click here to configure…") {
                         SettingsFocus.shared.pendingAnchor = SettingsFocus.hotCornerInstructions
                         menuDetailActions?.openSettings()
                     }
@@ -107,15 +108,18 @@ struct NotificationListView: View {
                 .padding(.bottom, 4)
             }
             Button {
-                guard NotificationCenterOpening.assignedCornerKey != nil else {
+                guard hasCorner else {
                     needsHotCorner = true
+                    SettingsFocus.shared.pendingAnchor = SettingsFocus.hotCornerInstructions
+                    menuDetailActions?.openSettings()
                     return
                 }
                 needsHotCorner = false
                 menuDetailActions?.closeDropdown()
                 NotificationCenterOpening.open()
             } label: {
-                Label("Open Notification Center", systemImage: "bell.badge")
+                Label(hasCorner ? "Open Notification Center" : "No Hot Corner Assigned",
+                      systemImage: hasCorner ? "bell.badge" : "exclamationmark.triangle.fill")
                     .foregroundStyle(Color.white)
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(.white)
@@ -125,14 +129,11 @@ struct NotificationListView: View {
                     .contentShape(RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain)
-            .help("Open macOS Notification Center using your configured keyboard shortcut")
+            .help(hasCorner
+                ? "Open macOS Notification Center through the corner assigned to it"
+                : "No corner is assigned to Notification Center — click to choose one in settings")
+            .task { hasCorner = NotificationCenterOpening.assignedCornerKey != nil }
             .padding(.bottom, 4)
-            if let error = activationError {
-                Text(error)
-                    .font(.caption2)
-                    .foregroundStyle(.red)
-                    .padding(.horizontal, 4)
-            }
             notificationContent
         }
     }
@@ -207,20 +208,23 @@ struct NotificationListView: View {
         }
     }
 
+    /// A tapped row opens the native panel. Barometer's list is a preview of what is waiting, not a way in.
+    ///
+    /// Following a notification's own destination was dropped because the senders' deep links do not lead
+    /// where the notification says: clicking a chat message opened the application rather than the chat, often
+    /// enough that guessing was worse than not guessing. The native panel always lands in the right place.
     private func activate(_ notification: DeliveredNotification) {
-        activationError = nil
-        Task {
-            switch await NotificationRouter.route(notification) {
-            case .nativeAccepted, .fallback:
-                menuDetailActions?.closeDropdown()
-            case .nativeFailed:
-                activationError = "macOS could not open this notification. Try it in Notification Center."
-            }
+        guard hasCorner else {
+            needsHotCorner = true
+            return
         }
+        needsHotCorner = false
+        menuDetailActions?.closeDropdown()
+        NotificationCenterOpening.open()
     }
 }
 
-/// One collapsible application group with notification activation controls.
+/// One collapsible application group of waiting notifications.
 private struct NotificationGroupView: View {
     let group: NotificationApplicationGroup
     let accent: ModuleAccent
@@ -318,12 +322,12 @@ private struct NotificationRow: View {
                             .font(.callout.weight(.medium))
                             .lineLimit(1)
                         Spacer(minLength: 4)
-                        if !isHovering {
-                            Text(NotificationAgeFormatter.string(from: notification.date, now: now))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
-                        }
+                        // The age used to give way on hover to a clear button that no longer exists, which
+                        // left the timestamp blinking out under the pointer with nothing in its place.
+                        Text(NotificationAgeFormatter.string(from: notification.date, now: now))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
                     }
                     if let subtitle = notification.subtitle {
                         Text(subtitle)

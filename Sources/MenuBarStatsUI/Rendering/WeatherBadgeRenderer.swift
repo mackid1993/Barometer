@@ -9,6 +9,11 @@ import MenuBarStatsCore
 /// them, and a clear night tucks a crescent over the degree sign. The item is the digits plus two
 /// points a side, so it weighs no more in the bar than a plain reading.
 ///
+/// The set covers the same fourteen conditions as the system symbols, so the marks have to differ
+/// in shape, never only in color: the wet family is told apart by how many strokes hang under the
+/// cloud and how far they reach, sleet puts a flake between two strokes, a storm with rain flanks
+/// the bolt with two strokes, and the sun or moon beside a partial cloud says whether it is day.
+///
 /// In monochrome mode everything is one template color. In color mode the digits take the
 /// condition's color where the color carries meaning (amber for sun, lavender for night) and stay
 /// in the module color otherwise, while the marks are tinted: gray cloud, blue rain, icy snow, a
@@ -60,8 +65,18 @@ public struct WeatherBadgeRenderer: MenuBarRenderer {
 
             palette.cloud.setFill()
             palette.cloud.setStroke()
-            if let condition, condition != .clearDay, condition != .clearNight {
-                Self.cloudCap(box, trailingRoom: condition == .partlyCloudy ? 6.5 : 0)
+            if let condition, condition != .clearDay, condition != .clearNight, condition != .unknown {
+                let partial = condition == .partlyCloudy || condition == .partlyCloudyNight
+                Self.cloudCap(box, trailingRoom: partial ? 6.5 : 0)
+            }
+
+            // The rain that shares a mark with something else goes down first, in its own color.
+            palette.rain.setFill()
+            palette.rain.setStroke()
+            switch condition {
+            case .sleet: Self.drops(box, at: [0.2, 0.8])
+            case .thunderstorm: Self.drops(box, at: [0.12, 0.88])
+            default: break
             }
 
             palette.mark.setFill()
@@ -71,11 +86,16 @@ public struct WeatherBadgeRenderer: MenuBarRenderer {
             case .clearDay: Self.rays(box)
             case .clearNight: Self.moon(box)
             case .partlyCloudy: Self.sunDisc(box)
+            case .partlyCloudyNight: Self.cloudMoon(box)
             case .cloudy: break
-            case .rain: Self.drops(box)
-            case .snow: Self.flakes(box)
-            case .thunderstorm: Self.bolt(box)
             case .fog: Self.fogLines(box)
+            case .drizzle: Self.drizzleTicks(box)
+            case .rain: Self.drops(box, at: [0.24, 0.5, 0.76])
+            case .heavyRain: Self.drops(box, at: [0.1, 0.37, 0.63, 0.9], reach: 1.2...5.4)
+            case .sleet: Self.flakes(box, at: [0.5])
+            case .snow: Self.flakes(box, at: [0.24, 0.5, 0.76])
+            case .thunder, .thunderstorm: Self.bolt(box)
+            case .unknown: Self.questionMark(box)
             }
 
             digits.draw(at: origin)
@@ -149,23 +169,58 @@ public struct WeatherBadgeRenderer: MenuBarRenderer {
         path.stroke()
     }
 
-    private static func drops(_ box: NSRect) {
+    /// A crescent peeking out beside the cloud cap, in the spot the day mark gives its sun.
+    private static func cloudMoon(_ box: NSRect) {
+        let r: CGFloat = 2.8
+        let c = NSPoint(x: box.maxX - r + 0.2, y: box.maxY + 3.8)
+        NSBezierPath(ovalIn: NSRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)).fill()
+        // The bite is cut from everything drawn so far, so it stays inside the cap's trailing room:
+        // its left edge is 3.6 points in from the box, the cap's last puff never reaches past 4.2.
+        NSGraphicsContext.current?.compositingOperation = .destinationOut
+        NSBezierPath(ovalIn: NSRect(x: c.x - r + 1.8, y: c.y - r + 1.1, width: r * 2, height: r * 2)).fill()
+        NSGraphicsContext.current?.compositingOperation = .sourceOver
+    }
+
+    /// Rain: slanted strokes hanging under the cloud, at the given fractions of the number's width.
+    ///
+    /// `reach` is how far below the digits a stroke starts and ends; the slant stays the same, so a
+    /// longer reach is a longer stroke. Three at the default reach are rain, four at a longer one
+    /// are heavy rain, and two make room for something between them.
+    private static func drops(_ box: NSRect, at fractions: [CGFloat], reach: ClosedRange<CGFloat> = 1.6...4.8) {
         let path = NSBezierPath()
         path.lineWidth = 1.5
         path.lineCapStyle = .round
-        for fraction in [0.24, 0.5, 0.76] as [CGFloat] {
+        let lean = (reach.upperBound - reach.lowerBound) * 0.2
+        for fraction in fractions {
             let x = box.minX + box.width * fraction
-            path.move(to: NSPoint(x: x + 0.7, y: box.minY - 1.6))
-            path.line(to: NSPoint(x: x - 0.6, y: box.minY - 4.8))
+            path.move(to: NSPoint(x: x + lean, y: box.minY - reach.lowerBound))
+            path.line(to: NSPoint(x: x - lean, y: box.minY - reach.upperBound))
         }
         path.stroke()
     }
 
-    private static func flakes(_ box: NSRect) {
+    /// Drizzle: five short ticks in two staggered rows, rain's slant with a third of its length.
+    private static func drizzleTicks(_ box: NSRect) {
+        let path = NSBezierPath()
+        path.lineWidth = 1.5
+        path.lineCapStyle = .round
+        let ticks: [(fraction: CGFloat, top: CGFloat)] = [
+            (0.24, 1.6), (0.5, 1.6), (0.76, 1.6), (0.37, 3.9), (0.63, 3.9),
+        ]
+        for (fraction, top) in ticks {
+            let x = box.minX + box.width * fraction
+            path.move(to: NSPoint(x: x + 0.25, y: box.minY - top))
+            path.line(to: NSPoint(x: x - 0.25, y: box.minY - top - 1.2))
+        }
+        path.stroke()
+    }
+
+    /// Snow: six-armed flakes under the cloud, at the given fractions of the number's width.
+    private static func flakes(_ box: NSRect, at fractions: [CGFloat]) {
         let path = NSBezierPath()
         path.lineWidth = 1.0
         path.lineCapStyle = .round
-        for fraction in [0.24, 0.5, 0.76] as [CGFloat] {
+        for fraction in fractions {
             let c = NSPoint(x: box.minX + box.width * fraction, y: box.minY - 3.4)
             for arm in 0..<3 {
                 let angle = CGFloat(arm) * .pi / 3
@@ -200,46 +255,66 @@ public struct WeatherBadgeRenderer: MenuBarRenderer {
         }
         path.stroke()
     }
+
+    /// A question mark where the cloud would sit, for a code the forecast source has not named.
+    ///
+    /// Only the hook and the dot: at this size a stem between them closes the gap that makes it
+    /// read as two parts, and the hook alone is enough of the letter.
+    private static func questionMark(_ box: NSRect) {
+        let path = NSBezierPath()
+        path.lineWidth = 1.4
+        path.lineCapStyle = .round
+        let r: CGFloat = 1.6
+        let c = NSPoint(x: box.midX, y: box.maxY + 4.7)
+        path.appendArc(withCenter: c, radius: r, startAngle: 180, endAngle: -90, clockwise: true)
+        path.line(to: NSPoint(x: c.x, y: c.y - r - 0.4))
+        path.stroke()
+        NSBezierPath(ovalIn: NSRect(x: c.x - 0.8, y: box.maxY + 0.4, width: 1.6, height: 1.6)).fill()
+    }
 }
 
-/// Colors for one mark: the digits, the cloud cap, and the condition detail.
+/// Colors for one mark: the digits, the cloud cap, the condition detail, and the rain that shares
+/// a mark with a bolt or a flake.
 struct WeatherBadgePalette {
     let digits: NSColor
     let cloud: NSColor
     let mark: NSColor
+    let rain: NSColor
 
     /// Resolves colors for the appearance, or a single template color for monochrome.
     static func resolve(
         _ condition: WeatherMenuBarCondition?, appearance: MenuBarAppearance, monochrome: Bool, moduleColor: NSColor
     ) -> WeatherBadgePalette {
         if monochrome {
-            return WeatherBadgePalette(digits: .black, cloud: .black, mark: .black)
+            return WeatherBadgePalette(digits: .black, cloud: .black, mark: .black, rain: .black)
         }
         let dark = appearance == .dark
         let cloud = NSColor(hex: dark ? 0xC9CED6 : 0x8D96A3)
+        let rain = NSColor(hex: dark ? 0x4DA3FF : 0x1F6FE0)
+        let amber = NSColor(hex: dark ? 0xFFC53D : 0xA86E00)
+        let night = NSColor(hex: dark ? 0xC7C4FF : 0x5B54C9)
+        let ice = NSColor(hex: dark ? 0x8FD3FF : 0x2E86D6)
+        let stormCloud = NSColor(hex: dark ? 0x9AA3B0 : 0x5F6873)
+        let bolt = NSColor(hex: dark ? 0xFFD23F : 0xE5A800)
         switch condition {
-        case nil:
-            return WeatherBadgePalette(digits: moduleColor, cloud: cloud, mark: cloud)
+        case nil, .cloudy, .fog, .unknown:
+            return WeatherBadgePalette(digits: moduleColor, cloud: cloud, mark: cloud, rain: rain)
         case .clearDay:
-            let amber = NSColor(hex: dark ? 0xFFC53D : 0xA86E00)
-            return WeatherBadgePalette(digits: amber, cloud: cloud, mark: amber)
+            return WeatherBadgePalette(digits: amber, cloud: cloud, mark: amber, rain: rain)
         case .clearNight:
-            let night = NSColor(hex: dark ? 0xC7C4FF : 0x5B54C9)
-            return WeatherBadgePalette(digits: night, cloud: cloud, mark: night)
+            return WeatherBadgePalette(digits: night, cloud: cloud, mark: night, rain: rain)
         case .partlyCloudy:
-            return WeatherBadgePalette(digits: moduleColor, cloud: cloud, mark: NSColor(hex: dark ? 0xFFC53D : 0xA86E00))
-        case .cloudy:
-            return WeatherBadgePalette(digits: moduleColor, cloud: cloud, mark: cloud)
-        case .rain:
-            return WeatherBadgePalette(digits: moduleColor, cloud: cloud, mark: NSColor(hex: dark ? 0x4DA3FF : 0x1F6FE0))
-        case .snow:
-            return WeatherBadgePalette(digits: moduleColor, cloud: cloud, mark: NSColor(hex: dark ? 0x8FD3FF : 0x2E86D6))
-        case .thunderstorm:
-            return WeatherBadgePalette(
-                digits: moduleColor, cloud: NSColor(hex: dark ? 0x9AA3B0 : 0x5F6873),
-                mark: NSColor(hex: dark ? 0xFFD23F : 0xE5A800))
-        case .fog:
-            return WeatherBadgePalette(digits: moduleColor, cloud: cloud, mark: cloud)
+            return WeatherBadgePalette(digits: moduleColor, cloud: cloud, mark: amber, rain: rain)
+        case .partlyCloudyNight:
+            return WeatherBadgePalette(digits: moduleColor, cloud: cloud, mark: night, rain: rain)
+        case .drizzle, .rain:
+            return WeatherBadgePalette(digits: moduleColor, cloud: cloud, mark: rain, rain: rain)
+        case .heavyRain:
+            return WeatherBadgePalette(digits: moduleColor, cloud: stormCloud, mark: rain, rain: rain)
+        case .sleet, .snow:
+            return WeatherBadgePalette(digits: moduleColor, cloud: cloud, mark: ice, rain: rain)
+        case .thunder, .thunderstorm:
+            return WeatherBadgePalette(digits: moduleColor, cloud: stormCloud, mark: bolt, rain: rain)
         }
     }
 }

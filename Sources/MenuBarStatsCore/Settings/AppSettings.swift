@@ -106,6 +106,10 @@ public struct WeatherSettings: Codable, Equatable, Sendable {
     /// Whether Barometer's weather icons use color even when the rest of the menu bar is monochrome.
     public var usesColorIcons: Bool
 
+    /// Whether the menu bar shows the system's weather symbol beside the temperature, as Barometer did at
+    /// launch, instead of the compact mark that draws the condition around the digits.
+    public var usesSystemIcons: Bool
+
     /// Creates Weather settings.
     public init(
         locations: [Location] = [],
@@ -114,7 +118,8 @@ public struct WeatherSettings: Codable, Equatable, Sendable {
         units: WeatherUnits = .imperial,
         refreshIntervalMinutes: Int = 15,
         detailSections: WeatherDetailSettings = WeatherDetailSettings(),
-        usesColorIcons: Bool = true
+        usesColorIcons: Bool = true,
+        usesSystemIcons: Bool = false
     ) {
         self.locations = locations
         self.primaryLocationID = primaryLocationID
@@ -123,11 +128,12 @@ public struct WeatherSettings: Codable, Equatable, Sendable {
         self.refreshIntervalMinutes = refreshIntervalMinutes
         self.detailSections = detailSections
         self.usesColorIcons = usesColorIcons
+        self.usesSystemIcons = usesSystemIcons
     }
 
     private enum CodingKeys: String, CodingKey {
         case locations, primaryLocationID, usesCurrentLocation, units, refreshIntervalMinutes, detailSections
-        case usesColorIcons
+        case usesColorIcons, usesSystemIcons
     }
 
     /// Decodes saved locations and units while giving older configurations all detail sections.
@@ -139,6 +145,7 @@ public struct WeatherSettings: Codable, Equatable, Sendable {
         units = try values.decodeIfPresent(WeatherUnits.self, forKey: .units) ?? .imperial
         refreshIntervalMinutes = try values.decodeIfPresent(Int.self, forKey: .refreshIntervalMinutes) ?? 15
         usesColorIcons = try values.decodeIfPresent(Bool.self, forKey: .usesColorIcons) ?? true
+        usesSystemIcons = try values.decodeIfPresent(Bool.self, forKey: .usesSystemIcons) ?? false
         detailSections = try values.decodeIfPresent(WeatherDetailSettings.self, forKey: .detailSections)
             ?? WeatherDetailSettings()
     }

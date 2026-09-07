@@ -4967,3 +4967,136 @@ Shipped: `NotificationCenterOpening` reads the assigned corner from the Dock's p
 jumps it into the corner, waits up to 700 ms for the panel's expanded state, and returns the cursor before
 showing it. `DockHotCorners` only reads preferences. Settings carries the guidance and the pane button. David
 confirmed the panel opens from the button. Builds only, no test runs, per David's instruction.
+
+## P8-T95 Memory breakdown bar overflow
+
+Measured from David's screenshot rather than guessed. Scanning pixel rows through the bar put the segment
+boundaries at 46, 210, 334, 558, 691 with the bar cut flat at 757, while the breakdown card's right edge is at
+734 and the panel's border at 763: the capsule was drawn past the card and chopped, and the tail's two shades
+(59,113,187) and (54,103,171) are the same translucent segment over the card and over the darker gutter beside
+it. The used region ended at (558-46)/(757-46) = 72% of the visible bar against the header's 76%, which is the
+clipped overflow. The arithmetic confirms it: the five drawn amounts sum to total + cached, 19.16 GB of 16 GB.
+
+`swift test --enable-swift-testing --filter MemoryBreakdownLayoutTests`: 4 tests in 1 suite passed.
+`make build`: Build complete.
+
+## P8-T96 Dropdown cards sat left of center
+
+Measured from the same screenshot. The panel spans 13..772 px at 2x, so 380 pt as configured. The card spans
+21..733 px, which is 4.0..360.0 pt: the designed 356 pt width, offset 8 pt to the left of the designed 12..368.
+Half of the 17 pt `NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)` is 8.5 pt, and the gray band
+at 763..772 px is the scroller itself, so the content was overflowing the viewport by the scroller's width and
+being centered.
+
+Not reproduced locally: this machine reports `NSScroller.preferredScrollerStyle == .overlay` right now, and an
+in-process `AppleShowScrollBars` override does not change it, so the rendered probe measures 24 pt of padding on
+both sides before and after the change. The fix is verified not to alter the overlay case and is derived from
+the screenshot's measurements for the legacy case. David can confirm on the installed build by setting
+Appearance > Show scroll bars to Always and reopening the Memory dropdown.
+
+`make test`: three runs, 66 + 160 + 154 tests, all suites passed, exit 0.
+
+## P8-T97 Forecast bar geometry clamps
+
+Audited every proportional bar and menu bar renderer against the P8-T95 defect class. Two real findings in
+`TemperatureRangeBar`, both clamped; every other bar is safe, because `CapsuleBar` and `ProgressRing` clamp their
+fraction and draw from zero, and the remaining call sites guard their divisors.
+
+Worked example for the unfixed `HourlyForecastChart` overflow: a 25-hour fall-back day gives nine labels at 84 pt
+against `max(336, 700)`, so the strip is 756 pt in a 700 pt frame, 56 pt past it; a 23-hour spring-forward day
+gives eight labels, 672 pt against 644 pt, 28 pt past. A fixed `.frame(width:)` does not clip, and the enclosing
+scroll view's extent is the declared width, so the excess is chopped and cannot be scrolled to.
+
+`make build`: Build complete. `make test`: 66 + 160 + 154 tests, all suites passed, exit 0.
+
+## P8-T98 Barometer assigns the Notification Center corner itself
+
+Verified read-only before writing any of this: `CoreDockGetExposeCornerActions`, `CoreDockSetExposeCornerAction`
+and `CoreDockSetExposeCornerActionWithModifier` all resolve out of HIServices once it is dlopened, while
+`CoreDock.framework` does not exist on macOS 27, which is why earlier searches for these came up empty. There is
+no `CoreDockGetExposeCornerActionWithModifier`, so an assignment's modifier cannot be read back. Calling the
+getter with generous buffers showed it fills four integers through the first pointer and returned `[1, 1, 1, 1]`
+on David's machine: all four corners free.
+
+The live assignment itself was not run from here — the harness blocked writing to the Dock's corner
+configuration, and the block was not worked around. The setup path therefore ships with its own verification: it
+fires the corner it just assigned and reports which outcome it got. David separately confirmed that the shipping
+opener works against a corner he assigned by hand.
+
+`make build`, `make app`: complete and signed. `make test`: 66 + 160 + 154 tests, exit 0. Source invariants pass.
+
+### P8-T98 follow-up: the live corner call does nothing
+
+David ran the probe from his own terminal, which the harness would not let this session run. Twelve attempts —
+`CoreDockSetExposeCornerActionWithModifier` with the modifier, the same call with modifier zero, and the
+two-argument `CoreDockSetExposeCornerAction`, each across indexes 0 to 3 — left `CoreDockGetExposeCornerActions`
+reporting `[1, 1, 1, 1]` and the preferences byte-identical every time. The Dock ignores corner assignments from
+a third-party caller on macOS 27, silently. That is the mechanism behind the old P8-T93 note, now measured.
+
+Setup therefore writes `wvous-<corner>-corner` and `wvous-<corner>-modifier` through `CFPreferencesSetValue` and
+restarts the Dock, which is the one moment the Dock re-reads those keys. David authorized the restart and asked
+for it to be disclosed, so Settings confirms it first. The corner's previous action and modifier are recorded, so
+Give the Corner Back restores exactly what was there.
+
+`make test`: 66 + 160 + 154 tests, exit 0. Source invariants pass.
+
+### P8-T99 follow-up: on-demand corner assignment is impossible, measured
+
+David asked for the corner to exist only during a press. It cannot.
+
+The Dock re-reads `wvous-*` from `_initialize`, which runs at launch and from its display reconfiguration
+handler. A probe wrote `wvous-br-corner = 12` through `CFPreferencesSetValue` (confirmed stored), completed an
+empty `CGBeginDisplayConfiguration`/`CGCompleteDisplayConfiguration` pair (returned success), then polled
+`CoreDockGetExposeCornerActions` for 900 ms: the Dock still reported `[1, 1, 1, 1]`. The reconfiguration does not
+reach the handler, so a corner cannot be set and unset around a press. The borrow code, the crash-repair journal,
+and the Dock restart helpers are all removed rather than left shipping a path that silently does nothing.
+
+Two more routes closed the same day, both no-corner candidates:
+
+- `CoreDockSetExposeCornerActionWithModifier` and `CoreDockSetExposeCornerAction`: twelve attempts across all
+  four indexes and both call shapes changed neither the live table nor the preferences.
+- The Show Notification Center shortcut, with the clock brought back on the bar. The menu bar went from two
+  items to four under a permissive assessment assertion, proving the reveal worked, and the assigned combination
+  was posted to the HID, session, and annotated session taps, with the modifier keys held as real key events.
+  The panel never opened, including one run that waited six seconds in case it was merely slow. An earlier
+  single success under the annotated tap did not reproduce in twelve further attempts and is treated as noise.
+
+Web research turned up only the Yosemite-era `SystemUIServer` menu bar item scripts, which have not existed
+since Big Sur. A permanently assigned hot corner is the only mechanism that works, and the trackpad's right-edge
+swipe remains available to the user directly.
+
+## P8-T105 What a third party can and cannot reset
+
+Measured rather than assumed, after Reset All appeared to do nothing twice.
+
+Accessibility **is** reset: after a run, `/Library/Application Support/com.apple.TCC/TCC.db` holds
+`com.barometer.app|0` for `kTCCServiceAccessibility`. Two things hid that. `AXIsProcessTrusted()` is cached for
+the life of the process, so the pane kept reporting Granted until Barometer was reopened; and `tccutil` leaves
+the entry switched off rather than unset, so the next use is refused instead of prompting. Both are now stated
+in the result text.
+
+Location cannot be reset by Barometer at all. `select distinct service from access where service like
+'%ocation%'` returns nothing from the system TCC database: location grants live in
+`/var/db/locationd/clients.plist`, which is root-owned. `tccutil reset Location <bundle>` validates the service
+name and the bundle, exits cleanly, and changes nothing — which is exactly the false success that made this
+look broken twice. Location is excluded from Reset All and the pane sends the user to Location Services.
+
+## P8-T105 follow-up: what a running process can and cannot see
+
+Three separate reasons the pane appeared to lie, all found by David testing it rather than by reasoning.
+
+Full Disk Access is settled when a process starts and is not revisited while it runs, so granting or revoking it
+changes nothing until Barometer is reopened. **Accessibility was wrongly grouped with it here.** That claim was
+never tested: it came from reasoning about Full Disk Access, and the one observation behind it was taken before
+the pane polled at all, so it showed staleness in the UI rather than caching in `AXIsProcessTrusted()`. David
+tested it directly — Accessibility reports both a grant and a revocation as it happens. The note now names Full
+Disk Access and Calendars only.
+
+Location and Calendars do change under a running process, but nothing tells SwiftUI, so the card was showing the
+statuses from the moment it was built. Revoking Location in System Settings left it reading Granted. The card
+now re-reads every two seconds for as long as it is on screen.
+
+macOS only prompts for a permission it has never asked about. Once one has been refused or switched off by hand
+it stays refused, and `requestWhenInUseAuthorization` and `requestFullAccessToEvents` return without presenting
+anything. Grant All was guarding on `notDetermined` and so did nothing at all for a permission the user had just
+revoked. It now asks where asking works, opens the right list where it does not, and names which is which.

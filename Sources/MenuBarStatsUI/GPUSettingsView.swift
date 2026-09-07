@@ -61,7 +61,47 @@ struct GPUSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .settingsPane(module: .gpu, settings: settingsStore.settings)
+        .settingsPane(module: .gpu, settings: settingsStore.settings, preview: previewImage)
+    }
+
+    /// The GPU item exactly as the menu bar draws it, in whichever mode is selected.
+    ///
+    /// The presenter behind the real status item renders the preview too, from a sample carrying
+    /// plausible readings, so switching modes here shows the shape the menu bar will take rather
+    /// than an approximation of it.
+    private var previewImage: NSImage {
+        let appSettings = settingsStore.settings
+        let color = NSColor(hex: appSettings.darkColor(for: moduleSettings)) ?? .controlAccentColor
+        let graphColor = NSColor(hex: appSettings.graphDarkColor(for: moduleSettings)) ?? color
+        let fillColor = NSColor(hex: appSettings.fillDarkColor(for: moduleSettings)) ?? graphColor
+        let context = RenderContext(
+            thickness: NSStatusBar.system.thickness,
+            appearance: .dark,
+            palette: MenuBarPalette(light: color, dark: color),
+            graphPalette: MenuBarPalette(light: graphColor, dark: graphColor),
+            fillPalette: MenuBarPalette(light: fillColor, dark: fillColor),
+            fontSize: appSettings.effectiveMenuBarFontSize,
+            isMonochrome: appSettings.isMonochrome,
+            scale: appSettings.effectiveMenuBarScale,
+            graphOpacity: appSettings.graphOpacity,
+            fontWeight: appSettings.fontWeight
+        )
+        // The history graph needs a run of readings rather than one, so the samples that feed it
+        // also supply the latest value the other two modes print.
+        let samples = [18.0, 32.0, 26.0, 71.0, 44.0, 58.0, 37.0].enumerated().map { index, percent in
+            GPUSample(
+                timestamp: Date(timeIntervalSince1970: TimeInterval(index)),
+                name: "Preview GPU",
+                deviceUtilizationPercent: percent
+            )
+        }
+        return GPUMenuBarPresenter.content(
+            sample: samples.last,
+            history: samples.map { HistoryEntry(timestamp: $0.timestamp, value: $0.graphValue) },
+            cpuPercent: 42,
+            settings: moduleSettings,
+            context: context
+        ).image
     }
 
     private func moduleBinding<Value>(_ keyPath: WritableKeyPath<ModuleSettings, Value>) -> Binding<Value> {

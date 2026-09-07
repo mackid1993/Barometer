@@ -62,6 +62,14 @@ struct NetworkSettingsView: View {
                     ForEach(availableInterfaces, id: \.self) { name in
                         Text(name).tag(Optional(name))
                     }
+                    // An interface that goes away, or is hidden after being chosen, would otherwise leave the
+                    // popup blank while the setting still points at it.
+                    if let selected = networkSettings.selectedInterfaceName,
+                       selected != NetworkSample.allInterfacesName,
+                       !availableInterfaces.contains(selected)
+                    {
+                        Text("\(selected) (unavailable)").tag(Optional(selected))
+                    }
                 }
                 Picker("Rate unit", selection: networkBinding(\.rateUnit)) {
                     Text("Bytes per second").tag(NetworkRateUnit.bytes)
@@ -85,7 +93,11 @@ struct NetworkSettingsView: View {
                     HStack {
                         Text("Maximum")
                         Slider(value: fixedMaximumMegabytesBinding, in: 1...1_000, step: 1)
-                        Text("\(Int(fixedMaximumMegabytesBinding.wrappedValue)) MB/s")
+                        // The scale is stored in megabytes, but the reading beside it follows whichever rate
+                        // unit the user picked three rows above.
+                        Text(networkSettings.rateUnit == .bits
+                            ? "\(Int(fixedMaximumMegabytesBinding.wrappedValue * 8)) Mb/s"
+                            : "\(Int(fixedMaximumMegabytesBinding.wrappedValue)) MB/s")
                             .monospacedDigit()
                             .frame(width: 82, alignment: .trailing)
                     }
@@ -129,10 +141,14 @@ struct NetworkSettingsView: View {
     private var previewImage: NSImage {
         let appSettings = settingsStore.settings
         let color = NSColor(networkHexString: appSettings.darkColor(for: moduleSettings)) ?? .controlAccentColor
+        let graphColor = NSColor(networkHexString: appSettings.graphDarkColor(for: moduleSettings)) ?? color
+        let fillColor = NSColor(networkHexString: appSettings.fillDarkColor(for: moduleSettings)) ?? graphColor
         let context = RenderContext(
             thickness: NSStatusBar.system.thickness,
             appearance: .dark,
             palette: MenuBarPalette(light: color, dark: color),
+            graphPalette: MenuBarPalette(light: graphColor, dark: graphColor),
+            fillPalette: MenuBarPalette(light: fillColor, dark: fillColor),
             fontSize: appSettings.effectiveMenuBarFontSize,
             isMonochrome: appSettings.isMonochrome,
             scale: appSettings.effectiveMenuBarScale

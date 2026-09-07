@@ -53,7 +53,7 @@ public final class NowPlayingController {
 
     /// Starts visible-only sampling. Repeated calls keep the existing task.
     public func start() {
-        guard let source, updateTask == nil else { return }
+        guard source != nil, updateTask == nil else { return }
         generation += 1
         let startedGeneration = generation
         state = .loading

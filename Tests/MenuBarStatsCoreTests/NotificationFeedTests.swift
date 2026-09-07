@@ -44,7 +44,7 @@ struct NotificationFeedTests {
         let reads = BlockingNotificationRead()
         let initial = Self.snapshot([])
         let feed = NotificationFeed(preset: initial, defaults: defaults,
-                                    readOperation: { await reads.read() }, dismissOperation: { _ in .unavailable })
+                                    readOperation: { await reads.read() })
         let start = Task { await feed.start() }
         while !(await reads.hasStarted) { await Task.yield() }
         feed.stop()
@@ -90,8 +90,7 @@ struct NotificationFeedTests {
         let feed = NotificationFeed(
             preset: initial,
             defaults: defaults,
-            readOperation: { await reads.read() },
-            dismissOperation: { _ in .unavailable }
+            readOperation: { await reads.read() }
         )
 
         await feed.refresh()
@@ -111,7 +110,7 @@ struct NotificationFeedTests {
             Self.snapshot([], deliveredIdentifiers: [])
         ])
         let feed = NotificationFeed(preset: Self.snapshot([first], deliveredIdentifiers: ["A"]),
-            defaults: defaults, readOperation: { await reads.read() }, dismissOperation: { _ in .unavailable })
+            defaults: defaults, readOperation: { await reads.read() })
         await feed.refresh()
         #expect(feed.notifications.isEmpty)
         await feed.refresh()
@@ -132,8 +131,7 @@ struct NotificationFeedTests {
         let feed = NotificationFeed(
             preset: initial,
             defaults: defaults,
-            readOperation: { await reads.read() },
-            dismissOperation: { _ in .unavailable }
+            readOperation: { await reads.read() }
         )
 
         await feed.refresh()
@@ -155,49 +153,17 @@ struct NotificationFeedTests {
         let (defaults, suiteName) = try Self.defaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let notification = Self.notification("A")
-        let actions = ActionRecorder(results: ["A": .accepted])
         let emptySnapshot = Self.snapshot([])
         let feed = NotificationFeed(
             preset: Self.snapshot([notification], deliveredIdentifiers: ["A"]),
             defaults: defaults,
-            readOperation: { emptySnapshot },
-            dismissOperation: { await actions.perform($0) }
+            readOperation: { emptySnapshot }
         )
 
         await feed.dismiss(notification)
 
-        #expect(await actions.identifiers.isEmpty)
         #expect(feed.notifications == [notification])
         #expect(feed.dismissalError == "Open Notification Center to clear notifications.")
-    }
-}
-
-private actor ActionRecorder {
-    let results: [String: NotificationSystemActionResult]
-    private(set) var identifiers: [String] = []
-
-    init(results: [String: NotificationSystemActionResult]) {
-        self.results = results
-    }
-
-    func perform(_ notification: DeliveredNotification) -> NotificationSystemActionResult {
-        identifiers.append(notification.id)
-        return results[notification.id] ?? .failed
-    }
-}
-
-private actor BlockingActionRecorder {
-    private(set) var identifiers: [String] = []
-    private var continuation: CheckedContinuation<NotificationSystemActionResult, Never>?
-
-    func perform(_ notification: DeliveredNotification) async -> NotificationSystemActionResult {
-        identifiers.append(notification.id)
-        return await withCheckedContinuation { continuation = $0 }
-    }
-
-    func finish(with result: NotificationSystemActionResult) {
-        continuation?.resume(returning: result)
-        continuation = nil
     }
 }
 

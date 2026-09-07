@@ -955,14 +955,18 @@ public struct SensorStackRenderer: MenuBarRenderer {
 
 /// Renders an SF Symbol followed by text.
 public struct IconTextRenderer: MenuBarRenderer {
-    private let symbolName: String
+    private let symbolName: String?
     private let text: String
     private let reservedText: String
     private let reservedSymbolNames: [String]
 
     /// Creates an icon-and-text renderer.
+    ///
+    /// A nil symbol draws no glyph while still reserving the icon's field, for a reading whose icon is not
+    /// known yet. Leaving the field out instead would make the item widen the moment the icon arrived, and an
+    /// item already on the bar must not change width.
     public init(
-        symbolName: String,
+        symbolName: String?,
         text: String,
         reservedText: String? = nil,
         reservedSymbolNames: [String] = []
@@ -984,7 +988,8 @@ public struct IconTextRenderer: MenuBarRenderer {
         )
         let colorConfiguration = NSImage.SymbolConfiguration(paletteColors: [context.foregroundColor])
         let configuration = baseConfiguration.applying(colorConfiguration)
-        let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+        let symbol = symbolName
+            .flatMap { NSImage(systemSymbolName: $0, accessibilityDescription: nil) }?
             .withSymbolConfiguration(configuration)
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
@@ -1002,7 +1007,7 @@ public struct IconTextRenderer: MenuBarRenderer {
         // with the weather. An SF Symbol's image box is not used at all: it carries transparent
         // optical padding that would reappear as unexplained space beside the value.
         let symbolField = metrics.inlineSymbolFieldSize
-        let inkKey = "\(symbolName)|\(symbolPointSize)|\(context.fontWeight)|inline"
+        let inkKey = "\(symbolName ?? "none")|\(symbolPointSize)|\(context.fontWeight)|inline"
         let placement = symbol
             .map { SymbolInkMeasurer.placement(of: $0, key: inkKey, visibleHeight: symbolField) }
             .map { $0.fitted(toWidth: symbolField) }

@@ -231,8 +231,8 @@ private struct UpdateOfferButtonsView: View {
                     Label("View Release on GitHub", systemImage: "safari")
                 }
                 .buttonStyle(.glass)
-                .fixedSize(horizontal: true, vertical: false)
                 .help("Inspect the release and choose the download directly on GitHub.")
+                .layoutPriority(-1)
             }
             Button("Skip This Version", action: skipAction)
                 .buttonStyle(.glass)
@@ -240,11 +240,14 @@ private struct UpdateOfferButtonsView: View {
             Button("Later", action: laterAction)
                 .buttonStyle(.glass)
                 .keyboardShortcut(.cancelAction)
+            // The primary action holds its width; the secondary link is what gives way when the row is tight,
+            // rather than the other way round.
             Button(action: installAction) {
                 Label("Download and Install", systemImage: "arrow.down.app.fill")
             }
             .buttonStyle(.glassProminent)
             .keyboardShortcut(.defaultAction)
+            .fixedSize(horizontal: true, vertical: false)
         }
         .controlSize(.large)
         .padding(.horizontal, 4)

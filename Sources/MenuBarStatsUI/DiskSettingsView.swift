@@ -57,6 +57,13 @@ struct DiskSettingsView: View {
                     ForEach(availableVolumes, id: \.id) { volume in
                         Text(volume.name).tag(Optional(volume.id))
                     }
+                    // Hiding the volume that was chosen would otherwise leave the popup with no title at all,
+                    // and the choice still stands, so it keeps a row of its own.
+                    if let selected = diskSettings.selectedVolumeID,
+                       !availableVolumes.contains(where: { $0.id == selected })
+                    {
+                        Text("\(selected) (hidden)").tag(Optional(selected))
+                    }
                 }
                 Toggle("Hide system volumes", isOn: diskBinding(\.hidesSystemVolumes))
                 if !configurableVolumes.isEmpty {
@@ -116,10 +123,14 @@ struct DiskSettingsView: View {
     private var previewImage: NSImage {
         let appSettings = settingsStore.settings
         let color = NSColor(hex: appSettings.darkColor(for: moduleSettings)) ?? .controlAccentColor
+        let graphColor = NSColor(hex: appSettings.graphDarkColor(for: moduleSettings)) ?? color
+        let fillColor = NSColor(hex: appSettings.fillDarkColor(for: moduleSettings)) ?? graphColor
         let context = RenderContext(
             thickness: NSStatusBar.system.thickness,
             appearance: .dark,
             palette: MenuBarPalette(light: color, dark: color),
+            graphPalette: MenuBarPalette(light: graphColor, dark: graphColor),
+            fillPalette: MenuBarPalette(light: fillColor, dark: fillColor),
             fontSize: appSettings.effectiveMenuBarFontSize,
             isMonochrome: appSettings.isMonochrome,
             scale: appSettings.effectiveMenuBarScale

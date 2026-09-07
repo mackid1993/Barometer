@@ -114,7 +114,11 @@ struct DropdownScaffold<Content: View>: View {
                 }
             }
             .padding(BarometerDesign.panelPadding)
-            .frame(width: size.width)
+            // The scroller takes layout width when macOS is showing legacy scroll bars, so the viewport is
+            // narrower than the panel. Pinning the content to the panel width instead made it overflow by the
+            // scroller's width and sit centered, which put every card half of that off to the left: 4 pt of
+            // padding on one side against 20 pt on the other. Filling the viewport keeps the padding even.
+            .frame(maxWidth: .infinity)
         }
         .frame(width: size.width)
     }
@@ -190,14 +194,30 @@ struct IconTile: View {
                 )
             )
             shape.strokeBorder(.white.opacity(0.28), lineWidth: 0.75)
+            // A white glyph disappears on a light accent: the neon theme measured 1.29 to 1. The glyph takes
+            // whichever of white or near-black stands off the accent it is sitting on.
+            let isLightAccent = Self.isLight(accent.primary)
             Image(systemName: symbolName)
                 .symbolRenderingMode(renderingMode)
                 .font(.system(size: size * 0.5, weight: .semibold))
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.25), radius: 1, y: 1)
+                .foregroundStyle(isLightAccent ? Color(white: 0.1) : .white)
+                .shadow(color: (isLightAccent ? Color.white : .black).opacity(0.25), radius: 1, y: 1)
         }
         .frame(width: size, height: size)
         .shadow(color: accent.primary.opacity(0.35), radius: 8, y: 3)
+    }
+
+    /// Whether a color is light enough that a white glyph would vanish on it, by relative luminance.
+    static func isLight(_ color: Color) -> Bool {
+        guard let srgb = NSColor(color).usingColorSpace(.sRGB) else { return false }
+        func channel(_ value: CGFloat) -> CGFloat {
+            value <= 0.03928 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+        }
+        let luminance =
+            0.2126 * channel(srgb.redComponent)
+            + 0.7152 * channel(srgb.greenComponent)
+            + 0.0722 * channel(srgb.blueComponent)
+        return luminance > 0.45
     }
 }
 
@@ -368,7 +388,9 @@ struct Chip: View {
     var body: some View {
         HStack(spacing: 4) {
             if let symbol {
-                Image(systemName: symbol).font(.system(size: 9, weight: .semibold))
+                Image(systemName: symbol)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(color)
             } else {
                 Circle().fill(color).frame(width: 6, height: 6)
             }
@@ -377,7 +399,10 @@ struct Chip: View {
                 .lineLimit(1)
                 .contentTransition(.numericText())
         }
-        .foregroundStyle(symbol == nil ? Color.primary : color)
+        // The label is drawn in the text color, never the chip's own, which on a 14 percent wash of itself
+        // measured as low as 1.28 to 1 in light appearance. The color still identifies the chip, through the
+        // wash and through the symbol or dot, exactly as it does in the variant that has always used a dot.
+        .foregroundStyle(Color.primary)
         .padding(.horizontal, 7)
         .padding(.vertical, 3)
         .background(Capsule().fill(color.opacity(0.14)))
@@ -773,6 +798,8 @@ struct ProcessRow<Trailing: View>: View {
     let detail: String
     var fraction: Double?
     let accent: ModuleAccent
+    /// Whether the trailing view is a hover affordance that rests dimmed, rather than a reading to read.
+    var dimsTrailingUntilHover: Bool
     @ViewBuilder var trailing: () -> Trailing
     @State private var isHovering = false
 
@@ -782,6 +809,7 @@ struct ProcessRow<Trailing: View>: View {
         detail: String,
         fraction: Double? = nil,
         accent: ModuleAccent,
+        dimsTrailingUntilHover: Bool = true,
         @ViewBuilder trailing: @escaping () -> Trailing = { EmptyView() }
     ) {
         self.icon = icon
@@ -789,6 +817,7 @@ struct ProcessRow<Trailing: View>: View {
         self.detail = detail
         self.fraction = fraction
         self.accent = accent
+        self.dimsTrailingUntilHover = dimsTrailingUntilHover
         self.trailing = trailing
     }
 
@@ -815,7 +844,7 @@ struct ProcessRow<Trailing: View>: View {
                 .lineLimit(1)
                 .contentTransition(.numericText())
             trailing()
-                .opacity(isHovering ? 1 : 0.35)
+                .opacity(dimsTrailingUntilHover && !isHovering ? 0.35 : 1)
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 6)

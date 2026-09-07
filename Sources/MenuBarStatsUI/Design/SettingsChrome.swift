@@ -35,24 +35,49 @@ struct SettingsPaneHeader: View {
 }
 
 /// Dark, glassy strip that mimics the menu bar so previews read in context.
+///
+/// It stays dark in both appearances because every pane renders its preview for a dark menu bar, with those
+/// colors baked into the image. Following the appearance instead left a colored preview white on white. What
+/// did need fixing is a monochrome preview: it carries no color of its own and would otherwise take the
+/// window's tint, which in Light Mode is black on this near-black ground.
 struct MenuBarPreviewStrip: View {
     let image: NSImage
 
     var body: some View {
+        let ink = Color.white
         let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
         HStack(spacing: 10) {
             Text("Live preview")
                 .font(.caption2.weight(.semibold))
                 .tracking(0.8)
-                .foregroundStyle(.white.opacity(0.55))
-            Spacer()
-            Image(nsImage: image)
-            Spacer()
+                .foregroundStyle(ink.opacity(0.55))
+            // A preview as wide as every weather mark side by side would otherwise stretch the settings window
+            // to fit it, so the strip scrolls instead of growing. A scroll view aligns its content to the
+            // leading edge and is flexible in both directions, so the content is given the viewport's width to
+            // stay centred the way it was, and the strip is given the image's height so nothing is cropped.
+            GeometryReader { viewport in
+                ScrollView(.horizontal) {
+                    // The strip is always dark, whatever the appearance. A template image carries no color
+                    // of its own and takes the current tint, which in Light Mode is black, so a monochrome
+                    // preview was drawing black ink on a dark strip. Template previews are tinted for the
+                    // strip they sit on; a colored one keeps the colors the renderer baked in.
+                    Image(nsImage: image)
+                        .renderingMode(image.isTemplate ? .template : .original)
+                        .foregroundStyle(ink)
+                        .padding(.horizontal, 2)
+                        .frame(minWidth: viewport.size.width, alignment: .center)
+                }
+                .scrollIndicators(.never)
+            }
+            // A preview built before the first sample can have no height yet, and tying the strip to it made
+            // the content vanish until one arrived. The menu bar's own thickness is the floor.
+            .frame(height: max(image.size.height, NSStatusBar.system.thickness))
+            .frame(maxWidth: .infinity)
             Image(systemName: "wifi")
-                .foregroundStyle(.white.opacity(0.75))
+                .foregroundStyle(ink.opacity(0.75))
             Text("9:41")
                 .font(.system(size: 12, weight: .medium).monospacedDigit())
-                .foregroundStyle(.white.opacity(0.85))
+                .foregroundStyle(ink.opacity(0.85))
         }
         .padding(.horizontal, 12)
         .frame(height: 36)
@@ -66,7 +91,7 @@ struct MenuBarPreviewStrip: View {
                         endPoint: .bottom
                     )
                 )
-                shape.strokeBorder(.white.opacity(0.12), lineWidth: 0.75)
+                shape.strokeBorder(ink.opacity(0.12), lineWidth: 0.75)
             }
         )
         .shadow(color: .black.opacity(0.25), radius: 10, y: 4)

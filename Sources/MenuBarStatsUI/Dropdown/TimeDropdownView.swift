@@ -291,8 +291,12 @@ private struct CalendarEventRow: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            Spacer()
+            // The event is what the row is for, so a long calendar name gives way to it rather than taking
+            // the title's room: "Family Shared Calendar" was costing the title 91 points.
+            .layoutPriority(1)
+            Spacer(minLength: 6)
             Chip(text: event.calendarTitle, color: accent.secondary)
+                .layoutPriority(-1)
         }
         .padding(.vertical, 3)
         .padding(.horizontal, 4)

@@ -410,25 +410,63 @@ public struct MemoryDropdownView: View {
     }
 }
 
+/// The widths of the memory breakdown bar's five segments, in drawing order.
+///
+/// `MemorySample.free` is `total - used`, and used counts app, wired, and compressed memory only, so the
+/// cached pages sit inside free. Drawing free beside cached laid those bytes down twice and ran the bar past
+/// its own width by the cached fraction: with 3.17 GB cached of 16 GB installed the capsule reached a fifth
+/// past the card, the panel chopped its rounded end off, and the translucent tail over the card and over the
+/// darker gutter beside it read as a seam. The tail is the memory free beyond the file cache instead, so the
+/// segments and the gaps between them come to exactly the track width.
+struct MemoryBreakdownLayout {
+    /// The gap between neighboring segments.
+    static let spacing: CGFloat = 1
+
+    let app: CGFloat
+    let wired: CGFloat
+    let compressed: CGFloat
+    let cached: CGFloat
+    let unused: CGFloat
+
+    init(sample: MemorySample, width: CGFloat) {
+        let counted = sample.app + sample.wired + sample.compressed + sample.cached
+        // A reading that ever exceeds the installed memory scales down rather than overflowing the track.
+        let scale = max(sample.total, counted)
+        let track = max(0, width - Self.spacing * 4)
+        func length(_ amount: UInt64) -> CGFloat {
+            scale > 0 ? track * CGFloat(amount) / CGFloat(scale) : 0
+        }
+        app = length(sample.app)
+        wired = length(sample.wired)
+        compressed = length(sample.compressed)
+        cached = length(sample.cached)
+        unused = length(sample.total > counted ? sample.total - counted : 0)
+    }
+
+    /// Every segment width in drawing order.
+    var widths: [CGFloat] { [app, wired, compressed, cached, unused] }
+}
+
 private struct MemoryBreakdownBar: View {
     let sample: MemorySample
     let accent: ModuleAccent
 
     var body: some View {
         GeometryReader { geometry in
-            HStack(spacing: 1) {
-                segment(sample.app, color: accent.primary, width: geometry.size.width)
-                segment(sample.wired, color: accent.secondary, width: geometry.size.width)
-                segment(sample.compressed, color: .orange, width: geometry.size.width)
-                segment(sample.cached, color: .secondary.opacity(0.55), width: geometry.size.width)
-                segment(sample.free, color: .primary.opacity(0.08), width: geometry.size.width)
+            let layout = MemoryBreakdownLayout(sample: sample, width: geometry.size.width)
+            HStack(spacing: MemoryBreakdownLayout.spacing) {
+                segment(layout.app, color: accent.primary)
+                segment(layout.wired, color: accent.secondary)
+                segment(layout.compressed, color: .orange)
+                segment(layout.cached, color: .secondary.opacity(0.55))
+                segment(layout.unused, color: .primary.opacity(0.08))
             }
             .clipShape(Capsule())
         }
     }
 
-    private func segment(_ amount: UInt64, color: Color, width: CGFloat) -> some View {
-        color.frame(width: sample.total > 0 ? width * CGFloat(amount) / CGFloat(sample.total) : 0)
+    private func segment(_ width: CGFloat, color: Color) -> some View {
+        color.frame(width: width)
     }
 }
 

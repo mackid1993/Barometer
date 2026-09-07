@@ -97,7 +97,9 @@ public struct NetworkDropdownView: View {
                             if sample?.primary?.name == interface.name {
                                 Chip(text: "Primary", color: accent.secondary, symbol: "star.fill")
                             }
-                            Spacer()
+                            Spacer(minLength: 6)
+                            // A VPN adds two chips, which with the byte counts needs more than the card has.
+                            // The counts shorten rather than pushing the chips out of the card.
                             Text(
                                 "\(Self.bytes(interface.receivedBytes)) received  ·  "
                                     + "\(Self.bytes(interface.sentBytes)) sent"
@@ -105,6 +107,8 @@ public struct NetworkDropdownView: View {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
+                            .truncationMode(.middle)
+                            .layoutPriority(-1)
                         }
                     }
                 }
@@ -305,7 +309,10 @@ public struct NetworkDropdownView: View {
                     icon: ProcessIconResolver.image(processIdentifier: process.processIdentifier, path: process.path),
                     name: process.name,
                     detail: "",
-                    accent: accent
+                    accent: accent,
+                    // The trailing view here is the row's only reading, not a hover affordance, so it must
+                    // not rest at a third of its opacity: an inner `.opacity(1)` cannot undo an outer one.
+                    dimsTrailingUntilHover: false
                 ) {
                     VStack(alignment: .trailing, spacing: 1) {
                         if rateOrder == .uploadThenDownload {
@@ -324,7 +331,6 @@ public struct NetworkDropdownView: View {
                                 color: accent.secondary)
                         }
                     }
-                    .opacity(1)
                 }
             }
         }

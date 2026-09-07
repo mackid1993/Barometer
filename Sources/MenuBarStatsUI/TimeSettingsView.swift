@@ -11,6 +11,12 @@ struct TimeSettingsView: View {
     @State private var timeZoneSearch = ""
     @State private var notificationAccess = NotificationCenterSource.accessState()
     @State private var accessibilityAllowed = SystemClockCover.isTrusted
+    @State private var hotCornerSetupMessage: String?
+    @State private var isConfiguringHotCorner = false
+    @State private var chosenCorner = NotificationCenterOpening.preferredCorner
+    /// Which corners the user has left free. Read once rather than five times per body evaluation: each check
+    /// builds a preferences suite and asks the running Dock.
+    @State private var freeCorners: Set<String> = []
 
     private var moduleSettings: ModuleSettings {
         settingsStore.settings.modules[.time] ?? ModuleSettings(mode: "custom", interval: 60)
@@ -156,33 +162,128 @@ struct TimeSettingsView: View {
                 await watchNotificationAccess()
             }
             Section("Open Notification Center") {
-                Text("With the system clock hidden, the only thing that still opens Notification Center is a hot "
-                    + "corner assigned to it. The dropdown's Open Notification Center button fires that corner; the "
-                    + "pointer is hidden for the instant it takes and ends where it was.")
+                Text("With the system clock hidden, a screen corner assigned to Notification Center is the only "
+                    + "thing left that opens the panel from an app. Barometer's button fires that corner: the "
+                    + "pointer is hidden for the instant it takes and ends up where it was. Swiping in from the "
+                    + "right edge of the trackpad opens the panel too, and needs no corner.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("1. Open System Settings > Desktop & Dock.")
-                    Text("2. Click Hot Corners… at the bottom.")
-                    Text("3. Set any corner to Notification Center and click Done.")
-                }
-                .font(.callout)
-                if NotificationCenterOpening.assignedCornerKey != nil {
-                    Label("A corner is assigned to Notification Center", systemImage: "checkmark.circle.fill")
+
+                if let corner = NotificationCenterOpening.assignedCornerKey {
+                    Label("The \(Self.cornerTitle(corner).lowercased()) corner opens Notification Center",
+                          systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)
+                    if NotificationCenterOpening.barometerOwnedCorner != nil {
+                        Button("Give the Corner Back") {
+                            NotificationCenterOpening.releaseCorner()
+                            hotCornerSetupMessage = "The corner is yours again, and the Dock restarted."
+                        }
+                        .help("Restores the corner exactly as it was and restarts the Dock once")
+                    }
                 } else {
-                    Text("No corner is assigned to Notification Center yet.")
+                    Picker("Pick the hot corner you want", selection: $chosenCorner) {
+                        ForEach(DockHotCorners.cornerKeys, id: \.self) { key in
+                            Text(freeCorners.contains(key)
+                                ? Self.cornerTitle(key)
+                                : "\(Self.cornerTitle(key)) — already yours")
+                                .tag(key)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: chosenCorner) { _, corner in
+                        NotificationCenterOpening.preferredCorner = corner
+                    }
+                    Text("Choose a corner your pointer does not travel to. Whichever you choose opens "
+                        + "Notification Center whenever the pointer reaches it — macOS gives no way to limit "
+                        + "that to Barometer. A corner already carrying one of your own actions is never taken.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button(isConfiguringHotCorner
+                        ? "Assigning and restarting the Dock…"
+                        : "Assign the \(Self.cornerTitle(chosenCorner).lowercased()) corner and restart the Dock") {
+                        Task { await configureHotCorner(chosenCorner) }
+                    }
+                    .disabled(isConfiguringHotCorner || !freeCorners.contains(chosenCorner))
+                    .help("Writes the corner into the Dock's settings and restarts the Dock once, which is the "
+                        + "only way the assignment takes effect")
+                }
+
+                Text("You can also set it yourself in System Settings > Desktop & Dock > Hot Corners…, which "
+                    + "applies at once with nothing to restart.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("Open Hot Corner Settings…") { NotificationCenterOpening.openHotCornerSettings() }
+                if let message = hotCornerSetupMessage {
+                    Text(message)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Button("Open Hot Corner Settings…") { NotificationCenterOpening.openHotCornerSettings() }
             }
             .id(SettingsFocus.hotCornerInstructions)
+            .task { freeCorners = Set(DockHotCorners.cornerKeys.filter(DockHotCorners.isFree)) }
         }
         .formStyle(.grouped)
-        .settingsPane(module: .time, settings: settingsStore.settings)
+        .settingsPane(module: .time, settings: settingsStore.settings, preview: previewImage)
         .onAppear { scrollToPendingAnchor(proxy) }
         .onChange(of: SettingsFocus.shared.pendingAnchor) { _, _ in scrollToPendingAnchor(proxy) }
+        }
+    }
+
+    /// The clock as the menu bar will draw it, from the format waiting for Apply Changes rather than the saved
+    /// one, so the preview shows the choice being made.
+    private var previewImage: NSImage {
+        let appSettings = settingsStore.settingsIncludingPendingMenuBarChanges
+        let module = appSettings.modules[.time] ?? ModuleSettings()
+        let color = NSColor(hex: appSettings.darkColor(for: module)) ?? .white
+        let staged = settingsStore.timeMenuBarConfiguration
+        var context = RenderContext(
+            thickness: NSStatusBar.system.thickness,
+            appearance: .dark,
+            palette: MenuBarPalette(light: color, dark: color),
+            fontSize: appSettings.effectiveMenuBarFontSize,
+            isMonochrome: appSettings.isMonochrome,
+            scale: appSettings.effectiveMenuBarScale,
+            fontWeight: appSettings.fontWeight
+        )
+        if let size = staged.fontSize { context = context.withFontSize(CGFloat(size)) }
+        let text = TimeFormatEngine.render(
+            date: Date(timeIntervalSince1970: 1_735_735_845),
+            timeZone: .current,
+            template: staged.template,
+            showsSeconds: staged.showsSeconds
+        )
+        let reserved = TimeFormatEngine.menuBarPlaceholder(
+            template: staged.template, showsSeconds: staged.showsSeconds)
+        return TextRenderer(text: text, reservedText: staged.usesFixedWidth ? reserved : nil)
+            .render(in: context)
+    }
+
+    /// The name of a corner as a person would say it, rather than the Dock's preference key.
+    private static func cornerTitle(_ key: String) -> String {
+        switch key {
+        case "tl": "Top left"
+        case "tr": "Top right"
+        case "bl": "Bottom left"
+        default: "Bottom right"
+        }
+    }
+
+    /// Assigns the chosen corner and restarts the Dock so it takes effect.
+    private func configureHotCorner(_ corner: String) async {
+        isConfiguringHotCorner = true
+        hotCornerSetupMessage = nil
+        defer { isConfiguringHotCorner = false }
+        switch await NotificationCenterOpening.configure(corner: corner) {
+        case let .alreadyAssignedTo(existing):
+            hotCornerSetupMessage = "The \(Self.cornerTitle(existing)) corner was already assigned to "
+                + "Notification Center, so nothing was changed."
+        case let .assigned(assigned):
+            hotCornerSetupMessage = "The \(Self.cornerTitle(assigned)) corner now opens Notification Center. "
+                + "Try the button in the clock dropdown."
+        case .cornerInUse:
+            hotCornerSetupMessage = "That corner already has one of your own actions, so Barometer left it alone."
+        case let .failed(reason):
+            hotCornerSetupMessage = reason
         }
     }
 

@@ -702,6 +702,36 @@ struct SettingsTests {
         #expect(!store.hasPendingMenuBarChanges, "restaging the saved size is not a change")
     }
 
+    @Test("The weather icon style waits for Apply Changes")
+    @MainActor
+    func stagesWeatherIconStyle() {
+        let suiteName = "com.barometer.app.Tests.PendingWeatherIcons"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = SettingsStore(defaults: defaults)
+        #expect(!store.weatherUsesSystemIcons, "Barometer's own mark is the default")
+
+        store.stageWeatherUsesSystemIcons(true)
+        #expect(!store.settings.weather.usesSystemIcons, "the saved style must not change before the reopen")
+        #expect(store.weatherUsesSystemIcons)
+        #expect(store.settingsIncludingPendingMenuBarChanges.weather.usesSystemIcons)
+        #expect(store.hasPendingMenuBarChanges)
+
+        store.applyPendingMenuBarChanges()
+        #expect(store.settings.weather.usesSystemIcons)
+        #expect(!store.hasPendingMenuBarChanges)
+
+        store.stageWeatherUsesSystemIcons(true)
+        #expect(!store.hasPendingMenuBarChanges, "restaging the saved style is not a change")
+
+        store.stageWeatherUsesSystemIcons(false)
+        #expect(store.hasPendingMenuBarChanges)
+        store.discardPendingMenuBarChanges()
+        #expect(store.weatherUsesSystemIcons, "discarding returns to the saved style")
+    }
+
     @Test("Restaging the saved spacing clears the pending change")
     @MainActor
     func discardsRedundantStatusItemSpacingStage() {

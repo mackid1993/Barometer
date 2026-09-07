@@ -22,6 +22,13 @@ public enum WeatherPresentationFormatter {
     /// Three digits and a sign cover every temperature either unit can report.
     public static let reservedMenuBarText = "-99°"
 
+    /// Every symbol the menu bar can show, so the icon keeps one width as the weather changes.
+    public static let menuBarSymbolNames = [
+        "cloud", "cloud.bolt", "cloud.bolt.rain", "cloud.drizzle", "cloud.fog", "cloud.heavyrain",
+        "cloud.moon", "cloud.rain", "cloud.sleet", "cloud.snow", "cloud.sun", "moon.stars",
+        "questionmark.circle", "sun.max",
+    ]
+
     /// The one Weather menu bar presentation: current conditions and the current temperature.
     ///
     /// The unit letter is left off. The person reading it chose the unit, and dropping it buys a

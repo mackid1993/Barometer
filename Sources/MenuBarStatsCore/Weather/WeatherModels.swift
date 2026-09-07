@@ -150,53 +150,72 @@ public struct WMOCode: RawRepresentable, Codable, Equatable, Hashable, Sendable 
         }
     }
 
-    /// Returns the closest SF Symbol for this condition and daylight state.
     /// The drawn menu bar condition for this code.
     ///
-    /// Deliberately coarser than ``symbolName(isDay:)``: at 13 points, drizzle and sleet cannot be
-    /// told apart from rain, so they resolve to it rather than to a shape nobody can read. The
-    /// dropdown keeps the detailed symbol.
+    /// ``symbolName(isDay:)`` is derived from this, so the drawn marks and the system symbols tell
+    /// the same fourteen conditions apart by construction.
     public func menuBarCondition(isDay: Bool) -> WeatherMenuBarCondition {
         switch rawValue {
         case 0: isDay ? .clearDay : .clearNight
-        case 1, 2: .partlyCloudy
+        case 1, 2: isDay ? .partlyCloudy : .partlyCloudyNight
         case 3: .cloudy
         case 45, 48: .fog
-        case 51...57, 61, 63, 65, 66, 67, 80...82: .rain
+        case 51...57: .drizzle
+        case 61, 63: .rain
+        case 65, 80...82: .heavyRain
+        case 66, 67: .sleet
         case 71...77, 85, 86: .snow
-        case 95, 96, 99: .thunderstorm
-        default: .cloudy
+        case 95: .thunder
+        case 96, 99: .thunderstorm
+        default: .unknown
         }
     }
 
+    /// Returns the closest SF Symbol for this condition and daylight state.
     public func symbolName(isDay: Bool) -> String {
-        switch rawValue {
-        case 0: isDay ? "sun.max" : "moon.stars"
-        case 1, 2: isDay ? "cloud.sun" : "cloud.moon"
-        case 3: "cloud"
-        case 45, 48: "cloud.fog"
-        case 51...57: "cloud.drizzle"
-        case 61, 63: "cloud.rain"
-        case 65, 80...82: "cloud.heavyrain"
-        case 66, 67: "cloud.sleet"
-        case 71...77, 85, 86: "cloud.snow"
-        case 95: "cloud.bolt"
-        case 96, 99: "cloud.bolt.rain"
-        default: "questionmark.circle"
-        }
+        menuBarCondition(isDay: isDay).symbolName
     }
 }
 
-/// Weather conditions the drawn menu bar glyphs cover.
+/// Weather conditions the drawn menu bar glyphs cover, one for each symbol ``WMOCode/symbolName(isDay:)`` names.
+///
+/// The order is the order the settings preview shows them in: clear, then the cloud family from
+/// dry to wet, then the storms, then the fallback.
 public enum WeatherMenuBarCondition: String, CaseIterable, Sendable {
     case clearDay
     case clearNight
     case partlyCloudy
+    case partlyCloudyNight
     case cloudy
-    case rain
-    case snow
-    case thunderstorm
     case fog
+    case drizzle
+    case rain
+    case heavyRain
+    case sleet
+    case snow
+    case thunder
+    case thunderstorm
+    case unknown
+
+    /// The system symbol that stands for this condition, so either icon style shows the same set.
+    public var symbolName: String {
+        switch self {
+        case .clearDay: "sun.max"
+        case .clearNight: "moon.stars"
+        case .partlyCloudy: "cloud.sun"
+        case .partlyCloudyNight: "cloud.moon"
+        case .cloudy: "cloud"
+        case .fog: "cloud.fog"
+        case .drizzle: "cloud.drizzle"
+        case .rain: "cloud.rain"
+        case .heavyRain: "cloud.heavyrain"
+        case .sleet: "cloud.sleet"
+        case .snow: "cloud.snow"
+        case .thunder: "cloud.bolt"
+        case .thunderstorm: "cloud.bolt.rain"
+        case .unknown: "questionmark.circle"
+        }
+    }
 }
 
 /// Current detailed weather conditions.

@@ -151,10 +151,14 @@ struct CombinedSettingsView: View {
         let appSettings = settingsStore.settingsIncludingPendingMenuBarChanges
         let moduleSettings = appSettings.modules[.combined] ?? ModuleSettings()
         let normal = NSColor(hex: appSettings.darkColor(for: moduleSettings)) ?? .controlAccentColor
+        let graphColor = NSColor(hex: appSettings.graphDarkColor(for: moduleSettings)) ?? normal
+        let fillColor = NSColor(hex: appSettings.fillDarkColor(for: moduleSettings)) ?? graphColor
         let context = RenderContext(
             thickness: NSStatusBar.system.thickness,
             appearance: .dark,
             palette: MenuBarPalette(light: normal, dark: normal),
+            graphPalette: MenuBarPalette(light: graphColor, dark: graphColor),
+            fillPalette: MenuBarPalette(light: fillColor, dark: fillColor),
             fontSize: appSettings.effectiveMenuBarFontSize,
             isMonochrome: appSettings.isMonochrome,
             scale: appSettings.effectiveMenuBarScale,

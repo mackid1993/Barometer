@@ -672,6 +672,9 @@ private struct GeneralSettingsView: View {
 
 private struct AboutSettingsView: View {
     let updateController: UpdateController
+    @State private var confirmsPermissionReset = false
+    @State private var permissionsMessage: String?
+    @State private var permissionEntries: [AppPermissions.Entry] = []
 
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Development"
@@ -745,6 +748,105 @@ private struct AboutSettingsView: View {
                 Text(updateController.statusMessage)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                GlassCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        SectionLabel("Permissions")
+                        Text("Barometer asks for as little as it can. Nothing is requested at launch — a "
+                            + "permission is only asked for by the feature that needs it, when you use it.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Label(AppPermissions.relaunchNote, systemImage: "arrow.clockwise.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        ForEach(permissionEntries) { entry in
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: entry.symbolName)
+                                        .font(.caption)
+                                        .foregroundStyle(accent.primary)
+                                    Text(entry.name).font(.callout.weight(.medium))
+                                    Spacer(minLength: 6)
+                                    if let status = entry.status {
+                                        Chip(
+                                            text: status,
+                                            color: status == "Granted" ? .green : .secondary)
+                                    }
+                                }
+                                HStack(alignment: .top, spacing: 10) {
+                                    Text(entry.purpose)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    if !entry.isGranted {
+                                        Button("Grant") {
+                                            Task {
+                                                permissionsMessage = await AppPermissions.grant(entry.id)
+                                                permissionEntries = AppPermissions.entries()
+                                            }
+                                        }
+                                        .fixedSize()
+                                    }
+                                    if let settingsTitle = entry.settingsTitle {
+                                        Button(settingsTitle) { AppPermissions.openLocationSettings() }
+                                            .fixedSize()
+                                    }
+                                }
+                            }
+                        }
+                        // All four on one line measure 586 points against the 436 the card has, so every
+                        // label was squeezed. Two equal columns fit, and a grid lines their edges up instead
+                        // of leaving four different widths ragged against the left.
+                        // Granting belongs to the row that explains what is being granted. What is left here
+                        // is the pair that acts on all of them at once.
+                        Grid(horizontalSpacing: 8, verticalSpacing: 6) {
+                            GridRow {
+                                Button("Reset All Permissions…") { confirmsPermissionReset = true }
+                                    .frame(maxWidth: .infinity)
+                                    .help("Hands every permission back to macOS so it asks again when a "
+                                        + "feature needs one")
+                                Button("Open Privacy Settings") { AppPermissions.openPrivacySettings() }
+                                    .frame(maxWidth: .infinity)
+                            }
+                        }
+                        if let message = permissionsMessage {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            // Granting or taking a permission away only lands on the next launch, so the way
+                            // to finish is offered rather than described.
+                            Button("Quit and Reopen Barometer") { AppPermissions.relaunch() }
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .confirmationDialog(
+                            "Give every permission back?", isPresented: $confirmsPermissionReset,
+                            titleVisibility: .visible
+                        ) {
+                            Button("Reset All Permissions", role: .destructive) {
+                                Task {
+                                    permissionsMessage = await AppPermissions.resetAll()
+                                    permissionEntries = AppPermissions.entries()
+                                }
+                            }
+                            Button("Cancel", role: .cancel) {}
+                        } message: {
+                            Text("macOS will ask again the next time a feature needs one. Barometer has to be "
+                                + "quit and reopened afterwards, and the notification list and the Notification "
+                                + "Center button stop working until you grant them again.")
+                        }
+                    // Accessibility and Location change under a running process and nothing tells SwiftUI, so
+                    // the statuses are re-read for as long as the pane is on screen and not once more. Full
+                    // Disk Access and Calendars cannot change while Barometer runs; those need the relaunch.
+                    .task {
+                        while !Task.isCancelled {
+                            permissionEntries = AppPermissions.entries()
+                            try? await Task.sleep(for: .seconds(2))
+                        }
+                    }
+                }
+                .frame(maxWidth: 460)
                 GlassCard {
                     VStack(alignment: .leading, spacing: 6) {
                         SectionLabel("Credits")
