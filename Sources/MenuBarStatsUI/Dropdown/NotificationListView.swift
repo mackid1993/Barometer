@@ -104,7 +104,7 @@ struct NotificationListView: View {
                 .padding(.bottom, 4)
             }
             Button {
-                guard NotificationCenterOpening.assignedCornerKey != nil else {
+                guard NotificationCenterOpening.assignedCornerKey != nil || NotificationCenterOpening.clockIsOnBar else {
                     needsHotCorner = true
                     return
                 }

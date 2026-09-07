@@ -35,6 +35,45 @@ enum NotificationCenterOpening {
         DockHotCorners.preferenceActions().first { $0.value == Int(DockHotCorners.notificationCenterAction) }?.key
     }
 
+    /// The system clock item, when it is on the bar; a hidden clock has no element at all.
+    static func clockElement() -> AXUIElement? {
+        for bundle in ["com.apple.MenuBarAgent", "com.apple.controlcenter"] {
+            for host in NSRunningApplication.runningApplications(withBundleIdentifier: bundle) {
+                var extras: AnyObject?
+                let application = AXUIElementCreateApplication(host.processIdentifier)
+                guard AXUIElementCopyAttributeValue(application, kAXExtrasMenuBarAttribute as CFString, &extras) == .success,
+                      let extras, CFGetTypeID(extras) == AXUIElementGetTypeID()
+                else { continue }
+                if let clock = element(withIdentifier: SystemClockCover.clockIdentifier,
+                                       under: unsafeDowncast(extras, to: AXUIElement.self), depth: 0)
+                {
+                    return clock
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func element(withIdentifier identifier: String, under root: AXUIElement, depth: Int) -> AXUIElement? {
+        var value: AnyObject?
+        if AXUIElementCopyAttributeValue(root, kAXIdentifierAttribute as CFString, &value) == .success,
+           value as? String == identifier
+        {
+            return root
+        }
+        guard depth < 4,
+              AXUIElementCopyAttributeValue(root, kAXChildrenAttribute as CFString, &value) == .success,
+              let children = value as? [AXUIElement]
+        else { return nil }
+        for child in children {
+            if let match = element(withIdentifier: identifier, under: child, depth: depth + 1) { return match }
+        }
+        return nil
+    }
+
+    /// Whether the clock is on the bar, in which case a press needs no hot corner.
+    static var clockIsOnBar: Bool { clockElement() != nil }
+
     /// Whether Notification Center's panel is currently open, from the panel process's own expanded state.
     static func isPanelOpen() -> Bool {
         for host in NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.notificationcenterui") {
@@ -56,16 +95,27 @@ enum NotificationCenterOpening {
             defer { isOpening = false }
             // Let the dropdown dismiss and release its menu event tracking first.
             try? await Task.sleep(for: .milliseconds(250))
-            guard let key = assignedCornerKey else {
-                logger.notice("no hot corner is assigned to Notification Center; see Time and Notifications settings")
-                return
-            }
             guard AXIsProcessTrusted() else {
                 logger.error("opening notification center needs Accessibility access")
                 NotificationAccessSettings.requestAccessibility()
                 return
             }
             if isPanelOpen() { return }
+            // With the clock on the bar, the panel opens from its own item; no corner and no pointer needed.
+            if let clock = clockElement(), AXUIElementPerformAction(clock, kAXPressAction as CFString) == .success {
+                let deadline = ContinuousClock.now + .milliseconds(600)
+                while ContinuousClock.now < deadline {
+                    if isPanelOpen() {
+                        logger.notice("notification center opened by pressing the clock")
+                        return
+                    }
+                    try? await Task.sleep(for: .milliseconds(25))
+                }
+            }
+            guard let key = assignedCornerKey else {
+                logger.notice("no hot corner is assigned to Notification Center; see Time and Notifications settings")
+                return
+            }
             let opened = await fire(point(for: key, in: CGDisplayBounds(CGMainDisplayID())))
             logger.notice("notification center via the \(key, privacy: .public) corner: \(opened ? "opened" : "did not open", privacy: .public)")
         }
