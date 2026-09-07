@@ -123,11 +123,14 @@ struct UpdateOfferWindowControllerTests {
         view is NSScrollView || view.subviews.contains(where: containsScrollView)
     }
 
+    /// CPU time consumed by the calling thread.
+    ///
+    /// `getrusage(RUSAGE_SELF)` reports the whole process, so a parallel suite doing real work in
+    /// another thread inflated this budget and failed the assertion on a slower shared runner. The
+    /// measurement must cover only the loop under test, which stays on one thread throughout.
     private func processCPUTime() -> Double {
-        var usage = rusage()
-        getrusage(RUSAGE_SELF, &usage)
-        let user = Double(usage.ru_utime.tv_sec) + Double(usage.ru_utime.tv_usec) / 1_000_000
-        let system = Double(usage.ru_stime.tv_sec) + Double(usage.ru_stime.tv_usec) / 1_000_000
-        return user + system
+        var elapsed = timespec()
+        guard clock_gettime(CLOCK_THREAD_CPUTIME_ID, &elapsed) == 0 else { return 0 }
+        return Double(elapsed.tv_sec) + Double(elapsed.tv_nsec) / 1_000_000_000
     }
 }

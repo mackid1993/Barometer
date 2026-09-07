@@ -3911,3 +3911,29 @@ Verification:
 - `make test` passed and `swift build -c release` completed.
 - `git diff --check` reported no whitespace errors and every release-note line is within 120 columns.
 - The measured figures were taken from the installed build one module at a time, not estimated.
+
+## P8-T67 Measure test CPU budgets per thread
+
+The 1.0.7 release run failed at the test gate on `CalendarWeekdayLabelTests.calendarNavigationIsBounded`, which
+asserts that 20,000 month steps consume under 0.25 seconds of CPU. The test passed locally and had passed on the
+previous release run, and P8-T65 did not touch calendar code.
+
+The cause was the measurement, not the calendar. `processCPUTime()` used `getrusage(RUSAGE_SELF)`, which reports CPU
+consumed by every thread in the process, while Swift Testing runs suites in parallel. P8-T65 added eighteen tests
+that render images, so the budget absorbed that concurrent work. A fast local machine had the headroom; the shared CI
+runner did not.
+
+An in-process probe confirmed it: with four sibling threads busy, the same loop measured 1.227 seconds process-wide
+against 0.204 seconds thread-local, a six-fold inflation and far more than the 0.25 second budget.
+
+Both helpers now use `clock_gettime(CLOCK_THREAD_CPUTIME_ID)`, which counts only the calling thread. Each measured
+loop is synchronous and stays on one thread, so the budget again covers the code under test. This corrects three
+assertions: the calendar navigation budget and the two `UpdateOfferWindowControllerTests` scrolling budgets, which
+had the same flaw and would have failed the same way as the suite grows.
+
+Verification:
+
+- `make test` passed: 289 tests across three targets.
+- The probe above was run and removed; it is recorded here rather than kept as a test because it depends on machine
+  timing.
+- `swift build -c release` completed and `git diff --check` reported no whitespace errors.
