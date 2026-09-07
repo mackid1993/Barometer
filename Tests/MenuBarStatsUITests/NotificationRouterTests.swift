@@ -23,8 +23,72 @@ struct NotificationRouterTests {
         #expect(NotificationRouter.destination(for: message, folders: []) == .open(link))
     }
 
+    @Test("the native action wins over the browser-download fallback")
+    func nativeActionFirst() async throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BarometerRouter-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("Barometer.dmg")
+        try Data().write(to: file)
+        let download = notification(
+            app: "com.vivaldi.Vivaldi",
+            title: "Download Complete",
+            body: "Barometer.dmg"
+        )
+        var nativeIdentifiers: [String] = []
+        var fallbacks: [NotificationRouter.Destination] = []
+
+        let result = await NotificationRouter.route(
+            download,
+            folders: [folder],
+            nativeAction: { notification in
+                nativeIdentifiers.append(notification.id)
+                return .accepted
+            },
+            fallbackOpen: { fallbacks.append($0) }
+        )
+
+        #expect(result == .nativeAccepted)
+        #expect(nativeIdentifiers == [download.id])
+        #expect(fallbacks.isEmpty)
+    }
+
+    @Test("native unavailability opens the fallback exactly once")
+    func nativeUnavailable() async throws {
+        let link = try #require(URL(string: "messages://open?chat=123"))
+        let message = notification(app: "com.apple.MobileSMS", title: "Sam", deepLink: link)
+        var fallbacks: [NotificationRouter.Destination] = []
+
+        let result = await NotificationRouter.route(
+            message,
+            folders: [],
+            nativeAction: { _ in .unavailable },
+            fallbackOpen: { fallbacks.append($0) }
+        )
+
+        #expect(result == .fallback(.open(link)))
+        #expect(fallbacks == [.open(link)])
+    }
+
+    @Test("an attempted native failure never triggers a second activation")
+    func nativeFailure() async {
+        let message = notification(app: "com.apple.MobileSMS", title: "Sam")
+        var fallbacks: [NotificationRouter.Destination] = []
+
+        let result = await NotificationRouter.route(
+            message,
+            folders: [],
+            nativeAction: { _ in .failed },
+            fallbackOpen: { fallbacks.append($0) }
+        )
+
+        #expect(result == .nativeFailed)
+        #expect(fallbacks.isEmpty)
+    }
+
     @Test("a download notification reveals the finished file with its on-disk spelling")
-    func downloads() throws {
+    func downloads() async throws {
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("BarometerRouter-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -34,22 +98,33 @@ struct NotificationRouterTests {
 
         let download = notification(app: "com.vivaldi.Vivaldi", title: "Download Complete", body: "barometer-1.0.7.DMG")
         #expect(NotificationRouter.destination(for: download, folders: [folder]) == .revealFile(file))
+        var fallbacks: [NotificationRouter.Destination] = []
+        let result = await NotificationRouter.route(
+            download,
+            folders: [folder],
+            nativeAction: { _ in .unavailable },
+            fallbackOpen: { fallbacks.append($0) }
+        )
+        #expect(result == .fallback(.revealFile(file)))
+        #expect(fallbacks == [.revealFile(file)])
 
         let traversal = notification(app: "com.example", title: "../Barometer-1.0.7.dmg")
-        #expect(NotificationRouter.destination(for: traversal, folders: [folder]) == .activateApplication("com.example"))
+        #expect(NotificationRouter.destination(for: traversal, folders: [folder])
+            == .activateApplication("com.example"))
+
+        let chat = notification(app: "com.apple.MobileSMS", title: "Download Complete", body: "Barometer-1.0.7.dmg")
+        #expect(NotificationRouter.destination(for: chat, folders: [folder])
+            == .activateApplication("com.apple.MobileSMS"))
     }
 
-    @Test("user-data hints open an existing path or a web link, and skip the rest")
-    func hints() throws {
-        let existing = notification(app: "com.example", title: "Export finished", hints: ["/tmp/report.pdf"])
-        #expect(NotificationRouter.destination(for: existing, folders: [], fileExists: { $0 == "/tmp/report.pdf" })
-            == .revealFile(URL(fileURLWithPath: "/tmp/report.pdf")))
-        let missing = notification(app: "com.example", title: "Export finished",
-                                   hints: ["/tmp/gone.pdf", "https://example.com/build/42"])
-        #expect(NotificationRouter.destination(for: missing, folders: [], fileExists: { _ in false })
-            == .open(try #require(URL(string: "https://example.com/build/42"))))
-        let extensionOnly = notification(app: "com.example", title: "Ping", hints: ["ftp://example.com"])
-        #expect(NotificationRouter.destination(for: extensionOnly, folders: [], fileExists: { _ in false })
+    @Test("untrusted URLs in application user data are not treated as click destinations")
+    func ignoresUserDataHints() {
+        let notification = notification(
+            app: "com.example",
+            title: "Export finished",
+            hints: ["/tmp/report.pdf", "https://example.com/build/42"]
+        )
+        #expect(NotificationRouter.destination(for: notification, folders: [])
             == .activateApplication("com.example"))
     }
 

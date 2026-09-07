@@ -149,7 +149,7 @@ private struct SettingsRootView: View {
                 .tag(SettingsSelection.general)
 
                 Section("Modules") {
-                    ForEach(ModuleID.allCases, id: \.self) { module in
+                    ForEach(ModuleID.allCases.filter { $0 != .focus && $0 != .nowPlaying }, id: \.self) { module in
                         SettingsSidebarRow(
                             symbolName: module.symbolName,
                             title: module.settingsTitle,
@@ -183,7 +183,7 @@ private struct SettingsRootView: View {
                         GPUSettingsView(store: gpuStore, settingsStore: settingsStore)
                     case .module(.battery):
                         BatterySettingsView(settingsStore: settingsStore)
-                    case .module(.time):
+                    case .module(.time), .module(.focus), .module(.nowPlaying):
                         TimeSettingsView(
                             store: timeStore,
                             settingsStore: settingsStore,
@@ -755,7 +755,7 @@ private struct AboutSettingsView: View {
                         MetricRow(
                             label: "Hardware sources", value: "IOKit, IOReport, SMC (read-only)", symbol: "cpu",
                             tint: accent.primary)
-                        MetricRow(
+                        AboutCreditRow(
                             label: "Thaw", value: "Toni Förster (stonerl) and René (diazdesandi), thaw-app on GitHub",
                             symbol: "heart", tint: accent.secondary)
                         MetricRow(
@@ -770,6 +770,35 @@ private struct AboutSettingsView: View {
             .frame(maxWidth: .infinity)
         }
         .navigationTitle("About")
+    }
+}
+
+/// Credit row whose attribution can grow vertically instead of truncating contributor names.
+private struct AboutCreditRow: View {
+    let label: String
+    let value: String
+    let symbol: String
+    let tint: Color
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: symbol)
+                .symbolRenderingMode(.hierarchical)
+                .font(.caption)
+                .foregroundStyle(tint)
+                .frame(width: 16)
+            Text(label)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Spacer(minLength: 10)
+            Text(value)
+                .font(BarometerDesign.valueFont)
+                .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.callout)
+        .padding(.vertical, 3)
+        .padding(.horizontal, 6)
     }
 }
 
@@ -956,6 +985,8 @@ extension ModuleID {
         case .weather: "cloud.sun"
         case .time: "clock"
         case .combined: "rectangle.3.group"
+        case .focus: "moon.fill"
+        case .nowPlaying: "play.rectangle.fill"
         }
     }
 }

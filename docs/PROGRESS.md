@@ -4409,3 +4409,61 @@ recorded above as moving nothing; the assertion is the mechanism.
 
 `make test`: 40, 134, and 147 tests passed across the three bundles. `git diff --check` clean. Installed-app check
 is David's: turn on "Hide the system clock"; the clock should leave the bar and its width return, with no prompt.
+
+## P8-T86 Notification mirroring and optional system controls (test build)
+
+Implemented with GPT 5.6 Sol agents on 2026-09-07, preserving Claude's concurrent P8-T85 clock-hider changes.
+The notification reader uses one read-only transaction for the delivered list and authoritative UUID set, removes
+the 100-record cap, retains textless notifications, and reports incomplete reads as unavailable. The feed no longer
+persists local dismissals: macOS is authoritative. Explicit clears finish even if the dropdown closes, verify removal
+against fresh native snapshots, and retain rows with an error if removal fails or cannot be verified. Opening and
+closing during an initial read cannot resurrect a stopped watcher. Notification preferences changes also refresh
+the list. The UI groups complete lists by application, starts collapsed, and supports expansion, individual and
+group clearing, and Clear All without the former 30-row cap.
+
+Apple's public notification API is scoped to the calling application. Runtime inspection found that Notification
+Center's private daemon interface requires Apple-private access; the implementation does not impersonate that
+client or write its database. The nearest available action path is Notification Center's own Accessibility element:
+require a unique exact UUID match, a complete bounded scan, and an advertised individual action. Activation attempts
+that native default action first. An unavailable action can use the existing explicit-link/download/system/app
+fallback; a failed dispatch does not try another destination. Those fallbacks do not establish Apple's original
+destination. The new bridge is unverified against live notification rows: this session lacked Accessibility and
+database access, and the OS may not expose the needed UUIDs or closed-panel elements. Native removal and routing
+are therefore experimental, not claimed as solved end to end. David chose an installed-app test instead of changing
+Codex's grants, then explicitly authorized building and replacing `/Applications/Barometer.app`.
+
+Added independent, off-by-default Enable Focus and Enable Now Playing switches under Time, using staged visibility
+and the existing registry/controller identity lifecycle. Both controls render fixed image pills, pause while disabled
+or asleep, and retain one state sample. Focus wraps the runtime-checked DoNotDisturb service, with generic public
+Focus status only when already authorized. The private service rejected the unsigned shell probe; installed-app
+access is unverified. Now Playing uses Apple's system-wide MediaRemote functions, with bounded callbacks/artwork
+and transport controls; there is no Spotify integration. Its standalone probes returned nil metadata and player,
+which does not prove access during active playback. Follow-up research found reports of native MediaRemote reads
+being denied with empty results to third-party callers since macOS 15.4, consistent with our probe. Empty results
+must report unavailable information rather than falsely claiming idle playback. Apple's public Now Playing
+framework publishes caller-owned sessions and does not supply an alternative cross-application reader. The
+system-wide source remains experimental and may be unavailable on macOS 27; no Apple-signed proxy workaround
+was added. References are in the test guide. About's Thaw attribution wraps the full contributor names.
+
+Verification: `python3 Scripts/check-source-invariants.py` passed before compilation. The final
+`POPOVER_SNAPSHOT_DIRECTORY="$PWD/dist/p8-t86-panel-screens" make test` passed all 365 tests: 56 SystemSources,
+152 UI, and 157 Core. Light/dark notification collapsed/expanded and scrolled captures, Focus, and Now Playing
+captures were inspected for placement and clipping. An earlier screenshot run failed on a transparent CPU 3-hour
+dark capture; the complete rerun passed with unchanged capture assertions. The first capture invocation also needed
+its output directory created. Logs: `dist/p8-t86-screen-tests.log`, screenshots: `dist/p8-t86-panel-screens`.
+With `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer`,
+`python3 Scripts/benchmark-popover-memory.py` passed at 47.9 MiB peak, below 128 MiB; repeated cycles plateaued.
+`python3 Scripts/benchmark-memory.py dist/memory-baseline` passed with a 92.7% one-hour reduction and zero growth
+between simulated hours 24 and 48. `git diff --check` passed. Installed-app test steps and explicit limitations are
+in `docs/NOTIFICATION_TEST_BUILD.md`.
+
+David explicitly requested no verification rerun because of time and cost, overriding the normal repeat-check
+workflow. The final MediaRemote empty-response classification correction and its regression test additions have
+not been rerun through the test suite. The 365-test and memory results above precede that correction. Proceeded
+directly to the requested release build and installed-app replacement through `make install`.
+
+The final release build completed in 29.45 seconds and the packaging script signed the app successfully.
+`make install` quit Barometer but macOS denied `ditto` writes to `/Applications/Barometer.app` with Operation not
+permitted; installation did not complete. Revealed the finished `dist/Barometer.app` in Finder for David to replace
+the installed app through Finder. No permission bypass, privilege escalation, or additional verification run was
+attempted. Install log: `dist/p8-t86-install.log`.

@@ -92,6 +92,14 @@ struct TimeSettingsView: View {
             .task(id: settingsStore.settings.time.hidesSystemClock) {
                 await watchAccessibilityAccess()
             }
+            Section("System Controls") {
+                Toggle("Enable Focus", isOn: settingsStore.menuBarVisibilityBinding(for: .focus))
+                Toggle("Enable Now Playing", isOn: settingsStore.menuBarVisibilityBinding(for: .nowPlaying))
+                Text("Adds separate menu bar pills for Focus and playback controls. These switches are independent "
+                    + "of hiding the system clock. Select Apply Changes to update the menu bar.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Section("Dropdown") {
                 HStack {
                     Text("Height")

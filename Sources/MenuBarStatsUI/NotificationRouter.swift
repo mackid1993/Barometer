@@ -2,17 +2,17 @@ import AppKit
 import Foundation
 import SystemSources
 
-/// Decides what a click on a listed notification opens.
+/// Routes a click on a listed notification.
 ///
-/// Notification Center hands a click to the sending application over a private channel, and the
-/// application chooses the destination. Barometer cannot reach that channel, so it reproduces the
-/// destinations from what the record itself carries, in this order:
+/// macOS's own notification action is always attempted first. A fallback is allowed only when the
+/// native bridge reports that it was unavailable before dispatch, avoiding a second activation
+/// after an indeterminate native attempt. Fallbacks use explicit record fields followed by
+/// conservative last-resort heuristics, in this order:
 ///
-/// 1. The notification's own deep link (`durl`), which is where Notification Center goes.
+/// 1. The notification's explicit deep link (`durl`).
 /// 2. A finished download: a file in Downloads or on the Desktop named in the notification text.
-/// 3. An absolute path or web link found in the application's user data.
-/// 4. System notifications: the System Settings pane or application they belong to.
-/// 5. The sending application.
+/// 3. System notifications: the System Settings pane or application they belong to.
+/// 4. The sending application.
 @MainActor
 enum NotificationRouter {
     /// Where a notification click goes.
@@ -21,6 +21,22 @@ enum NotificationRouter {
         case revealFile(URL)
         case activateApplication(String)
     }
+
+    /// Result of routing one click.
+    enum Result: Equatable {
+        /// macOS accepted the notification's native action.
+        case nativeAccepted
+        /// The native bridge attempted dispatch but could not confirm acceptance.
+        case nativeFailed
+        /// Native dispatch was unavailable before attempting it, so Barometer opened this fallback.
+        case fallback(Destination)
+    }
+
+    /// Injectable native action used to keep routing tests independent of Notification Center.
+    typealias NativeAction = @MainActor (DeliveredNotification) async -> NotificationSystemActionResult
+
+    /// Injectable fallback opener used to prevent tests from activating applications.
+    typealias DestinationOpener = @MainActor (Destination) -> Void
 
     /// Folders searched for a file named in the notification, in order.
     static var searchFolders: [URL] {
@@ -34,26 +50,32 @@ enum NotificationRouter {
     /// Picks the destination for one notification.
     static func destination(
         for notification: DeliveredNotification,
-        folders: [URL] = searchFolders,
-        fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
+        folders: [URL] = searchFolders
     ) -> Destination {
         if let deepLink = notification.deepLink, deepLink.scheme != nil {
             return .open(deepLink)
         }
-        if let file = downloadedFile(named: [notification.body, notification.subtitle, notification.title], in: folders) {
+        if isBrowserDownload(notification),
+           let file = downloadedFile(named: [notification.body, notification.subtitle, notification.title], in: folders)
+        {
             return .revealFile(file)
-        }
-        for hint in notification.hints {
-            if hint.hasPrefix("/") {
-                if fileExists(hint) { return .revealFile(URL(fileURLWithPath: hint)) }
-            } else if let url = URL(string: hint), let scheme = url.scheme, ["http", "https"].contains(scheme) {
-                return .open(url)
-            }
         }
         if let system = systemDestination(for: notification) {
             return system
         }
         return .activateApplication(notification.applicationIdentifier)
+    }
+
+    /// Routes through macOS's notification action bridge before considering a fallback.
+    @discardableResult
+    static func route(_ notification: DeliveredNotification, folders: [URL] = searchFolders) async -> Result {
+        await route(
+            notification,
+            folders: folders,
+            nativeAction: { notification in
+                await NotificationCenterActionBridge.shared.perform(.activate, for: notification)
+            }
+        )
     }
 
     /// Opens the destination.
@@ -65,6 +87,26 @@ enum NotificationRouter {
             NSWorkspace.shared.activateFileViewerSelecting([url])
         case let .activateApplication(bundleIdentifier):
             NotificationApplicationResolver.open(bundleIdentifier: bundleIdentifier)
+        }
+    }
+
+    /// Attempts the native default action, opening a fallback only when no native dispatch occurred.
+    @discardableResult
+    static func route(
+        _ notification: DeliveredNotification,
+        folders: [URL] = searchFolders,
+        nativeAction: NativeAction,
+        fallbackOpen: DestinationOpener = open
+    ) async -> Result {
+        switch await nativeAction(notification) {
+        case .accepted:
+            return .nativeAccepted
+        case .failed:
+            return .nativeFailed
+        case .unavailable:
+            let fallback = destination(for: notification, folders: folders)
+            fallbackOpen(fallback)
+            return .fallback(fallback)
         }
     }
 
@@ -85,30 +127,9 @@ enum NotificationRouter {
     // MARK: - System notifications
 
     /// System Settings panes and applications behind Apple's system notifications.
-    static let systemDestinations: [(prefix: String, destination: Destination)] = [
-        ("com.apple.appstore", .open(URL(string: "macappstore://showUpdatesPage")!)),
-        ("com.apple.softwareupdatenotification",
-         .open(URL(string: "x-apple.systempreferences:com.apple.Software-Update-Settings.extension")!)),
-        ("com.apple.btusernotifications",
-         .open(URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings")!)),
-        ("com.apple.bluetoothuserd", .open(URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings")!)),
-        ("com.apple.controlcenter.notifications.low-battery",
-         .open(URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings")!)),
-        ("com.apple.audioaccessory", .open(URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings")!)),
-        ("com.apple.tmhelperagent",
-         .open(URL(string: "x-apple.systempreferences:com.apple.Time-Machine-Settings.extension")!)),
-        ("com.apple.screentime", .open(URL(string: "x-apple.systempreferences:com.apple.Screen-Time-Settings.extension")!)),
-        ("com.apple.wifi.usernotifications", .open(URL(string: "x-apple.systempreferences:com.apple.wifi-settings-extension")!)),
-        ("com.apple.wifip2pd", .open(URL(string: "x-apple.systempreferences:com.apple.wifi-settings-extension")!)),
-        ("com.apple.tccd", .open(URL(string: "x-apple.systempreferences:com.apple.preference.security")!)),
-        ("com.apple.askpermission", .open(URL(string: "x-apple.systempreferences:com.apple.preference.security")!)),
-        ("com.apple.mdmclient", .open(URL(string: "x-apple.systempreferences:com.apple.Profiles-Settings.extension")!)),
-        ("com.apple.appleaccount", .open(URL(string: "x-apple.systempreferences:com.apple.systempreferences.AppleIDSettings")!)),
-        ("com.apple.security.keychain-circle", .open(URL(string: "x-apple.systempreferences:com.apple.systempreferences.AppleIDSettings")!)),
-        ("com.apple.universalcontrol", .open(URL(string: "x-apple.systempreferences:com.apple.Displays-Settings.extension")!)),
-        ("com.apple.lockdownmode", .open(URL(string: "x-apple.systempreferences:com.apple.preference.security")!)),
-        ("com.apple.followup", .open(URL(string: "x-apple.systempreferences:com.apple.systempreferences.AppleIDSettings")!)),
-        ("com.apple.sharingd", .open(URL(string: "x-apple.systempreferences:com.apple.General-Settings.extension")!)),
+    static let systemDestinations: [(prefix: String, destination: Destination)] = systemDestinationURLs.compactMap {
+        prefix, value in URL(string: value).map { (prefix, .open($0)) }
+    } + [
         ("com.apple.passwords", .activateApplication("com.apple.Passwords")),
         ("com.apple.findmy", .activateApplication("com.apple.findmy")),
         ("com.apple.ical", .activateApplication("com.apple.iCal")),
@@ -119,13 +140,38 @@ enum NotificationRouter {
         ("com.apple.shazamnotifications", .activateApplication("com.apple.shazam")),
     ]
 
+    private static let systemDestinationURLs: [(String, String)] = [
+        ("com.apple.appstore", "macappstore://showUpdatesPage"),
+        ("com.apple.softwareupdatenotification",
+         "x-apple.systempreferences:com.apple.Software-Update-Settings.extension"),
+        ("com.apple.btusernotifications", "x-apple.systempreferences:com.apple.BluetoothSettings"),
+        ("com.apple.bluetoothuserd", "x-apple.systempreferences:com.apple.BluetoothSettings"),
+        ("com.apple.controlcenter.notifications.low-battery",
+         "x-apple.systempreferences:com.apple.BluetoothSettings"),
+        ("com.apple.audioaccessory", "x-apple.systempreferences:com.apple.BluetoothSettings"),
+        ("com.apple.tmhelperagent", "x-apple.systempreferences:com.apple.Time-Machine-Settings.extension"),
+        ("com.apple.screentime", "x-apple.systempreferences:com.apple.Screen-Time-Settings.extension"),
+        ("com.apple.wifi.usernotifications", "x-apple.systempreferences:com.apple.wifi-settings-extension"),
+        ("com.apple.wifip2pd", "x-apple.systempreferences:com.apple.wifi-settings-extension"),
+        ("com.apple.tccd", "x-apple.systempreferences:com.apple.preference.security"),
+        ("com.apple.askpermission", "x-apple.systempreferences:com.apple.preference.security"),
+        ("com.apple.mdmclient", "x-apple.systempreferences:com.apple.Profiles-Settings.extension"),
+        ("com.apple.appleaccount", "x-apple.systempreferences:com.apple.systempreferences.AppleIDSettings"),
+        ("com.apple.security.keychain-circle",
+         "x-apple.systempreferences:com.apple.systempreferences.AppleIDSettings"),
+        ("com.apple.universalcontrol", "x-apple.systempreferences:com.apple.Displays-Settings.extension"),
+        ("com.apple.lockdownmode", "x-apple.systempreferences:com.apple.preference.security"),
+        ("com.apple.followup", "x-apple.systempreferences:com.apple.systempreferences.AppleIDSettings"),
+        ("com.apple.sharingd", "x-apple.systempreferences:com.apple.General-Settings.extension"),
+    ]
+
     /// The pane or app for a system notification, matched on the identifier without the
     /// `_SYSTEM_CENTER_:` prefix Apple uses for daemon-sent notifications.
     static func systemDestination(for notification: DeliveredNotification) -> Destination? {
         var identifier = notification.applicationIdentifier.lowercased()
         if identifier.hasPrefix("_system_center_:") { identifier.removeFirst("_system_center_:".count) }
         if let category = notification.category?.lowercased(), category.contains("updates-available") {
-            return .open(URL(string: "macappstore://showUpdatesPage")!)
+            return URL(string: "macappstore://showUpdatesPage").map(Destination.open)
         }
         for entry in systemDestinations where identifier.hasPrefix(entry.prefix) {
             return entry.destination
@@ -134,6 +180,29 @@ enum NotificationRouter {
     }
 
     // MARK: - Downloads
+
+    /// Recognized browser bundle identifiers eligible for the download fallback.
+    private static let browserBundleIdentifiers: Set<String> = [
+        "com.apple.safari",
+        "com.brave.browser",
+        "com.google.chrome",
+        "com.kagi.kagimacos",
+        "com.microsoft.edgemac",
+        "com.operasoftware.opera",
+        "com.operasoftware.operagx",
+        "com.vivaldi.vivaldi",
+        "company.thebrowser.browser",
+        "org.chromium.chromium",
+        "org.mozilla.firefox",
+    ]
+
+    /// Whether a browser notification carries explicit download-completion evidence.
+    static func isBrowserDownload(_ notification: DeliveredNotification) -> Bool {
+        guard browserBundleIdentifiers.contains(notification.applicationIdentifier.lowercased()) else { return false }
+        return [notification.title, notification.subtitle, notification.body, notification.category]
+            .compactMap { $0?.lowercased() }
+            .contains { $0.contains("download") }
+    }
 
     /// The first existing file whose name equals one of the candidate strings.
     ///

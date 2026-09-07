@@ -427,6 +427,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         values[.battery] = ModuleSettings(isEnabled: false, mode: "glyphPercentage", interval: 10)
         values[.time] = ModuleSettings(isEnabled: false, mode: "custom", interval: 60)
         values[.combined] = ModuleSettings(isEnabled: false, mode: "members", interval: 1)
+        values[.focus] = ModuleSettings(isEnabled: false, mode: "pill", interval: 5)
+        values[.nowPlaying] = ModuleSettings(isEnabled: false, mode: "pill", interval: 5)
         return values
     }
 
@@ -656,6 +658,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
                 in: container,
                 debugDescription: "Unsupported settings schema version \(version)"
             )
+        }
+        for module in [ModuleID.focus, .nowPlaying] where modules[module] == nil {
+            modules[module] = Self.defaultModules[module]
         }
         fontSize = Self.clampedMenuBarFontSize(fontSize)
     }

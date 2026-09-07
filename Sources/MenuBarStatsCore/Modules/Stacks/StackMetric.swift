@@ -140,7 +140,7 @@ public enum StackMetric: String, CaseIterable, Codable, Hashable, Sendable {
         case .battery: .batteryCharge
         case .weather: .weatherTemperature
         case .time: .timeClock
-        case .combined: nil
+        case .combined, .focus, .nowPlaying: nil
         }
     }
 }

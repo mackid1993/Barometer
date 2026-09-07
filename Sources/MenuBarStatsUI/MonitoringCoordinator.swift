@@ -118,6 +118,7 @@ public final class MonitoringCoordinator {
     private var sensorDropdowns: [Int: DropdownController] = [:]
     private var batteryDropdown: DropdownController?
     private var timeDropdown: DropdownController?
+    private var systemControls: SystemControlsCoordinator?
     private var stackDropdowns: [Int: DropdownController] = [:]
     private var cpuSampleTask: Task<Void, Never>?
     private var memorySampleTask: Task<Void, Never>?
@@ -411,6 +412,9 @@ public final class MonitoringCoordinator {
             settingsAction: { settingsAction(.time) },
             quitAction: quitAction
         )
+        systemControls = SystemControlsCoordinator(
+            registry: registry, settingsStore: settingsStore,
+            settingsAction: settingsAction, quitAction: quitAction)
         applyTimeDropdownHeight()
         applySystemClockCover()
         configureSensorWidgets()
@@ -433,6 +437,7 @@ public final class MonitoringCoordinator {
 
     /// Stops monitor tasks and finishes their streams.
     public func stop() {
+        systemControls?.stop()
         graphHistorySaveTask?.cancel()
         graphHistorySaveTask = nil
         saveGraphHistory()
@@ -723,6 +728,7 @@ public final class MonitoringCoordinator {
             guard let self else {
                 return
             }
+            systemControls?.setSleeping(true)
             Task {
                 await self.cpuScheduler.pause()
                 await self.memoryScheduler.pause()
@@ -739,6 +745,7 @@ public final class MonitoringCoordinator {
             guard let self else {
                 return
             }
+            systemControls?.setSleeping(false)
             Task {
                 self.updateSchedulerActivity()
                 await self.weatherSession?.resume()
@@ -798,6 +805,7 @@ public final class MonitoringCoordinator {
                 self.applyNetworkSettings()
                 self.applyTimeDropdownHeight()
                 self.applySystemClockCover()
+                self.systemControls?.applyActivity()
                 self.configureSensorWidgets()
                 self.configureStacks()
                 self.observeSettings()
@@ -1063,6 +1071,8 @@ public final class MonitoringCoordinator {
                 timeController?.activateVisibility()
             case .combined:
                 stackControllers[identity.instance]?.activateVisibility()
+            case .focus, .nowPlaying:
+                systemControls?.activateVisibility(for: identity.module)
             }
         }
         hasActivatedStatusItems = true
@@ -1092,6 +1102,8 @@ public final class MonitoringCoordinator {
                 attach(statusItem, controller: timeController, dropdown: timeDropdown)
             case .combined, .sensors:
                 break
+            case .focus, .nowPlaying:
+                systemControls?.attach(statusItem, for: identity.module, activate: hasActivatedStatusItems)
             }
         }
         configureSensorWidgets()

@@ -34,6 +34,14 @@ struct PopoverPlacementTests {
                     subtitle: nil, body: "Running ten minutes late, order without me if the kitchen closes.",
                     date: Date().addingTimeInterval(-240)),
                 DeliveredNotification(
+                    id: "4", applicationIdentifier: "com.apple.MobileSMS", title: "Avery Chen",
+                    subtitle: nil, body: "The grouped notification preview should keep the newest message visible.",
+                    date: Date().addingTimeInterval(-480)),
+                DeliveredNotification(
+                    id: "5", applicationIdentifier: "com.apple.MobileSMS", title: "Pat Lee",
+                    subtitle: nil, body: "This older message appears when the Messages group is expanded.",
+                    date: Date().addingTimeInterval(-720)),
+                DeliveredNotification(
                     id: "2", applicationIdentifier: "com.apple.AppStore", title: "Updates Available",
                     subtitle: nil, body: "3 apps have updates ready to install.",
                     date: Date().addingTimeInterval(-5_400)),
@@ -106,6 +114,31 @@ struct PopoverPlacementTests {
             selectedCalendarDate: timeNow,
             selectedDayEvents: [selectedEvent]
         ))
+        let nowPlayingController = NowPlayingController(
+            preset: .active(NowPlayingSnapshot(
+                title: "A Deliberately Long Track Title That Must Truncate Without Moving the Controls",
+                artist: "An Artist Name Long Enough to Exercise the Compact Popup Layout",
+                album: "The Complete Collection",
+                applicationBundleIdentifier: "com.apple.Music",
+                playbackState: .playing,
+                duration: 312,
+                elapsedTime: 147,
+                artworkData: nil
+            )),
+            commandError: "macOS did not accept the last media command. Try the control in the player."
+        )
+        let focusMode = FocusMode(id: "work", name: "Work", symbolName: "briefcase.fill")
+        let focusSnapshot = FocusSnapshot.active(mode: focusMode, availableModes: [
+            focusMode,
+            FocusMode(id: "personal", name: "Personal", symbolName: "person.fill"),
+            FocusMode(id: "sleep", name: "Sleep", symbolName: "bed.double.fill"),
+        ])
+        let focusController = FocusController(
+            snapshot: focusSnapshot,
+            readOperation: { focusSnapshot },
+            activateOperation: { _ in .applied },
+            deactivateOperation: { .applied }
+        )
         var views: [(String, () -> AnyView, CGFloat)] = HistoryRange.allCases.map { range in
             (
                 "cpu-\(range.rawValue)",
@@ -128,6 +161,10 @@ struct PopoverPlacementTests {
                 store: sensorStore, settingsStore: settingsStore, resetEnergyAction: {})) }, 620),
             ("battery", { AnyView(BatteryDropdownView(
                 store: batteryStore, settingsStore: settingsStore)) }, 560),
+            ("focus-controls", { AnyView(FocusControlsView(controller: focusController)) },
+             FocusControlsView.contentSize.height),
+            ("now-playing-controls", { AnyView(NowPlayingControlsView(controller: nowPlayingController)) },
+             NowPlayingControlsView.contentSize.height),
             ("time", { AnyView(TimeDropdownView(
                 store: timeStore,
                 weatherStore: store,
@@ -141,6 +178,18 @@ struct PopoverPlacementTests {
                 notificationFeed: notificationFeed,
                 requestCalendarAccess: {}
             )) }, 720),
+            ("time-notifications-grouped-expanded", { AnyView(
+                DropdownScaffold(size: TimeDropdownView.contentSize) {
+                    GlassCard(tint: ModuleAccent.signature(for: .time).primary) {
+                        NotificationListView(
+                            feed: notificationFeed,
+                            accent: ModuleAccent.signature(for: .time),
+                            now: timeNow,
+                            initiallyExpandedGroupIdentifiers: ["com.apple.mobilesms"]
+                        )
+                    }
+                }
+            ) }, 720),
             ("weather", { AnyView(WeatherDropdownView(
                 store: store, settingsStore: settingsStore, refreshAction: {})) }, 720),
             ("network", { AnyView(NetworkDropdownView(

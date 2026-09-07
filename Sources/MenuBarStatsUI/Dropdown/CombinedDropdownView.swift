@@ -168,7 +168,7 @@ public struct CombinedDropdownView: View {
                 requestCalendarAccess: requestCalendarAccess,
                 selectCalendarDate: selectCalendarDate
             )
-        case .combined:
+        case .combined, .focus, .nowPlaying:
             EmptyView()
         }
     }

@@ -16,6 +16,8 @@ struct IdentityContractTests {
             "Barometer.Weather",
             "Barometer.Time",
             "Barometer.Combined",
+            "Barometer.Focus",
+            "Barometer.NowPlaying",
         ]
 
         #expect(ModuleID.allCases.map(\.autosaveName) == expectedAutosaveNames)

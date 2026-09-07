@@ -24,7 +24,7 @@ Full text in `docs/DESIGN.md` section 3.5. Short form:
 1. The packaged `Barometer.app` process owns every status item. No command-line executable, helper, XPC service, or
    second bundle may create one. The app must validate its bundle identity before constructing `StatusItemRegistry`.
 2. Bundle identifier `com.barometer.app`. Never change it.
-3. Autosave names are fixed: `Barometer.CPU`, `Barometer.GPU`, `Barometer.Memory`, `Barometer.Disks`, `Barometer.Network`, `Barometer.Sensors`, `Barometer.Battery`, `Barometer.Weather`, `Barometer.Time`, `Barometer.Combined`. Extra instances are `Barometer.Weather.2` and so on. `ModuleID` in `MenuBarStatsCore` is the only place these strings live.
+3. Autosave names are fixed: `Barometer.CPU`, `Barometer.GPU`, `Barometer.Memory`, `Barometer.Disks`, `Barometer.Network`, `Barometer.Sensors`, `Barometer.Battery`, `Barometer.Weather`, `Barometer.Time`, `Barometer.Combined`, `Barometer.Focus`, `Barometer.NowPlaying`. Extra instances are `Barometer.Weather.2` and so on. `ModuleID` in `MenuBarStatsCore` is the only place these strings live.
 4. `NSStatusBarButton.title` is always empty. Menu bar content is an `NSImage` in `button.image`.
 5. `setAccessibilityIdentifier(autosaveName)` and `setAccessibilityLabel(displayName)` once, never changed. The
    bundle identifies the owning Barometer app; the unique identifier and stable child label distinguish movable items.

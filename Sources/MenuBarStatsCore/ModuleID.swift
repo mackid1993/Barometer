@@ -10,6 +10,8 @@ public enum ModuleID: String, CaseIterable, Codable, Hashable, Sendable {
     case weather
     case time
     case combined
+    case focus
+    case nowPlaying
 
     /// The permanent status-item autosave name.
     public var autosaveName: String {
@@ -24,6 +26,8 @@ public enum ModuleID: String, CaseIterable, Codable, Hashable, Sendable {
         case .weather: "Barometer.Weather"
         case .time: "Barometer.Time"
         case .combined: "Barometer.Combined"
+        case .focus: "Barometer.Focus"
+        case .nowPlaying: "Barometer.NowPlaying"
         }
     }
 
@@ -50,6 +54,8 @@ public enum ModuleID: String, CaseIterable, Codable, Hashable, Sendable {
         case .weather: "Weather"
         case .time: "Time"
         case .combined: "Combined"
+        case .focus: "Focus"
+        case .nowPlaying: "Now Playing"
         }
     }
 

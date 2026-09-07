@@ -107,6 +107,8 @@ These rules are part of the public contract of the app. Changing any of them aft
    | Weather | `Barometer.Weather` |
    | Time | `Barometer.Time` |
    | Combined | `Barometer.Combined` |
+   | Focus | `Barometer.Focus` |
+   | Now Playing | `Barometer.NowPlaying` |
 
    Multiple instances of one module (two weather locations, two sensor items) use `Barometer.Weather.2`, `Barometer.Weather.3`, and so on, allocated once and stored in settings so the numbering is stable.
 4. `button.title` is always the empty string. All menu bar content is rendered into an `NSImage` and assigned to `button.image`. Text in the menu bar is drawn text, not a title.
@@ -208,7 +210,21 @@ Parity target is iStat Menus 7. Each module has a menu bar representation (sever
 - Dropdown: month calendar with today highlighted, world clocks list with UTC offsets and day/night, sunrise and sunset for the primary weather location, upcoming calendar events (EventKit, optional permission).
 - Hide the system clock: the menu bar's assessment-mode assertion (private `MenuBarClientCore`, the mechanism Thaw uses) removes the clock alone from MenuBarAgent's numbered system-item list and reclaims its width; every running app's bundle identifier stays allowed. Control Center and its contents stay. Where the assertion is unavailable, an opaque click-absorbing panel covers the clock on its Accessibility bounds instead (Thaw's `SystemClockCover` design), which keeps the strip's width and needs Accessibility access.
 - Clock text size: the clock may use its own menu bar text size (9 to 14 pt) instead of the global one, staged with the other clock edits until Apply Changes so the item width is assigned once.
-- Optional notifications list: the dropdown can show the notifications waiting in macOS Notification Center, so the system clock can be hidden by a menu bar manager without losing them. macOS has no API for another app's delivered notifications; the list is read from Notification Center's SQLite database (`~/Library/Group Containers/group.com.apple.usernoted/db2/db`), which needs Full Disk Access. Read-only: banners keep arriving natively and Barometer never dismisses or changes anything. Read only while the dropdown is open, then followed through a file watcher.
+- Optional notifications list: mirror Notification Center's delivered records through a read-only SQLite source
+  (`~/Library/Group Containers/group.com.apple.usernoted/db2/db`, requiring Full Disk Access). Include the complete
+  list, grouped by application with collapsible previews. Watch database changes only while the dropdown is open.
+  Clears request the exact native notification's Accessibility action and verify its removal from the authoritative
+  delivered UUID set. Never write the database or silently hide a row on failure. A clear initiated by the user
+  finishes even if the dropdown closes. Native actions require existing Accessibility access and a uniquely matched
+  live element; availability on the installed OS must be verified. An unavailable native click can use the explicit
+  deep link, a recognized browser download, a system destination, or the sending app as a fallback; these fallbacks
+  do not claim equivalence to the app's original handler.
+- Optional system controls: separate Focus and Now Playing image pills replace the corresponding Apple menu bar
+  extras affected by clock hiding. Time settings offers independent Enable Focus and Enable Now Playing switches,
+  off by default and applied through the normal staged visibility flow. Source reads stop while disabled or asleep.
+  Focus uses the DoNotDisturb service where permitted, with already-authorized public Focus status as a limited
+  read-only fallback. Now Playing uses runtime-checked MediaRemote functions and bounded artwork. Unsupported or
+  denied controls report their limitation; no permission prompt or Apple-only entitlement is added.
 
 ### 4.10 Combined item
 

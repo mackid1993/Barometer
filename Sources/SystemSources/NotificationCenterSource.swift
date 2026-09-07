@@ -28,7 +28,9 @@ public struct DeliveredNotification: Equatable, Sendable, Identifiable {
     /// The application's notification category, such as App Store's updates category.
     public let category: String?
 
-    /// URLs and absolute paths found in the application's user data, most useful first.
+    /// Non-authoritative URLs and absolute paths found in the application's user data.
+    ///
+    /// These are diagnostic hints only. They do not establish the notification's click action.
     public let hints: [String]
 
     /// Creates one delivered notification.
@@ -61,11 +63,23 @@ public struct NotificationSnapshot: Equatable, Sendable {
     public let notifications: [DeliveredNotification]
     public let readDate: Date
 
+    /// Every notification UUID in Notification Center's delivered table when the read completed.
+    ///
+    /// A nil value means the snapshot does not prove which notifications remain delivered. This is
+    /// distinct from an empty set, which is authoritative after a successful database read.
+    public let deliveredNotificationIdentifiers: Set<String>?
+
     /// Creates one snapshot.
-    public init(access: NotificationAccessState, notifications: [DeliveredNotification], readDate: Date = Date()) {
+    public init(
+        access: NotificationAccessState,
+        notifications: [DeliveredNotification],
+        readDate: Date = Date(),
+        deliveredNotificationIdentifiers: Set<String>? = nil
+    ) {
         self.access = access
         self.notifications = notifications
         self.readDate = readDate
+        self.deliveredNotificationIdentifiers = deliveredNotificationIdentifiers
     }
 }
 
@@ -75,8 +89,8 @@ public struct NotificationSnapshot: Equatable, Sendable {
 /// them in an SQLite database under the user notification group container, readable only with
 /// Full Disk Access. Each `record` row carries a binary property list with the request's title,
 /// subtitle, and body; the `delivered` table lists, per application, the record UUIDs that are
-/// still shown in Notification Center. Everything here is read-only: Barometer never writes to,
-/// clears, or dismisses anything, and banners keep arriving exactly as before.
+/// still shown in Notification Center. This reader never writes to the database. User-requested
+/// activation and dismissal use the separate system action bridge; banners continue arriving natively.
 public actor NotificationCenterSource {
     /// The database Notification Center maintains on this account.
     public static let defaultDatabaseURL = FileManager.default.homeDirectoryForCurrentUser
@@ -114,7 +128,12 @@ public actor NotificationCenterSource {
 
     /// Files whose changes mean the list may have changed.
     public var watchedURLs: [URL] {
-        [databaseURL, URL(fileURLWithPath: databaseURL.path + "-wal"), databaseURL.deletingLastPathComponent()]
+        var urls = [databaseURL, URL(fileURLWithPath: databaseURL.path + "-wal"), databaseURL.deletingLastPathComponent()]
+        if let preferencesURL {
+            urls.append(preferencesURL)
+            urls.append(preferencesURL.deletingLastPathComponent())
+        }
+        return urls
     }
 
     /// Reports access without reading the list, for Settings.
@@ -129,7 +148,7 @@ public actor NotificationCenterSource {
     }
 
     /// Reads the notifications still shown in Notification Center, newest first.
-    public func read(limit: Int = 100) -> NotificationSnapshot {
+    public func read(limit: Int = .max) -> NotificationSnapshot {
         let access = Self.accessState(databaseURL: databaseURL)
         guard access == .available else { return NotificationSnapshot(access: access, notifications: []) }
 
@@ -139,11 +158,21 @@ public actor NotificationCenterSource {
             let message = handle.map { String(cString: sqlite3_errmsg($0)) } ?? "no handle"
             logger.error("notification database open failed: \(message, privacy: .public)")
             if let handle { sqlite3_close(handle) }
-            return NotificationSnapshot(access: .fullDiskAccessRequired, notifications: [])
+            return NotificationSnapshot(access: .unavailable, notifications: [])
         }
         defer { sqlite3_close(handle) }
+        guard sqlite3_exec(handle, "BEGIN DEFERRED TRANSACTION", nil, nil, nil) == SQLITE_OK else {
+            let message = String(cString: sqlite3_errmsg(handle))
+            logger.error("notification read transaction failed: \(message, privacy: .public)")
+            return NotificationSnapshot(access: .unavailable, notifications: [])
+        }
+        defer { sqlite3_exec(handle, "ROLLBACK", nil, nil, nil) }
 
-        let shown = deliveredIdentifiers(handle)
+        guard let shown = deliveredIdentifiers(handle) else {
+            let message = String(cString: sqlite3_errmsg(handle))
+            logger.error("notification delivered-list query failed: \(message, privacy: .public)")
+            return NotificationSnapshot(access: .unavailable, notifications: [])
+        }
         let silenced = Self.silencedApplications(preferencesURL: preferencesURL)
         var notifications: [DeliveredNotification] = []
         let sql = """
@@ -155,26 +184,46 @@ public actor NotificationCenterSource {
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK, let statement else {
             logger.error("notification query failed: \(String(cString: sqlite3_errmsg(handle)), privacy: .public)")
-            return NotificationSnapshot(access: .available, notifications: [])
+            return NotificationSnapshot(access: .unavailable, notifications: [])
         }
         defer { sqlite3_finalize(statement) }
 
-        while sqlite3_step(statement) == SQLITE_ROW, notifications.count < limit {
-            guard let uuid = Self.blob(statement, column: 0), shown.contains(uuid) else { continue }
-            let deliveredDate = Date(timeIntervalSinceReferenceDate: sqlite3_column_double(statement, 2))
-            let fallbackApplication = sqlite3_column_text(statement, 3).map { String(cString: $0) } ?? ""
-            guard let data = Self.blob(statement, column: 1),
-                  let notification = Self.notification(
-                      id: uuid.map { String(format: "%02X", $0) }.joined(),
-                      data: data,
-                      deliveredDate: deliveredDate,
-                      fallbackApplication: fallbackApplication
-                  )
-            else { continue }
-            guard !silenced.contains(notification.applicationIdentifier.lowercased()) else { continue }
-            notifications.append(notification)
+        let maximumCount = max(0, limit)
+        var stoppedAtLimit = maximumCount == 0
+        var stepResult = stoppedAtLimit ? SQLITE_DONE : sqlite3_step(statement)
+        while stepResult == SQLITE_ROW {
+            if let uuid = Self.blob(statement, column: 0),
+               shown.contains(uuid)
+            {
+                let deliveredDate = Date(timeIntervalSinceReferenceDate: sqlite3_column_double(statement, 2))
+                let fallbackApplication = sqlite3_column_text(statement, 3).map { String(cString: $0) } ?? ""
+                if let data = Self.blob(statement, column: 1),
+                   let notification = Self.notification(
+                       id: Self.identifier(for: uuid),
+                       data: data,
+                       deliveredDate: deliveredDate,
+                       fallbackApplication: fallbackApplication
+                   ),
+                   !silenced.contains(notification.applicationIdentifier.lowercased())
+                {
+                    notifications.append(notification)
+                }
+            }
+            if notifications.count >= maximumCount {
+                stoppedAtLimit = true
+                break
+            }
+            stepResult = sqlite3_step(statement)
         }
-        return NotificationSnapshot(access: .available, notifications: notifications)
+        guard stoppedAtLimit || stepResult == SQLITE_DONE else {
+            logger.error("notification query read failed: \(String(cString: sqlite3_errmsg(handle)), privacy: .public)")
+            return NotificationSnapshot(access: .unavailable, notifications: [])
+        }
+        return NotificationSnapshot(
+            access: .available,
+            notifications: notifications,
+            deliveredNotificationIdentifiers: Set(shown.map(Self.identifier(for:)))
+        )
     }
 
     /// Bit set in an application's notification `flags` when "Allow notifications" is on for it.
@@ -206,24 +255,26 @@ public actor NotificationCenterSource {
     // MARK: - Parsing
 
     /// UUIDs of every record still shown, concatenated per application in the `delivered` table.
-    private func deliveredIdentifiers(_ handle: OpaquePointer) -> Set<Data> {
+    private func deliveredIdentifiers(_ handle: OpaquePointer) -> Set<Data>? {
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(handle, "SELECT list FROM delivered", -1, &statement, nil) == SQLITE_OK,
               let statement
         else {
-            return []
+            return nil
         }
         defer { sqlite3_finalize(statement) }
         var identifiers: Set<Data> = []
-        while sqlite3_step(statement) == SQLITE_ROW {
-            guard let list = Self.blob(statement, column: 0) else { continue }
+        var stepResult = sqlite3_step(statement)
+        while stepResult == SQLITE_ROW {
+            guard let list = Self.blob(statement, column: 0), list.count.isMultiple(of: 16) else { return nil }
             var offset = 0
             while offset + 16 <= list.count {
                 identifiers.insert(list.subdata(in: offset..<(offset + 16)))
                 offset += 16
             }
+            stepResult = sqlite3_step(statement)
         }
-        return identifiers
+        return stepResult == SQLITE_DONE ? identifiers : nil
     }
 
     /// Decodes one record's property list into a notification.
@@ -242,7 +293,6 @@ public actor NotificationCenterSource {
         let title = Self.trimmed(request["titl"])
         let subtitle = Self.trimmed(request["subt"])
         let body = Self.trimmed(request["body"])
-        guard title != nil || body != nil else { return nil }
         let application = Self.trimmed(record["app"]) ?? fallbackApplication
         let date = (record["date"] as? Double).map { Date(timeIntervalSinceReferenceDate: $0) } ?? deliveredDate
         let deepLink = Self.trimmed(request["durl"]).flatMap(URL.init(string:))
@@ -259,7 +309,7 @@ public actor NotificationCenterSource {
         )
     }
 
-    /// URLs and absolute paths inside the application's archived user data.
+    /// Non-authoritative URLs and absolute paths inside the application's archived user data.
     ///
     /// The data is an `NSKeyedArchiver` property list; its strings live in the `$objects` array.
     /// Only strings shaped like a URL or an absolute path are kept, in document order, so nothing
@@ -293,9 +343,14 @@ public actor NotificationCenterSource {
         return result.isEmpty ? nil : result
     }
 
+    private static func identifier(for bytes: Data) -> String {
+        bytes.map { String(format: "%02X", $0) }.joined()
+    }
+
     private static func blob(_ statement: OpaquePointer, column: Int32) -> Data? {
-        guard let bytes = sqlite3_column_blob(statement, column) else { return nil }
         let count = Int(sqlite3_column_bytes(statement, column))
+        if count == 0, sqlite3_column_type(statement, column) == SQLITE_BLOB { return Data() }
+        guard let bytes = sqlite3_column_blob(statement, column) else { return nil }
         return Data(bytes: bytes, count: count)
     }
 }

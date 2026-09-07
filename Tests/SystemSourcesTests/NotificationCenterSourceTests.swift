@@ -52,6 +52,10 @@ struct NotificationCenterSourceTests {
 
         #expect(snapshot.access == .available)
         #expect(snapshot.notifications.map(\.title) == ["Sam", "Build finished"])
+        #expect(snapshot.deliveredNotificationIdentifiers == [
+            "000102030405060708090A0B0C0D0E0F",
+            "101112131415161718191A1B1C1D1E1F",
+        ])
 
         // An application whose notifications are turned off keeps its records, but the list hides them.
         // The allow bit (1 << 25) in `flags` is the signal, not `auth`: a silenced app can still hold a
@@ -74,6 +78,58 @@ struct NotificationCenterSourceTests {
         let second = try #require(snapshot.notifications.last)
         #expect(second.applicationIdentifier == "com.example.app")
         #expect(second.body == nil)
+
+        let limited = await source.read(limit: 1)
+        #expect(limited.notifications.map(\.title) == ["Sam"])
+        #expect(limited.deliveredNotificationIdentifiers == snapshot.deliveredNotificationIdentifiers)
+    }
+
+    @Test("a schema or query failure is not reported as a successful empty read")
+    func schemaFailure() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BarometerNotifications-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("db")
+
+        var handle: OpaquePointer?
+        try #require(sqlite3_open(url.path, &handle) == SQLITE_OK)
+        try #require(sqlite3_exec(handle, "CREATE TABLE delivered (app_id INTEGER PRIMARY KEY, list BLOB)",
+                                  nil, nil, nil) == SQLITE_OK)
+        sqlite3_close(handle)
+
+        let snapshot = await NotificationCenterSource(databaseURL: url, preferencesURL: nil).read()
+        #expect(snapshot.access == .unavailable)
+        #expect(snapshot.notifications.isEmpty)
+        #expect(snapshot.deliveredNotificationIdentifiers == nil)
+    }
+
+    @Test("an empty delivered list is authoritative, while a partial UUID is malformed")
+    func deliveredListValidation() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BarometerNotifications-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let emptyURL = directory.appendingPathComponent("empty-db")
+        try Self.writeFixture(at: emptyURL, apps: [(1, "com.example.app")], records: [], scheduled: [], delivered: [])
+        try Self.insertDeliveredList(Data(), app: 1, at: emptyURL)
+        let empty = await NotificationCenterSource(databaseURL: emptyURL, preferencesURL: nil).read()
+        #expect(empty.access == .available)
+        #expect(empty.deliveredNotificationIdentifiers == [])
+
+        let malformedURL = directory.appendingPathComponent("malformed-db")
+        try Self.writeFixture(
+            at: malformedURL,
+            apps: [(1, "com.example.app")],
+            records: [],
+            scheduled: [],
+            delivered: []
+        )
+        try Self.insertDeliveredList(Data([0]), app: 1, at: malformedURL)
+        let malformed = await NotificationCenterSource(databaseURL: malformedURL, preferencesURL: nil).read()
+        #expect(malformed.access == .unavailable)
+        #expect(malformed.deliveredNotificationIdentifiers == nil)
     }
 
     @Test("records expose their deep link, category, and the URLs and paths in user data")
@@ -100,6 +156,52 @@ struct NotificationCenterSourceTests {
     }
 
     // MARK: - Fixture
+
+    @Test("delivered notifications without preview text remain in the mirrored list")
+    func textlessNotification() throws {
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: ["app": "com.example.app", "req": [:]] as [String: Any], format: .binary, options: 0)
+        let notification = try #require(NotificationCenterSource.notification(
+            id: "A", data: data, deliveredDate: Date(), fallbackApplication: "com.example.app"))
+        #expect(notification.title.isEmpty)
+        #expect(notification.body == nil)
+    }
+
+    @Test("watching includes notification settings so silencing changes refresh the list")
+    func watchesPreferences() async {
+        let preferences = URL(fileURLWithPath: "/tmp/barometer-notification-preferences/settings.plist")
+        let source = NotificationCenterSource(databaseURL: URL(fileURLWithPath: "/tmp/barometer-notification-db"),
+                                              preferencesURL: preferences)
+        let urls = await source.watchedURLs
+        #expect(urls.contains(preferences))
+        #expect(urls.contains(preferences.deletingLastPathComponent()))
+    }
+
+    @Test("the default read mirrors more than one hundred delivered notifications")
+    func fullDeliveredList() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BarometerNotifications-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("db")
+        let uuids = (0..<105).map { index -> Data in
+            var uuid = Data(repeating: 0, count: 16)
+            uuid[15] = UInt8(index)
+            return uuid
+        }
+        let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        try Self.writeFixture(
+            at: url, apps: [(1, "com.example.app")],
+            records: uuids.enumerated().map { index, uuid in
+                let date = now.addingTimeInterval(Double(index))
+                return (1, uuid, Self.record(app: nil, title: "Notification \(index)", body: nil, date: date), date)
+            }, scheduled: [], delivered: uuids.map { (1, $0) })
+        let snapshot = await NotificationCenterSource(databaseURL: url, preferencesURL: nil).read()
+        #expect(snapshot.access == .available)
+        #expect(snapshot.notifications.count == 105)
+        #expect(snapshot.notifications.first?.title == "Notification 104")
+        #expect(snapshot.notifications.last?.title == "Notification 0")
+    }
 
     private static func record(app: String?, title: String, body: String?, date: Date) -> Data {
         var request: [String: Any] = ["titl": title]
@@ -176,6 +278,33 @@ struct NotificationCenterSourceTests {
             sqlite3_bind_double(statement, 4, date.timeIntervalSinceReferenceDate)
         } else {
             sqlite3_bind_null(statement, 4)
+        }
+        try #require(sqlite3_step(statement) == SQLITE_DONE)
+    }
+
+    private static func insertDeliveredList(_ list: Data, app: Int, at url: URL) throws {
+        var handle: OpaquePointer?
+        try #require(sqlite3_open(url.path, &handle) == SQLITE_OK)
+        defer { sqlite3_close(handle) }
+        var statement: OpaquePointer?
+        try #require(sqlite3_prepare_v2(
+            handle,
+            "INSERT INTO delivered (app_id, list) VALUES (?, ?)",
+            -1,
+            &statement,
+            nil
+        ) == SQLITE_OK)
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_int(statement, 1, Int32(app))
+        try list.withUnsafeBytes { bytes in
+            let pointer = bytes.baseAddress ?? UnsafeRawPointer(bitPattern: 1)
+            try #require(sqlite3_bind_blob(
+                statement,
+                2,
+                pointer,
+                Int32(list.count),
+                unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+            ) == SQLITE_OK)
         }
         try #require(sqlite3_step(statement) == SQLITE_DONE)
     }

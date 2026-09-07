@@ -540,6 +540,29 @@ unavailable, the clock is covered on its Accessibility bounds instead.
 
 ---
 
+### P8-T86 Notification mirroring and system control replacements
+
+Requested by David on 2026-09-07; implemented with GPT 5.6 Sol agents while Claude owns P8-T85 clock hiding.
+
+- Investigate Apple's actual notification activation and dismissal interfaces, including their access requirements.
+- Prefer the system's default notification action over inferred URLs or activating the sending application.
+- Clear only explicitly selected notifications through the system; retain rows and report failures when removal
+  cannot be confirmed. Never write Notification Center's database or treat a failed read as an empty list.
+- Keep native action availability and any remaining limitations explicit. Do not request additional permissions.
+- Show the complete delivered list without the previous 100-record and 30-row limits. Group by application with
+  collapsed previews, expansion, individual/group clearing, and Clear All.
+- Add optional Focus and Now Playing menu bar pills with independent Enable Focus and Enable Now Playing toggles
+  under Time. Preserve every existing identity and add permanent `Barometer.Focus` and `Barometer.NowPlaying` names.
+  Use the standard registry, fixed image sizing, staged visibility, and visible-only source updates.
+- Wrap the Thaw credit so the full contributor names remain visible in About.
+- Verify: source invariants, routing/source/feed regression tests and the full suite, panel snapshots in both
+  appearances, the popover memory benchmark, `git diff --check`, and a signed repository-local app build.
+- Installed notification activation and removal require an end-to-end check against disposable notifications.
+  Focus access and playback controls also require David's installed-app test; shell probes cannot prove they work
+  under the installed application's grants. David chose to test the build himself instead of granting Codex access.
+
+---
+
 ## Phase 9: After v1
 
 Only after David asks:

@@ -86,6 +86,8 @@ These rules are normative and must not be weakened during refactors:
    | Weather | `Barometer.Weather` |
    | Time | `Barometer.Time` |
    | Combined | `Barometer.Combined` |
+   | Focus | `Barometer.Focus` |
+   | Now Playing | `Barometer.NowPlaying` |
 
 5. Number extra instances permanently as `.2`, `.3`, and so on. Removed instances become disabled tombstones;
    never reuse an identity for different content.
@@ -397,9 +399,13 @@ universal performance guarantee.
   removing one index at a time. Every running application's bundle identifier is allowed and re-applied on launch
   and quit. Control Center and its contents stay.
 - Accessibility is requested only when the assertion is unavailable and `SystemClockCover` (adapted from Thaw's
-  `SystemClockCover.swift`) has to cover the clock on its Accessibility bounds instead. Do not press, move, or
-  drive any other application through Accessibility: pressing the clock (P8-T80) and synthesized Command-drags,
-  including Thaw's event relay (P8-T85 notes), both fail on macOS 27.
+  `SystemClockCover.swift`) has to cover the clock on its Accessibility bounds instead. P8-T86, explicitly
+  requested by David, also permits notification activation and dismissal through Notification Center's own
+  Accessibility controls using an existing grant. Target an exactly identified individual notification and only
+  actions that its live element advertises. Never guess a notification from its title or press a group clear
+  control. The notification bridge must not prompt for permission. This does not authorize menu bar manipulation:
+  pressing the clock (P8-T80) and synthesized Command-drags, including Thaw's event relay (P8-T85 notes), both fail
+  on macOS 27.
 - Screen Recording is never requested. `SystemClockCover` samples the bar's color only when
   `CGPreflightScreenCaptureAccess` already reports access.
 - `LSUIElement` keeps Barometer out of the Dock; it does not replace correct bundle identity or signing.

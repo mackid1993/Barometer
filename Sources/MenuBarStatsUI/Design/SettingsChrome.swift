@@ -192,6 +192,8 @@ extension ModuleID {
         case .weather: "Conditions and forecasts from Open-Meteo."
         case .time: "Clock format, world clocks, and calendar events."
         case .combined: "Readings from any module inside independently movable items."
+        case .focus: "Current Focus and notification controls."
+        case .nowPlaying: "Current media and playback controls."
         }
     }
 }

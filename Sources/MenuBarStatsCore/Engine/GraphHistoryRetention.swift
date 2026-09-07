@@ -8,7 +8,7 @@ public enum GraphHistoryRetention {
         case .network, .disks: 300
         case .sensors: 240
         case .battery: 720
-        case .weather, .time: 1
+        case .weather, .time, .focus, .nowPlaying: 1
         case .combined: 2
         }
     }

@@ -62,6 +62,8 @@ struct ModuleAccent: Sendable {
         case .battery: ModuleAccent(primary: Color(hex: 0x22C55E), secondary: Color(hex: 0xA3E635))
         case .weather: ModuleAccent(primary: Color(hex: 0x38BDF8), secondary: Color(hex: 0xFBBF24))
         case .time: ModuleAccent(primary: Color(hex: 0x8B5CF6), secondary: Color(hex: 0x38BDF8))
+        case .focus: ModuleAccent(primary: Color(hex: 0x8B5CF6), secondary: Color(hex: 0xA78BFA))
+        case .nowPlaying: ModuleAccent(primary: Color(hex: 0xEC4899), secondary: Color(hex: 0xFB7185))
         case .combined: ModuleAccent(primary: Color(hex: 0x2F7CF6), secondary: Color(hex: 0x6BA4FF))
         }
     }
