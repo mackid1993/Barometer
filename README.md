@@ -115,18 +115,28 @@ on, for your public IP address (ipify.org).
 - **Calendar** is optional. It is requested only when you press **Allow Calendar Access** in Time and Notifications settings.
 - **Accessibility** is optional. **Hide the system clock** normally needs no permission at all; on a macOS build
   that cannot remove the clock, Barometer covers it instead and then asks for Accessibility only to read where the
-  clock sits. **Open Notification Center** uses Accessibility only when you select it, so Barometer can send the
-  keyboard shortcut you configured in macOS.
+  clock sits. **Open Notification Center** uses Accessibility only when you select it, to fire the hot corner
+  described below.
 - **Full Disk Access** is optional. It is needed only for **Show notifications in the dropdown** in Time and Notifications settings,
   which lists the notifications waiting in Notification Center so you can hide the system clock. Barometer reads
   that list without changing the notification database or restarting macOS notification processes.
 - Nothing else asks for a permission. Readings that a Mac does not provide are shown as unavailable.
 
-To use **Open Notification Center**, open **System Settings > Keyboard > Keyboard Shortcuts > Mission Control**, assign
-a shortcut to **Show Notification Center**, and then select the button in Barometer. If no shortcut is assigned,
-Barometer offers the relevant settings pane so you can add one. Barometer never changes this shortcut itself.
-The button uses System Events and may require Automation access in addition to Accessibility. On macOS 27 beta,
-menu bar hiding can interfere with Notification Center; this button does not bypass that system behavior.
+### Opening Notification Center with the system clock hidden
+
+With the macOS clock hidden, the clock is no longer there to click, and the Show Notification Center keyboard
+shortcut does nothing either. The two things that still open Notification Center are the two-finger swipe from the
+right edge of the trackpad and a **hot corner** assigned to Notification Center. Barometer's **Open Notification
+Center** button, in the clock dropdown under the notification list, uses that hot corner.
+
+1. Open **System Settings > Desktop & Dock**, click **Hot Corners…** at the bottom, and set any corner to
+   **Notification Center**. It takes effect immediately.
+2. Select **Open Notification Center** in the clock dropdown. Barometer hides the pointer, moves it into that
+   corner for the instant it takes, and puts it back exactly where it was.
+
+If no corner is assigned, the button says so and offers **Show me how…**, which opens Time and Notifications
+settings at the same steps with a button into System Settings. Barometer never changes your hot corners, never
+writes the Dock's preferences, and never restarts the Dock.
 
 Settings can be exported to a JSON file and imported on another Mac.
 
