@@ -18,7 +18,6 @@ less menu bar space.
 - It takes about half the room of the old icon-and-temperature pair.
 - It is in color, even if the rest of your menu bar is monochrome: amber sun, lavender night, blue rain, icy snow, a
   yellow bolt. Turn **Color weather icons** off in Weather settings to keep it plain.
-- Choose **System** under Menu bar icons in Weather settings to go back to the standard symbols.
 - Weather settings now show every condition side by side so you can see the whole set.
 
 ## Smaller menu bar readings

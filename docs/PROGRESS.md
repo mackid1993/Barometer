@@ -4073,3 +4073,19 @@ Verification:
 - Every condition was rendered at Retina pixels and at actual size on dark and light bars and reviewed before
   installing; the installed build was captured on David's bar showing the clear-night mark in color.
 - `swift build -c release` completed and `git diff --check` reported no whitespace errors.
+
+## P8-T73 Make the weather mark the only weather rendering
+
+David tested both menu bar icon styles and asked for the System option to go: the drawn mark is better, and switching
+to the system symbols added padding because `IconTextRenderer` draws them in a fixed 16-point field. `WeatherIconStyle`
+and `WeatherSettings.iconStyle` are removed, `renderWeather` has one path, and the unused reserved symbol list went
+with it. A saved settings document that still carries `iconStyle` decodes cleanly, since the key is simply no longer
+read. The Weather pane keeps the color toggle and always shows the full set as its preview. The forecast dropdown
+still uses the system's multicolor symbols; that is a different surface and was not part of the request.
+
+Verification:
+
+- `make test` passed: 299 tests across three targets, with no remaining reference to the removed option in sources
+  or tests.
+- `swift build -c release` completed and `git diff --check` reported no whitespace errors.
+- The user-facing settings text was scanned once more for engineering vocabulary and none remains.

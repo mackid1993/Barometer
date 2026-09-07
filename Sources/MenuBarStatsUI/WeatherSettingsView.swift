@@ -89,23 +89,14 @@ struct WeatherSettingsView: View {
             }
 
             Section("Menu Bar") {
-                Picker("Menu bar icons", selection: weatherBinding(\.iconStyle)) {
-                    ForEach(WeatherIconStyle.allCases, id: \.self) { style in
-                        Text(style.displayName).tag(style)
-                    }
-                }
+                Toggle("Color weather icons", isOn: weatherBinding(\.usesColorIcons))
                 Text(
-                    "Barometer's icons put the weather right on the temperature, so the reading "
-                        + "takes about half the room. The forecast always uses the system icons."
+                    "The weather sits right on the temperature: a cloud resting on the number, rain or snow "
+                        + "underneath, a sunburst around it. In color, the sun is amber, night is lavender, and rain "
+                        + "is blue, even if the rest of the menu bar is monochrome."
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                if settingsStore.settings.weather.iconStyle == .barometer {
-                    Toggle("Color weather icons", isOn: weatherBinding(\.usesColorIcons))
-                    Text("Keeps the weather in color even if the rest of the menu bar is monochrome.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
                 Toggle("Show in menu bar", isOn: moduleEnabledBinding)
                 Text("Shows the current conditions and temperature. Set the unit under Units.")
                     .font(.caption)
@@ -331,7 +322,6 @@ struct WeatherSettingsView: View {
     /// Every condition side by side, drawn by the same renderer the menu bar uses.
     private var iconPreview: NSImage? {
         let weather = settingsStore.settings.weather
-        guard weather.iconStyle == .barometer else { return nil }
         let appSettings = settingsStore.settings
         let context = RenderContext(
             thickness: NSStatusBar.system.thickness,

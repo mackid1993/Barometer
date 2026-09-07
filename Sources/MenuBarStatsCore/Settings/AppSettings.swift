@@ -17,22 +17,6 @@ public enum AppearancePreset: String, Codable, CaseIterable, Sendable {
     case custom
 }
 
-/// Which weather icons the menu bar draws.
-public enum WeatherIconStyle: String, Codable, CaseIterable, Sendable {
-    /// Barometer's own icons, drawn for the menu bar and all one width.
-    case barometer
-    /// The system's standard weather symbols.
-    case system
-
-    /// Menu-title-style name shown in Settings.
-    public var displayName: String {
-        switch self {
-        case .barometer: "Barometer"
-        case .system: "System"
-        }
-    }
-}
-
 /// Supported menu bar type weights.
 public enum MenuBarFontWeight: String, Codable, CaseIterable, Sendable {
     case regular
@@ -103,9 +87,6 @@ public struct WeatherSettings: Codable, Equatable, Sendable {
     /// Section visibility in the selected-day forecast; independent of forecast fetching.
     public var detailSections: WeatherDetailSettings
 
-    /// Which icons the menu bar draws for the current condition.
-    public var iconStyle: WeatherIconStyle
-
     /// Whether Barometer's weather icons use color even when the rest of the menu bar is monochrome.
     public var usesColorIcons: Bool
 
@@ -117,7 +98,6 @@ public struct WeatherSettings: Codable, Equatable, Sendable {
         units: WeatherUnits = .imperial,
         refreshIntervalMinutes: Int = 15,
         detailSections: WeatherDetailSettings = WeatherDetailSettings(),
-        iconStyle: WeatherIconStyle = .barometer,
         usesColorIcons: Bool = true
     ) {
         self.locations = locations
@@ -126,13 +106,12 @@ public struct WeatherSettings: Codable, Equatable, Sendable {
         self.units = units
         self.refreshIntervalMinutes = refreshIntervalMinutes
         self.detailSections = detailSections
-        self.iconStyle = iconStyle
         self.usesColorIcons = usesColorIcons
     }
 
     private enum CodingKeys: String, CodingKey {
         case locations, primaryLocationID, usesCurrentLocation, units, refreshIntervalMinutes, detailSections
-        case iconStyle, usesColorIcons
+        case usesColorIcons
     }
 
     /// Decodes saved locations and units while giving older configurations all detail sections.
@@ -143,7 +122,6 @@ public struct WeatherSettings: Codable, Equatable, Sendable {
         usesCurrentLocation = try values.decodeIfPresent(Bool.self, forKey: .usesCurrentLocation) ?? false
         units = try values.decodeIfPresent(WeatherUnits.self, forKey: .units) ?? .imperial
         refreshIntervalMinutes = try values.decodeIfPresent(Int.self, forKey: .refreshIntervalMinutes) ?? 15
-        iconStyle = try values.decodeIfPresent(WeatherIconStyle.self, forKey: .iconStyle) ?? .barometer
         usesColorIcons = try values.decodeIfPresent(Bool.self, forKey: .usesColorIcons) ?? true
         detailSections = try values.decodeIfPresent(WeatherDetailSettings.self, forKey: .detailSections)
             ?? WeatherDetailSettings()
