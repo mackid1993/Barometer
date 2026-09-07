@@ -487,11 +487,6 @@ public final class MonitoringCoordinator {
 
     /// Enables detail-only collectors while their settings page is visible.
     public func setVisibleSettingsModule(_ module: ModuleID?) {
-            usesAttachedPanel: true,
-            usesAttachedPanel: true,
-            usesAttachedPanel: true,
-            usesAttachedPanel: true,
-            usesAttachedPanel: true,
         let detailModules: Set<ModuleID>
         switch module {
         case .gpu:
