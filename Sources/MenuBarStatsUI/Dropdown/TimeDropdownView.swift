@@ -46,7 +46,11 @@ public struct TimeDropdownView: View {
                 title: Self.date(now),
                 subtitle: TimeZone.current.localizedName(for: .generic, locale: .current)
                     ?? TimeZone.current.identifier,
-                value: Self.time(now, timeZone: .current),
+                value: Self.time(
+                    now,
+                    timeZone: .current,
+                    showsSeconds: settingsStore.settings.time.showsDropdownSeconds
+                ),
                 accent: accent
             )
 
@@ -250,9 +254,9 @@ public struct TimeDropdownView: View {
         }
     }
 
-    private static func time(_ date: Date, timeZone: TimeZone) -> String {
+    static func time(_ date: Date, timeZone: TimeZone, showsSeconds: Bool = false) -> String {
         let formatter = DateFormatter()
-        formatter.timeStyle = .short
+        formatter.timeStyle = showsSeconds ? .medium : .short
         formatter.timeZone = timeZone
         return formatter.string(from: date)
     }

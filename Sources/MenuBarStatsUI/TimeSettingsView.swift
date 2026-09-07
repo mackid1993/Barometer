@@ -81,6 +81,10 @@ struct TimeSettingsView: View {
             }
             Section("System Clock") {
                 Toggle("Hide the system clock", isOn: hideSystemClockBinding)
+                Text("If you use a menu bar manager, leave this setting off and hide the clock through your "
+                    + "menu bar manager instead. Enabling both can interfere with system menu bar items.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Text("Removes the macOS clock from the menu bar so this clock can take its place, and gives its "
                     + "width back. Control Center and everything inside it stay.")
                     .font(.caption)
@@ -106,6 +110,7 @@ struct TimeSettingsView: View {
                     .foregroundStyle(.secondary)
             }
             Section("Dropdown") {
+                Toggle("Show seconds in dropdown clock", isOn: timeBinding(\.showsDropdownSeconds))
                 HStack {
                     Text("Height")
                     Slider(value: timeBinding(\.dropdownHeight), in: TimeSettings.dropdownHeightRange, step: 20)

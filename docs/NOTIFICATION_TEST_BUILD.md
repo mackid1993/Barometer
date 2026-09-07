@@ -1,9 +1,11 @@
 # Notification and system-control test build
 
-This is an experimental build for David's installed-app check. Automated tests cover the application behavior;
-native notification dispatch, Focus service access, and active media control are not yet verified end to end.
-The shell probes were denied Accessibility and Notification Center database access. David chose to test Barometer
-instead of granting Codex those permissions, then authorized building and replacing the installed application.
+This is an experimental build for David's installed-app check. The latest changes have been release-built;
+David requested no repeat test suite or memory verification. Earlier test results do not validate these changes.
+
+Current limits: exact native notification actions require an exposed individual row in the open macOS Notification
+Center. Automatic opening and end-to-end clearing remain unresolved. Now Playing metadata reads return an explicit
+permission error on this macOS build. This is not yet a complete Notification Center replacement.
 
 ## Install and enable
 
@@ -11,7 +13,7 @@ Quit the installed Barometer, replace `/Applications/Barometer.app` with the sig
 launch that installed copy. Keep the existing application identity and installation path for macOS permissions and
 menu bar placement. Do not test menu bar behavior from the repository's `dist` directory.
 
-In Time settings, turn on the notifications list. Barometer needs Full Disk Access to read it and existing
+In Time and Notifications settings, turn on the notifications list. Barometer needs Full Disk Access to read it and existing
 Accessibility access to attempt the native actions. Enable Focus and Enable Now Playing are separate switches,
 off by default; select Apply Changes after changing them. They do not change the Hide the system clock setting.
 Focus appears only while the reported system Focus state is active. Now Playing defaults to When Playing;
@@ -42,29 +44,21 @@ and no direct database deletion.
 The follow-up reader accepts empty SQL NULL application lists and retains rows with unreadable previews. Failed
 reads keep the last usable records and retry while open. macOS-disabled applications remain excluded from retained
 rows too. If visibility preferences cannot be checked, cached records stay in memory but are withheld from display
-until exclusions can be checked again. A successful complete read reconciles removals. The installed failure log
-identified delivered-list validation, but the live NULL/type hypothesis still needs this corrected build's result.
+until exclusions can be checked again. A successful complete read reconciles removals. The live database confirmed 24 SQL NULL application lists; these are now accepted as empty lists.
 
 Report the application, expected destination, actual destination, and any visible error. No notification text or
 private message content is needed.
 
 ## Check the replacements and credits
 
-- Toggle Focus and Now Playing independently, apply, and confirm each pill appears or disappears while the clock
-  setting stays unchanged. Verify placement survives a relaunch.
-- Compare Focus with Control Center, select another mode, then turn it off. The private Focus service rejected
-  unsigned shell probes; the installed app may also report unavailable. Public Focus status only supplies generic
-  on/off when already authorized, and does not grant mode control.
-- Start known playback, open Now Playing, and try previous, play/pause, and next. Check track, artist, and player
-  identity. Try Spotify and another application that appears in Apple's Now Playing controls: the implementation
-  uses Apple's system-wide MediaRemote API and has no Spotify-specific integration. Standalone probes returned nil
-  metadata and no player. Native MediaRemote calls have been reported to return empty data to third-party callers
-  since macOS 15.4, including during playback; this implementation may remain unavailable on macOS 27. An empty
-  response is reported as unavailable information, never as proof that nothing is playing. The public Now Playing
-  framework publishes a caller's sessions and does not provide a replacement for reading another app's session.
+- Enable Focus, apply, and compare with Control Center. The icon is a purple moon only while any Focus mode is on;
+  there is no Focus popup. Change modes through Control Center. The read-only database parser was checked against
+  actual inactive and active assertion schemas and enumerates custom mode configurations across all partitions.
+- Enable Now Playing and select Always to inspect the enlarged icon. When Playing hides the icon when playback
+  cannot be established. Local MediaRemote requests explicitly returned Operation not permitted, so metadata and
+  transport behavior are not claimed working. No Spotify-specific integration or permission bypass was added.
+- Enable Show seconds in dropdown clock and check the colorful header; menu bar seconds remain independent.
 - Open About and confirm the Thaw contributors wrap without truncation.
+- If a menu bar manager hides the system clock, leave Barometer's Hide the system clock off, as the settings note says.
 
 These changes do not modify Thaw or Claude's clock-hiding implementation.
-
-Media access references: [native caller investigation](https://github.com/kernoeb/mac-now-playing/blob/main/Sources/MacNowPlaying/NowPlaying.swift)
-and [Apple's Now Playing framework](https://developer.apple.com/documentation/nowplaying).

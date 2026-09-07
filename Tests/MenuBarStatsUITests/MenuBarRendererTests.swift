@@ -169,6 +169,18 @@ struct MenuBarRendererTests {
         }
     }
 
+    @Test("Time dropdown clock can show seconds independently")
+    func timeDropdownSecondsFormatting() throws {
+        let date = Date(timeIntervalSince1970: 1_704_110_445)
+        let zone = try #require(TimeZone(identifier: "UTC"))
+
+        let withoutSeconds = TimeDropdownView.time(date, timeZone: zone)
+        let withSeconds = TimeDropdownView.time(date, timeZone: zone, showsSeconds: true)
+
+        #expect(withSeconds != withoutSeconds)
+        #expect(withSeconds.contains("45"))
+    }
+
     @Test
     func weatherRefreshAgeMakesSuccessfulUpdatesVisible() {
         let now = Date(timeIntervalSince1970: 10_000)

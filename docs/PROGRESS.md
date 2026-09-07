@@ -4499,3 +4499,64 @@ request not to rerun verification remains in effect: no test-suite or memory rer
 `make app` passed; the final incremental release build completed in 6.64 seconds and the packaging script signed
 the finished app. Log: `dist/p8-t86-hardening-build.log`. Revealed `dist/Barometer.app` in Finder for replacement;
 the previous macOS denial of automatic installed-app replacement has not been bypassed or claimed resolved.
+
+
+### P8-T86 wrap-up: live schema evidence and user-requested presentation
+
+David enabled Accessibility and Full Disk Access for this session and explicitly authorized local LLVM/API probes.
+Read-only Notification Center inspection confirmed 24 NULL delivered lists and exact UUID correspondence for all
+11 exposed rows/stacks. Earlier static inference that UUIDs were absent was incorrect: open, expanded individual
+rows expose AXNotificationCenterBanner and the record UUID as AXIdentifier. A collapsed BannerStack is not a safe
+individual-clear target. Individual rows advertise AXPress and a custom action whose description is Close; use the
+exact returned action name, not an assumed close button. The bridge now scans window roots, matches only individual
+UUID rows, uses advertised actions, and bounds pre-dispatch retries. Row activation hit areas include their padding;
+clear buttons remain separate targets.
+
+Opening NotificationCenter.app through NSWorkspace, including an explicit reopen event, returned application
+success without showing the panel. Removed this ineffective preparation from production. Native binary inspection
+identified an internal Dock communication path with private entitlement requirements, not a proven caller API.
+Automatic panel opening, collapsed group handling, and complete native routing/clearing remain unresolved.
+David authorized clearing Discord or an individual Fastmail notification. The Discord attempt returned unavailable;
+the authoritative database confirmed it remained and no unrelated notification was removed. No successful live
+clear is claimed. Native removals are reconciled from complete snapshots; failed clears never become local hides.
+Next notification work: verify the exact individual Close action with the native panel already open, then solve
+panel availability before claiming complete mirroring. Do not write the system database or clear a whole native stack.
+
+Focus private services denied Barometer's entitlement. The FDA-backed fallback now reads the actual versioned
+Assertions.json current storeAssertionRecords and ModeConfigurations.json partitions, including custom modes.
+Inactive and active states were checked while David toggled Focus. Historical invalidation records do not mean
+active Focus; malformed schemas are unavailable, not off. Per David's narrowed request, Focus is now just a purple
+moon when active, with no popup or mode controls; Control Center owns changes. No clock-hiding code was changed.
+
+Now Playing's icon increased from 12 to 18 points. Modern MediaRemote requests, both default and explicit local
+player paths, returned kMRMediaRemoteFrameworkErrorDomain code 3, Operation not permitted. Legacy and client/origin
+reads returned no metadata. Notification registration ABI was inspected, but its live event probe was interrupted;
+no event payload result or production fix is claimed. The next media task must establish a working permitted source;
+current When Playing mode hides unavailable state, while Always allows inspection of the icon.
+
+Added independent dropdown clock seconds, renamed the settings section Time and Notifications without changing
+ModuleID or AX identity, and added the warning to leave Barometer clock hiding off when a menu bar manager handles it.
+About's wrapping Thaw credits were already included in the preceding build. GPT-5.6 Sol agents handled Focus,
+notification action research, media research, and PR #4 review. No Thaw preferences or Claude clock code were touched.
+
+PR #4 review found a blocking identity-contract violation: its separate BarometerGPUHelper app creates a GPU status
+item under com.barometer.gpu rather than the sole packaged Barometer process. The helper also lacks single-instance
+and parent-lifetime handling. Recommendation: do not merge this prototype as written. No PR changes, comments,
+merge, or closure were performed. No separate helper was incorporated into this build.
+
+David requested wrapping up and explicitly waived expensive verification reruns. No test suite, screenshot suite,
+or memory benchmark was rerun. Regression test source additions are unexecuted. Final build result follows below.
+
+The release build and packaging completed successfully in 33.03 seconds, including the packaging script's signature,
+identity, and entitlement checks. Log: `dist/p8-t86-final-build.log`. Installation has not yet been attempted for
+this artifact. David then requested replacing the mirrored list with a button that opens native Notification Center;
+that opening mechanism is being checked before changing the production UI. David also explicitly approved PR #4's
+helper architecture as an exception to the existing rules and requested merging it; the Sol agent is handling the
+remote merge without changing this uncommitted checkout.
+
+PR #4 was merged remotely at David's explicit request: e3017b95ae55d5be739055754ae8baad9a5a9cf3. The helper architecture
+is explicitly authorized for that PR, superseding the prior architectural objection. Source branch preserved.
+The built app was successfully copied with ditto to /Applications/Barometer.app after stopping the old process and
+relaunched from that installed path. Unlike the previous attempt, macOS allowed replacement. David subsequently
+requested continued native notification-opening and Now Playing research, specifically examining Droppy's approach;
+the denied direct MediaRemote call must not be treated as proof that all implementations are impossible.

@@ -53,6 +53,19 @@ struct TimeTests {
         #expect(TimeSettings().dropdownHeight == TimeSettings.defaultDropdownHeight)
     }
 
+    @Test("dropdown seconds default off and survive persistence")
+    func dropdownSecondsPersistence() throws {
+        #expect(TimeSettings().showsDropdownSeconds == false)
+
+        let encoded = try JSONEncoder().encode(TimeSettings(showsDropdownSeconds: true))
+        #expect(try JSONDecoder().decode(TimeSettings.self, from: encoded).showsDropdownSeconds)
+
+        var olderDocument = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        olderDocument.removeValue(forKey: "showsDropdownSeconds")
+        let olderData = try JSONSerialization.data(withJSONObject: olderDocument)
+        #expect(try JSONDecoder().decode(TimeSettings.self, from: olderData).showsDropdownSeconds == false)
+    }
+
     @Test("Now Playing visibility defaults safely and survives persistence")
     func nowPlayingVisibilityPersistence() throws {
         #expect(TimeSettings().nowPlayingVisibility == .whenPlaying)

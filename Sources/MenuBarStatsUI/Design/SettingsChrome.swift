@@ -190,7 +190,7 @@ extension ModuleID {
         case .sensors: "Temperatures, fans, and power from the hardware."
         case .battery: "Charge, health, adapter, and Bluetooth batteries."
         case .weather: "Conditions and forecasts from Open-Meteo."
-        case .time: "Clock format, world clocks, and calendar events."
+        case .time: "Clock format, calendar events, and macOS notifications."
         case .combined: "Readings from any module inside independently movable items."
         case .focus: "Current Focus and notification controls."
         case .nowPlaying: "Current media and playback controls."

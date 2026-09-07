@@ -51,6 +51,34 @@ struct NotificationCenterActionBridgeTests {
         ) == nil)
     }
 
+    @Test("only an individual banner can match a notification UUID")
+    func individualBannerMatch() {
+        let identifier = "00112233445566778899AABBCCDDEEFF"
+        let candidates = [[identifier], [identifier], [identifier]]
+        let subroles = [
+            "AXNotificationCenterBannerStack",
+            NotificationAccessibilityIdentity.bannerSubrole,
+            "AXGroup",
+        ]
+
+        #expect(NotificationAccessibilityIdentity.uniqueIndividualNotificationMatchingIndex(
+            identifier: identifier,
+            candidates: candidates,
+            subroles: subroles
+        ) == 1)
+        #expect(NotificationAccessibilityIdentity.uniqueIndividualNotificationMatchingIndex(
+            identifier: identifier,
+            candidates: [[identifier]],
+            subroles: ["AXNotificationCenterBannerStack"]
+        ) == nil)
+        #expect(NotificationAccessibilityIdentity.uniqueIndividualNotificationMatchingIndex(
+            identifier: identifier,
+            candidates: [[identifier]],
+            subroles: [],
+            scanCompleted: true
+        ) == nil)
+    }
+
     @Test("activation requires an advertised press on the exact row or its default button")
     func activationPlan() {
         #expect(NotificationAccessibilityAction.plan(
@@ -73,8 +101,19 @@ struct NotificationCenterActionBridgeTests {
         ) == nil)
     }
 
-    @Test("dismissal requires an advertised press on the exact row's close button")
+    @Test("dismissal uses only an advertised Close action or the exact row's close button")
     func dismissalPlan() {
+        let closeAction = "Name:Close\nTarget:0x0\nSelector:(null)"
+        #expect(NotificationAccessibilityAction.plan(
+            for: .dismiss,
+            rowActions: ["AXPress", closeAction],
+            rowActionDescriptions: [
+                .init(name: "AXPress", description: "press"),
+                .init(name: closeAction, description: "Close"),
+            ],
+            defaultButtonActions: nil,
+            closeButtonActions: nil
+        ) == .rowClose(closeAction))
         #expect(NotificationAccessibilityAction.plan(
             for: .dismiss,
             rowActions: ["AXPress"],
@@ -93,6 +132,45 @@ struct NotificationCenterActionBridgeTests {
             defaultButtonActions: nil,
             closeButtonActions: ["Clear All Notifications"]
         ) == nil)
+        #expect(NotificationAccessibilityAction.plan(
+            for: .dismiss,
+            rowActions: [closeAction],
+            rowActionDescriptions: [.init(name: closeAction, description: "Clear All")],
+            defaultButtonActions: nil,
+            closeButtonActions: nil
+        ) == nil)
+        #expect(NotificationAccessibilityAction.plan(
+            for: .dismiss,
+            rowActions: [closeAction, "different-close-action"],
+            rowActionDescriptions: [
+                .init(name: closeAction, description: "Close"),
+                .init(name: "different-close-action", description: "Close"),
+            ],
+            defaultButtonActions: nil,
+            closeButtonActions: nil
+        ) == nil)
+    }
+
+    @Test("failed preparation prevents Accessibility dispatch")
+    func failedPreparation() async {
+        let identifier = "00112233445566778899AABBCCDDEEFF"
+        let notification = DeliveredNotification(
+            id: identifier,
+            applicationIdentifier: "com.example.app",
+            title: "Example",
+            subtitle: nil,
+            body: nil,
+            date: Date(timeIntervalSinceReferenceDate: 0)
+        )
+        let adapter = ExpectedActionAdapter(
+            available: true,
+            expectedAction: .dismiss,
+            expectedIdentifier: identifier,
+            result: .accepted
+        )
+        let bridge = NotificationCenterActionBridge(adapter: adapter, prepareAction: { false })
+
+        #expect(await bridge.perform(.dismiss, for: notification) == .unavailable)
     }
 
     @Test("bridge forwards one selected action and UUID to its adapter")

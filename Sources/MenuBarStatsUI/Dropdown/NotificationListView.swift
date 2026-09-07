@@ -325,7 +325,7 @@ private struct NotificationRow: View {
     @FocusState private var isClearButtonFocused: Bool
 
     var body: some View {
-        HStack(alignment: .top, spacing: 4) {
+        ZStack(alignment: .topTrailing) {
             Button(action: activate) {
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -353,7 +353,11 @@ private struct NotificationRow: View {
                             .lineLimit(2)
                     }
                 }
+                .padding(.vertical, 4)
+                .padding(.leading, 8)
+                .padding(.trailing, 32)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(actionsDisabled)
@@ -361,13 +365,17 @@ private struct NotificationRow: View {
                 ProgressView()
                     .controlSize(.small)
                     .frame(width: 16, height: 16)
-                    .padding(.top, 2)
+                    .padding(.top, 6)
+                    .padding(.trailing, 8)
                     .accessibilityLabel("Clearing notification")
             } else {
                 Button(action: dismiss) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .padding(.top, 2)
+                        .padding(.trailing, 4)
                 }
                 .buttonStyle(.plain)
                 .disabled(actionsDisabled)
@@ -376,11 +384,8 @@ private struct NotificationRow: View {
                 .allowsHitTesting(isHovering || isClearButtonFocused)
                 .help("Clear this notification from macOS Notification Center")
                 .accessibilityLabel("Clear notification")
-                .padding(.top, 2)
             }
         }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.primary.opacity(isHovering ? 0.035 : 0))
         .contentShape(Rectangle())

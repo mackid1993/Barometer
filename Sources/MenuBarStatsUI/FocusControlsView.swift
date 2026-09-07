@@ -70,12 +70,12 @@ public struct FocusControlsView: View {
                         }
                     }
                 }
-            }
-            if controller.snapshot.isActive == true {
-                Button("Turn Focus Off") {
-                    Task { await controller.deactivate() }
+                if controller.snapshot.isActive == true {
+                    Button("Turn Focus Off") {
+                        Task { await controller.deactivate() }
+                    }
+                    .disabled(controller.isChanging)
                 }
-                .disabled(controller.isChanging)
             }
         }
     }

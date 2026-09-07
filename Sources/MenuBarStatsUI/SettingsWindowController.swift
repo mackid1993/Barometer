@@ -970,7 +970,11 @@ extension ModuleID {
     /// Separate from `displayName`, which is the permanent accessibility label a menu bar manager
     /// pairs with an autosave name and can never change.
     var settingsTitle: String {
-        self == .combined ? "Stacks" : displayName
+        switch self {
+        case .combined: "Stacks"
+        case .time: "Time and Notifications"
+        default: displayName
+        }
     }
 
     var symbolName: String {

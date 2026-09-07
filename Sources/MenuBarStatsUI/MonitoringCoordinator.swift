@@ -408,7 +408,7 @@ public final class MonitoringCoordinator {
             contentWidth: TimeDropdownView.contentSize.width,
             usesAttachedPanel: true,
             visibilityAction: { [weak self] visible in self?.setNotificationFeed(active: visible) },
-            tickAction: { [weak timeStore] in timeStore?.tick() },
+            tickAction: { [weak self] in self?.refreshTimeDropdown() },
             settingsAction: { settingsAction(.time) },
             quitAction: quitAction
         )
@@ -499,6 +499,15 @@ public final class MonitoringCoordinator {
             let sample = await timeMonitor.selectCalendarDate(date)
             guard generation == calendarSelectionGeneration else { return }
             timeStore.receive(sample)
+        }
+    }
+
+    /// Refreshes the open Time dropdown so its header can advance once per second independently of the menu bar.
+    private func refreshTimeDropdown() {
+        Task { [weak self] in
+            guard let self else { return }
+            let sample = await timeMonitor.sample()
+            timeStore.receive(sample, at: sample.timestamp)
         }
     }
 

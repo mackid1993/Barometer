@@ -92,6 +92,9 @@ public struct TimeSettings: Codable, Equatable, Sendable {
     /// Whether the default time token includes seconds.
     public var showsSeconds: Bool
 
+    /// Whether the clock in the dropdown header includes seconds.
+    public var showsDropdownSeconds: Bool
+
     /// Time-zone identifiers shown in the dropdown.
     public var worldClockIdentifiers: [String]
 
@@ -150,6 +153,7 @@ public struct TimeSettings: Codable, Equatable, Sendable {
     public init(
         menuBarTemplate: String = "{time}",
         showsSeconds: Bool = false,
+        showsDropdownSeconds: Bool = false,
         worldClockIdentifiers: [String] = ["UTC"],
         showsCalendarEvents: Bool = false,
         calendarEventCount: Int = 5,
@@ -164,6 +168,7 @@ public struct TimeSettings: Codable, Equatable, Sendable {
     ) {
         self.menuBarTemplate = menuBarTemplate
         self.showsSeconds = showsSeconds
+        self.showsDropdownSeconds = showsDropdownSeconds
         self.worldClockIdentifiers = worldClockIdentifiers
         self.showsCalendarEvents = showsCalendarEvents
         self.calendarEventCount = calendarEventCount
@@ -181,6 +186,7 @@ public struct TimeSettings: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case menuBarTemplate
         case showsSeconds
+        case showsDropdownSeconds
         case worldClockIdentifiers
         case showsCalendarEvents
         case calendarEventCount
@@ -200,6 +206,7 @@ public struct TimeSettings: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         menuBarTemplate = try container.decode(String.self, forKey: .menuBarTemplate)
         showsSeconds = try container.decode(Bool.self, forKey: .showsSeconds)
+        showsDropdownSeconds = try container.decodeIfPresent(Bool.self, forKey: .showsDropdownSeconds) ?? false
         worldClockIdentifiers = try container.decode([String].self, forKey: .worldClockIdentifiers)
         showsCalendarEvents = try container.decode(Bool.self, forKey: .showsCalendarEvents)
         calendarEventCount = try container.decode(Int.self, forKey: .calendarEventCount)

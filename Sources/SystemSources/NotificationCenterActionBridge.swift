@@ -36,14 +36,20 @@ public actor NotificationCenterActionBridge {
     public static let shared = NotificationCenterActionBridge()
 
     private let adapter: any NotificationCenterActionAdapting
+    private let prepareAction: @Sendable () async -> Bool
 
     /// Creates a bridge to the system Notification Center.
-    public init() {
+    public init(prepareAction: @escaping @Sendable () async -> Bool = { true }) {
         adapter = NotificationCenterAccessibilityAdapter()
+        self.prepareAction = prepareAction
     }
 
-    init(adapter: any NotificationCenterActionAdapting) {
+    init(
+        adapter: any NotificationCenterActionAdapting,
+        prepareAction: @escaping @Sendable () async -> Bool = { true }
+    ) {
         self.adapter = adapter
+        self.prepareAction = prepareAction
     }
 
     /// Whether Notification Center is running and this process already has Accessibility access.
@@ -56,7 +62,23 @@ public actor NotificationCenterActionBridge {
         _ action: NotificationSystemAction,
         for notification: DeliveredNotification
     ) async -> NotificationSystemActionResult {
-        adapter.perform(action, notificationIdentifier: notification.id)
+        guard !Task.isCancelled else { return .unavailable }
+        guard await prepareAction() else { return .unavailable }
+        guard !Task.isCancelled else { return .unavailable }
+
+        // Notification Center publishes its Accessibility rows after its opening animation begins. Retry only
+        // pre-dispatch failures; accepted and failed results both mean an action was attempted and must never repeat.
+        let retryDelays: [Duration] = [.zero, .milliseconds(120), .milliseconds(240), .milliseconds(360)]
+        for delay in retryDelays {
+            guard !Task.isCancelled else { return .unavailable }
+            if delay != .zero {
+                try? await Task.sleep(for: delay)
+                guard !Task.isCancelled else { return .unavailable }
+            }
+            let result = adapter.perform(action, notificationIdentifier: notification.id)
+            if result != .unavailable { return result }
+        }
+        return .unavailable
     }
 
     /// Returns aggregate, read-only diagnostics without exposing notification contents or identifiers.
@@ -115,7 +137,11 @@ private final class NotificationCenterAccessibilityAdapter: NotificationCenterAc
             return .unavailable
         }
         let deadline = ProcessInfo.processInfo.systemUptime + Self.totalTimeout
-        let scan = scanElements(under: application, deadline: deadline)
+        guard let windows = elementsAttribute(kAXWindowsAttribute, of: application, deadline: deadline) else {
+            logger.info("notification action unavailable because Notification Center windows could not be read")
+            return .unavailable
+        }
+        let scan = scanElements(under: windows, deadline: deadline)
         guard scan.completed else {
             logger.info("notification action unavailable because the Accessibility scan did not complete")
             return .unavailable
@@ -173,7 +199,18 @@ private final class NotificationCenterAccessibilityAdapter: NotificationCenterAc
             )
         }
         let deadline = ProcessInfo.processInfo.systemUptime + Self.totalTimeout
-        let scan = scanElements(under: application, deadline: deadline)
+        guard let windows = elementsAttribute(kAXWindowsAttribute, of: application, deadline: deadline) else {
+            return Self.diagnosticDescription(
+                trusted: true,
+                processPresent: true,
+                scanCompleted: false,
+                candidateCount: 0,
+                exactMatchCount: 0,
+                activationActionCount: 0,
+                dismissalActionCount: 0
+            )
+        }
+        let scan = scanElements(under: windows, deadline: deadline)
         var completed = scan.completed
         var exactMatchCount = 0
         var activationActionCount = 0
@@ -212,11 +249,12 @@ private final class NotificationCenterAccessibilityAdapter: NotificationCenterAc
     private struct AccessibilityScan {
         var elements: [AXUIElement] = []
         var identifierCandidates: [[String]] = []
+        var subroles: [String?] = []
         var completed = true
     }
 
-    private func scanElements(under root: AXUIElement, deadline: TimeInterval) -> AccessibilityScan {
-        var stack: [(element: AXUIElement, depth: Int)] = [(root, 0)]
+    private func scanElements(under roots: [AXUIElement], deadline: TimeInterval) -> AccessibilityScan {
+        var stack = roots.map { (element: $0, depth: 0) }
         var scan = AccessibilityScan()
         var visitedCount = 0
 
@@ -238,6 +276,7 @@ private final class NotificationCenterAccessibilityAdapter: NotificationCenterAc
             if !identifiers.isEmpty {
                 scan.elements.append(current.element)
                 scan.identifierCandidates.append(identifiers)
+                scan.subroles.append(stringAttribute(kAXSubroleAttribute, of: current.element))
             }
             guard current.depth < Self.maximumTreeDepth else {
                 if !children.isEmpty { scan.completed = false }
@@ -253,9 +292,10 @@ private final class NotificationCenterAccessibilityAdapter: NotificationCenterAc
     }
 
     private func matchingElement(_ identifier: String, in scan: AccessibilityScan) -> AXUIElement? {
-        guard let index = NotificationAccessibilityIdentity.uniqueMatchingIndex(
+        guard let index = NotificationAccessibilityIdentity.uniqueIndividualNotificationMatchingIndex(
             identifier: identifier,
             candidates: scan.identifierCandidates,
+            subroles: scan.subroles,
             scanCompleted: scan.completed
         ) else {
             return nil
@@ -289,6 +329,9 @@ private final class NotificationCenterAccessibilityAdapter: NotificationCenterAc
         deadline: TimeInterval
     ) -> (element: AXUIElement, actionName: String)? {
         guard ProcessInfo.processInfo.systemUptime < deadline, Self.setMessageTimeout(for: row) else { return nil }
+        guard stringAttribute(kAXSubroleAttribute, of: row) == NotificationAccessibilityIdentity.bannerSubrole else {
+            return nil
+        }
         switch action {
         case .activate:
             let rowActions = advertisedActions(of: row, deadline: deadline)
@@ -310,17 +353,43 @@ private final class NotificationCenterAccessibilityAdapter: NotificationCenterAc
                 return nil
             }
         case .dismiss:
+            let describedRowActions = advertisedActionDescriptions(of: row, deadline: deadline)
             let closeButton = elementAttribute(kAXCloseButtonAttribute, of: row, deadline: deadline)
             let plan = NotificationAccessibilityAction.plan(
                 for: action,
-                rowActions: [],
+                rowActions: describedRowActions.map(\.name),
+                rowActionDescriptions: describedRowActions,
+                localizedCloseDescription: Self.localizedCloseDescription,
                 defaultButtonActions: nil,
                 closeButtonActions: closeButton.map { advertisedActions(of: $0, deadline: deadline) }
             )
-            if plan == .closeButtonPress {
+            switch plan {
+            case let .rowClose(actionName):
+                return (row, actionName)
+            case .closeButtonPress:
                 return closeButton.map { ($0, kAXPressAction as String) }
+            default:
+                return nil
             }
-            return nil
+        }
+    }
+
+    private func advertisedActionDescriptions(
+        of element: AXUIElement,
+        deadline: TimeInterval
+    ) -> [NotificationAccessibilityAction.AdvertisedAction] {
+        advertisedActions(of: element, deadline: deadline).compactMap { actionName in
+            guard ProcessInfo.processInfo.systemUptime < deadline else { return nil }
+            var descriptionValue: CFString?
+            guard AXUIElementCopyActionDescription(element, actionName as CFString, &descriptionValue) == .success,
+                  let descriptionValue
+            else {
+                return nil
+            }
+            return NotificationAccessibilityAction.AdvertisedAction(
+                name: actionName,
+                description: descriptionValue as String
+            )
         }
     }
 
@@ -360,9 +429,18 @@ private final class NotificationCenterAccessibilityAdapter: NotificationCenterAc
         return value
     }
 
+    private func stringAttribute(_ name: String, of element: AXUIElement) -> String? {
+        valueAttribute(name, of: element) as? String
+    }
+
     private static func setMessageTimeout(for element: AXUIElement) -> Bool {
         AXUIElementSetMessagingTimeout(element, messageTimeout) == .success
     }
+
+    private static let localizedCloseDescription: String = {
+        guard let bundle = Bundle(path: "/System/Library/CoreServices/NotificationCenter.app") else { return "Close" }
+        return bundle.localizedString(forKey: "Close", value: "Close", table: nil)
+    }()
 
     private static func diagnosticDescription(
         trusted: Bool,
@@ -407,6 +485,8 @@ private final class NotificationCenterAccessibilityAdapter: NotificationCenterAc
 // MARK: - Exact identity
 
 enum NotificationAccessibilityIdentity {
+    static let bannerSubrole = "AXNotificationCenterBanner"
+
     /// Normalizes only UUID punctuation and letter case. It never extracts a UUID from surrounding text.
     static func normalizedUUID(_ value: String) -> String? {
         var candidate = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -431,11 +511,34 @@ enum NotificationAccessibilityIdentity {
         }
         return matches.count == 1 ? matches[0] : nil
     }
+
+    static func uniqueIndividualNotificationMatchingIndex(
+        identifier: String,
+        candidates: [[String]],
+        subroles: [String?],
+        scanCompleted: Bool = true
+    ) -> Int? {
+        guard candidates.count == subroles.count else { return nil }
+        let eligibleCandidates = candidates.indices.map { index in
+            subroles[index] == bannerSubrole ? candidates[index] : []
+        }
+        return uniqueMatchingIndex(
+            identifier: identifier,
+            candidates: eligibleCandidates,
+            scanCompleted: scanCompleted
+        )
+    }
 }
 
 enum NotificationAccessibilityAction {
+    struct AdvertisedAction: Equatable {
+        let name: String
+        let description: String
+    }
+
     enum Plan: Equatable {
         case rowPress
+        case rowClose(String)
         case defaultButtonPress
         case closeButtonPress
     }
@@ -443,6 +546,8 @@ enum NotificationAccessibilityAction {
     static func plan(
         for action: NotificationSystemAction,
         rowActions: [String],
+        rowActionDescriptions: [AdvertisedAction] = [],
+        localizedCloseDescription: String = "Close",
         defaultButtonActions: [String]?,
         closeButtonActions: [String]?
     ) -> Plan? {
@@ -452,8 +557,17 @@ enum NotificationAccessibilityAction {
             return .rowPress
         case .activate where defaultButtonActions?.contains(press) == true:
             return .defaultButtonPress
-        case .dismiss where closeButtonActions?.contains(press) == true:
-            return .closeButtonPress
+        case .dismiss:
+            let closeActions = rowActionDescriptions.filter {
+                $0.description == localizedCloseDescription && rowActions.contains($0.name)
+            }
+            if closeActions.count == 1 {
+                return .rowClose(closeActions[0].name)
+            }
+            if closeButtonActions?.contains(press) == true {
+                return .closeButtonPress
+            }
+            return nil
         default:
             return nil
         }

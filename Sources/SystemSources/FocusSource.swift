@@ -59,9 +59,9 @@ public enum FocusControlResult: Equatable, Sendable {
 
 /// Reads and controls Focus through Apple's DoNotDisturb service when the process is allowed to use it.
 ///
-/// The public Intents API is a read-only fallback. It is consulted only when the user has already
-/// authorized Focus status sharing; this type never requests permission. That API exposes activity
-/// but deliberately withholds the active mode's identity.
+/// A read-only database fallback uses the process's existing Full Disk Access grant and never changes Focus data.
+/// The public Intents API is the final fallback and is consulted only when the user has already authorized Focus
+/// status sharing. This type never requests permission. The public API exposes activity but withholds mode identity.
 public actor FocusSource {
     private let runtime: DoNotDisturbRuntime?
     private let publicStatus: @Sendable () -> FocusSnapshot
@@ -78,7 +78,7 @@ public actor FocusSource {
         read() != .unavailable
     }
 
-    /// Reads the current state without requesting Focus authorization.
+    /// Reads the current state without requesting Focus authorization or modifying the Focus database.
     public func read() -> FocusSnapshot {
         if let runtime {
             switch runtime.read() {
@@ -117,6 +117,13 @@ public actor FocusSource {
             isFocused: center.focusStatus.isFocused
         )
     }
+
+    static func databaseSnapshot(configurationsData: Data, assertionsData: Data) -> FocusSnapshot? {
+        DoNotDisturbRuntime.databaseSnapshot(
+            configurationsData: configurationsData,
+            assertionsData: assertionsData
+        )
+    }
 }
 
 // MARK: - Private framework boundary
@@ -125,24 +132,52 @@ public actor FocusSource {
 private final class DoNotDisturbRuntime {
     private static let frameworkPath = "/System/Library/PrivateFrameworks/DoNotDisturb.framework/DoNotDisturb"
 
-    private let service: NSObject
+    private let service: NSObject?
+    private var canReadService = true
+    private let configurationsURL: URL
+    private let assertionsURL: URL
 
-    init?(clientIdentifier: String) {
+    init(clientIdentifier: String) {
+        let databaseURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/DoNotDisturb/DB", isDirectory: true)
+        configurationsURL = databaseURL.appendingPathComponent("ModeConfigurations.json")
+        assertionsURL = databaseURL.appendingPathComponent("Assertions.json")
+
         guard dlopen(Self.frameworkPath, RTLD_NOW) != nil,
               let serviceType = NSClassFromString("DNDModeSelectionService") as? NSObject.Type
         else {
-            return nil
+            service = nil
+            return
         }
         let selector = NSSelectorFromString("serviceForClientIdentifier:")
-        guard serviceType.responds(to: selector),
-              let service = serviceType.perform(selector, with: clientIdentifier)?.takeUnretainedValue() as? NSObject
-        else {
-            return nil
-        }
-        self.service = service
+        service = serviceType.responds(to: selector)
+            ? serviceType.perform(selector, with: clientIdentifier)?.takeUnretainedValue() as? NSObject
+            : nil
     }
 
     func read() -> RuntimeReadResult {
+        if canReadService, service != nil {
+            switch readService() {
+            case let .success(snapshot): return .success(snapshot)
+            case .failure: canReadService = false
+            }
+        }
+        do {
+            let configurationsData = try Data(contentsOf: configurationsURL, options: .mappedIfSafe)
+            let assertionsData = try Data(contentsOf: assertionsURL, options: .mappedIfSafe)
+            guard let snapshot = Self.databaseSnapshot(
+                configurationsData: configurationsData,
+                assertionsData: assertionsData
+            ) else {
+                return .failure("Focus database format was not recognized")
+            }
+            return .success(snapshot)
+        } catch {
+            return .failure("Focus database could not be read: \(error.localizedDescription)")
+        }
+    }
+
+    private func readService() -> RuntimeReadResult {
         let modesResult = objectWithError(selectorName: "availableModesWithError:")
         guard modesResult.error == nil, let array = modesResult.value as? NSArray else {
             return .failure(modesResult.error?.localizedDescription ?? "available modes were not returned")
@@ -166,7 +201,8 @@ private final class DoNotDisturbRuntime {
     }
 
     func activate(modeIdentifier: String) -> FocusControlResult {
-        guard let lifetimeType = NSClassFromString("DNDModeAssertionLifetime") as? NSObject.Type,
+        guard service != nil,
+              let lifetimeType = NSClassFromString("DNDModeAssertionLifetime") as? NSObject.Type,
               let detailsType = NSClassFromString("DNDModeAssertionDetails") as? NSObject.Type,
               let lifetime = Self.classObject(lifetimeType, selectorName: "lifetimeForUserRequest"),
               let details = Self.classObject(
@@ -181,6 +217,7 @@ private final class DoNotDisturbRuntime {
     }
 
     func deactivate() -> FocusControlResult {
+        guard service != nil else { return .unavailable }
         let assertionResult = objectWithError(selectorName: "activeModeAssertionWithError:")
         guard assertionResult.error == nil else { return .failed }
         guard let assertion = assertionResult.value else { return .applied }
@@ -189,6 +226,7 @@ private final class DoNotDisturbRuntime {
     }
 
     private func objectWithError(selectorName: String) -> (value: NSObject?, error: NSError?) {
+        guard let service else { return (nil, NSError(domain: "FocusSource", code: 1)) }
         let selector = NSSelectorFromString(selectorName)
         guard service.responds(to: selector), let implementation = service.method(for: selector) else {
             return (nil, NSError(domain: "FocusSource", code: 1))
@@ -205,6 +243,7 @@ private final class DoNotDisturbRuntime {
     }
 
     private func boolWithObjectAndError(selectorName: String, object: NSObject) -> FocusControlResult {
+        guard let service else { return .unavailable }
         let selector = NSSelectorFromString(selectorName)
         guard service.responds(to: selector), let implementation = service.method(for: selector) else {
             return .unavailable
@@ -227,6 +266,80 @@ private final class DoNotDisturbRuntime {
             return nil
         }
         return FocusMode(id: identifier, name: name, symbolName: stringProperty("symbolImageName", of: object))
+    }
+
+    static func databaseSnapshot(configurationsData: Data, assertionsData: Data) -> FocusSnapshot? {
+        guard let configurationsRoot = try? JSONSerialization.jsonObject(with: configurationsData) as? [String: Any],
+              (configurationsRoot["header"] as? [String: Any])?["version"] as? Int == 3,
+              let configurationPartitions = configurationsRoot["data"] as? [[String: Any]],
+              !configurationPartitions.isEmpty,
+              let assertionsRoot = try? JSONSerialization.jsonObject(with: assertionsData) as? [String: Any],
+              (assertionsRoot["header"] as? [String: Any])?["version"] as? Int == 8,
+              let assertionPartitions = assertionsRoot["data"] as? [[String: Any]],
+              !assertionPartitions.isEmpty
+        else {
+            return nil
+        }
+
+        var modesByIdentifier: [String: FocusMode] = [:]
+        for partition in configurationPartitions {
+            guard let configurations = partition["modeConfigurations"] as? [String: Any] else { return nil }
+            for (key, value) in configurations {
+                guard let configuration = value as? [String: Any],
+                      let mode = configuration["mode"] as? [String: Any],
+                      let identifier = mode["modeIdentifier"] as? String,
+                      identifier == key,
+                      let name = mode["name"] as? String,
+                      !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                      modesByIdentifier[identifier] == nil
+                else {
+                    return nil
+                }
+                modesByIdentifier[identifier] = FocusMode(
+                    id: identifier,
+                    name: name,
+                    symbolName: mode["symbolImageName"] as? String
+                )
+            }
+        }
+        let modes = modesByIdentifier.values.sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+
+        // Version 8 stores current assertions separately from invalidation history. Never infer activity from an
+        // invalidation record: the observed inactive database contains the assertion that was just turned off there.
+        let knownKeys: Set<String> = [
+            "storeAssertionRecords", "storeInvalidationRecords", "storeInvalidationRequestRecords",
+            "storeLastCompleteInvalidationTimestamp", "storeLastCompleteInvalidationReason",
+            "storeLastCompleteInvalidationSourceClientIdentifier",
+            "storeLastCompleteInvalidationSourceDeviceIdentifier", "storeLastUpdateDate",
+        ]
+        var records: [[String: Any]] = []
+        for partition in assertionPartitions {
+            guard Set(partition.keys).isSubset(of: knownKeys), !partition.keys.isEmpty else { return nil }
+            if let storedRecords = partition["storeAssertionRecords"] {
+                guard let typedRecords = storedRecords as? [[String: Any]] else { return nil }
+                records.append(contentsOf: typedRecords)
+            }
+        }
+        let identifiers = records.compactMap { record -> String? in
+            guard let details = record["assertionDetails"] as? [String: Any],
+                  let identifier = details["assertionDetailsModeIdentifier"] as? String,
+                  !identifier.isEmpty
+            else {
+                return nil
+            }
+            return identifier
+        }
+        guard identifiers.count == records.count else { return nil }
+
+        guard let activeIdentifier = identifiers.first else { return .inactive(availableModes: []) }
+        // The database is read-only. Keep mode metadata for the pill, but expose no controls that would call a
+        // service already proven unavailable to this process.
+        let activeMode = identifiers.allSatisfy { $0 == activeIdentifier }
+            ? modes.first { $0.id == activeIdentifier }
+            : nil
+        return .active(mode: activeMode, availableModes: [])
     }
 
     private static func stringProperty(_ name: String, of object: NSObject) -> String? {

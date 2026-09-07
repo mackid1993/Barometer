@@ -14,7 +14,6 @@ final class SystemControlsCoordinator {
     private let settingsStore: SettingsStore
     private var focusItem: StatusItemController<SystemControlSample>?
     private var nowPlayingItem: StatusItemController<SystemControlSample>?
-    private var focusDropdown: DropdownController?
     private var nowPlayingDropdown: DropdownController?
     private var isSleeping = false
     private var isStopped = false
@@ -29,7 +28,7 @@ final class SystemControlsCoordinator {
             settingsStore: settingsStore,
             isPresented: { sample, _, _ in Self.shouldPresentFocus(sample) },
             render: { sample, _, _, context in
-                SystemControlPillRenderer.render(sample ?? Self.focusUnavailable, in: context)
+                SystemControlPillRenderer.renderFocus(sample ?? Self.focusUnavailable, in: context)
             }
         )
         nowPlayingItem = StatusItemController(
@@ -39,16 +38,8 @@ final class SystemControlsCoordinator {
                 Self.shouldPresentNowPlaying(sample, visibility: settings.time.nowPlayingVisibility)
             },
             render: { sample, _, _, context in
-                SystemControlPillRenderer.render(sample ?? Self.mediaUnavailable, in: context)
+                SystemControlPillRenderer.render(sample ?? Self.mediaUnavailable, in: context, symbolPointSize: 18)
             }
-        )
-        focusDropdown = DropdownController(
-            moduleName: ModuleID.focus.displayName, statusItem: registry.item(for: .focus),
-            rootView: AnyView(FocusControlsView(controller: focus)),
-            contentHeight: FocusControlsView.contentSize.height, contentWidth: FocusControlsView.contentSize.width,
-            usesAttachedPanel: true,
-            tickAction: {},
-            settingsAction: { settingsAction(.time) }, quitAction: quitAction
         )
         nowPlayingDropdown = DropdownController(
             moduleName: ModuleID.nowPlaying.displayName, statusItem: registry.item(for: .nowPlaying),
@@ -72,7 +63,6 @@ final class SystemControlsCoordinator {
 
     func attach(_ statusItem: NSStatusItem, for module: ModuleID, activate: Bool) {
         if module == .focus {
-            focusDropdown?.attach(statusItem: statusItem)
             focusItem?.attach(statusItem: statusItem)
         } else if module == .nowPlaying {
             nowPlayingDropdown?.attach(statusItem: statusItem)
@@ -111,7 +101,7 @@ final class SystemControlsCoordinator {
     private static let focusUnavailable = SystemControlSample(
         symbolName: "moon", accessibilityValue: "Focus unavailable", isActive: false)
     private static let mediaUnavailable = SystemControlSample(
-        symbolName: "play.slash", accessibilityValue: "Now Playing unavailable", isActive: false)
+        symbolName: "play.fill", accessibilityValue: "Now Playing unavailable", isActive: false)
 
     static func shouldPresentFocus(_ sample: SystemControlSample?) -> Bool {
         sample?.isActive == true
@@ -133,7 +123,7 @@ final class SystemControlsCoordinator {
             focusSample = SystemControlSample(symbolName: "moon", accessibilityValue: "Focus off", isActive: false)
         case let .active(mode, _):
             focusSample = SystemControlSample(
-                symbolName: mode?.symbolName ?? "moon.fill",
+                symbolName: "moon.fill",
                 accessibilityValue: "Focus: \(mode?.name ?? "On")", isActive: true)
         }
         if focusStore.latestSample != focusSample { focusStore.receive(focusSample) }
@@ -148,7 +138,7 @@ final class SystemControlsCoordinator {
         case let .active(snapshot):
             let playing = snapshot.playbackState == .playing
             mediaSample = SystemControlSample(
-                symbolName: playing ? "waveform" : "pause.fill",
+                symbolName: playing ? "play.fill" : "pause.fill",
                 accessibilityValue: "Now Playing: \(snapshot.title)\(snapshot.artist.map { " by \($0)" } ?? ""), "
                     + (playing ? "playing" : "paused"),
                 isActive: playing)
