@@ -386,6 +386,11 @@ universal performance guarantee.
   authorized; offer a retry and report the network name as unavailable instead.
 - Never request a new TCC category during launch or background sampling. Permission requests must follow a direct
   user action and require project approval before implementation.
+- Accessibility is approved for exactly one use: `NotificationCenterOpener` presses the system clock item
+  (`com.apple.menuextra.clock`, hosted by `com.apple.MenuBarAgent` on macOS 27 and by Control Center before) so a
+  click on Barometer's clock opens Notification Center. The prompt appears only when the Time option is turned on;
+  the click falls back to the dropdown while access is missing. Do not read or drive any other application through
+  Accessibility.
 - `LSUIElement` keeps Barometer out of the Dock; it does not replace correct bundle identity or signing.
 - `make app` and `make install` use `CODESIGN_IDENTITY` when supplied, otherwise the first valid Developer ID
   Application identity in the login keychain, and fall back to an ad-hoc signature only when neither exists.

@@ -17,6 +17,7 @@ struct SettingsTests {
         settings.fontWeight = .semibold
         settings.modules[.cpu]?.warningLightColor = "#ABCDEF"
         settings.time.calendarWeekStart = .monday
+        settings.time.opensNotificationCenterOnClick = true
 
         let data = try JSONEncoder().encode(settings)
         let decoded = try JSONDecoder().decode(AppSettings.self, from: data)
@@ -35,6 +36,20 @@ struct SettingsTests {
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
         #expect(migrated.time.calendarWeekStart == .systemDefault)
+    }
+
+    @Test("older Time settings keep the dropdown on click")
+    func migratesNotificationCenterClick() throws {
+        let encoded = try JSONEncoder().encode(AppSettings())
+        var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        var time = try #require(object["time"] as? [String: Any])
+        time.removeValue(forKey: "opensNotificationCenterOnClick")
+        object["time"] = time
+
+        let oldData = try JSONSerialization.data(withJSONObject: object)
+        let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
+
+        #expect(migrated.time.opensNotificationCenterOnClick == false)
     }
 
     @Test("settings import rejects invalid values without changing current settings")

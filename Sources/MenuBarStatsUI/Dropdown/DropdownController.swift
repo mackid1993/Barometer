@@ -29,6 +29,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     private let detailActions = MenuDetailActions()
     private weak var detailAnchor: NSView?
     private let usesAttachedPanel: Bool
+    private let primaryClickHandler: (@MainActor () -> Bool)?
     private var rootPanel: AttachedPanel?
     private let dismissalMonitor = PopoverDismissalMonitor()
     private var activationHoverRegion: NSRect?
@@ -36,6 +37,10 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     private var isMenuTracking = false
 
     /// Creates and installs a hosted menu for one permanent status item.
+    ///
+    /// `primaryClickHandler` runs before an attached panel opens on a plain left click and consumes
+    /// the click by returning true. Right and Control clicks always open the panel, so a module that
+    /// gives its primary click away keeps its dropdown reachable.
     public init(
         moduleName: String,
         statusItem: NSStatusItem?,
@@ -43,6 +48,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         contentHeight: CGFloat,
         contentWidth: CGFloat = 320,
         usesAttachedPanel: Bool = false,
+        primaryClickHandler: (@MainActor () -> Bool)? = nil,
         visibilityAction: @escaping @MainActor (Bool) -> Void = { _ in },
         tickAction: @escaping @MainActor () -> Void,
         settingsAction: @escaping @MainActor () -> Void,
@@ -56,6 +62,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         self.contentHeight = contentHeight
         self.contentWidth = contentWidth
         self.usesAttachedPanel = usesAttachedPanel
+        self.primaryClickHandler = primaryClickHandler
         self.detailAnchor = statusItem?.button
         menu = NSMenu()
         rootContent = rootView
@@ -105,18 +112,42 @@ public final class DropdownController: NSObject, NSMenuDelegate {
             statusItem.menu = nil
             statusItem.button?.target = self
             statusItem.button?.action = #selector(togglePanel)
+            if primaryClickHandler != nil {
+                statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            }
         } else {
             statusItem.menu = menu
         }
     }
 
     @objc private func togglePanel() {
+        handleStatusItemClick(NSApp.currentEvent)
+    }
+
+    /// Closes an open panel, otherwise offers a primary click to the handler before opening the panel.
+    func handleStatusItemClick(_ event: NSEvent?) {
         if rootPanel?.isVisible == true {
             closeRootPanel()
             return
         }
+        if let primaryClickHandler, Self.isPrimaryClick(event), primaryClickHandler() {
+            return
+        }
         guard let anchor = detailAnchor else { return }
         presentAttachedPanel(anchoredTo: anchor)
+    }
+
+    /// True for a plain left click. Right clicks and Control clicks are secondary and always open the dropdown.
+    static func isPrimaryClick(_ event: NSEvent?) -> Bool {
+        guard let event else { return true }
+        switch event.type {
+        case .rightMouseDown, .rightMouseUp, .otherMouseDown, .otherMouseUp:
+            return false
+        case .leftMouseDown, .leftMouseUp:
+            return !event.modifierFlags.contains(.control)
+        default:
+            return true
+        }
     }
 
     func presentAttachedPanel(anchoredTo anchor: NSView) {

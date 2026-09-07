@@ -468,6 +468,24 @@ allow `.combined` instances.
   light/dark rendering; full suite; signed local build and installed-app review. Wait for David's approval before
   pushing these changes or starting another GitHub build.
 
+### P8-T80 Open Notification Center from the clock
+
+Requested by David on 2026-09-07 so Barometer's clock can replace the system clock, whose only remaining job was
+opening Notification Center. macOS has no public API for Notification Center; pressing the system clock's
+Accessibility item (`com.apple.menuextra.clock` under `com.apple.MenuBarAgent` on macOS 27) toggles it, which was
+verified on David's Mac before implementation.
+
+- Add `TimeSettings.opensNotificationCenterOnClick`, default off, decoded as off from older files.
+- Give `DropdownController` an optional primary-click handler: a plain left click goes to the handler first, while
+  right and Control clicks always open the dropdown.
+- Add `NotificationCenterOpener` in `MenuBarStatsUI`: trust check, prompt on the direct user action of turning the
+  option on, System Settings link, and the clock lookup and press with fall back to the dropdown on any failure.
+- Time settings: a Notification Center section with the toggle, an explanation of the secondary click, and the live
+  Accessibility status with a button to the Accessibility pane.
+- Update DESIGN, README, and docs/AGENTS permission statements; Accessibility is approved for this use only.
+- Verify: settings migration and round trip, click classification and handler tests, the full suite, signed local
+  build, and an installed-app check that a click opens Notification Center once Accessibility is allowed.
+
 ---
 
 ## Phase 9: After v1

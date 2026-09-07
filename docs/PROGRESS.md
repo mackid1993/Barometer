@@ -4221,3 +4221,36 @@ and the notes describe only what shipped.
 
 Dispatched the Release workflow for 1.0.7 with notarization on. Verification of the artifact is recorded in the
 publish entry.
+
+## P8-T80 Open Notification Center from the clock
+
+Probed on macOS 27.0 beta before implementation: `CGWindowList` shows no per-item status windows, and Control
+Center's `AXExtrasMenuBar` returns no value. The system clock lives in `com.apple.MenuBarAgent` as an
+`AXMenuBarItem` with identifier `com.apple.menuextra.clock` nested one `AXGroup` deep in that process's extras
+menu bar, with `AXPress` and `AXShowMenu` actions. Performing `AXPress` from a trusted background process opened
+Notification Center (one on-screen Notification Center window appeared) and a second press closed it.
+
+Implemented `TimeSettings.opensNotificationCenterOnClick` (default off, decoded as off from older files), an
+optional `primaryClickHandler` on `DropdownController` that receives plain left clicks while right and Control
+clicks keep opening the attached panel (the button's action mask gains `rightMouseUp` only when a handler exists),
+`NotificationCenterOpener` with the trust check, the prompt on the direct action of turning the option on, the
+System Settings link, and the depth-bounded identifier search across `com.apple.MenuBarAgent` then
+`com.apple.controlcenter`. Any failure returns false so the click falls back to the dropdown. Time settings gained
+a Notification Center section with the toggle, the secondary-click explanation, and a live Accessibility status
+that polls once a second while the option is on.
+
+`python3 Scripts/check-source-invariants.py`: `Source invariant check passed`.
+
+`make test` (exit 0):
+
+```text
+✔ Test "older Time settings keep the dropdown on click" passed after 0.013 seconds.
+✔ Test "settings encode and decode without loss" passed after 0.014 seconds.
+✔ Test "A plain left click is primary; right, middle, and Control clicks are secondary" passed after 0.071 seconds.
+✔ Test "The primary click handler sees left clicks only and can decline them" passed after 0.039 seconds.
+✔ Test run with 144 tests in 22 suites passed after 18.230 seconds.
+```
+
+`git diff --check`: clean. `make install` built the Developer ID signed bundle and launched it from `/Applications`.
+The installed-app click check is pending David: the Time item is not enabled in his menu bar, and the Accessibility
+grant can only follow his turning the option on in Time settings.

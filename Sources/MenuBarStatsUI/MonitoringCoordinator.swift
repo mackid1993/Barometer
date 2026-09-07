@@ -402,6 +402,10 @@ public final class MonitoringCoordinator {
             contentHeight: TimeDropdownView.contentSize.height,
             contentWidth: TimeDropdownView.contentSize.width,
             usesAttachedPanel: true,
+            primaryClickHandler: { [weak self] in
+                guard self?.settingsStore.settings.time.opensNotificationCenterOnClick == true else { return false }
+                return NotificationCenterOpener.toggle()
+            },
             tickAction: { [weak timeStore] in timeStore?.tick() },
             settingsAction: { settingsAction(.time) },
             quitAction: quitAction

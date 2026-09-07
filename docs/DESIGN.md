@@ -206,6 +206,7 @@ Parity target is iStat Menus 7. Each module has a menu bar representation (sever
 
 - Menu bar modes: custom date and time formats built from tokens, seconds toggle, week number, day of year, multiple world clocks as text.
 - Dropdown: month calendar with today highlighted, world clocks list with UTC offsets and day/night, sunrise and sunset for the primary weather location, upcoming calendar events (EventKit, optional permission).
+- Optional: a primary click on the clock opens macOS Notification Center instead of the dropdown, so Barometer's clock can stand in for the system clock. Right-click or Control-click opens the dropdown. Implemented by pressing the system clock item (`com.apple.menuextra.clock`) through Accessibility, which requires Accessibility access; without it the click opens the dropdown.
 
 ### 4.10 Combined item
 
@@ -409,7 +410,7 @@ Every source below has been checked on the target machine unless marked "expecte
 - `Info.plist` keys: `CFBundleIdentifier`, `CFBundleName`, `CFBundleDisplayName`, `CFBundleExecutable`, `CFBundlePackageType=APPL`, `CFBundleShortVersionString`, `CFBundleVersion`, `LSMinimumSystemVersion=26.0`, `LSUIElement=true`, `NSHumanReadableCopyright`, `NSLocationUsageDescription`, `NSCalendarsFullAccessUsageDescription`, `NSSupportsAutomaticTermination=false`, `NSSupportsSuddenTermination=false`.
 - `make run` kills any running instance, rebuilds, and opens the app with `open dist/Barometer.app`. `make install` copies to `/Applications`.
 - Launch at login uses `SMAppService.mainApp.register()`; it requires the app to be in a stable location, so Settings warns when running from `dist/`.
-- Permissions that may be requested, all optional: Location (Wi-Fi SSID, current-location weather), Calendars (Time module events). Accessibility and Screen Recording are never needed.
+- Permissions that may be requested, all optional: Location (Wi-Fi SSID, current-location weather), Calendars (Time module events), Accessibility (only for "Open Notification Center on click" in Time settings, requested when that option is turned on). Screen Recording is never needed.
 - Later: Developer ID signing and notarization, Sparkle updates, and a Homebrew cask. Not part of v1.
 
 ## 11. Logging, diagnostics, performance

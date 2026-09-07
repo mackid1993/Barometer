@@ -9,6 +9,7 @@ struct TimeSettingsView: View {
     let settingsStore: SettingsStore
     let requestCalendarAccess: @MainActor () -> Void
     @State private var timeZoneSearch = ""
+    @State private var accessibilityAllowed = NotificationCenterOpener.isTrusted
 
     private var moduleSettings: ModuleSettings {
         settingsStore.settings.modules[.time] ?? ModuleSettings(mode: "custom", interval: 60)
@@ -37,6 +38,19 @@ struct TimeSettingsView: View {
                     darkColor: colorBinding(\.darkColor),
                     isDisabled: settingsStore.settings.usesGlobalColors || settingsStore.settings.isMonochrome
                 )
+            }
+            Section("Notification Center") {
+                Toggle("Open Notification Center on click", isOn: notificationCenterBinding)
+                Text("Clicking the clock opens macOS Notification Center, including its widgets. "
+                    + "Right-click or Control-click the clock for the Barometer dropdown.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if settingsStore.settings.time.opensNotificationCenterOnClick {
+                    accessibilityStatusView
+                }
+            }
+            .task(id: settingsStore.settings.time.opensNotificationCenterOnClick) {
+                await watchAccessibilityAccess()
             }
             Section("World Clocks") {
                 ForEach(settingsStore.settings.time.worldClockIdentifiers, id: \.self) { identifier in
@@ -82,6 +96,44 @@ struct TimeSettingsView: View {
                 .foregroundStyle(.secondary)
         case .unavailable:
             Text("Calendar events are unavailable.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var accessibilityStatusView: some View {
+        if accessibilityAllowed {
+            Label("Accessibility access allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+        } else {
+            Text("Barometer needs Accessibility access to open Notification Center. Until it is allowed in "
+                + "System Settings > Privacy & Security > Accessibility, clicking the clock opens the dropdown.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Button("Open Accessibility Settings…") { NotificationCenterOpener.openAccessibilitySettings() }
+        }
+    }
+
+    /// Turning the option on asks macOS for Accessibility access, which is a direct user action.
+    private var notificationCenterBinding: Binding<Bool> {
+        Binding(
+            get: { settingsStore.settings.time.opensNotificationCenterOnClick },
+            set: { isOn in
+                var settings = settingsStore.settings
+                settings.time.opensNotificationCenterOnClick = isOn
+                settingsStore.settings = settings
+                if isOn {
+                    accessibilityAllowed = NotificationCenterOpener.requestAccess()
+                }
+            }
+        )
+    }
+
+    /// Tracks the Accessibility grant while the option is on, so the pane updates as soon as it is allowed.
+    private func watchAccessibilityAccess() async {
+        accessibilityAllowed = NotificationCenterOpener.isTrusted
+        guard settingsStore.settings.time.opensNotificationCenterOnClick else { return }
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(1))
+            accessibilityAllowed = NotificationCenterOpener.isTrusted
         }
     }
 
