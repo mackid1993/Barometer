@@ -34,10 +34,10 @@ public actor NotificationCenterRemover {
     private let restart: @Sendable () async -> Bool
     private let logger = Logger(subsystem: "com.barometer.app", category: "notification-remover")
 
-    /// Creates a remover over the real database, restarting usernoted after each write by default.
+    /// Creates a remover over the real database, queuing a restart of the notification processes after each write.
     public init(
         databaseURL: URL = NotificationCenterSource.defaultDatabaseURL,
-        restart: @escaping @Sendable () async -> Bool = { await NotificationDaemonRestarter.restartUserNoted() }
+        restart: @escaping @Sendable () async -> Bool = { await NotificationDaemonRestarter.shared.requestRestart() }
     ) {
         self.databaseURL = databaseURL
         self.restart = restart
@@ -85,8 +85,11 @@ public actor NotificationCenterRemover {
         }
         logger.notice("removed \(targets.count) notification record(s) from Notification Center's database")
 
+        // The write is the result: Barometer's list reads from the database. The restarts that make the
+        // panel catch up are queued and coalesced, because launchd holds a service back for about ten
+        // seconds after a rapid relaunch and a burst of clears must not each wait on that.
         guard await restart() else {
-            return .failed("The notifications were removed from the database, but the notification daemon did not restart.")
+            return .failed("The notifications were removed from the database, but the notification processes could not be restarted.")
         }
         return .removed
     }
@@ -176,35 +179,75 @@ public actor NotificationCenterRemover {
     }
 }
 
-/// Restarts the notification daemon, then the Notification Center panel process, so both reload the list.
+/// Brings the notification processes back in line with the database after a removal.
 ///
-/// usernoted owns the database and reloads it on relaunch; the NotificationCenter process that draws
-/// the panel keeps its own copy of the list and shows the old entries until it, too, is relaunched.
-/// Both are launchd agents that come straight back. The order matters: the panel must reconnect to a
-/// daemon that has already reloaded.
-public enum NotificationDaemonRestarter {
+/// usernoted owns the database and reloads it only on relaunch; the NotificationCenter process that
+/// draws the panel keeps its own copy of the list and shows the old entries until it, too, relaunches.
+/// Both are launchd agents. Each is restarted through `launchctl kickstart -k`, an explicit request
+/// that launchd honors immediately rather than the exit throttle it applies to a service that keeps
+/// dying on its own. The order matters: the panel must reconnect to a daemon that has already reloaded.
+///
+/// The database write is the result; this sync is only how Apple's panel catches up. It therefore runs
+/// as one coalesced background job: a burst of clears, or a Clear All, costs one restart of each
+/// process, and a request that arrives mid-sync simply runs the sync once more when it finishes. A
+/// clear never waits on it and never fails because of it.
+public actor NotificationDaemonRestarter {
+    /// The one sync worker for the process.
+    public static let shared = NotificationDaemonRestarter()
+
     static let daemonName = "usernoted"
+    static let daemonLabel = "com.apple.usernoted"
     static let panelName = "NotificationCenter"
+    static let panelLabel = "com.apple.notificationcenterui"
     private static let logger = Logger(subsystem: "com.barometer.app", category: "notification-remover")
 
-    /// Restarts usernoted and then the panel process, waiting for each new instance.
-    public static func restartUserNoted() async -> Bool {
-        guard await restart(named: daemonName) else { return false }
-        return await restart(named: panelName)
+    private var syncTask: Task<Void, Never>?
+    private var pending = false
+
+    /// Schedules one sync of the notification processes and returns at once.
+    ///
+    /// Always true: the caller's database write already succeeded, and the sync reports its own
+    /// outcome to the log. Repeated calls while a sync runs fold into a single follow-up pass.
+    public func requestRestart() -> Bool {
+        pending = true
+        if syncTask == nil {
+            syncTask = Task { await runSync() }
+        }
+        return true
     }
 
-    /// Sends the process a termination signal and waits for launchd to bring a new instance up.
-    static func restart(named name: String) async -> Bool {
+    private func runSync() async {
+        while pending {
+            pending = false
+            let daemon = await Self.kickstart(name: Self.daemonName, label: Self.daemonLabel)
+            if daemon {
+                _ = await Self.kickstart(name: Self.panelName, label: Self.panelLabel)
+            }
+        }
+        syncTask = nil
+    }
+
+    /// Asks launchd to restart the agent and waits for a new instance to appear.
+    static func kickstart(name: String, label: String) async -> Bool {
         let before = processIdentifiers(named: name)
-        guard !before.isEmpty else {
-            logger.error("\(name, privacy: .public) is not running")
+        let target = "gui/\(getuid())/\(label)"
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        process.arguments = ["kickstart", "-k", target]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            logger.error("launchctl could not run for \(label, privacy: .public): \(String(describing: error), privacy: .public)")
             return false
         }
-        for pid in before where kill(pid, SIGTERM) != 0 {
-            logger.error("could not signal \(name, privacy: .public) \(pid): errno \(errno)")
+        guard process.terminationStatus == 0 else {
+            logger.error("launchctl kickstart \(label, privacy: .public) exited \(process.terminationStatus)")
             return false
         }
-        for _ in 0..<40 {
+        for _ in 0..<150 {
             try? await Task.sleep(for: .milliseconds(100))
             let now = processIdentifiers(named: name)
             if !now.isEmpty, now.isDisjoint(with: before) {
@@ -212,7 +255,7 @@ public enum NotificationDaemonRestarter {
                 return true
             }
         }
-        logger.error("\(name, privacy: .public) did not come back within four seconds")
+        logger.error("\(name, privacy: .public) did not come back within fifteen seconds")
         return false
     }
 
