@@ -18,6 +18,30 @@ struct PopoverPlacementTests {
         settings.time.showsCalendarEvents = true
         defaults.set(try JSONEncoder().encode(settings), forKey: SettingsStore.defaultsKey)
         let settingsStore = SettingsStore(defaults: defaults)
+        let notificationSuite = "PopoverScreenTests-notifications-\(UUID().uuidString)"
+        let notificationDefaults = try #require(UserDefaults(suiteName: notificationSuite))
+        defer { notificationDefaults.removePersistentDomain(forName: notificationSuite) }
+        var notificationSettings = settings
+        notificationSettings.time.showsNotifications = true
+        notificationDefaults.set(
+            try JSONEncoder().encode(notificationSettings), forKey: SettingsStore.defaultsKey)
+        let notificationSettingsStore = SettingsStore(defaults: notificationDefaults)
+        let notificationFeed = NotificationFeed(preset: NotificationSnapshot(
+            access: .available,
+            notifications: [
+                DeliveredNotification(
+                    id: "1", applicationIdentifier: "com.apple.MobileSMS", title: "Sam Rivera",
+                    subtitle: nil, body: "Running ten minutes late, order without me if the kitchen closes.",
+                    date: Date().addingTimeInterval(-240)),
+                DeliveredNotification(
+                    id: "2", applicationIdentifier: "com.apple.AppStore", title: "Updates Available",
+                    subtitle: nil, body: "3 apps have updates ready to install.",
+                    date: Date().addingTimeInterval(-5_400)),
+                DeliveredNotification(
+                    id: "3", applicationIdentifier: "com.apple.Safari", title: "Download Complete",
+                    subtitle: "Safari", body: "Barometer-1.0.7.dmg", date: Date().addingTimeInterval(-90_000)),
+            ]
+        ))
         let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("MenuBarStatsCoreTests/Fixtures/forecast-rich-imperial.json")
         let location = Location(id: "boston", name: "Boston", admin: nil, country: "US",
@@ -110,6 +134,13 @@ struct PopoverPlacementTests {
                 settingsStore: settingsStore,
                 requestCalendarAccess: {}
             )) }, 560),
+            ("time-notifications", { AnyView(TimeDropdownView(
+                store: timeStore,
+                weatherStore: store,
+                settingsStore: notificationSettingsStore,
+                notificationFeed: notificationFeed,
+                requestCalendarAccess: {}
+            )) }, 720),
             ("weather", { AnyView(WeatherDropdownView(
                 store: store, settingsStore: settingsStore, refreshAction: {})) }, 720),
             ("network", { AnyView(NetworkDropdownView(

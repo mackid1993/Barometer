@@ -31,6 +31,11 @@ final class MenuDetailActions {
     func hide(anchoredTo rowAnchor: NSView) {
         owner?.hideMenuDetail(anchoredTo: rowAnchor)
     }
+
+    /// Closes the whole dropdown, for rows that hand off to another application.
+    func closeDropdown() {
+        owner?.closeDropdown()
+    }
 }
 
 /// Presents an attached, non-draggable panel only after AppKit finishes tracking the menu.

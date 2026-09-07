@@ -329,7 +329,8 @@ public final class SettingsStore {
         TimeMenuBarConfiguration(
             template: settings.time.menuBarTemplate,
             showsSeconds: settings.time.showsSeconds,
-            usesFixedWidth: settings.modules[.time]?.usesFixedWidth ?? true
+            usesFixedWidth: settings.modules[.time]?.usesFixedWidth ?? true,
+            fontSize: settings.time.menuBarFontSize
         )
     }
 
@@ -337,6 +338,7 @@ public final class SettingsStore {
         guard let configuration = pendingTimeMenuBarConfiguration else { return }
         result.time.menuBarTemplate = configuration.template
         result.time.showsSeconds = configuration.showsSeconds
+        result.time.menuBarFontSize = configuration.fontSize
         var moduleSettings = result.modules[.time] ?? ModuleSettings(mode: "custom", interval: 60)
         moduleSettings.usesFixedWidth = configuration.usesFixedWidth
         result.modules[.time] = moduleSettings

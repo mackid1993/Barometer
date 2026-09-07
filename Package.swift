@@ -85,6 +85,7 @@ let package = Package(
                 .linkedFramework("IOKit"),
                 .linkedFramework("Network"),
                 .linkedFramework("SystemConfiguration"),
+                .linkedLibrary("sqlite3"),
             ]
         ),
         .target(

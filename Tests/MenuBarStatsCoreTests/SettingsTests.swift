@@ -17,6 +17,8 @@ struct SettingsTests {
         settings.fontWeight = .semibold
         settings.modules[.cpu]?.warningLightColor = "#ABCDEF"
         settings.time.calendarWeekStart = .monday
+        settings.time.menuBarFontSize = 13.5
+        settings.time.showsNotifications = true
 
         let data = try JSONEncoder().encode(settings)
         let decoded = try JSONDecoder().decode(AppSettings.self, from: data)
@@ -35,6 +37,22 @@ struct SettingsTests {
         let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
 
         #expect(migrated.time.calendarWeekStart == .systemDefault)
+    }
+
+    @Test("older Time settings follow the global text size and list no notifications")
+    func migratesClockTextSizeAndNotifications() throws {
+        let encoded = try JSONEncoder().encode(AppSettings())
+        var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        var time = try #require(object["time"] as? [String: Any])
+        time.removeValue(forKey: "menuBarFontSize")
+        time.removeValue(forKey: "showsNotifications")
+        object["time"] = time
+
+        let oldData = try JSONSerialization.data(withJSONObject: object)
+        let migrated = try JSONDecoder().decode(AppSettings.self, from: oldData)
+
+        #expect(migrated.time.menuBarFontSize == nil)
+        #expect(migrated.time.showsNotifications == false)
     }
 
     @Test("settings import rejects invalid values without changing current settings")
@@ -597,9 +615,12 @@ struct SettingsTests {
         staged.template = "{weekday} {time}"
         staged.showsSeconds = true
         staged.usesFixedWidth = false
+        staged.fontSize = 13
 
         store.stageTimeMenuBarConfiguration(staged)
 
+        #expect(store.settings.time.menuBarFontSize == nil)
+        #expect(store.settingsIncludingPendingMenuBarChanges.time.menuBarFontSize == 13)
         #expect(store.settings.time.menuBarTemplate == saved.template)
         #expect(store.settings.time.showsSeconds == saved.showsSeconds)
         #expect(store.settings.modules[.time]?.usesFixedWidth == saved.usesFixedWidth)
@@ -610,6 +631,8 @@ struct SettingsTests {
         #expect(store.hasPendingMenuBarChanges)
 
         store.applyPendingMenuBarChanges()
+
+        #expect(store.settings.time.menuBarFontSize == 13)
 
         #expect(store.settings.time.menuBarTemplate == staged.template)
         #expect(store.settings.time.showsSeconds)

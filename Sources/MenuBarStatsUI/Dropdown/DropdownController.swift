@@ -177,6 +177,15 @@ public final class DropdownController: NSObject, NSMenuDelegate {
                       width: size.width, height: size.height)
     }
 
+    /// Closes the open dropdown, whichever way it was presented.
+    func closeDropdown() {
+        if usesAttachedPanel {
+            closeRootPanel()
+        } else {
+            menu.cancelTracking()
+        }
+    }
+
     private func closeRootPanel() {
         let wasOpen = isOpen
         isOpen = false

@@ -11,6 +11,7 @@ public struct TimeDropdownView: View {
     private let store: ModuleStore<TimeSample>
     private let weatherStore: ModuleStore<WeatherSample>
     private let settingsStore: SettingsStore
+    private let notificationFeed: NotificationFeed?
     private let requestCalendarAccess: @MainActor () -> Void
     private let selectCalendarDate: @MainActor (Date) -> Void
     @State private var selectedCalendarDate: Date?
@@ -20,12 +21,14 @@ public struct TimeDropdownView: View {
         store: ModuleStore<TimeSample>,
         weatherStore: ModuleStore<WeatherSample>,
         settingsStore: SettingsStore,
+        notificationFeed: NotificationFeed? = nil,
         requestCalendarAccess: @escaping @MainActor () -> Void,
         selectCalendarDate: @escaping @MainActor (Date) -> Void = { _ in }
     ) {
         self.store = store
         self.weatherStore = weatherStore
         self.settingsStore = settingsStore
+        self.notificationFeed = notificationFeed
         self.requestCalendarAccess = requestCalendarAccess
         self.selectCalendarDate = selectCalendarDate
         _selectedCalendarDate = State(initialValue: store.latestSample?.selectedCalendarDate)
@@ -77,6 +80,12 @@ public struct TimeDropdownView: View {
                             accent: accent
                         )
                     }
+                }
+            }
+
+            if settingsStore.settings.time.showsNotifications, let notificationFeed {
+                GlassCard(tint: accent.primary) {
+                    NotificationListView(feed: notificationFeed, accent: accent, now: now)
                 }
             }
 
@@ -249,6 +258,211 @@ public struct TimeDropdownView: View {
         formatter.dateFormat = "EEEE, MMM d"
         formatter.timeZone = .current
         return "Events on \(formatter.string(from: date))"
+    }
+}
+
+/// The notifications waiting in Notification Center, newest first.
+private struct NotificationListView: View {
+    let feed: NotificationFeed
+    let accent: ModuleAccent
+    let now: Date
+
+    /// Rows shown before the list is summarized, keeping the panel within its scroll budget.
+    static let visibleLimit = 30
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            SectionLabel("Notifications") {
+                if !feed.notifications.isEmpty {
+                    HStack(spacing: 8) {
+                        Chip(text: "\(feed.notifications.count)", color: accent.secondary)
+                        Button("Clear All") { feed.clearAll() }
+                            .buttonStyle(.plain)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(accent.primary)
+                            .help("Hide every notification from this list")
+                    }
+                }
+            }
+            switch feed.snapshot?.access {
+            case nil:
+                Text("Reading notifications…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+            case .fullDiskAccessRequired?:
+                Text("Barometer needs Full Disk Access to list notifications. Allow it in System Settings > "
+                    + "Privacy & Security > Full Disk Access.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+                Button("Open Full Disk Access Settings…") { NotificationAccessSettings.open() }
+                    .buttonStyle(.plain)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(accent.primary)
+                    .padding(.horizontal, 4)
+            case .unavailable?:
+                Text("Notifications are unavailable.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+            case .available?:
+                let notifications = feed.notifications
+                if notifications.isEmpty {
+                    Text("No notifications")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4)
+                } else {
+                    ForEach(notifications.prefix(Self.visibleLimit)) { notification in
+                        NotificationRow(notification: notification, now: now, dismiss: { feed.dismiss(notification) })
+                    }
+                    if notifications.count > Self.visibleLimit {
+                        Text("\(notifications.count - Self.visibleLimit) more in Notification Center")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 4)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// One notification: the sending application's icon, title, text, and age.
+///
+/// Clicking activates the application the way a banner does; macOS offers no way to hand it the
+/// notification itself. Hovering reveals a clear button for this one row.
+private struct NotificationRow: View {
+    let notification: DeliveredNotification
+    let now: Date
+    let dismiss: () -> Void
+    @Environment(\.menuDetailActions) private var menuDetailActions
+    @State private var isHovering = false
+
+    var body: some View {
+        Button {
+            menuDetailActions?.closeDropdown()
+            NotificationApplicationResolver.open(bundleIdentifier: notification.applicationIdentifier)
+        } label: {
+            HStack(alignment: .top, spacing: 8) {
+                Image(nsImage: NotificationApplicationResolver.icon(bundleIdentifier: notification.applicationIdentifier))
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 18, height: 18)
+                    .padding(.top, 1)
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(notification.title)
+                            .font(.callout.weight(.medium))
+                            .lineLimit(1)
+                        Spacer(minLength: 4)
+                        if isHovering {
+                            Button(action: dismiss) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Clear this notification")
+                            .accessibilityLabel("Clear")
+                        } else {
+                            Text(NotificationAgeFormatter.string(from: notification.date, now: now))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                    if let subtitle = notification.subtitle {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    if let body = notification.body {
+                        Text(body)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.primary.opacity(isHovering ? 0.06 : 0))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .help("Open \(NotificationApplicationResolver.name(bundleIdentifier: notification.applicationIdentifier))")
+    }
+}
+
+/// Short ages for notification rows.
+enum NotificationAgeFormatter {
+    static func string(from date: Date, now: Date, calendar: Calendar = .current) -> String {
+        let seconds = now.timeIntervalSince(date)
+        if seconds < 60 { return "now" }
+        if seconds < 3600 { return "\(Int(seconds / 60))m" }
+        if calendar.isDate(date, inSameDayAs: now) { return "\(Int(seconds / 3600))h" }
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
+           calendar.isDate(date, inSameDayAs: yesterday)
+        {
+            return "Yesterday"
+        }
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.setLocalizedDateFormatFromTemplate("MMM d")
+        return formatter.string(from: date)
+    }
+}
+
+/// Opens the Full Disk Access pane of System Settings.
+enum NotificationAccessSettings {
+    @MainActor
+    static func open() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
+    }
+}
+
+/// Icons and names for the applications behind notifications, cached per bundle identifier.
+@MainActor
+enum NotificationApplicationResolver {
+    private static var icons: [String: NSImage] = [:]
+    private static var names: [String: String] = [:]
+
+    static func icon(bundleIdentifier: String) -> NSImage {
+        if let cached = icons[bundleIdentifier] { return cached }
+        let icon = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier)
+            .map { NSWorkspace.shared.icon(forFile: $0.path) }
+            ?? NSImage(systemSymbolName: "app.badge", accessibilityDescription: "Application")
+            ?? NSImage()
+        let thumbnail = ProcessIconResolver.thumbnail(icon, side: 18)
+        if icons.count > 64 { icons.removeAll() }
+        icons[bundleIdentifier] = thumbnail
+        return thumbnail
+    }
+
+    static func name(bundleIdentifier: String) -> String {
+        if let cached = names[bundleIdentifier] { return cached }
+        let name = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier)
+            .map { FileManager.default.displayName(atPath: $0.path) }
+            .map { $0.hasSuffix(".app") ? String($0.dropLast(4)) : $0 }
+            ?? bundleIdentifier
+        names[bundleIdentifier] = name
+        return name
+    }
+
+    static func open(bundleIdentifier: String) {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else { return }
+        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
     }
 }
 

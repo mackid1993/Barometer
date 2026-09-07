@@ -58,6 +58,9 @@ public final class MonitoringCoordinator {
         historyCapacity: GraphHistoryRetention.capacity(for: .time)
     )
 
+    /// Notification Center list shown by the Time dropdown while it is open.
+    public let notificationFeed = NotificationFeed()
+
     /// Redraw state for the Combined status item.
     public let combinedStore = ModuleStore<CombinedSample>(
         historyCapacity: GraphHistoryRetention.capacity(for: .combined)
@@ -395,6 +398,7 @@ public final class MonitoringCoordinator {
                     store: timeStore,
                     weatherStore: weatherStore,
                     settingsStore: settingsStore,
+                    notificationFeed: notificationFeed,
                     requestCalendarAccess: { [weak self] in self?.requestCalendarAccess() },
                     selectCalendarDate: { [weak self] date in self?.selectCalendarDate(date) }
                 )
@@ -402,6 +406,7 @@ public final class MonitoringCoordinator {
             contentHeight: TimeDropdownView.contentSize.height,
             contentWidth: TimeDropdownView.contentSize.width,
             usesAttachedPanel: true,
+            visibilityAction: { [weak self] visible in self?.setNotificationFeed(active: visible) },
             tickAction: { [weak timeStore] in timeStore?.tick() },
             settingsAction: { settingsAction(.time) },
             quitAction: quitAction
@@ -1128,6 +1133,15 @@ public final class MonitoringCoordinator {
         if provider.accessState == .authorized {
             refreshNetworkIdentity()
         }
+    }
+
+    /// Reads and follows the Notification Center list only while the Time dropdown is open.
+    private func setNotificationFeed(active: Bool) {
+        guard active, settingsStore.settings.time.showsNotifications else {
+            notificationFeed.stop()
+            return
+        }
+        Task { [notificationFeed] in await notificationFeed.start() }
     }
 
     private func handleNetworkLocationAction() {

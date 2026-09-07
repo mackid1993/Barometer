@@ -42,6 +42,16 @@ struct TimeTests {
         )) == "7:00:00 AM")
     }
 
+    @Test
+    func clockTextSizeStaysInsideTheMenuBarRange() {
+        #expect(TimeSettings(menuBarFontSize: 30).menuBarFontSize == TimeSettings.menuBarFontSizeRange.upperBound)
+        #expect(TimeSettings(menuBarFontSize: 2).menuBarFontSize == TimeSettings.menuBarFontSizeRange.lowerBound)
+        #expect(TimeSettings(menuBarFontSize: nil).menuBarFontSize == nil)
+        let configuration = TimeMenuBarConfiguration(template: "{time}", showsSeconds: false, usesFixedWidth: true,
+                                                     fontSize: 99)
+        #expect(configuration.fontSize == TimeSettings.menuBarFontSizeRange.upperBound)
+    }
+
     @Test("time settings normalize world clock identifiers")
     func worldClockNormalization() {
         var settings = TimeSettings(worldClockIdentifiers: ["UTC", "UTC", "Bad/Zone", "Asia/Tokyo"])

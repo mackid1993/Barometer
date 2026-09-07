@@ -16,6 +16,30 @@ struct MenuBarRendererTests {
         scale: 1.15
     )
 
+    @Test("The largest clock text size fits the 22-point menu bar without touching its edges")
+    func clockTextSizeFitsMenuBar() throws {
+        let clockContext = RenderContext(
+            thickness: 22,
+            appearance: .dark,
+            palette: MenuBarPalette(light: .black, dark: .white),
+            fontSize: 12,
+            isMonochrome: true
+        ).withFontSize(CGFloat(TimeSettings.menuBarFontSizeRange.upperBound))
+        #expect(clockContext.fontSize == 14)
+
+        let image = TextRenderer(text: "Wed 12:59:59 PM").render(in: clockContext)
+        let tiff = try #require(image.tiffRepresentation)
+        let bitmap = try #require(NSBitmapImageRep(data: tiff))
+        func rowHasInk(_ y: Int) -> Bool {
+            (0..<bitmap.pixelsWide).contains { x in (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.05 }
+        }
+        #expect(!rowHasInk(0))
+        #expect(!rowHasInk(bitmap.pixelsHigh - 1))
+        #expect((1..<(bitmap.pixelsHigh - 1)).contains(where: rowHasInk))
+        let smaller = TextRenderer(text: "Wed 12:59:59 PM").render(in: clockContext.withFontSize(9))
+        #expect(smaller.size.width < image.size.width)
+    }
+
     @Test
     func batteryPresentationUsesStablePercentageGlyphWidth() {
         let snapshot = BatterySnapshot(

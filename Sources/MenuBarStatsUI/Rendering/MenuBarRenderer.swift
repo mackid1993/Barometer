@@ -107,6 +107,26 @@ public struct RenderContext {
         self.fontWeight = fontWeight
     }
 
+    /// The same context with another text size, for the one item that sizes its type on its own.
+    public func withFontSize(_ size: CGFloat) -> RenderContext {
+        RenderContext(
+            thickness: thickness,
+            appearance: appearance,
+            palette: palette,
+            graphPalette: graphPalette,
+            fillPalette: fillPalette,
+            warningPalette: warningPalette,
+            criticalPalette: criticalPalette,
+            fontSize: size,
+            isMonochrome: isMonochrome,
+            scale: scale,
+            backingScaleFactor: backingScaleFactor,
+            graphOpacity: graphOpacity,
+            fontWeight: fontWeight,
+            usesLiveWidth: usesLiveWidth
+        )
+    }
+
     /// Text font for menu bar renderers.
     ///
     /// Digits remain tabular so live values never shift their neighbors.

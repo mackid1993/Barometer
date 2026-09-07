@@ -468,6 +468,37 @@ allow `.combined` instances.
   light/dark rendering; full suite; signed local build and installed-app review. Wait for David's approval before
   pushing these changes or starting another GitHub build.
 
+### P8-T80 Open Notification Center from the clock (reverted)
+
+Requested and reverted on 2026-09-07. Pressing the system clock's Accessibility item does open Notification Center
+on a bare macOS 27, but the same press does nothing while Thaw is running, and David's goal is a hidden system clock
+with the notifications inside Barometer rather than Apple's panel. See P8-T82.
+
+### P8-T81 Clock text size
+
+Requested by David on 2026-09-07: the clock is the one item people size on its own.
+
+- Add `TimeSettings.menuBarFontSize` (optional, nil follows the global size, clamped to 9 to 14 pt) and carry it
+  through `TimeMenuBarConfiguration` so it is staged with the other clock edits until Apply Changes.
+- `TimeMenuBarPresenter` renders with the clock size through `RenderContext.withFontSize`.
+- Time settings: a "Use a separate text size for the clock" toggle and a slider under the format controls.
+- Verify: settings migration and staging tests, a render test proving 14 pt fits the 22 pt menu bar, full suite.
+
+### P8-T82 Notifications in the Time dropdown
+
+Requested by David on 2026-09-07 so the system clock can stay hidden by a menu bar manager: keep the native
+banners, drop Apple's notification panel, and list the waiting notifications in Barometer's clock dropdown.
+
+- `NotificationCenterSource` in `SystemSources` reads Notification Center's SQLite database read-only, joins the
+  per-app `delivered` UUID lists with `record` rows, and decodes each request's title, subtitle, body, and date.
+  Missing Full Disk Access reports `fullDiskAccessRequired`; no database reports `unavailable`.
+- `NotificationFeed` in `MenuBarStatsCore` reads when the Time dropdown opens, follows the database and its WAL
+  through a file watcher with a 250 ms debounce, and stops when the dropdown closes.
+- `TimeSettings.showsNotifications`, default off. Time settings explain the grant and open the Full Disk Access
+  pane. The dropdown card lists up to 30 rows with the sending app's icon, title, text, and age; a row opens the app.
+- Verify: fixture-database source tests, age formatter test, settings migration, the panel screens with a preset
+  feed, the popover memory benchmark, full suite, signed local build.
+
 ---
 
 ## Phase 9: After v1

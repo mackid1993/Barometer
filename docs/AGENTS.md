@@ -386,6 +386,12 @@ universal performance guarantee.
   authorized; offer a retry and report the network name as unavailable instead.
 - Never request a new TCC category during launch or background sampling. Permission requests must follow a direct
   user action and require project approval before implementation.
+- Full Disk Access is approved for exactly one use: `NotificationCenterSource` reads Notification Center's SQLite
+  database (read-only, only while the Time dropdown is open and the Time option is on) so the dropdown can list
+  delivered notifications. macOS offers no prompt for Full Disk Access; Settings shows the status and opens the pane.
+  Never write to that database, never read other protected data, and never request Accessibility: opening
+  Notification Center by pressing the system clock through Accessibility was tried in P8-T80 and reverted because
+  the press stops working under a menu bar manager and David wants the system clock hidden, not pressed.
 - `LSUIElement` keeps Barometer out of the Dock; it does not replace correct bundle identity or signing.
 - `make app` and `make install` use `CODESIGN_IDENTITY` when supplied, otherwise the first valid Developer ID
   Application identity in the login keychain, and fall back to an ad-hoc signature only when neither exists.

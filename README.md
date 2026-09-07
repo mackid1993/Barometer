@@ -113,6 +113,9 @@ on, for your public IP address (ipify.org).
 - **Location** is optional. It is requested only when you enable current-location weather. It also lets Barometer show
   the name of the Wi-Fi network you are on.
 - **Calendar** is optional. It is requested only when you press **Allow Calendar Access** in Time settings.
+- **Full Disk Access** is optional. It is needed only for **Show notifications in the dropdown** in Time settings,
+  which lists the notifications waiting in Notification Center so you can hide the system clock. Barometer only
+  reads that list; it never dismisses or changes a notification, and banners keep arriving as before.
 - Nothing else asks for a permission. Readings that a Mac does not provide are shown as unavailable.
 
 Settings can be exported to a JSON file and imported on another Mac.

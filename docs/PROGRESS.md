@@ -4221,3 +4221,62 @@ and the notes describe only what shipped.
 
 Dispatched the Release workflow for 1.0.7 with notarization on. Verification of the artifact is recorded in the
 publish entry.
+
+## P8-T80 Open Notification Center from the clock (reverted)
+
+The Accessibility press on `com.apple.menuextra.clock` (hosted by `com.apple.MenuBarAgent` on macOS 27) opened
+Notification Center from a trusted process on the bare system, and the installed Barometer logged
+`notification center toggled` for its press. With Thaw 3.0.0-alpha.1 running, `AXPress` and `AXShowMenu` on the
+same element return success and open nothing, from Barometer and from a probe alike; a synthesized mouse click at
+the element's frame still opens it, which is useless once the clock is hidden. David's goal changed to a hidden
+system clock with the notifications inside Barometer, so the task was reverted in full (commit 768a2d2) and
+Accessibility is not requested.
+
+Also verified while probing: Thaw's source treats the clock as immovable on the Control Center namespace, but on
+macOS 27 it tags the item `com.apple.MenuBarAgent:com.apple.menuextra.clock` and David hides and shows it with
+Thaw. A synthesized Command-drag of the clock from Barometer did not move it; Thaw's mover is a 2,400-line event
+tap subsystem. Barometer does not hide the system clock itself; the menu bar manager does.
+
+## P8-T81 Clock text size
+
+`TimeSettings.menuBarFontSize` (optional, clamped to 9 to 14 pt), carried through `TimeMenuBarConfiguration` so
+it is staged until Apply Changes like the other clock edits, and rendered through `RenderContext.withFontSize`
+in `TimeMenuBarPresenter`. Time settings gained "Use a separate text size for the clock" and a slider.
+
+## P8-T82 Notifications in the Time dropdown
+
+Verified the database before implementation with the terminal's Full Disk Access: `record.data` is a binary
+property list whose `req` dictionary carries `titl`, `subt`, and `body`, with the sending bundle identifier in
+`app` and the delivery time in `date`; `delivered.list` per application is the concatenation of 16-byte record
+UUIDs still shown in Notification Center (38 UUIDs matched 38 records); rows with a null `delivered_date` are
+scheduled requests. `notifyutil` observed no Darwin notification for a new delivery, so the feed watches the
+database, its WAL, and the directory through `DispatchSource` with a 250 ms debounce, only while the dropdown is
+open.
+
+Implemented `NotificationCenterSource` (SystemSources, read-only SQLite through the system `sqlite3` library),
+`NotificationFeed` (Core, observable, with persisted local clears pruned to what the system still holds),
+`TimeSettings.showsNotifications`, the Time settings section with the Full Disk Access status and pane link, and
+the dropdown card: app icon, title, subtitle, body, age, Clear All, a hover clear per row, and a click that closes
+the dropdown and activates the application. macOS gives another application no way to dismiss a notification or
+hand it back to its application, so clears stay local and a click activates the app; both are documented in the
+UI copy. The About pane credits and links the Thaw developers.
+
+`python3 Scripts/check-source-invariants.py`: `Source invariant check passed`.
+
+`POPOVER_SNAPSHOT_DIRECTORY="$PWD/dist/panel-screens" make test` (exit 0):
+
+```text
+✔ Test run with 37 tests in 5 suites passed after 0.367 seconds.
+✔ Test run with 127 tests in 14 suites passed after 123.183 seconds.
+✔ Test run with 146 tests in 23 suites passed after 9.776 seconds.
+```
+
+Inspected `time-notifications-NSAppearanceNameDarkAqua-right-top.png` and the Aqua capture: the card sits between
+the events and world clocks, rows align with the event rows, icons are 18 pt, and nothing clips.
+
+`DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer python3 Scripts/benchmark-popover-memory.py`:
+peak 49,677,248 bytes across eleven cycles with no continuing growth (limit 128 MB). The script needs the
+Makefile's `DEVELOPER_DIR`; without it the debug modules are not found.
+
+`git diff --check`: clean. `make install` built the Developer ID signed bundle and relaunched it from
+`/Applications`. The Full Disk Access grant and the installed-app list are David's to check.

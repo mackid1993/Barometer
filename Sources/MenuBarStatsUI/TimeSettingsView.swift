@@ -9,6 +9,7 @@ struct TimeSettingsView: View {
     let settingsStore: SettingsStore
     let requestCalendarAccess: @MainActor () -> Void
     @State private var timeZoneSearch = ""
+    @State private var notificationAccess = NotificationCenterSource.accessState()
 
     private var moduleSettings: ModuleSettings {
         settingsStore.settings.modules[.time] ?? ModuleSettings(mode: "custom", interval: 60)
@@ -32,6 +33,19 @@ struct TimeSettingsView: View {
                 Text("Tokens: {time}, {time24}, {date}, {weekday}, {week}, {day}, {zone}")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Toggle("Use a separate text size for the clock", isOn: separateTextSizeBinding)
+                if let clockFontSize = menuBarConfiguration.fontSize {
+                    HStack {
+                        Text("Clock text size")
+                        Slider(value: clockTextSizeBinding, in: TimeSettings.menuBarFontSizeRange, step: 0.5)
+                        Text(String(format: "%.1f pt", clockFontSize))
+                            .monospacedDigit()
+                            .frame(width: 48, alignment: .trailing)
+                    }
+                    Text("Takes effect when you select Apply Changes, which reopens Barometer.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 MenuBarColorPickerRows(
                     lightColor: colorBinding(\.lightColor),
                     darkColor: colorBinding(\.darkColor),
@@ -64,6 +78,20 @@ struct TimeSettingsView: View {
                 }
                 calendarAuthorizationView
             }
+            Section("Notifications") {
+                Toggle("Show notifications in the dropdown", isOn: timeBinding(\.showsNotifications))
+                Text("Lists the notifications waiting in macOS Notification Center, so a hidden system clock "
+                    + "loses nothing. Banners keep arriving exactly as before, and Barometer never dismisses or "
+                    + "changes a notification.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if settingsStore.settings.time.showsNotifications {
+                    notificationAccessView
+                }
+            }
+            .task(id: settingsStore.settings.time.showsNotifications) {
+                await watchNotificationAccess()
+            }
         }
         .formStyle(.grouped)
         .settingsPane(module: .time, settings: settingsStore.settings)
@@ -83,6 +111,55 @@ struct TimeSettingsView: View {
         case .unavailable:
             Text("Calendar events are unavailable.").font(.caption).foregroundStyle(.secondary)
         }
+    }
+
+    @ViewBuilder
+    private var notificationAccessView: some View {
+        switch notificationAccess {
+        case .available:
+            Label("Full Disk Access allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+        case .fullDiskAccessRequired:
+            Text("Barometer needs Full Disk Access to read the notification list. Turn Barometer on in "
+                + "System Settings > Privacy & Security > Full Disk Access.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Button("Open Full Disk Access Settings…") { NotificationAccessSettings.open() }
+        case .unavailable:
+            Text("Notifications are unavailable on this Mac.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    /// Tracks the Full Disk Access grant while the option is on, so the pane updates as soon as it is allowed.
+    private func watchNotificationAccess() async {
+        notificationAccess = NotificationCenterSource.accessState()
+        guard settingsStore.settings.time.showsNotifications else { return }
+        while !Task.isCancelled, notificationAccess != .available {
+            try? await Task.sleep(for: .seconds(1))
+            notificationAccess = NotificationCenterSource.accessState()
+        }
+    }
+
+    /// Turning the separate size on starts from the global text size so nothing jumps.
+    private var separateTextSizeBinding: Binding<Bool> {
+        Binding(
+            get: { menuBarConfiguration.fontSize != nil },
+            set: { isOn in
+                var configuration = menuBarConfiguration
+                configuration.fontSize = isOn ? settingsStore.fontSize : nil
+                settingsStore.stageTimeMenuBarConfiguration(configuration)
+            }
+        )
+    }
+
+    private var clockTextSizeBinding: Binding<Double> {
+        Binding(
+            get: { menuBarConfiguration.fontSize ?? settingsStore.fontSize },
+            set: { size in
+                var configuration = menuBarConfiguration
+                configuration.fontSize = TimeSettings.clampedMenuBarFontSize(size)
+                settingsStore.stageTimeMenuBarConfiguration(configuration)
+            }
+        )
     }
 
     private var searchResults: [String] {

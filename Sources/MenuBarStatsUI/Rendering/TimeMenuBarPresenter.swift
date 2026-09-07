@@ -11,6 +11,7 @@ public enum TimeMenuBarPresenter {
         timeSettings: TimeSettings,
         context: RenderContext
     ) -> StatusItemContent {
+        let context = timeSettings.menuBarFontSize.map { context.withFontSize(CGFloat($0)) } ?? context
         guard let sample,
               let timeZone = TimeZone(identifier: sample.systemTimeZoneIdentifier)
         else {

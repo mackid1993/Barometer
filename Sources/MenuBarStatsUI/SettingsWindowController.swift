@@ -734,6 +734,12 @@ private struct AboutSettingsView: View {
                             }
                             .buttonStyle(.glass)
                         }
+                        if let thawURL = URL(string: "https://github.com/thaw-app/Thaw") {
+                            Link(destination: thawURL) {
+                                Label("Thaw", systemImage: "menubar.rectangle")
+                            }
+                            .buttonStyle(.glass)
+                        }
                     }
                 }
                 Text(updateController.statusMessage)
@@ -749,6 +755,9 @@ private struct AboutSettingsView: View {
                         MetricRow(
                             label: "Hardware sources", value: "IOKit, IOReport, SMC (read-only)", symbol: "cpu",
                             tint: accent.primary)
+                        MetricRow(
+                            label: "Thanks", value: "The Thaw developers, for the open source menu bar manager",
+                            symbol: "heart", tint: accent.secondary)
                     }
                 }
                 .frame(maxWidth: 460)
