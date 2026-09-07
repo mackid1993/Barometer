@@ -65,6 +65,7 @@ struct NotificationListView: View {
     let now: Date
     @Environment(\.menuDetailActions) private var menuDetailActions
     @State private var activationError: String?
+    @State private var needsHotCorner = false
     @State private var expandedGroupIdentifiers: Set<String>
 
     init(
@@ -88,11 +89,31 @@ struct NotificationListView: View {
                     }
                 }
             }
+            if needsHotCorner {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Set a hot corner to Notification Center first. With the system clock hidden, that corner "
+                        + "is what opens the panel. Time and Notifications settings has the steps.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("Open Settings…") { menuDetailActions?.openSettings() }
+                        .buttonStyle(.plain)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(accent.primary)
+                }
+                .padding(.horizontal, 4)
+                .padding(.bottom, 4)
+            }
             Button {
+                guard NotificationCenterOpening.assignedCornerKey != nil else {
+                    needsHotCorner = true
+                    return
+                }
+                needsHotCorner = false
                 menuDetailActions?.closeDropdown()
                 NotificationCenterOpening.open()
             } label: {
                 Label("Open Notification Center", systemImage: "bell.badge")
+                    .foregroundStyle(Color.white)
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)

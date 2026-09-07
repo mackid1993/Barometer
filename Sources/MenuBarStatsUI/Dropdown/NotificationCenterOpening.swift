@@ -3,75 +3,106 @@ import ApplicationServices
 import OSLog
 import SystemSources
 
-/// Opens the native panel through the shortcut the user configured in macOS.
+/// Opens macOS Notification Center through a hot corner the user assigned to it.
+///
+/// The panel opens from the clock item or from the Dock. With the clock removed from the bar, the clock
+/// press, the Show Notification Center shortcut, and every synthesized form of them do nothing, but the
+/// Dock's own triggers still work: the trackpad edge swipe and a hot corner assigned to Notification
+/// Center. Verified on macOS 27 with the clock hidden by a menu bar manager: driving the pointer into
+/// such a corner with synthesized moves opens the panel.
+///
+/// Barometer never writes the Dock's preferences and never relaunches the Dock; the corner is assigned
+/// once by the user in System Settings. A press hides the cursor, jumps it into the corner, waits for
+/// the panel to report open, and puts the cursor back exactly where it was before showing it again, so
+/// the pointer is never seen to move.
 @MainActor
 enum NotificationCenterOpening {
+    private static let logger = Logger(subsystem: "com.barometer.app", category: "notification-center")
     private static var isOpening = false
+
+    /// Geometric corners by the Dock's preference key.
+    private static func point(for key: String, in display: CGRect) -> CGPoint {
+        switch key {
+        case "tl": CGPoint(x: display.minX, y: display.minY)
+        case "tr": CGPoint(x: display.maxX - 1, y: display.minY)
+        case "bl": CGPoint(x: display.minX, y: display.maxY - 1)
+        default: CGPoint(x: display.maxX - 1, y: display.maxY - 1)
+        }
+    }
+
+    /// The Dock preference key of a corner assigned to Notification Center, if any.
+    static var assignedCornerKey: String? {
+        DockHotCorners.preferenceActions().first { $0.value == Int(DockHotCorners.notificationCenterAction) }?.key
+    }
+
+    /// Whether Notification Center's panel is currently open, from the panel process's own expanded state.
+    static func isPanelOpen() -> Bool {
+        for host in NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.notificationcenterui") {
+            var value: AnyObject?
+            let application = AXUIElementCreateApplication(host.processIdentifier)
+            if AXUIElementCopyAttributeValue(application, "AXExpanded" as CFString, &value) == .success,
+               let expanded = value as? Bool, expanded
+            {
+                return true
+            }
+        }
+        return false
+    }
 
     static func open() {
         guard !isOpening else { return }
         isOpening = true
         Task {
             defer { isOpening = false }
-            // Let the dropdown dismiss and release its menu event tracking before sending keys.
+            // Let the dropdown dismiss and release its menu event tracking first.
             try? await Task.sleep(for: .milliseconds(250))
-            guard let shortcut = NotificationCenterShortcut.readConfiguredShortcut() else {
-                showSetup()
+            guard let key = assignedCornerKey else {
+                logger.notice("no hot corner is assigned to Notification Center; see Time and Notifications settings")
                 return
             }
             guard AXIsProcessTrusted() else {
-                let alert = NSAlert()
-                alert.messageText = "Allow Barometer to use your shortcut"
-                alert.informativeText = "Enable Barometer in System Settings > Privacy & Security > Accessibility, "
-                    + "then click Open Notification Center again."
-                alert.addButton(withTitle: "Open Accessibility Settings")
-                alert.addButton(withTitle: "Cancel")
-                NSApp.activate(ignoringOtherApps: true)
-                if alert.runModal() == .alertFirstButtonReturn {
-                    NotificationAccessSettings.requestAccessibility()
-                }
+                logger.error("opening notification center needs Accessibility access")
+                NotificationAccessSettings.requestAccessibility()
                 return
             }
-            let modifiers: [(CGEventFlags, String)] = [
-                (.maskControl, "control down"), (.maskShift, "shift down"),
-                (.maskAlternate, "option down"), (.maskCommand, "command down"),
-            ]
-            let keys = modifiers.filter { shortcut.modifiers.contains($0.0) }.map(\.1)
-            let using = keys.isEmpty ? "" : " using {" + keys.joined(separator: ", ") + "}"
-            let source = "tell application id \"com.apple.systemevents\" to key code \(shortcut.keyCode)" + using
-            var error: NSDictionary?
-            guard let script = NSAppleScript(source: source) else { return }
-            script.executeAndReturnError(&error)
-            if let error {
-                let alert = NSAlert()
-                alert.messageText = "Could not send your shortcut"
-                let number = (error[NSAppleScript.errorNumber] as? NSNumber)?.intValue ?? 0
-                Logger(subsystem: "com.barometer.app", category: "NotificationCenter").error(
-                    "System Events could not send the Notification Center shortcut: \(number)"
-                )
-                alert.informativeText = "Allow Barometer to control System Events in System Settings > "
-                    + "Privacy & Security > Automation, and enable Barometer under Accessibility. "
-                    + "Then click Open Notification Center again. (Error \(number))"
-                alert.addButton(withTitle: "OK")
-                NSApp.activate(ignoringOtherApps: true)
-                alert.runModal()
-            }
+            if isPanelOpen() { return }
+            let opened = await fire(point(for: key, in: CGDisplayBounds(CGMainDisplayID())))
+            logger.notice("notification center via the \(key, privacy: .public) corner: \(opened ? "opened" : "did not open", privacy: .public)")
         }
     }
 
-    private static func showSetup() {
-        let alert = NSAlert()
-        alert.messageText = "Set a Notification Center shortcut"
-        alert.informativeText = "In System Settings, open Keyboard > Keyboard Shortcuts > Mission Control. "
-            + "Enable Show Notification Center and assign a shortcut, such as Control–Option–N. "
-            + "Click Done, check that the shortcut opens Notification Center, then return to Barometer "
-            + "and click Open Notification Center again. Barometer will automatically use your shortcut."
-        alert.addButton(withTitle: "Open Keyboard Settings")
-        alert.addButton(withTitle: "Cancel")
-        NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn,
-              let url = URL(string: "x-apple.systempreferences:com.apple.preference.keyboard")
-        else { return }
+    /// Hides the cursor, jumps it into the corner, waits for the panel, and puts it back before showing it.
+    private static func fire(_ target: CGPoint) async -> Bool {
+        guard let original = CGEvent(source: nil)?.location else { return false }
+        let source = CGEventSource(stateID: .hidSystemState)
+        let inward = CGPoint(x: target.x < 1 ? 1 : -1, y: target.y < 1 ? 1 : -1)
+        let approach = [CGPoint(x: target.x + inward.x * 4, y: target.y + inward.y * 4), target, target]
+        CGDisplayHideCursor(CGMainDisplayID())
+        defer { CGDisplayShowCursor(CGMainDisplayID()) }
+        for point in approach {
+            guard let move = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: point,
+                                     mouseButton: .left)
+            else { return false }
+            move.post(tap: .cghidEventTap)
+            try? await Task.sleep(for: .milliseconds(16))
+        }
+        var opened = false
+        let deadline = ContinuousClock.now + .milliseconds(700)
+        while ContinuousClock.now < deadline {
+            if isPanelOpen() { opened = true; break }
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+        if let back = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: original,
+                              mouseButton: .left)
+        {
+            back.post(tap: .cghidEventTap)
+        }
+        return opened
+    }
+
+    /// Opens the Desktop & Dock pane, where the corner is assigned.
+    static func openHotCornerSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.Desktop-Settings.extension") else { return }
         NSWorkspace.shared.open(url)
     }
 }

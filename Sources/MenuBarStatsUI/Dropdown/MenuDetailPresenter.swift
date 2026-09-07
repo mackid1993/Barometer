@@ -36,6 +36,11 @@ final class MenuDetailActions {
     func closeDropdown() {
         owner?.closeDropdown()
     }
+
+    /// Closes the dropdown and opens Barometer's settings, for rows that need the user to set something up.
+    func openSettings() {
+        owner?.showSettings()
+    }
 }
 
 /// Presents an attached, non-draggable panel only after AppKit finishes tracking the menu.

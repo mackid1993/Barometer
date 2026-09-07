@@ -576,6 +576,22 @@ The writer, daemon restarter, recovery journal, and all clear controls are remov
 design is the read-only grouped list plus **Open Notification Center**, driven by a shortcut the user configures in
 macOS. Never restore the P8-T92 approach without a new design that avoids direct database writes and process restarts.
 
+### P8-T93 Open Notification Center through a hot corner
+
+David's decision on 2026-09-07 after every other trigger was tried with the clock hidden by Thaw: the clock
+press, the Show Notification Center shortcut (physical and synthesized), System Events, the private menu-tracking
+call, a click on the clock's former spot, and the panel's own menus (no item shows the panel). The Dock's triggers
+still work with the clock gone: the trackpad edge swipe and a hot corner assigned to Notification Center. A
+synthesized pointer entry into such a corner opens the panel (verified by David from Terminal).
+
+- The user assigns any corner to Notification Center in System Settings, which applies it live; Barometer reads
+  the Dock's preferences to find it, never writes them, never relaunches the Dock, and never borrows a corner
+  (a live CoreDock assignment was tried and did not fire).
+- A press hides the cursor, jumps it into the corner, waits for the panel's expanded state, and puts the cursor
+  back before showing it, so the pointer is never seen to move. No sweep across corners, ever.
+- Time and Notifications settings carries the note and an "Open Hot Corner Settings…" button; the flyout carries
+  only the glass "Open Notification Center" button. The list stays read-only.
+
 ---
 
 ## Phase 9: After v1

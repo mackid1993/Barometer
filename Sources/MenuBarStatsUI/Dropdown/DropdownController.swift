@@ -200,6 +200,12 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         maximumPanelHeight = max(BarometerDesign.maximumPanelHeight, height)
     }
 
+    /// Closes the dropdown and opens Settings, the same as the footer button.
+    func showSettings() {
+        closeDropdown()
+        settingsAction()
+    }
+
     /// Closes the open dropdown, whichever way it was presented.
     func closeDropdown() {
         if usesAttachedPanel {

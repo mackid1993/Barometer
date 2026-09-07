@@ -4953,3 +4953,17 @@ A final no-pointer activation probe used NSRunningApplication.activate(options: 
 It returned true, but NotificationCenter AXWindows remained zero before and after 700 ms. Evidence is in
 `dist/nc-runningapp-activate.m` and `.out`. Activation acceptance is not panel-opening success.
 The task remains unresolved under the combined requirements of zero pointer movement and unchanged clock hiding.
+
+## P8-T93 Open Notification Center through a hot corner
+
+Traced from David's terminal: with the clock hidden by Thaw, driving the pointer into a corner assigned to
+Notification Center opened the panel (after a Dock relaunch made the assignment take), while a corner set through
+preferences plus the Dock's change notification did not, and a live CoreDock assignment from the app did not fire
+either. A pointer sweep across all four corners in one build was the "mouse stroke" David reported; the opener now
+fires exactly the one assigned corner. Notification Center's own menus were dumped through Accessibility: the
+"Notification Center" and "File" menus are empty and the rest are text menus, so no pointer-free route exists.
+
+Shipped: `NotificationCenterOpening` reads the assigned corner from the Dock's preferences, hides the cursor,
+jumps it into the corner, waits up to 700 ms for the panel's expanded state, and returns the cursor before
+showing it. `DockHotCorners` only reads preferences. Settings carries the guidance and the pane button. David
+confirmed the panel opens from the button. Builds only, no test runs, per David's instruction.

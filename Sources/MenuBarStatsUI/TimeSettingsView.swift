@@ -142,6 +142,18 @@ struct TimeSettingsView: View {
             }
             Section("Notifications") {
                 Toggle("Show notifications in the dropdown", isOn: timeBinding(\.showsNotifications))
+                Text("Open Notification Center in the dropdown fires a hot corner assigned to Notification Center, "
+                    + "the one trigger that still works with the system clock hidden. Assign any corner to "
+                    + "Notification Center in System Settings > Desktop & Dock > Hot Corners. The pointer is hidden "
+                    + "for the instant it takes and ends where it was.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if NotificationCenterOpening.assignedCornerKey == nil {
+                    Text("No corner is assigned to Notification Center yet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Button("Open Hot Corner Settings…") { NotificationCenterOpening.openHotCornerSettings() }
                 Text("Lists the notifications waiting in macOS Notification Center, so a hidden system clock "
                     + "doesn't prevent access. Follows macOS notification visibility settings. Clicking and "
                     + "clearing require Accessibility access; banners keep arriving normally.")
