@@ -46,6 +46,12 @@ public final class SettingsStore {
     /// Width-affecting clock choices waiting for a clean application relaunch.
     public private(set) var pendingTimeMenuBarConfiguration: TimeMenuBarConfiguration?
 
+    /// Menu bar text size waiting for a clean application relaunch.
+    ///
+    /// Staged because every item's width is calculated from the text size once, before it becomes
+    /// visible; resizing live items is what made them lose their places under a menu bar manager.
+    public private(set) var pendingFontSize: Double?
+
     /// Status-item spacing waiting for a clean application relaunch.
     ///
     /// Staged because AppKit reads the spacing defaults when it creates each status item window.
@@ -130,6 +136,7 @@ public final class SettingsStore {
         applyPendingVisibility(to: &result)
         applyPendingTimeMenuBarConfiguration(to: &result)
         applyPendingStatusItemSpacing(to: &result)
+        applyPendingFontSize(to: &result)
         return result
     }
 
@@ -142,6 +149,7 @@ public final class SettingsStore {
             || !pendingStackHidesSourceItems.isEmpty
             || pendingTimeMenuBarConfiguration != nil
             || pendingStatusItemSpacing != nil
+            || pendingFontSize != nil
     }
 
     /// Clock configuration shown by Settings, including edits waiting for Apply Changes.
@@ -157,6 +165,17 @@ public final class SettingsStore {
     /// Status-item spacing shown by Settings, including an edit waiting for Apply Changes.
     public var statusItemSpacing: StatusItemSpacing {
         pendingStatusItemSpacing ?? settings.statusItemSpacing
+    }
+
+    /// Menu bar text size shown by Settings, including an edit waiting for Apply Changes.
+    public var fontSize: Double {
+        pendingFontSize ?? settings.fontSize
+    }
+
+    /// Stages a text size so every item is sized for it once, on the reopen.
+    public func stageFontSize(_ size: Double) {
+        let clamped = AppSettings.clampedMenuBarFontSize(size)
+        pendingFontSize = clamped == settings.fontSize ? nil : clamped
     }
 
     /// Stages a spacing choice so AppKit reads it before it creates the next status item windows.
@@ -250,6 +269,7 @@ public final class SettingsStore {
         applyPendingVisibility(to: &updated)
         applyPendingTimeMenuBarConfiguration(to: &updated)
         applyPendingStatusItemSpacing(to: &updated)
+        applyPendingFontSize(to: &updated)
         clearPendingMenuBarChanges()
         settings = updated
         saveNow()
@@ -268,6 +288,7 @@ public final class SettingsStore {
         pendingStackHidesSourceItems.removeAll()
         pendingTimeMenuBarConfiguration = nil
         pendingStatusItemSpacing = nil
+        pendingFontSize = nil
     }
 
     private func applyPendingVisibility(to result: inout AppSettings) {
@@ -292,6 +313,11 @@ public final class SettingsStore {
             guard let index = result.stacks.stacks.firstIndex(where: { $0.id == id }) else { continue }
             result.stacks.stacks[index].hidesSourceItems = hidesSourceItems
         }
+    }
+
+    private func applyPendingFontSize(to result: inout AppSettings) {
+        guard let pendingFontSize else { return }
+        result.fontSize = pendingFontSize
     }
 
     private func applyPendingStatusItemSpacing(to result: inout AppSettings) {

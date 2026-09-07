@@ -115,7 +115,34 @@ public struct NetworkSample: Equatable, Sendable {
     /// Resolves a selected interface, falling back to the primary route.
     public func interface(named selectedName: String?) -> NetworkInterfaceSample? {
         if selectedName == Self.allInterfacesName { return aggregate }
-        return selectedName.flatMap { name in interfaces.first { $0.name == name } } ?? primary
+        return selectedName.flatMap { name in interfaces.first { $0.name == name } } ?? automatic
+    }
+
+    /// The Automatic reading: the primary interface's identity with every local network counted.
+    ///
+    /// Counting only the primary device hid traffic to the local network that travels over other
+    /// devices: a wired port beside Wi-Fi, a virtual machine bridge, AirDrop. Automatic now sums
+    /// every active interface except loopback, which is not a network, and VPN tunnels, whose
+    /// bytes also pass through the physical device and would be counted twice. The name and
+    /// addresses stay the primary interface's so the dropdown still identifies the connection.
+    public var automatic: NetworkInterfaceSample? {
+        guard let primary else { return nil }
+        let counted = interfaces.filter { $0.isUp && !$0.isLoopback && !$0.isVPN }
+        guard counted.count > 1 else { return primary }
+        return NetworkInterfaceSample(
+            name: primary.name,
+            isUp: primary.isUp,
+            isLoopback: false,
+            isVPN: false,
+            ipv4Addresses: primary.ipv4Addresses,
+            ipv6Addresses: primary.ipv6Addresses,
+            downloadBytesPerSecond: counted.reduce(0) { $0 + $1.downloadBytesPerSecond },
+            uploadBytesPerSecond: counted.reduce(0) { $0 + $1.uploadBytesPerSecond },
+            receivedBytes: counted.reduce(UInt64(0)) { $0 &+ $1.receivedBytes },
+            sentBytes: counted.reduce(UInt64(0)) { $0 &+ $1.sentBytes },
+            inputErrors: counted.reduce(UInt64(0)) { $0 &+ $1.inputErrors },
+            outputErrors: counted.reduce(UInt64(0)) { $0 &+ $1.outputErrors }
+        )
     }
 
     /// Reserved `selectedInterfaceName` meaning every active interface combined.

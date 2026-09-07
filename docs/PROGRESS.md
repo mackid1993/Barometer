@@ -4141,3 +4141,29 @@ Verification:
   new setting.
 - Installed with `make install`, not notarized, and captured on the dark bar: the mark now renders light like its
   neighbors.
+
+## P8-T76 Count the local network in Automatic and stage the text size
+
+Two items from David's list.
+
+**Network showed only the primary device.** Automatic resolved to the primary interface alone, so traffic to the
+local network over any other device, a wired port beside Wi-Fi, a virtual machine bridge, AirDrop, was invisible.
+`NetworkSample.automatic` now keeps the primary interface's name and addresses but sums the rates and totals of every
+active interface except loopback, which is not a network, and VPN tunnels, whose bytes also cross the physical device
+and would be counted twice. **All interfaces** remains the explicit everything-including-tunnels total. Every
+consumer, the menu bar, the dropdown, and stack metrics, goes through `interface(named:)`, so the change reaches all
+of them.
+
+**Text size applied live without a relaunch prompt.** Every other width-affecting setting stages behind Apply
+Changes so item widths are calculated once on the reopen; text size had been given a one-shot live resize instead.
+It now stages like the rest: `SettingsStore.pendingFontSize`, `stageFontSize(_:)`, and `fontSize` for display, with
+the pending value clamped to the drawable range and folded into `settingsIncludingPendingMenuBarChanges` so the
+sizing caption reflects it. The one-shot geometry permit for text size in `StatusItemController` is removed.
+
+Verification:
+
+- `make test` passed: 303 tests across three targets. New coverage proves Automatic sums a bridge with the primary
+  device but not loopback, excludes a VPN tunnel that All interfaces includes, keeps the primary's identity, and that
+  text size stays out of saved settings until Apply Changes, is clamped while staged, and is not a change when
+  restaged to the saved value.
+- `swift build -c release` completed and `git diff --check` reported no whitespace errors.

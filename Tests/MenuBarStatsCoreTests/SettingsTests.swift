@@ -644,6 +644,33 @@ struct SettingsTests {
         #expect(!store.hasPendingMenuBarChanges)
     }
 
+    @Test("Text size stages until Apply Changes and is clamped while staged")
+    @MainActor
+    func stagesFontSize() {
+        let suiteName = "com.barometer.app.Tests.PendingFontSize"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = SettingsStore(defaults: defaults)
+        #expect(store.fontSize == 12)
+        store.stageFontSize(10)
+        #expect(store.settings.fontSize == 12, "the saved size must not change before the reopen")
+        #expect(store.fontSize == 10)
+        #expect(store.settingsIncludingPendingMenuBarChanges.fontSize == 10)
+        #expect(store.hasPendingMenuBarChanges)
+
+        store.stageFontSize(4)
+        #expect(store.fontSize == 9, "staged sizes stay inside the drawable range")
+
+        store.applyPendingMenuBarChanges()
+        #expect(store.settings.fontSize == 9)
+        #expect(!store.hasPendingMenuBarChanges)
+
+        store.stageFontSize(9)
+        #expect(!store.hasPendingMenuBarChanges, "restaging the saved size is not a change")
+    }
+
     @Test("Restaging the saved spacing clears the pending change")
     @MainActor
     func discardsRedundantStatusItemSpacingStage() {

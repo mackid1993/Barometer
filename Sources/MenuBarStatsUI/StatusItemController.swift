@@ -45,7 +45,6 @@ public final class StatusItemController<Sample: HistoryProjecting> {
     private var lengthLatch = StatusItemLengthLatch()
     private var hasAssignedLength = false
     private var appliedLiveItemWidth: Bool?
-    private var appliedFontSize: Double?
     private var appliedImageFingerprint: Int?
     private var geometryLatch = StatusItemGeometryLatch()
     private var appearanceObservations: [NSKeyValueObservation] = []
@@ -147,15 +146,6 @@ public final class StatusItemController<Sample: HistoryProjecting> {
         // readable interpretation and the one the other modules already used via `suffix`.
         let history = store.history.recent(StatusItemRendering.renderedHistoryLimit)
         let content = renderContent(store.latestSample, history, moduleSettings, context)
-        if appliedFontSize != appSettings.effectiveMenuBarFontSize {
-            // Text size is a user action, so it earns one geometry change and one resize: the
-            // canvas is redrawn at the new size and the frame follows it.
-            if appliedFontSize != nil {
-                geometryLatch.permitChange()
-                lengthLatch.permitResize()
-            }
-            appliedFontSize = appSettings.effectiveMenuBarFontSize
-        }
         if appliedLiveItemWidth != appSettings.usesLiveItemWidth {
             // Changing the preference is a user action, so it earns one resize in either
             // direction: on tightens now, off restores the reserved width now.

@@ -149,10 +149,36 @@ struct NetworkTests {
         #expect(all?.receivedBytes == 30)
         #expect(all?.sentBytes == 60)
 
-        // The existing selections are unchanged.
+        // A named selection is that device alone.
         #expect(sample.interface(named: "en0")?.downloadBytesPerSecond == 100)
-        #expect(sample.interface(named: nil)?.name == "en0")
         #expect(sample.interface(named: "lo0")?.downloadBytesPerSecond == 5)
+
+        // Automatic keeps the primary's identity but counts every local network: en0 plus the
+        // virtual machine bridge, not loopback.
+        let auto = sample.interface(named: nil)
+        #expect(auto?.name == "en0")
+        #expect(auto?.downloadBytesPerSecond == 103)
+        #expect(auto?.uploadBytesPerSecond == 211)
+    }
+
+    @Test("Automatic does not count a VPN tunnel twice")
+    @MainActor
+    func automaticExcludesVPN() {
+        func iface(_ name: String, vpn: Bool, down: Double) -> NetworkInterfaceSample {
+            NetworkInterfaceSample(
+                name: name, isUp: true, isLoopback: false, isVPN: vpn, ipv4Addresses: [], ipv6Addresses: [],
+                downloadBytesPerSecond: down, uploadBytesPerSecond: 0, receivedBytes: 0, sentBytes: 0,
+                inputErrors: 0, outputErrors: 0)
+        }
+        let sample = NetworkSample(
+            timestamp: Date(),
+            interfaces: [iface("en0", vpn: false, down: 100), iface("utun4", vpn: true, down: 100),
+                         iface("bridge100", vpn: false, down: 7)],
+            primaryInterface: "en0", router: nil, dnsServers: [], wifi: nil, publicIP: nil)
+        // The tunnel's bytes already crossed en0; counting them again would double the reading.
+        #expect(sample.interface(named: nil)?.downloadBytesPerSecond == 107)
+        // All interfaces is the explicit everything-including-tunnels total.
+        #expect(sample.interface(named: NetworkSample.allInterfacesName)?.downloadBytesPerSecond == 207)
     }
 
     @Test("The aggregate selection is distinct from every real interface")

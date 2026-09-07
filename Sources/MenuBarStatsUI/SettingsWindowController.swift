@@ -285,8 +285,8 @@ private struct GeneralSettingsView: View {
                 }
                 HStack {
                     Text("Text size")
-                    Slider(value: appBinding(\.fontSize), in: 9...12, step: 0.5)
-                    Text(String(format: "%.1f pt", settingsStore.settings.fontSize))
+                    Slider(value: fontSizeBinding, in: 9...12, step: 0.5)
+                    Text(String(format: "%.1f pt", settingsStore.fontSize))
                         .monospacedDigit()
                         .frame(width: 48, alignment: .trailing)
                 }
@@ -481,8 +481,15 @@ private struct GeneralSettingsView: View {
         """
         Makes Barometer's menu bar text smaller. Barometer already shrinks text on its own as you \
         add more items, so this can only go smaller than that, never larger. Icons and graphs \
-        shrink to match.
+        shrink to match. Takes effect when you select Apply Changes, which reopens Barometer.
         """
+    }
+
+    private var fontSizeBinding: Binding<Double> {
+        Binding(
+            get: { settingsStore.fontSize },
+            set: { settingsStore.stageFontSize($0) }
+        )
     }
 
     private var statusItemSpacingCaption: String {
