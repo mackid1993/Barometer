@@ -4765,3 +4765,32 @@ dist/p8-t89-native-action-cache-build.log and dist/p8-t89-native-action-final-bu
 /Applications/Barometer.app for David's test. No full test, screenshot, or memory reruns per the standing waiver.
 David clarified there must be no confirmation friction: the implementation has no dialog or additional click;
 confirmation is an automatic background authoritative read after the one Clear action.
+
+
+### P8-T89 installed test failed for stored notifications
+
+David tested the installed retained-action build and reported that clearing still does not work. The installed
+Barometer process (PID 51995) logged repeated pre-dispatch failures at 04:57: no unique Accessibility row matched
+the requested UUID. These were not permission denials, rejected Close actions, or delayed database confirmation.
+No accepted dispatch appears in the captured failure interval. Log evidence is saved without message contents
+in dist/p8-t89-installed-clear-failure.log. The retained-control approach does not resolve stored-notification
+dismissal. The earlier successful individual Discord removal remains valid evidence for its exposed native
+control; it must not be generalized into successful history clearing.
+
+No additional speculative implementation or app replacement is being made for this result. The native agent is
+performing one bounded read-only audit of remaining service entry points, including the legacy Foundation
+NSUserNotificationCenter path. Native panel opening remains prohibited; no further notification clears were
+attempted during this failure diagnosis. No expensive verification suite was rerun.
+
+David raised long-term stability concerns. Acknowledged that retained AX controls and private notification
+protocols are not a demonstrated reliable foundation across macOS updates. Further legacy investigation was
+restricted to read-only tracing; authorization for any not-yet-dispatched destructive probe was withdrawn.
+No further speculative production workaround is being shipped. The installed cached-AX build remains a failed
+experiment for stored notifications, not a completed Notification Center replacement.
+
+Legacy audit interim evidence: Foundation's _centerForBundleIdentifier: exists and creates an
+_NSConcreteUserNotificationCenter, but the foreign deliveredNotifications query returned nil. Static tracing
+found distinct legacy message types 7 (list), 10 (remove delivered), and 12 (remove displayed). Nil list output
+alone does not establish removal authorization; payload/authentication tracing remains read-only.
+
+Documentation verification: git diff --check passed. No code, app replacement, or full tests for this diagnosis.

@@ -1,6 +1,7 @@
 # Notification and system-control test build
 
-This is an experimental build for David's installed-app check. The latest changes have been release-built;
+David tested this experimental build: clearing stored notifications still fails because no individual native
+Accessibility control is available. Retaining previously exposed controls did not resolve that failure. The latest changes have been release-built;
 David requested no repeat test suite or memory verification. Earlier test results do not validate these changes.
 
 Current limits: exact native notification actions require an exposed individual Accessibility row, which may be
