@@ -62,7 +62,6 @@ let package = Package(
     products: [
         .executable(name: "Barometer", targets: ["Barometer"]),
         .executable(name: "mbs-probe", targets: ["mbs-probe"]),
-        .executable(name: "BarometerGPUHelper", targets: ["BarometerGPUHelper"]),
         .library(name: "MenuBarStatsCore", targets: ["MenuBarStatsCore"]),
         .library(name: "MenuBarStatsUI", targets: ["MenuBarStatsUI"]),
         .library(name: "SystemSources", targets: ["SystemSources"]),
@@ -111,13 +110,6 @@ let package = Package(
             dependencies: ["MenuBarStatsUI"],
             path: "Sources/MenuBarStatsApp",
             swiftSettings: strictConcurrency
-        ),
-        .executableTarget(
-            name: "BarometerGPUHelper",
-            swiftSettings: strictConcurrency,
-            linkerSettings: [
-                .linkedFramework("AppKit"),
-            ]
         ),
         .executableTarget(
             name: "mbs-probe",
