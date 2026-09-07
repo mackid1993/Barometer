@@ -61,9 +61,6 @@ public final class MonitoringCoordinator {
     /// Notification Center list shown by the Time dropdown while it is open.
     public let notificationFeed = NotificationFeed()
 
-    /// Covers the macOS clock when the Time setting asks for it.
-    public let systemClockCover = SystemClockCover()
-
     /// Redraw state for the Combined status item.
     public let combinedStore = ModuleStore<CombinedSample>(
         historyCapacity: GraphHistoryRetention.capacity(for: .combined)
@@ -1142,12 +1139,12 @@ public final class MonitoringCoordinator {
         }
     }
 
-    /// Covers or uncovers the macOS clock to match the Time setting.
+    /// Removes or restores the macOS clock to match the Time setting.
     private func applySystemClockCover() {
         let time = settingsStore.settings.time
-        systemClockCover.apply(
+        SystemClockHider.shared.apply(
             isEnabled: time.hidesSystemClock,
-            fallbackColor: NSColor(hex: time.systemClockCoverColor) ?? .black
+            coverColor: NSColor(hex: time.systemClockCoverColor) ?? .black
         )
     }
 

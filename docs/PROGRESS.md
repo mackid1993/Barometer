@@ -4383,3 +4383,29 @@ black from older files.
 `make test`: 38, 134, and 147 tests passed across the three bundles, including the band and flip math and the
 settings migration. `git diff --check` clean. Installed-app check is David's: turn on "Hide the system clock" in
 Time settings and allow Accessibility. Thaw was quit during the drag tests and needs relaunching by David.
+
+## P8-T85 (continued) Remove the clock through the assessment-mode assertion
+
+David then shared Thaw's `SystemClockHider.swift`, which names the real mechanism: the menu bar's
+assessment-mode assertion. Verified on the installed Thaw 3.0.0-alpha.1 that its `PlatformRuntimeKit` loads
+Apple's private `MenuBarClientCore` framework and uses `MBAssessmentModeConfiguration`
+(`initWithAllowedSystemItems:allowedBundleIdentifiers:`) and `MBAssessmentModeAssertion`
+(`activateWithConfiguration:completionHandler:`, `invalidate`), with no entitlement (Thaw carries only an
+app-group entitlement). The framework lives in the shared cache, so the method signatures were read at runtime
+through the Objective-C runtime.
+
+David ran the index probe from Terminal (the auto-mode checker refuses to let the agent activate the assertion
+itself): allowing every index but one, nine times, with every running app's bundle identifier allowed. Removing
+index 2 hid `com.apple.menuextra.clock`, index 6 hid Wi-Fi, index 8 hid Control Center; the completion handler
+reported no error and the bar restored its baseline after every invalidation.
+
+Implemented `MenuBarAssessmentAssertion` (SystemSources, the one wrapper for the private framework, with
+`isAvailable`, a three-second activation timeout, and a typed failure) and `SystemClockHider` (UI, observable,
+shared): while the Time setting is on it holds an assertion that allows indices 0, 1, 3 to 8 and every running
+application's bundle identifier, re-applies on application launch and quit, and falls back to `SystemClockCover`
+with an Accessibility prompt only when the assertion is unavailable. Time settings shows which of the two is in
+effect. Every synthesized drag recipe, including Thaw's own three-tap relay run by David from Terminal, is
+recorded above as moving nothing; the assertion is the mechanism.
+
+`make test`: 40, 134, and 147 tests passed across the three bundles. `git diff --check` clean. Installed-app check
+is David's: turn on "Hide the system clock"; the clock should leave the bar and its width return, with no prompt.

@@ -523,16 +523,20 @@ reimplemented. David Brustein is the sole copyright holder, so the change needs 
 
 ### P8-T85 Hide the system clock
 
-Requested by David on 2026-09-07. Thaw's maintainers shared their `SystemClockCover.swift` and permitted its use;
-Barometer is GPL-3.0 since P8-T84. The design: nothing on macOS 27 removes the clock without removing other
-items, so the clock is covered by an opaque, click-absorbing panel above the menu bar on its Accessibility
-bounds, re-read once a second and on screen or Space changes. The covered strip keeps its width.
+Requested by David on 2026-09-07. Thaw's maintainers shared `SystemClockCover.swift` and `SystemClockHider.swift`
+and permitted their use; Barometer is GPL-3.0 since P8-T84. The hider's mechanism is the menu bar's
+assessment-mode assertion (Apple's private `MenuBarClientCore`): a configuration names the numbered system items
+and the third-party bundle identifiers that stay, and the bar removes the rest while the assertion is live. The
+clock has slot 2, so leaving it out removes the clock alone and reclaims its width. Where the assertion is
+unavailable, the clock is covered on its Accessibility bounds instead.
 
-- `TimeSettings.hidesSystemClock` and `systemClockCoverColor`; Time settings section with the Accessibility
-  status, prompt on turning the option on, and a color picker with an eyedropper for the fill.
-- `SystemClockCover` in `MenuBarStatsUI`, credited to Thaw in its header. The macOS 27 SDK removed
-  `CGDisplayCreateImage`, so the fill is the chosen color rather than a sample of the bar.
-- Verify: band and flip math tests, settings migration, full suite, signed local build, David's installed check.
+- `MenuBarAssessmentAssertion` in `SystemSources`: the one wrapper for the private framework, `isAvailable`,
+  `activate(allowedSystemItems:allowedBundleIdentifiers:)`, `invalidate()`.
+- `SystemClockHider` in `MenuBarStatsUI`: holds the assertion while the Time setting is on, allows every running
+  app and re-applies on launch and quit, falls back to `SystemClockCover`, and publishes its state to Time settings.
+- `TimeSettings.hidesSystemClock` and `systemClockCoverColor`.
+- Verify: allowlist and index tests, cover band and flip math, settings migration, full suite, signed local build,
+  David's installed check.
 
 ---
 

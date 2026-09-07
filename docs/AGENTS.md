@@ -390,11 +390,16 @@ universal performance guarantee.
   database (read-only, only while the Time dropdown is open and the Time option is on) so the dropdown can list
   delivered notifications. macOS offers no prompt for Full Disk Access; Settings shows the status and opens the pane.
   Never write to that database and never read other protected data.
-- Accessibility is approved for exactly one use: `SystemClockCover` reads the system clock's bounds from
-  MenuBarAgent's extras menu bar so it can cover the clock (the design Thaw uses, adapted from its
-  `SystemClockCover.swift` with the maintainers' permission under the GPL). The prompt appears only when "Hide the
-  system clock" is turned on. Do not press, move, or drive any other application through Accessibility: pressing
-  the clock (P8-T80) and synthesized Command-drags (P8-T83 notes) both failed on macOS 27.
+- "Hide the system clock" removes the clock through the menu bar's assessment-mode assertion in Apple's private
+  `MenuBarClientCore` framework, wrapped in one type, `MenuBarAssessmentAssertion` in `SystemSources`, and used
+  nowhere else (the mechanism Thaw's `PlatformRuntimeKit` uses; adapted from Thaw with the maintainers' permission
+  under the GPL). System items are numbered; on macOS 27.0 the clock is 2, Wi-Fi 6, Control Center 8, verified by
+  removing one index at a time. Every running application's bundle identifier is allowed and re-applied on launch
+  and quit. Apple extras outside the numbered set are removed as collateral whenever the assertion is live.
+- Accessibility is requested only when the assertion is unavailable and `SystemClockCover` (adapted from Thaw's
+  `SystemClockCover.swift`) has to cover the clock on its Accessibility bounds instead. Do not press, move, or
+  drive any other application through Accessibility: pressing the clock (P8-T80) and synthesized Command-drags,
+  including Thaw's event relay (P8-T85 notes), both fail on macOS 27.
 - Screen Recording is never requested. `SystemClockCover` samples the bar's color only when
   `CGPreflightScreenCaptureAccess` already reports access.
 - `LSUIElement` keeps Barometer out of the Dock; it does not replace correct bundle identity or signing.
