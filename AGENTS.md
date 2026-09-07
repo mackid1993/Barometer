@@ -50,3 +50,7 @@ Full text in `docs/DESIGN.md` section 3.5. Short form:
 - Ask before: changing the bundle identifier or autosave names, adding a dependency, installing software, requesting a new TCC permission category, or touching anything outside this repository.
 - Do not run `sudo`. Nothing in v1 needs root.
 - Temporary files go in `dist/` or the system temp directory, never in the repository root.
+- Release notes are written for the person installing the app, not for the people who built it. No boilerplate,
+  and no closing line about the release being a notarized, stapled DMG: nobody outside this repository knows
+  what that means. Say what changed and why it matters. Every earlier release notes file ends with that
+  sentence; do not copy it forward.
