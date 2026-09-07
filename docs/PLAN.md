@@ -592,6 +592,13 @@ synthesized pointer entry into such a corner opens the panel (verified by David 
 - Time and Notifications settings carries the note and an "Open Hot Corner Settings…" button; the flyout carries
   only the glass "Open Notification Center" button. The list stays read-only.
 
+### P8-T94 Temperature-keyed forecast bars
+
+David on 2026-09-07: the 10-day forecast bar gradient was the same cyan-to-orange sweep stretched across every
+bar, so a cold day and a hot day looked alike. `TemperatureScale` in WeatherDropdownView keys color to the
+temperature itself (violet at -20 °C through blue, cyan, green, yellow, and orange to red at 42 °C) and each bar
+samples it at its own low and high plus every stop between, in either unit. Shipped in 1.0.8.
+
 ---
 
 ## Phase 9: After v1

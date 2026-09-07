@@ -539,6 +539,7 @@ private struct DailyForecastRow: View {
             TemperatureRangeBar(
                 low: day.low,
                 high: day.high,
+                unit: settingsStore.settings.weather.units.temperature,
                 overallMinimum: overallMinimum,
                 overallMaximum: overallMaximum
             )
@@ -561,28 +562,90 @@ private struct DailyForecastRow: View {
 private struct TemperatureRangeBar: View {
     let low: Double?
     let high: Double?
+    let unit: TemperatureUnit
     let overallMinimum: Double
     let overallMaximum: Double
 
     var body: some View {
         GeometryReader { geometry in
             let spread = max(1, overallMaximum - overallMinimum)
-            let start = CGFloat(((low ?? overallMinimum) - overallMinimum) / spread)
-            let end = CGFloat(((high ?? overallMaximum) - overallMinimum) / spread)
+            let lowValue = low ?? overallMinimum
+            let highValue = high ?? overallMaximum
+            let start = CGFloat((lowValue - overallMinimum) / spread)
+            let end = CGFloat((highValue - overallMinimum) / spread)
+            let lowCelsius = TemperatureScale.celsius(lowValue, unit: unit)
+            let highCelsius = TemperatureScale.celsius(highValue, unit: unit)
             Capsule().fill(Color.primary.opacity(0.08))
             Capsule()
-                .fill(
-                    LinearGradient(
-                        colors: [Color(hex: 0x22D3EE), Color(hex: 0xFBBF24), Color(hex: 0xF97316)],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
+                .fill(TemperatureScale.gradient(fromCelsius: lowCelsius, toCelsius: highCelsius))
                 .frame(width: max(6, (end - start) * geometry.size.width))
                 .offset(x: start * geometry.size.width)
-                .shadow(color: Color(hex: 0xFBBF24).opacity(0.35), radius: 3)
+                .shadow(color: TemperatureScale.color(celsius: highCelsius).opacity(0.35), radius: 3)
         }
         .frame(height: 6)
+    }
+}
+
+/// Colors keyed to the temperature itself, so a bar says how warm a day is, not where it sits among the ten.
+///
+/// The scale runs from violet at deep cold through blue, cyan, green, yellow, and orange to red at heat, with
+/// the stops at the Celsius values people feel the difference at. A bar samples the scale at its own low and
+/// high and at every stop between them, so a 20 to 27° day is green into yellow and a 24 to 34° day runs yellow
+/// into red, in either unit.
+enum TemperatureScale {
+    private struct Stop {
+        let celsius: Double
+        let red: Double
+        let green: Double
+        let blue: Double
+    }
+
+    private static let stops: [Stop] = [
+        Stop(celsius: -20, red: 0.43, green: 0.16, blue: 0.85),
+        Stop(celsius: -10, red: 0.23, green: 0.51, blue: 0.96),
+        Stop(celsius: 0, red: 0.22, green: 0.74, blue: 0.97),
+        Stop(celsius: 8, red: 0.13, green: 0.83, blue: 0.93),
+        Stop(celsius: 14, red: 0.29, green: 0.87, blue: 0.50),
+        Stop(celsius: 20, red: 0.64, green: 0.86, blue: 0.29),
+        Stop(celsius: 25, red: 0.98, green: 0.80, blue: 0.08),
+        Stop(celsius: 30, red: 0.98, green: 0.57, blue: 0.24),
+        Stop(celsius: 35, red: 0.94, green: 0.27, blue: 0.27),
+        Stop(celsius: 42, red: 0.73, green: 0.11, blue: 0.11),
+    ]
+
+    static func celsius(_ value: Double, unit: TemperatureUnit) -> Double {
+        unit == .fahrenheit ? (value - 32) * 5 / 9 : value
+    }
+
+    /// The scale's color at a temperature, interpolated between the nearest stops and clamped at the ends.
+    static func color(celsius: Double) -> Color {
+        let (r, g, b) = components(celsius: celsius)
+        return Color(red: r, green: g, blue: b)
+    }
+
+    /// A left-to-right gradient sampled at `from`, at every scale stop between, and at `to`.
+    static func gradient(fromCelsius from: Double, toCelsius to: Double) -> LinearGradient {
+        let lower = min(from, to)
+        let upper = max(from, to)
+        let span = max(0.5, upper - lower)
+        var gradientStops: [Gradient.Stop] = [.init(color: color(celsius: lower), location: 0)]
+        for stop in stops where stop.celsius > lower && stop.celsius < upper {
+            gradientStops.append(.init(color: color(celsius: stop.celsius), location: (stop.celsius - lower) / span))
+        }
+        gradientStops.append(.init(color: color(celsius: upper), location: 1))
+        return LinearGradient(gradient: Gradient(stops: gradientStops), startPoint: .leading, endPoint: .trailing)
+    }
+
+    private static func components(celsius: Double) -> (Double, Double, Double) {
+        guard let first = stops.first, let last = stops.last else { return (1, 1, 1) }
+        if celsius <= first.celsius { return (first.red, first.green, first.blue) }
+        if celsius >= last.celsius { return (last.red, last.green, last.blue) }
+        for index in 1..<stops.count where celsius <= stops[index].celsius {
+            let a = stops[index - 1], b = stops[index]
+            let t = (celsius - a.celsius) / (b.celsius - a.celsius)
+            return (a.red + (b.red - a.red) * t, a.green + (b.green - a.green) * t, a.blue + (b.blue - a.blue) * t)
+        }
+        return (last.red, last.green, last.blue)
     }
 }
 

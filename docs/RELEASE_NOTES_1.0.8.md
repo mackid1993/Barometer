@@ -43,6 +43,12 @@ sized. Barometer is now GPL-3.0.
   stays out of the way.
 - A **Height** slider sets how tall the dropdown opens, 400 to 1000 pt, never past the screen.
 
+## Weather
+
+- The 10-day forecast's temperature bars are now colored by the temperature itself, from violet and blue at
+  cold through green and yellow to orange and red at heat, in Celsius or Fahrenheit. A mild day reads green into
+  yellow and a hot one yellow into red, instead of every day getting the same cyan-to-orange sweep.
+
 ## Credits and license
 
 - Barometer is now licensed under the GNU General Public License, version 3.
