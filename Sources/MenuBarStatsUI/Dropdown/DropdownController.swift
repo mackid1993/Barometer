@@ -202,8 +202,6 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     }
 
     public func menuWillOpen(_ menu: NSMenu) {
-        // The choice in General can change between openings; the hosted view keeps its own.
-        hostingView?.appearance = NSApp.appearance
         // Accessibility clients ask AppKit to simulate opening a closed status menu while they
         // inspect its children. Only real menu tracking posts didBeginTrackingNotification.
         guard isMenuTracking else {
@@ -287,10 +285,6 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         let hostingView = NSHostingView(rootView: rootContent)
         hostingView.sizingOptions = [.intrinsicContentSize]
         hostingView.frame = NSRect(x: 0, y: 0, width: contentWidth, height: contentHeight)
-        // A menu draws with the system's menu appearance, not the application's, so a view hosted
-        // in one ignores the Light or Dark choice in General. Give it the application's appearance
-        // explicitly; nil follows the menu, which is what System means.
-        hostingView.appearance = NSApp.appearance
         self.hostingView = hostingView
         contentItem.view = hostingView
         hasHostedContent = true

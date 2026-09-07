@@ -42,6 +42,7 @@ less menu bar space.
 
 - General now has an **Appearance** choice: Light, Dark, or System. It applies to the Settings window, the dropdowns,
   and the colors of the weather mark, instead of only following macOS.
+- Every module's dropdown now opens in the same translucent panel, so they all look alike and all follow that choice.
 
 ## Notes
 

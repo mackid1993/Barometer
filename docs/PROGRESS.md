@@ -4184,3 +4184,25 @@ Verification:
 - `make test` passed: 303 tests across three targets. The change is a window-appearance assignment on a live menu
   and has no unit-level coverage; it was verified on David's machine after install.
 - `swift build -c release` completed and `git diff --check` reported no whitespace errors.
+
+## P8-T78 Host every dropdown in the attached panel
+
+P8-T77 was the wrong fix and is superseded. David's screenshots showed Memory with dark text on an opaque white
+background beside a correct CPU dropdown. Reading the code rather than the screenshots: every dropdown view is
+built from semantic colors, `Color.primary`, `.secondary`, `.thinMaterial`, and the module accents, and adapts to
+its container. CPU, GPU, Time, and the stacks present in `AttachedPanel`, an `NSPanel` that wraps the content in
+`.regularMaterial` and follows `NSApp.appearance`. Memory, Network, Sensors, Weather, and Combined hosted the same
+content in an `NSMenuItem.view` with no material of its own, borrowing the menu's backdrop, which macOS draws from
+the system appearance. Giving that hosted view the application's appearance made the content light while the menu
+behind it stayed dark, which is the white slab. A menu cannot mirror the panel by design.
+
+Every `DropdownController` now opts into the attached panel, so all ten dropdowns are the same kind of window with
+the same material and follow the Light, Dark, or System choice together. The menu path stays in the controller as
+the fallback it always was, with the appearance assignment from P8-T77 removed so it cannot reintroduce the slab.
+The footer for the five converted modules becomes the Settings and Quit buttons the panel modules already had.
+
+Verification:
+
+- `make test` passed: 303 tests across three targets.
+- `swift build -c release` completed and `git diff --check` reported no whitespace errors.
+- Installed for David to validate each dropdown himself; automated opening of status items was declined.
