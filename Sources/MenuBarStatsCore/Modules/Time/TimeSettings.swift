@@ -60,12 +60,6 @@ public struct TimeSettings: Codable, Equatable, Sendable {
     /// Weekday that begins the month calendar, or the system preference.
     public var calendarWeekStart: CalendarWeekStart
 
-    /// Whether a primary click on the clock opens macOS Notification Center instead of the dropdown.
-    ///
-    /// The dropdown stays reachable through a secondary click. Opening Notification Center needs
-    /// Accessibility access; without it the click falls back to the dropdown.
-    public var opensNotificationCenterOnClick: Bool
-
     /// Creates Time settings.
     public init(
         menuBarTemplate: String = "{time}",
@@ -73,8 +67,7 @@ public struct TimeSettings: Codable, Equatable, Sendable {
         worldClockIdentifiers: [String] = ["UTC"],
         showsCalendarEvents: Bool = false,
         calendarEventCount: Int = 5,
-        calendarWeekStart: CalendarWeekStart = .systemDefault,
-        opensNotificationCenterOnClick: Bool = false
+        calendarWeekStart: CalendarWeekStart = .systemDefault
     ) {
         self.menuBarTemplate = menuBarTemplate
         self.showsSeconds = showsSeconds
@@ -82,7 +75,6 @@ public struct TimeSettings: Codable, Equatable, Sendable {
         self.showsCalendarEvents = showsCalendarEvents
         self.calendarEventCount = calendarEventCount
         self.calendarWeekStart = calendarWeekStart
-        self.opensNotificationCenterOnClick = opensNotificationCenterOnClick
         normalize()
     }
 
@@ -93,10 +85,9 @@ public struct TimeSettings: Codable, Equatable, Sendable {
         case showsCalendarEvents
         case calendarEventCount
         case calendarWeekStart
-        case opensNotificationCenterOnClick
     }
 
-    /// Decodes saved Time settings, defaulting older files to the system's week order and to the dropdown on click.
+    /// Decodes saved Time settings, defaulting older files to the system's week order.
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         menuBarTemplate = try container.decode(String.self, forKey: .menuBarTemplate)
@@ -106,8 +97,6 @@ public struct TimeSettings: Codable, Equatable, Sendable {
         calendarEventCount = try container.decode(Int.self, forKey: .calendarEventCount)
         calendarWeekStart =
             try container.decodeIfPresent(CalendarWeekStart.self, forKey: .calendarWeekStart) ?? .systemDefault
-        opensNotificationCenterOnClick =
-            try container.decodeIfPresent(Bool.self, forKey: .opensNotificationCenterOnClick) ?? false
         normalize()
     }
 

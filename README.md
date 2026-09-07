@@ -113,8 +113,6 @@ on, for your public IP address (ipify.org).
 - **Location** is optional. It is requested only when you enable current-location weather. It also lets Barometer show
   the name of the Wi-Fi network you are on.
 - **Calendar** is optional. It is requested only when you press **Allow Calendar Access** in Time settings.
-- **Accessibility** is optional. It is requested only when you turn on **Open Notification Center on click** in Time
-  settings, and it is used for nothing but pressing the system clock so Barometer's clock can replace it.
 - Nothing else asks for a permission. Readings that a Mac does not provide are shown as unavailable.
 
 Settings can be exported to a JSON file and imported on another Mac.
