@@ -4206,3 +4206,7 @@ Verification:
 - `make test` passed: 303 tests across three targets.
 - `swift build -c release` completed and `git diff --check` reported no whitespace errors.
 - Installed for David to validate each dropdown himself; automated opening of status items was declined.
+
+The first P8-T78 commit inserted the flag by line number, drifted, and broke the build; the second restored the file
+without the flag. `c95426f` and this commit correct that: the flag is inserted by matching each call's text, all ten
+constructions now carry it, and the commit was gated on a green build and test run.

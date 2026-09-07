@@ -298,6 +298,7 @@ public final class MonitoringCoordinator {
             rootView: AnyView(MemoryDropdownView(store: memoryStore, settingsStore: settingsStore)),
             contentHeight: MemoryDropdownView.contentSize.height,
             contentWidth: MemoryDropdownView.contentSize.width,
+            usesAttachedPanel: true,
             visibilityAction: { [weak self] visible in
                 self?.setDetailVisibility(owner: "memory", modules: [.memory], visible: visible)
             },
@@ -311,6 +312,7 @@ public final class MonitoringCoordinator {
             rootView: AnyView(GPUDropdownView(store: gpuStore, settingsStore: settingsStore)),
             contentHeight: GPUDropdownView.contentSize.height,
             contentWidth: GPUDropdownView.contentSize.width,
+            usesAttachedPanel: true,
             visibilityAction: { [weak self] visible in
                 self?.setDetailVisibility(owner: "gpu", modules: [.gpu], visible: visible)
             },
@@ -369,6 +371,7 @@ public final class MonitoringCoordinator {
             rootView: AnyView(DiskDropdownView(store: diskStore, settingsStore: settingsStore)),
             contentHeight: DiskDropdownView.contentSize.height,
             contentWidth: DiskDropdownView.contentSize.width,
+            usesAttachedPanel: true,
             tickAction: { [weak diskStore] in diskStore?.tick() },
             settingsAction: { settingsAction(.disks) },
             quitAction: quitAction
@@ -379,6 +382,7 @@ public final class MonitoringCoordinator {
             rootView: AnyView(BatteryDropdownView(store: batteryStore, settingsStore: settingsStore)),
             contentHeight: BatteryDropdownView.contentSize.height,
             contentWidth: BatteryDropdownView.contentSize.width,
+            usesAttachedPanel: true,
             tickAction: { [weak batteryStore] in batteryStore?.tick() },
             settingsAction: { settingsAction(.battery) },
             quitAction: quitAction
@@ -397,6 +401,7 @@ public final class MonitoringCoordinator {
             ),
             contentHeight: TimeDropdownView.contentSize.height,
             contentWidth: TimeDropdownView.contentSize.width,
+            usesAttachedPanel: true,
             tickAction: { [weak timeStore] in timeStore?.tick() },
             settingsAction: { settingsAction(.time) },
             quitAction: quitAction
