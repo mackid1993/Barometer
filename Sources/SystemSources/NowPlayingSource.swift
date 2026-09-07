@@ -73,7 +73,10 @@ public enum NowPlayingReadResult: Equatable, Sendable {
 public actor NowPlayingSource {
     /// Largest artwork payload retained in one snapshot.
     public static let maximumArtworkBytes = 256 * 1_024
+    private static let maximumArtworkInputBytes = 16 * 1_024 * 1_024
     private static let maximumArtworkDimension = 512
+    private static let maximumSourceDimension = 16_384
+    private static let maximumSourcePixels = 64 * 1_024 * 1_024
 
     private typealias DictionaryCallback = @convention(block) (CFDictionary?) -> Void
     private typealias StringCallback = @convention(block) (CFString?) -> Void
@@ -374,22 +377,46 @@ public actor NowPlayingSource {
         return number
     }
 
-    /// Rejects compressed payloads that could expand into an unbounded image in the popup.
+    /// Bounds source dimensions, then retains a compact thumbnail suitable for the popup.
     private static func boundedArtwork(_ data: Data?) -> Data? {
         guard let data,
-              data.count <= maximumArtworkBytes,
+              data.count <= maximumArtworkInputBytes,
               let source = CGImageSourceCreateWithData(data as CFData, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let width = properties[kCGImagePropertyPixelWidth] as? NSNumber,
               let height = properties[kCGImagePropertyPixelHeight] as? NSNumber,
               width.intValue > 0,
               height.intValue > 0,
-              width.intValue <= maximumArtworkDimension,
-              height.intValue <= maximumArtworkDimension
+              width.intValue <= maximumSourceDimension,
+              height.intValue <= maximumSourceDimension,
+              width.intValue * height.intValue <= maximumSourcePixels
         else {
             return nil
         }
-        return data
+        if data.count <= maximumArtworkBytes,
+           width.intValue <= maximumArtworkDimension,
+           height.intValue <= maximumArtworkDimension {
+            return data
+        }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maximumArtworkDimension,
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        for quality in [0.85, 0.70, 0.55, 0.40] {
+            let output = NSMutableData()
+            guard let destination = CGImageDestinationCreateWithData(
+                output, "public.jpeg" as CFString, 1, nil
+            ) else { return nil }
+            CGImageDestinationAddImage(destination, image, [
+                kCGImageDestinationLossyCompressionQuality: quality,
+            ] as CFDictionary)
+            if CGImageDestinationFinalize(destination), output.length <= maximumArtworkBytes {
+                return output as Data
+            }
+        }
+        return nil
     }
 }
 

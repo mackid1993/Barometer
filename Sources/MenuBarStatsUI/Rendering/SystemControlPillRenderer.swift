@@ -1,7 +1,7 @@
 import AppKit
 import MenuBarStatsCore
 
-/// Fixed-width capsule used by Focus and Now Playing, independent of their changing content.
+/// Fixed-width status glyphs for Focus and Now Playing.
 @MainActor
 enum SystemControlPillRenderer {
     /// A purple status-only moon. Focus is controlled through macOS Control Center.
@@ -33,14 +33,10 @@ enum SystemControlPillRenderer {
         in context: RenderContext,
         symbolPointSize: CGFloat = 12
     ) -> StatusItemContent {
-        let width = round(30 * context.scale)
-        let height = min(context.thickness - 4, round(21 * context.scale))
+        let width = round(22 * context.scale)
         let image = NSImage(size: NSSize(width: width, height: context.thickness))
         image.lockFocus()
-        let capsule = NSRect(x: 0, y: (context.thickness - height) / 2, width: width, height: height)
         let ink: NSColor = context.isMonochrome ? .black : context.palette.color(for: context.appearance)
-        ink.withAlphaComponent(sample.isActive ? 0.24 : 0.10).setFill()
-        NSBezierPath(roundedRect: capsule, xRadius: height / 2, yRadius: height / 2).fill()
         if let symbol = NSImage(systemSymbolName: sample.symbolName, accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: symbolPointSize * context.scale, weight: .semibold))
         {

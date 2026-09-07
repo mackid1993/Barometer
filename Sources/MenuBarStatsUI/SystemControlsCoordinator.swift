@@ -43,10 +43,11 @@ final class SystemControlsCoordinator {
         )
         nowPlayingDropdown = DropdownController(
             moduleName: ModuleID.nowPlaying.displayName, statusItem: registry.item(for: .nowPlaying),
-            rootView: AnyView(NowPlayingControlsView(controller: nowPlaying)),
+            rootView: AnyView(NowPlayingControlsView(controller: nowPlaying, settingsStore: settingsStore)),
             contentHeight: NowPlayingControlsView.contentSize.height,
             contentWidth: NowPlayingControlsView.contentSize.width,
             usesAttachedPanel: true,
+            compactFooter: true,
             tickAction: {},
             settingsAction: { settingsAction(.time) }, quitAction: quitAction
         )
@@ -138,7 +139,7 @@ final class SystemControlsCoordinator {
         case let .active(snapshot):
             let playing = snapshot.playbackState == .playing
             mediaSample = SystemControlSample(
-                symbolName: playing ? "play.fill" : "pause.fill",
+                symbolName: "play.fill",
                 accessibilityValue: "Now Playing: \(snapshot.title)\(snapshot.artist.map { " by \($0)" } ?? ""), "
                     + (playing ? "playing" : "paused"),
                 isActive: playing)

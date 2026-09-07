@@ -4,8 +4,8 @@ This is an experimental build for David's installed-app check. The latest change
 David requested no repeat test suite or memory verification. Earlier test results do not validate these changes.
 
 Current limits: exact native notification actions require an exposed individual row in the open macOS Notification
-Center. Automatic opening and end-to-end clearing remain unresolved. Now Playing metadata reads return an explicit
-permission error on this macOS build. This is not yet a complete Notification Center replacement.
+Center. Automatic opening and end-to-end clearing remain unresolved. Global Now Playing metadata and album artwork
+now read successfully through the bundled media bridge. This is not yet a complete Notification Center replacement.
 
 ## Install and enable
 
@@ -17,8 +17,7 @@ In Time and Notifications settings, turn on the notifications list. Barometer ne
 Accessibility access to attempt the native actions. Enable Focus and Enable Now Playing are separate switches,
 off by default; select Apply Changes after changing them. They do not change the Hide the system clock setting.
 Focus appears only while the reported system Focus state is active. Now Playing defaults to When Playing;
-select Always to retain it during pauses or unavailable playback information. These choices do not repair denied
-system API access. Notification settings now shows the Accessibility grant and offers an explicit Allow
+select Always to retain it during pauses or unavailable playback information. Notification settings now shows the Accessibility grant and offers an explicit Allow
 Accessibility button. Full Disk Access reads the list; Accessibility permits native action attempts.
 
 ## Check notifications
@@ -54,9 +53,10 @@ private message content is needed.
 - Enable Focus, apply, and compare with Control Center. The icon is a purple moon only while any Focus mode is on;
   there is no Focus popup. Change modes through Control Center. The read-only database parser was checked against
   actual inactive and active assertion schemas and enumerates custom mode configurations across all partitions.
-- Enable Now Playing and select Always to inspect the enlarged icon. When Playing hides the icon when playback
-  cannot be established. Local MediaRemote requests explicitly returned Operation not permitted, so metadata and
-  transport behavior are not claimed working. No Spotify-specific integration or permission bypass was added.
+- Enable Now Playing to inspect the plain play icon and compact 140-point popup, anchored to the status button.
+  Album artwork is resized before applying the output size limit. Global metadata and artwork reads succeeded
+  locally; transport controls and the installed visual result remain for David to test. When Playing hides the
+  icon when playback cannot be established. The integration does not depend on Spotify.
 - Enable Show seconds in dropdown clock and check the colorful header; menu bar seconds remain independent.
 - Open About and confirm the Thaw contributors wrap without truncation.
 - If a menu bar manager hides the system clock, leave Barometer's Hide the system clock off, as the settings note says.

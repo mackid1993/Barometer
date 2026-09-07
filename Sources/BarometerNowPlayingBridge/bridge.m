@@ -10,17 +10,48 @@ typedef void (*GetBoolean)(dispatch_queue_t, BooleanCallback);
 typedef void (*GetString)(dispatch_queue_t, StringCallback);
 
 static NSData *boundedArtwork(NSData *data) {
-    if (![data isKindOfClass:NSData.class] || data.length > 256 * 1024) return nil;
+    if (![data isKindOfClass:NSData.class] || data.length > 16 * 1024 * 1024) return nil;
     CGImageSourceRef source = CGImageSourceCreateWithData((__bridge CFDataRef)data, NULL);
     if (!source) return nil;
     NSDictionary *properties = CFBridgingRelease(CGImageSourceCopyPropertiesAtIndex(source, 0, NULL));
-    CFRelease(source);
     NSNumber *width = properties[(NSString *)kCGImagePropertyPixelWidth];
     NSNumber *height = properties[(NSString *)kCGImagePropertyPixelHeight];
-    if (width.integerValue <= 0 || height.integerValue <= 0 || width.integerValue > 512 || height.integerValue > 512) {
+    NSInteger pixelWidth = width.integerValue;
+    NSInteger pixelHeight = height.integerValue;
+    if (pixelWidth <= 0 || pixelHeight <= 0 || pixelWidth > 16384 || pixelHeight > 16384
+        || pixelWidth * pixelHeight > 64 * 1024 * 1024) {
+        CFRelease(source);
         return nil;
     }
-    return data;
+    if (data.length <= 256 * 1024 && pixelWidth <= 512 && pixelHeight <= 512) {
+        CFRelease(source);
+        return data;
+    }
+    NSDictionary *thumbnailOptions = @{
+        (NSString *)kCGImageSourceCreateThumbnailFromImageAlways: @YES,
+        (NSString *)kCGImageSourceCreateThumbnailWithTransform: @YES,
+        (NSString *)kCGImageSourceThumbnailMaxPixelSize: @512,
+    };
+    CGImageRef thumbnail = CGImageSourceCreateThumbnailAtIndex(
+        source, 0, (__bridge CFDictionaryRef)thumbnailOptions);
+    CFRelease(source);
+    if (!thumbnail) return nil;
+    for (NSNumber *quality in @[@0.85, @0.70, @0.55, @0.40]) {
+        NSMutableData *output = [NSMutableData data];
+        CGImageDestinationRef destination = CGImageDestinationCreateWithData(
+            (__bridge CFMutableDataRef)output, CFSTR("public.jpeg"), 1, NULL);
+        if (!destination) break;
+        CGImageDestinationAddImage(destination, thumbnail,
+            (__bridge CFDictionaryRef)@{(NSString *)kCGImageDestinationLossyCompressionQuality: quality});
+        BOOL finalized = CGImageDestinationFinalize(destination);
+        CFRelease(destination);
+        if (finalized && output.length <= 256 * 1024) {
+            CGImageRelease(thumbnail);
+            return output;
+        }
+    }
+    CGImageRelease(thumbnail);
+    return nil;
 }
 
 __attribute__((visibility("default"))) void barometer_now_playing_get(void) {

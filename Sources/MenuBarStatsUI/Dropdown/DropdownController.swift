@@ -29,6 +29,8 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     private let detailPresenter = MenuDetailPresenter()
     private let detailActions = MenuDetailActions()
     private weak var detailAnchor: NSView?
+    private let compactFooter: Bool
+    private var footerHeight: CGFloat { compactFooter ? 32 : 56 }
     private let usesAttachedPanel: Bool
     private var rootPanel: AttachedPanel?
     private let dismissalMonitor = PopoverDismissalMonitor()
@@ -44,6 +46,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         contentHeight: CGFloat,
         contentWidth: CGFloat = 320,
         usesAttachedPanel: Bool = false,
+        compactFooter: Bool = false,
         visibilityAction: @escaping @MainActor (Bool) -> Void = { _ in },
         tickAction: @escaping @MainActor () -> Void,
         settingsAction: @escaping @MainActor () -> Void,
@@ -57,6 +60,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
         self.contentHeight = contentHeight
         self.contentWidth = contentWidth
         self.usesAttachedPanel = usesAttachedPanel
+        self.compactFooter = compactFooter
         self.detailAnchor = statusItem?.button
         menu = NSMenu()
         rootContent = rootView
@@ -122,13 +126,16 @@ public final class DropdownController: NSObject, NSMenuDelegate {
 
     func presentAttachedPanel(anchoredTo anchor: NSView) {
         detailAnchor = anchor
+        guard let anchorWindow = anchor.window else { return }
+        let anchorRect = anchorWindow.convertToScreen(anchor.convert(anchor.bounds, to: nil))
         becomeActive()
         isOpen = true
-        activationHoverRegion = Self.activationHoverRegion(at: NSEvent.mouseLocation, buttonSize: anchor.bounds.size)
+        activationHoverRegion = anchorRect
         visibilityAction(true)
-        let availableHeight = (anchor.window?.screen?.visibleFrame.height ?? 900) - 100
+        let availableHeight = (anchorWindow.screen?.visibleFrame.height ?? 900) - 100
         let height = Self.attachedPanelHeight(
-            contentHeight: contentHeight, availableHeight: availableHeight, maximumHeight: maximumPanelHeight)
+            contentHeight: contentHeight, availableHeight: availableHeight,
+            maximumHeight: maximumPanelHeight, footerHeight: footerHeight)
         let content = VStack(spacing: 0) {
             rootContent
             Divider()
@@ -139,14 +146,14 @@ public final class DropdownController: NSObject, NSMenuDelegate {
                 }
                 Spacer()
                 Button("Quit Barometer") { [weak self] in self?.quitAction() }
-            }.padding(12)
+            }
+            .controlSize(compactFooter ? .small : .regular)
+            .padding(.horizontal, 12)
+            .frame(height: footerHeight - 1)
         }.frame(width: contentWidth, height: height)
         let panel = AttachedPanel(content: AnyView(content), size: NSSize(width: contentWidth, height: height))
         rootPanel = panel
-        let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? anchor.window?.screen
-        let point = NSEvent.mouseLocation
-        panel.show(relativeTo: NSRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2),
-                   preferredEdge: .minY, on: screen)
+        panel.show(relativeTo: anchorRect, preferredEdge: .minY, on: anchorWindow.screen)
         startDismissalMonitoring()
     }
 
@@ -172,9 +179,10 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     static func attachedPanelHeight(
         contentHeight: CGFloat,
         availableHeight: CGFloat,
-        maximumHeight: CGFloat = BarometerDesign.maximumPanelHeight
+        maximumHeight: CGFloat = BarometerDesign.maximumPanelHeight,
+        footerHeight: CGFloat = 56
     ) -> CGFloat {
-        min(maximumHeight, contentHeight + 56, availableHeight)
+        min(maximumHeight, contentHeight + footerHeight, availableHeight)
     }
 
     static func activationHoverRegion(at point: NSPoint, buttonSize: NSSize) -> NSRect {
@@ -188,7 +196,7 @@ public final class DropdownController: NSObject, NSMenuDelegate {
     /// A panel that is already open keeps its size until it reopens; menu bar items never resize live,
     /// and neither does an open panel.
     public func setPreferredPanelHeight(_ height: CGFloat) {
-        contentHeight = max(0, height - 56)
+        contentHeight = max(0, height - footerHeight)
         maximumPanelHeight = max(BarometerDesign.maximumPanelHeight, height)
     }
 

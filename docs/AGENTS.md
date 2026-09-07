@@ -448,7 +448,8 @@ universal performance guarantee.
 After every macOS 27 beta or Command Line Tools update:
 
 1. Run `swift test` and `swift build -c release`, recording the silent-runner caveat if it remains.
-2. Run `make app`, verify exactly one executable, and run strict `codesign` verification.
+2. Run `make app`, verify one main app executable plus the signed Now Playing bridge dylib, and run strict
+   `codesign` verification. The media bridge creates no status items or secondary app bundles.
 3. Run `make install`; never use the `dist/` copy for placement conclusions.
 4. Inspect `~/Library/Logs/Barometer/identity.json` for fixed bundle, autosave, AX, image, length, and frame invariants.
 5. Relaunch Barometer repeatedly and confirm the identity set does not change.

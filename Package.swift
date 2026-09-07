@@ -94,7 +94,9 @@ let package = Package(
             name: "BarometerNowPlayingBridge",
             path: "Sources/BarometerNowPlayingBridge",
             publicHeadersPath: "include",
-            linkerSettings: [.linkedFramework("Foundation"), .linkedFramework("ImageIO")]
+            linkerSettings: [
+                .linkedFramework("Foundation"), .linkedFramework("ImageIO"), .linkedFramework("CoreGraphics"),
+            ]
         ),
         .target(
             name: "MenuBarStatsCore",

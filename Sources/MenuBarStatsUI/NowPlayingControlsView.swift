@@ -1,30 +1,41 @@
 import AppKit
+import MenuBarStatsCore
 import SwiftUI
 import SystemSources
 
 /// Compact popup controls for Barometer's independent Now Playing menu bar pill.
 public struct NowPlayingControlsView: View {
     /// Preferred hosted popup size.
-    public static let contentSize = CGSize(width: 300, height: 210)
+    public static let contentSize = CGSize(width: 320, height: 108)
 
     private let controller: NowPlayingController
+    private let settingsStore: SettingsStore?
 
     /// Creates controls bound to a visible-only Now Playing controller.
+    public init(controller: NowPlayingController, settingsStore: SettingsStore) {
+        self.controller = controller
+        self.settingsStore = settingsStore
+    }
+
+    /// Creates controls with the standard Now Playing accent for previews and deterministic tests.
     public init(controller: NowPlayingController) {
         self.controller = controller
+        settingsStore = nil
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let accent = settingsStore.map { ModuleAccent.resolve($0.settings, module: .nowPlaying) }
+            ?? ModuleAccent.signature(for: .nowPlaying)
+        DropdownScaffold(size: Self.contentSize) {
             switch controller.state {
             case .loading:
-                status("Reading Now Playing…", symbol: "waveform")
+                status("Reading Now Playing…", symbol: "waveform", accent: accent)
             case .unavailable:
-                status("macOS supplied no playback information.", symbol: "exclamationmark.triangle")
+                status("macOS supplied no playback information.", symbol: "exclamationmark.triangle", accent: accent)
             case .idle:
-                status("macOS supplied no playback information.", symbol: "play.slash")
+                status("Nothing is playing.", symbol: "play.slash", accent: accent)
             case let .active(snapshot):
-                activeContent(snapshot)
+                activeContent(snapshot, accent: accent)
             }
             if let error = controller.commandError {
                 Text(error)
@@ -33,67 +44,67 @@ public struct NowPlayingControlsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(14)
         .frame(width: Self.contentSize.width, height: Self.contentSize.height, alignment: .topLeading)
         .onAppear { controller.setDropdownVisible(true) }
         .onDisappear { controller.setDropdownVisible(false) }
     }
 
     @ViewBuilder
-    private func activeContent(_ snapshot: NowPlayingSnapshot) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            artwork(snapshot.artworkData)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(snapshot.title)
-                    .font(.headline)
-                    .lineLimit(1)
-                if let artist = snapshot.artist {
-                    Text(artist)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+    private func activeContent(_ snapshot: NowPlayingSnapshot, accent: ModuleAccent) -> some View {
+        GlassCard(tint: accent.primary, padding: 8) {
+            HStack(spacing: 10) {
+                artwork(snapshot.artworkData)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(snapshot.title)
+                        .font(.system(size: 13, weight: .semibold))
                         .lineLimit(1)
+                        .help(snapshot.title)
+                    if let subtitle = snapshot.artist ?? snapshot.album {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    HStack(spacing: 16) {
+                        commandButton(.previous, symbol: "backward.fill", label: "Previous")
+                        commandButton(
+                            .togglePlayPause,
+                            symbol: snapshot.playbackState == .playing ? "pause.fill" : "play.fill",
+                            label: snapshot.playbackState == .playing ? "Pause" : "Play"
+                        )
+                        commandButton(.next, symbol: "forward.fill", label: "Next")
+                        Spacer(minLength: 0)
+                        if snapshot.applicationBundleIdentifier != nil {
+                            Button { controller.openPlayer() } label: {
+                                Image(systemName: "arrow.up.forward.app")
+                            }
+                            .buttonStyle(.plain)
+                            .help("Open Player")
+                            .accessibilityLabel("Open Player")
+                        }
+                    }
+                    if let elapsed = snapshot.elapsedTime, let duration = snapshot.duration, duration > 0 {
+                        ProgressView(value: max(0, min(elapsed, duration)), total: duration)
+                            .progressViewStyle(.linear)
+                            .tint(accent.primary)
+                            .accessibilityLabel("Playback progress")
+                            .accessibilityValue("\(Int(elapsed)) of \(Int(duration)) seconds")
+                    }
                 }
-                if let album = snapshot.album {
-                    Text(album)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        if let elapsed = snapshot.elapsedTime, let duration = snapshot.duration, duration > 0 {
-            ProgressView(value: min(elapsed, duration), total: duration)
-                .progressViewStyle(.linear)
-                .accessibilityLabel("Playback progress")
-                .accessibilityValue("\(Int(elapsed)) of \(Int(duration)) seconds")
-        }
-        HStack(spacing: 18) {
-            commandButton(.previous, symbol: "backward.fill", label: "Previous")
-            commandButton(
-                .togglePlayPause,
-                symbol: snapshot.playbackState == .playing ? "pause.fill" : "play.fill",
-                label: snapshot.playbackState == .playing ? "Pause" : "Play"
-            )
-            commandButton(.next, symbol: "forward.fill", label: "Next")
-            Spacer(minLength: 0)
-            if snapshot.applicationBundleIdentifier != nil {
-                Button("Open Player") { controller.openPlayer() }
-                    .buttonStyle(.plain)
-                    .font(.caption.weight(.semibold))
             }
         }
     }
 
-    private func status(_ text: String, symbol: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: symbol)
-                .foregroundStyle(.secondary)
-            Text(text)
-                .font(.callout)
-                .foregroundStyle(.secondary)
+    private func status(_ text: String, symbol: String, accent: ModuleAccent) -> some View {
+        GlassCard(tint: accent.primary) {
+            HStack(spacing: 10) {
+                Image(systemName: symbol)
+                    .foregroundStyle(accent.primary)
+                Text(text)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
     private func commandButton(_ command: NowPlayingCommand, symbol: String, label: String) -> some View {
@@ -122,12 +133,12 @@ public struct NowPlayingControlsView: View {
                 .resizable()
                 .interpolation(.high)
                 .scaledToFill()
-                .frame(width: 44, height: 44)
+                .frame(width: 48, height: 48)
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         } else {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(.quaternary)
-                .frame(width: 44, height: 44)
+                .frame(width: 48, height: 48)
                 .overlay(Image(systemName: "music.note").foregroundStyle(.secondary))
         }
     }

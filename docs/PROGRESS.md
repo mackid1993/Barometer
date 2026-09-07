@@ -4663,3 +4663,28 @@ No TCC grants or menu bar manager preferences were changed. The packaged app own
 `make app` passed (main release 26.13 seconds; bridge 0.34 seconds; dist/p8-t87-rollback-build.log). Replaced and
 relaunched /Applications/Barometer.app successfully. No test/screenshot/memory reruns, per David's standing waiver.
 The notification agents were resumed at David's request; notification dismissal remains the final active task.
+
+
+### P8-T88: compact Now Playing and current notification targeting
+
+Reduced the player from 266 to 140 points total height, with a single shared GlassCard, artwork, metadata,
+transport buttons, progress, and a compact footer. Removed the menu bar capsule/aura and kept a plain play
+symbol. Attached panels now anchor to the actual status button and its screen instead of the current mouse
+position. Fixed the missing MenuBarStatsCore import found by the first packaging attempt.
+
+Both media read paths now downsample artwork with ImageIO before enforcing the 256 KiB output limit. Input
+remains bounded to 16 MiB, 16,384 pixels per dimension, and 64 megapixels. The live media bridge returned
+available metadata and artwork (169,604 base64 characters) without printing track content. Added CoreGraphics
+linkage for the bridge.
+
+Verification: make app passed release compilation and signed packaging (dist/p8-t88-player-polish-build.log).
+Replaced and relaunched /Applications/Barometer.app. No test suite, screenshot, or memory reruns, per David's
+explicit waiver. Installed visual behavior and transport controls remain for David to test.
+
+Notification probe correction: the guarded Discord probe incorrectly required exactly one Discord notification.
+The live list contains two; the earlier UUID is still present. The agent changed the ignored dist probe to
+require one exact UUID match instead of a sole application record and selected a current delivery. That probe
+returned unavailable because no individual AX row was exposed; no action dispatched and zero unrelated records
+removed. This corrects the diagnostic target guard, not the unresolved production native dismissal path.
+The NCAnnounceNotification observer posts on NSApp with UUID user info, not on a remotely actionable row.
+Distributed notification callsites likewise contained lifecycle events, not a UUID dismissal request.
