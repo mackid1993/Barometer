@@ -4716,3 +4716,21 @@ from a confirmed closed state did not expose the original record; no dismissal w
 
 Verification: make app passed (dist/p8-t88-player-spacing-build.log), installed and relaunched the app.
 No full test, screenshot, or memory verification reruns, per David's waiver.
+
+
+### P8-T88 correction: reveal the complete long track title
+
+David reported that Suite: Judy Blue Eyes - 2005 Remastered still appeared cut off while scrolling. Removed
+the size-preference animation restart path in favor of a stable full-string AppKit measurement using the
+same 13-point semibold font. Equal viewport size updates no longer restart the animation. An overflowing
+title travels six points beyond the calculated reveal endpoint, holds for 1.5 seconds, returns, and holds
+at the beginning. Short titles and Reduce Motion do not animate; closing cancels the lifecycle task.
+
+Notification research follow-up: the exact locally traced synthetic event did not open the panel through
+CGEventPostToPid, cgSessionEventTap, or cghidEventTap from the observed closed state. All three attempts
+left the original Discord notification present, observed zero unrelated removals, and dispatched no
+notification action. This narrows those event-delivery attempts only; symbolic hotkey routing remains under
+local LLVM investigation. The successful individual AX Close and delayed native removal are preserved above.
+
+Verification: make app passed release packaging (dist/p8-t88-title-scroll-build.log); replaced and relaunched
+/Applications/Barometer.app. No test suite or visual benchmark reruns, per David's waiver.

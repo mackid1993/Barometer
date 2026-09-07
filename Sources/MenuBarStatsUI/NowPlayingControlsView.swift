@@ -147,7 +147,6 @@ public struct NowPlayingControlsView: View {
 
 private struct OverflowMarquee: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var textWidth: CGFloat = 0
     @State private var availableWidth: CGFloat = 0
     @State private var offset: CGFloat = 0
     @State private var animationTask: Task<Void, Never>?
@@ -155,6 +154,11 @@ private struct OverflowMarquee: View {
     let text: String
 
     private let font = Font.system(size: 13, weight: .semibold)
+    private var textWidth: CGFloat {
+        ceil((text as NSString).size(withAttributes: [
+            .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+        ]).width)
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -163,26 +167,18 @@ private struct OverflowMarquee: View {
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
                 .offset(x: offset)
-                .background {
-                    GeometryReader { measurement in
-                        Color.clear.preference(key: MarqueeTextWidthKey.self, value: measurement.size.width)
-                    }
-                }
                 .onAppear {
                     availableWidth = geometry.size.width
                     restartAnimation()
                 }
                 .onChange(of: geometry.size.width) { _, width in
+                    guard abs(width - availableWidth) > 0.5 else { return }
                     availableWidth = width
                     restartAnimation()
                 }
         }
         .frame(height: 16)
         .clipped()
-        .onPreferenceChange(MarqueeTextWidthKey.self) { width in
-            textWidth = width
-            restartAnimation()
-        }
         .onChange(of: reduceMotion) { _, _ in restartAnimation() }
         .onDisappear {
             animationTask?.cancel()
@@ -198,22 +194,24 @@ private struct OverflowMarquee: View {
         var transaction = Transaction(animation: nil)
         transaction.disablesAnimations = true
         withTransaction(transaction) { offset = 0 }
-        let distance = max(0, textWidth - availableWidth)
-        guard distance > 1, !reduceMotion else { return }
+        let overflow = textWidth - availableWidth
+        guard overflow > 1, availableWidth > 0, !reduceMotion else { return }
+        let distance = overflow + 6
         animationTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(800))
             guard !Task.isCancelled else { return }
-            withAnimation(.linear(duration: max(2.5, Double(distance / 28))).repeatForever(autoreverses: true)) {
-                offset = -distance
+            let travelDuration = max(2.5, Double(distance / 28))
+            while !Task.isCancelled {
+                withAnimation(.linear(duration: travelDuration)) { offset = -distance }
+                try? await Task.sleep(for: .seconds(travelDuration))
+                guard !Task.isCancelled else { return }
+                try? await Task.sleep(for: .milliseconds(1_500))
+                guard !Task.isCancelled else { return }
+                withAnimation(.linear(duration: travelDuration)) { offset = 0 }
+                try? await Task.sleep(for: .seconds(travelDuration))
+                guard !Task.isCancelled else { return }
+                try? await Task.sleep(for: .milliseconds(1_500))
             }
         }
-    }
-}
-
-private struct MarqueeTextWidthKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
     }
 }
