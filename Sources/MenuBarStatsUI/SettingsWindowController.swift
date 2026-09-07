@@ -734,9 +734,9 @@ private struct AboutSettingsView: View {
                             }
                             .buttonStyle(.glass)
                         }
-                        if let thawURL = URL(string: "https://github.com/thaw-app/Thaw") {
+                        if let thawURL = URL(string: "https://github.com/thaw-app") {
                             Link(destination: thawURL) {
-                                Label("Thaw", systemImage: "menubar.rectangle")
+                                Label("Thaw on GitHub", systemImage: "menubar.rectangle")
                             }
                             .buttonStyle(.glass)
                         }
@@ -756,8 +756,11 @@ private struct AboutSettingsView: View {
                             label: "Hardware sources", value: "IOKit, IOReport, SMC (read-only)", symbol: "cpu",
                             tint: accent.primary)
                         MetricRow(
-                            label: "Thanks", value: "The Thaw developers, for the open source menu bar manager",
+                            label: "Thaw", value: "Toni Förster (stonerl) and René (diazdesandi), thaw-app on GitHub",
                             symbol: "heart", tint: accent.secondary)
+                        MetricRow(
+                            label: "Thaw's origin", value: "Ice by Jordan Baird", symbol: "snowflake",
+                            tint: accent.secondary)
                     }
                 }
                 .frame(maxWidth: 460)
