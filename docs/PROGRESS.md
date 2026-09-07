@@ -4011,3 +4011,33 @@ Verification:
   path, rendering both widths and framing the reserved image against the resolved length.
 - `swift build -c release` completed and `git diff --check` reported no whitespace errors.
 - The release run carrying the defect was canceled before it produced an artifact.
+
+## P8-T71 Make Item width a high-water mark and include internal per-process traffic
+
+Two defects from David's testing.
+
+**Item width moved items constantly.** Tracking the live width exactly meant the frame followed every reading in both
+directions, which measured at about eleven writes a minute under load and read as jitter. The frame is now a
+high-water mark: `StatusItemLengthLatch.allowsGrowth` lets it widen when a reading needs more room and never lets it
+shrink, so an item settles after a short warm-up. Because the frame is only ever too wide, it cannot clip. Changing
+the preference is a user action and earns exactly one resize through `permitResize()`, so turning it on tightens
+immediately and turning it off restores the reserved width. `allowsGrowth` stays false for an installation that never
+enables the preference, which keeps the one-way contract intact.
+
+**Per-process activity showed only external traffic.** `ProcessNetworkSource` invoked `nettop` with `-t external`,
+which excludes loopback and local-link classes, so work that never leaves the Mac reported as no activity at all. The
+invocation now also passes `loopback`, `wifi`, and `wired`. On this machine that is 31 processes with traffic against
+26 before. The dropdown's empty state said "No recent external network activity" and now says "No recent network
+activity", because it no longer describes an external-only view.
+
+David separately confirmed the spacing preference was working; the missing space savings were from Item width being
+switched off.
+
+Verification:
+
+- `make test` passed: 292 tests across three targets.
+- New coverage proves the frame grows but never shrinks, that an unchanged width is never rewritten, that a
+  preference change permits exactly one resize in either direction and then spends the permit, and that a realistic
+  sequence of twelve readings settles in two writes rather than tracking each change.
+- The `nettop` filters were compared directly before changing the source.
+- `swift build -c release` completed and `git diff --check` reported no whitespace errors.

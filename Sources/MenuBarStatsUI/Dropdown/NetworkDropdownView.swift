@@ -296,7 +296,7 @@ public struct NetworkDropdownView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } else if sample.topProcesses.isEmpty {
-            Text("No recent external network activity")
+            Text("No recent network activity")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } else {

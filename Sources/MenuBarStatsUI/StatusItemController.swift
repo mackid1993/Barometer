@@ -44,6 +44,7 @@ public final class StatusItemController<Sample: HistoryProjecting> {
     private let logger = Logger(subsystem: "com.barometer.app", category: "render")
     private var lengthLatch = StatusItemLengthLatch()
     private var hasAssignedLength = false
+    private var appliedLiveItemWidth: Bool?
     private var appliedImageFingerprint: Int?
     private var geometryLatch = StatusItemGeometryLatch()
 
@@ -126,7 +127,13 @@ public final class StatusItemController<Sample: HistoryProjecting> {
         // readable interpretation and the one the other modules already used via `suffix`.
         let history = store.history.recent(StatusItemRendering.renderedHistoryLimit)
         let content = renderContent(store.latestSample, history, moduleSettings, context)
-        lengthLatch.allowsLiveResize = appSettings.usesLiveItemWidth
+        if appliedLiveItemWidth != appSettings.usesLiveItemWidth {
+            // Changing the preference is a user action, so it earns one resize in either
+            // direction: on tightens now, off restores the reserved width now.
+            appliedLiveItemWidth = appSettings.usesLiveItemWidth
+            lengthLatch.permitResize()
+        }
+        lengthLatch.allowsGrowth = appSettings.usesLiveItemWidth
         let reservedFontWeightWidth: CGFloat
         if !appSettings.usesLiveItemWidth, lengthLatch.length == nil, appSettings.fontWeight != .semibold {
             var sizingSettings = appSettings
@@ -243,30 +250,37 @@ struct StatusItemLengthLatch {
     /// The sanctioned exception to the one-assignment invariant in
     /// `docs/MACOS27_STATUS_ITEM_SIZING.md`, enabled only by the Item width preference. Default is
     /// off, which keeps the latch one-way.
-    var allowsLiveResize = false {
-        didSet {
-            if allowsLiveResize { hasEverResizedLive = true }
-        }
-    }
-
-    /// Whether this controller has ever run with live resize enabled.
+    /// Whether the frame may widen when the content no longer fits.
     ///
-    /// Corrective growth is limited to latches that have: an item that has only ever used reserved
-    /// widths keeps the strict one-way contract, and its proposals never exceed the latched length
-    /// anyway.
-    private var hasEverResizedLive = false
+    /// Set while the Item width preference is on. The frame becomes a high-water mark: it takes the
+    /// width of the current reading and then only ever grows, so the item settles after a short
+    /// warm-up instead of moving on every sample. It can never clip, because a frame is only ever
+    /// too wide, never too narrow.
+    var allowsGrowth = false
+
+    /// Permits exactly one resize in either direction.
+    ///
+    /// Used when the user changes the preference, so turning it on tightens immediately and turning
+    /// it off restores the reserved width rather than cutting the reading off.
+    private var permitsOneResize = false
+
+    /// Allows the next proposal through, whether it is wider or narrower.
+    mutating func permitResize() {
+        permitsOneResize = true
+    }
 
     mutating func resolve(_ proposed: CGFloat) -> (length: CGFloat, shouldAssign: Bool) {
         if let length {
             // A frame is never allowed to be narrower than the content drawn into it: the image is
-            // drawn from the leading edge, so a short frame cuts the reading off. Growth is
-            // therefore always permitted, and shrinking only while live resize is on. This is what
-            // restores the reserved width when the user turns live width off; with the preference
-            // never enabled the proposal always equals the latched length and nothing is written.
-            let mustGrow = hasEverResizedLive && proposed > length
-            guard allowsLiveResize || mustGrow, proposed != length else {
+            // drawn from the leading edge, so a short frame cuts the reading off. Growth therefore
+            // happens whenever the preference is on, while shrinking needs an explicit one-shot
+            // permit from a user action. With the preference never enabled the proposal always
+            // equals the latched length, so nothing is written and the one-way contract holds.
+            let allowed = permitsOneResize || (allowsGrowth && proposed > length)
+            guard allowed, proposed != length else {
                 return (length, false)
             }
+            permitsOneResize = false
             self.length = proposed
             return (proposed, true)
         }

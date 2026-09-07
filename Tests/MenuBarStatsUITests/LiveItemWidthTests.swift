@@ -30,7 +30,7 @@ struct LiveItemWidthTests {
 
     // MARK: - Length latch
 
-    @Test("The length latch stays one-way unless live resize is enabled")
+    @Test("The length latch stays one-way unless the preference is on")
     func lengthLatchIsOneWayByDefault() {
         var latch = StatusItemLengthLatch()
         #expect(latch.resolve(40) == (40, true))
@@ -39,79 +39,52 @@ struct LiveItemWidthTests {
         #expect(latch.length == 40)
     }
 
-    @Test("Live resize re-assigns only when the proposed width actually changes")
-    func liveLatchReassignsOnChangeOnly() {
+    @Test("Item width makes the frame a high-water mark: it grows but never shrinks")
+    func liveWidthGrowsButNeverShrinks() {
         var latch = StatusItemLengthLatch()
-        latch.allowsLiveResize = true
+        latch.allowsGrowth = true
         #expect(latch.resolve(40) == (40, true))
+
+        // A wider reading widens the frame, so the reading can never be cut off.
         #expect(latch.resolve(56) == (56, true))
-        // Re-assigning an unchanged length is exactly the write that first made items move.
+        // A narrower reading leaves it alone. This is what stops the item moving on every sample.
+        #expect(latch.resolve(24) == (56, false))
+        #expect(latch.resolve(40) == (56, false))
+        // An unchanged width is never rewritten.
         #expect(latch.resolve(56) == (56, false))
-        #expect(latch.resolve(24) == (24, true))
     }
 
-    @Test("Enabling live resize mid-process does not retroactively reassign an unchanged width")
-    func enablingLiveResizeKeepsCurrentWidthUntilItChanges() {
+    @Test("Changing the preference earns exactly one resize in either direction")
+    func preferenceChangePermitsOneResize() {
         var latch = StatusItemLengthLatch()
+        latch.allowsGrowth = true
+        #expect(latch.resolve(56) == (56, true))
+
+        // Turning the preference on tightens immediately rather than waiting for a relaunch.
+        latch.permitResize()
         #expect(latch.resolve(40) == (40, true))
-        latch.allowsLiveResize = true
-        #expect(latch.resolve(40) == (40, false))
-        #expect(latch.resolve(41) == (41, true))
+        // The permit is spent: the next narrower proposal is ignored again.
+        #expect(latch.resolve(32) == (40, false))
+
+        // Turning it off restores the reserved width instead of clipping.
+        latch.allowsGrowth = false
+        latch.permitResize()
+        #expect(latch.resolve(56) == (56, true))
     }
 
-    @Test("Turning live width off restores the reserved width instead of clipping")
-    func disablingLiveWidthRestoresTheWiderFrame() {
-        // Reproduces a real defect: with the preference on, items latch to a narrow live width.
-        // Turning it off makes the renderer produce the wider reserved content again, but a
-        // one-way latch kept the narrow frame and the image was drawn into it, cutting the reading
-        // off at the right edge.
+    @Test("A high-water frame settles instead of tracking every sample")
+    func highWaterFrameSettles() {
+        // The defect in tracking live width exactly was constant movement. Feeding a realistic
+        // sequence of readings must produce a small number of writes that then stops.
         var latch = StatusItemLengthLatch()
-        latch.allowsLiveResize = true
-        #expect(latch.resolve(32) == (32, true))
-
-        latch.allowsLiveResize = false
-        let decision = latch.resolve(50)
-        #expect(decision.length == 50, "the frame must grow back to fit the reserved content")
-        #expect(decision.shouldAssign, "the wider frame has to reach AppKit or the item clips")
-    }
-
-    @Test("A latch that never used live width keeps the strict one-way contract")
-    func neverLiveLatchRejectsEveryLaterProposal() {
-        // Corrective growth must not leak into installs that never enable the preference: the
-        // one-way rule is what keeps a menu bar manager from reassessing an item.
-        var latch = StatusItemLengthLatch()
-        #expect(latch.resolve(40) == (40, true))
-        #expect(latch.resolve(56) == (40, false))
-        #expect(latch.resolve(24) == (40, false))
-        #expect(latch.length == 40)
-    }
-
-    @Test("Turning live width off leaves the reading fully drawn, not cut off")
-    func disablingLiveWidthDoesNotClipTheRendering() {
-        // End to end over the path that actually clipped: narrow live frame, then the wider
-        // reserved rendering after the preference is turned off.
-        let renderer = TextRenderer(text: "67°", reservedText: "888°")
-        let live = renderer.render(in: context(live: true))
-        let reserved = renderer.render(in: context(live: false))
-        #expect(live.size.width < reserved.size.width)
-
-        var latch = StatusItemLengthLatch()
-        latch.allowsLiveResize = true
-        _ = latch.resolve(StatusItemRendering.roundedLength(live.size.width))
-
-        latch.allowsLiveResize = false
-        let decision = latch.resolve(StatusItemRendering.roundedLength(reserved.size.width))
-        let framed = StatusItemRendering.image(reserved, framedTo: decision.length)
-        #expect(framed.size.width >= reserved.size.width, "the reserved rendering must not be cut off")
-    }
-
-    @Test("A frame narrower than its content would clip, which is why growth is allowed")
-    func framingNarrowerThanContentClips() {
-        let wide = NSImage(size: NSSize(width: 50, height: 22))
-        let framed = StatusItemRendering.image(wide, framedTo: 32)
-        // Documents the consequence the latch must prevent.
-        #expect(framed.size.width == 32)
-        #expect(framed.size.width < wide.size.width)
+        latch.allowsGrowth = true
+        let widths: [CGFloat] = [40, 38, 44, 40, 44, 36, 44, 42, 44, 40, 38, 44]
+        var writes = 0
+        for width in widths where latch.resolve(width).shouldAssign { writes += 1 }
+        #expect(latch.length == 44)
+        // Two writes: the first frame, then one growth to the widest reading. Tracking exactly
+        // would have written on nearly every change.
+        #expect(writes == 2, "expected the frame to settle, got \(writes) writes")
     }
 
     // MARK: - Reservation collapse

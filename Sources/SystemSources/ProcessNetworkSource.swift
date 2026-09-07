@@ -1,6 +1,6 @@
 import Foundation
 
-/// Cumulative external-network counters reported for one process.
+/// Cumulative network counters reported for one process, internal traffic included.
 public struct ProcessNetworkCounter: Equatable, Sendable {
     public let processIdentifier: pid_t
     public let fallbackName: String
@@ -44,7 +44,11 @@ public struct ProcessNetworkSource: Sendable {
     /// Creates a per-process network source.
     public init() {}
 
-    /// Reads one cumulative snapshot for external, non-loopback traffic.
+    /// Reads one cumulative snapshot covering every traffic class.
+    ///
+    /// `nettop` defaults to reporting nothing unless traffic classes are named, and requesting only
+    /// `external` hid loopback and local-link activity: work that never leaves the Mac, such as
+    /// virtual machines, containers, and local servers, was reported as no activity at all.
     public func read() throws -> [ProcessNetworkCounter] {
         guard isAvailable else {
             throw ProcessNetworkSourceError.unavailable
@@ -56,7 +60,7 @@ public struct ProcessNetworkSource: Sendable {
         process.executableURL = URL(fileURLWithPath: Self.executablePath)
         process.arguments = [
             "-P", "-L", "1", "-n", "-x",
-            "-t", "external",
+            "-t", "external", "-t", "loopback", "-t", "wifi", "-t", "wired",
             "-J", "bytes_in,bytes_out",
         ]
         process.standardOutput = outputPipe
