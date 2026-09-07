@@ -4167,3 +4167,20 @@ Verification:
   text size stays out of saved settings until Apply Changes, is clamped while staged, and is not a change when
   restaged to the saved value.
 - `swift build -c release` completed and `git diff --check` reported no whitespace errors.
+
+## P8-T77 Make menu-hosted dropdowns follow the app's appearance
+
+David's screenshots showed the Sensors dropdown dark while the CPU dropdown was light. CPU, GPU, Memory, and Time
+present in an `AttachedPanel`, an `NSPanel` that follows `NSApp.appearance`. Sensors and the other modules host their
+content in an `NSMenu`, and a menu draws with the system's menu appearance regardless of the application's, so the
+new Light, Dark, or System choice never reached them. On an always-dark Mac this was invisible; the picker exposed it.
+
+`DropdownController` now gives the menu-hosted `NSHostingView` the application's appearance when it creates it and
+again each time the menu opens, so a change in General applies on the next opening. A nil application appearance
+leaves the view following the menu, which is what System means.
+
+Verification:
+
+- `make test` passed: 303 tests across three targets. The change is a window-appearance assignment on a live menu
+  and has no unit-level coverage; it was verified on David's machine after install.
+- `swift build -c release` completed and `git diff --check` reported no whitespace errors.
