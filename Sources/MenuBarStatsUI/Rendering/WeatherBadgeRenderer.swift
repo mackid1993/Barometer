@@ -171,13 +171,17 @@ public struct WeatherBadgeRenderer: MenuBarRenderer {
 
     /// A crescent peeking out beside the cloud cap, in the spot the day mark gives its sun.
     private static func cloudMoon(_ box: NSRect) {
+        // The crescent stands where the sun disc stands, so the day and night marks read as the same mark with
+        // a different light in it. Placing it higher and further out, and biting from the low left, left the
+        // visible crescent adrift of the cloud and over the degree sign.
         let r: CGFloat = 2.8
-        let c = NSPoint(x: box.maxX - r + 0.2, y: box.maxY + 3.8)
+        let c = NSPoint(x: box.maxX - r - 0.2, y: box.maxY + 3.6)
         NSBezierPath(ovalIn: NSRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)).fill()
-        // The bite is cut from everything drawn so far, so it stays inside the cap's trailing room:
-        // its left edge is 3.6 points in from the box, the cap's last puff never reaches past 4.2.
+        // The bite comes from above and to the right, so what is left of the disc leans back toward the cloud
+        // rather than away from it. It is cut from everything drawn so far, so it stays inside the cap's
+        // trailing room, which the partly cloudy marks reserve at 6.5 points.
         NSGraphicsContext.current?.compositingOperation = .destinationOut
-        NSBezierPath(ovalIn: NSRect(x: c.x - r + 1.8, y: c.y - r + 1.1, width: r * 2, height: r * 2)).fill()
+        NSBezierPath(ovalIn: NSRect(x: c.x - r + 1.7, y: c.y - r + 1.5, width: r * 2, height: r * 2)).fill()
         NSGraphicsContext.current?.compositingOperation = .sourceOver
     }
 
