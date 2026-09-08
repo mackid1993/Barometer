@@ -27,6 +27,13 @@ public struct WeatherBadgeRenderer: MenuBarRenderer {
     /// Horizontal room either side of the digits for rays and the crescent.
     static let sidePadding: CGFloat = 2
 
+    /// How far the whole mark drops so the ink sits centred in the bar.
+    ///
+    /// Every condition drops by the same amount. Dropping only the ones that needed it moved the number itself
+    /// when the weather changed, which is worse than any mark being a little high, so what hangs below the
+    /// digits was shortened to fit instead.
+    static let drop: CGFloat = 3.2
+
     /// Creates a weather mark for one condition and reading.
     ///
     /// A nil condition draws the reading alone, for the moment before a forecast exists. It keeps
@@ -55,19 +62,25 @@ public struct WeatherBadgeRenderer: MenuBarRenderer {
         let width = ceil(textWidth + Self.sidePadding * 2)
         let capHeight = font.capHeight
 
+        // A mark with something above the digits and nothing below is a block of ink that stops at the
+        // baseline, so centering the digits alone leaves it sitting high with empty space underneath. The
+        // whole block is centered instead: the digits drop by half the mark's height above them, and the
+        // mark keeps clear air between itself and the number rather than resting on it.
+
         let image = NSImage(size: NSSize(width: width, height: context.thickness), flipped: false) { rect in
             let size = digits.size()
-            let origin = NSPoint(x: (rect.width - size.width) / 2, y: rect.midY - size.height / 2)
-            // The box the marks are measured from: the digits' cap height, centered in the item.
+            let origin = NSPoint(
+                x: (rect.width - size.width) / 2, y: rect.midY - size.height / 2 - Self.drop)
+            // The box the marks are measured from: the digits' cap height, dropped with them.
             let box = NSRect(
-                x: Self.sidePadding, y: rect.midY - capHeight / 2,
+                x: Self.sidePadding, y: rect.midY - capHeight / 2 - Self.drop,
                 width: rect.width - Self.sidePadding * 2, height: capHeight)
 
             palette.cloud.setFill()
             palette.cloud.setStroke()
             if let condition, condition != .clearDay, condition != .clearNight, condition != .unknown {
                 let partial = condition == .partlyCloudy || condition == .partlyCloudyNight
-                Self.cloudCap(box, trailingRoom: partial ? 6.5 : 0)
+                Self.cloudCap(box, trailingRoom: partial ? 6.5 : 0, lift: 2.2)
             }
 
             // The rain that shares a mark with something else goes down first, in its own color.
@@ -91,7 +104,7 @@ public struct WeatherBadgeRenderer: MenuBarRenderer {
             case .fog: Self.fogLines(box)
             case .drizzle: Self.drizzleTicks(box)
             case .rain: Self.drops(box, at: [0.24, 0.5, 0.76])
-            case .heavyRain: Self.drops(box, at: [0.1, 0.37, 0.63, 0.9], reach: 1.2...5.4)
+            case .heavyRain: Self.drops(box, at: [0.1, 0.37, 0.63, 0.9], reach: 0.5...3.2)
             case .sleet: Self.flakes(box, at: [0.5])
             case .snow: Self.flakes(box, at: [0.24, 0.5, 0.76])
             case .thunder, .thunderstorm: Self.bolt(box)
@@ -113,8 +126,8 @@ public struct WeatherBadgeRenderer: MenuBarRenderer {
     // MARK: - Marks (all measured off the digits' cap box)
 
     /// A cloud resting on the digits: a low rounded bar with three puffs, the width of the number.
-    private static func cloudCap(_ box: NSRect, trailingRoom: CGFloat) {
-        let base = NSRect(x: box.minX, y: box.maxY + 1.2, width: box.width - trailingRoom, height: 1.8)
+    private static func cloudCap(_ box: NSRect, trailingRoom: CGFloat, lift: CGFloat) {
+        let base = NSRect(x: box.minX, y: box.maxY + lift, width: box.width - trailingRoom, height: 1.8)
         let path = NSBezierPath(roundedRect: base, xRadius: 0.9, yRadius: 0.9)
         for (fraction, radius) in [(0.22, 2.2), (0.50, 2.9), (0.78, 2.3)] as [(CGFloat, CGFloat)] {
             let x = base.minX + base.width * fraction
@@ -156,7 +169,7 @@ public struct WeatherBadgeRenderer: MenuBarRenderer {
     /// A sun disc peeking out beside the cloud cap.
     private static func sunDisc(_ box: NSRect) {
         let r: CGFloat = 2.5
-        let c = NSPoint(x: box.maxX - r - 0.2, y: box.maxY + 2.9)
+        let c = NSPoint(x: box.maxX - r - 0.2, y: box.maxY + 3.9)
         NSBezierPath(ovalIn: NSRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)).fill()
         let path = NSBezierPath()
         path.lineWidth = 1.2
@@ -175,7 +188,7 @@ public struct WeatherBadgeRenderer: MenuBarRenderer {
         // a different light in it. Placing it higher and further out, and biting from the low left, left the
         // visible crescent adrift of the cloud and over the degree sign.
         let r: CGFloat = 2.8
-        let c = NSPoint(x: box.maxX - r - 0.2, y: box.maxY + 2.9)
+        let c = NSPoint(x: box.maxX - r - 0.2, y: box.maxY + 3.9)
         NSBezierPath(ovalIn: NSRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)).fill()
         // The bite comes from above and to the right, so what is left of the disc leans back toward the cloud
         // rather than away from it. It is cut from everything drawn so far, so it stays inside the cap's
@@ -190,7 +203,7 @@ public struct WeatherBadgeRenderer: MenuBarRenderer {
     /// `reach` is how far below the digits a stroke starts and ends; the slant stays the same, so a
     /// longer reach is a longer stroke. Three at the default reach are rain, four at a longer one
     /// are heavy rain, and two make room for something between them.
-    private static func drops(_ box: NSRect, at fractions: [CGFloat], reach: ClosedRange<CGFloat> = 1.6...4.8) {
+    private static func drops(_ box: NSRect, at fractions: [CGFloat], reach: ClosedRange<CGFloat> = 0.7...2.7) {
         let path = NSBezierPath()
         path.lineWidth = 1.5
         path.lineCapStyle = .round
