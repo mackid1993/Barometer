@@ -156,7 +156,7 @@ public struct WeatherBadgeRenderer: MenuBarRenderer {
     /// A sun disc peeking out beside the cloud cap.
     private static func sunDisc(_ box: NSRect) {
         let r: CGFloat = 2.5
-        let c = NSPoint(x: box.maxX - r - 0.2, y: box.maxY + 3.6)
+        let c = NSPoint(x: box.maxX - r - 0.2, y: box.maxY + 2.9)
         NSBezierPath(ovalIn: NSRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)).fill()
         let path = NSBezierPath()
         path.lineWidth = 1.2
@@ -175,7 +175,7 @@ public struct WeatherBadgeRenderer: MenuBarRenderer {
         // a different light in it. Placing it higher and further out, and biting from the low left, left the
         // visible crescent adrift of the cloud and over the degree sign.
         let r: CGFloat = 2.8
-        let c = NSPoint(x: box.maxX - r - 0.2, y: box.maxY + 3.6)
+        let c = NSPoint(x: box.maxX - r - 0.2, y: box.maxY + 2.9)
         NSBezierPath(ovalIn: NSRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)).fill()
         // The bite comes from above and to the right, so what is left of the disc leans back toward the cloud
         // rather than away from it. It is cut from everything drawn so far, so it stays inside the cap's

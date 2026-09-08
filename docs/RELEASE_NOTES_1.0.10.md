@@ -8,8 +8,10 @@ not been sent to Apple to be checked.
 ## The moon sits on the cloud again
 
 - The partly cloudy at night mark drew its crescent adrift of the cloud, floating over the degree sign. It now
-  sits exactly where the sun sits in the daytime mark, tucked against the cloud, so the two read as the same
-  mark with a different light in it.
+  sits exactly where the sun sits in the daytime mark, so the two read as the same mark with a different light
+  in it.
+- Both the sun and the moon sat proud of the cloud rather than beside it, which made the partly cloudy marks
+  look like two things that happened to be next to each other. They rest on the cloud's shoulder now.
 
 Everything in 1.0.9 is included. If you never installed it, that release brought the choice between Barometer's
 own weather marks and the system symbols, fourteen weather conditions instead of eight, a corner picker for
