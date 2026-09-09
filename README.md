@@ -37,6 +37,11 @@ details. Barometer works with menu bar managers such as [Thaw](https://github.co
 There is no account, no subscription, and no telemetry. Barometer is one app running as one process with no helper
 programs.
 
+**On Windows?** There is a companion, [Barometer for Windows](https://github.com/mackid1993/barometer-win), which
+lives in the Windows 11 system tray. It is a separate program rather than this one built twice - Rust against Win32
+where this is Swift against AppKit - so it does not have all the same features and its version numbers are its own.
+It has its own releases, and each app updates itself from its own repository.
+
 ## What it shows
 
 | Item | Menu bar | Panel |
